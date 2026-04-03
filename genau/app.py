@@ -74,9 +74,9 @@ def main(argv: list[str] | None = None) -> int:
     stamp_shortcut_aumid()
 
     # Ensure the broker (OSR2 serial bridge) is running.
-    if config.fun_time_project_dir:
+    if config.broker_tray_launcher:
         from .broker import ensure_broker_running
-        ensure_broker_running(config.fun_time_project_dir / "launch_broker_tray.vbs")
+        ensure_broker_running(config.broker_tray_launcher)
 
     logger = configure_logging("genau", config.log_file("genau_listener"))
     install_exception_logging(logger)

@@ -51,6 +51,38 @@ class TestLoadConfig:
         cfg = load_config(cfg_path)
         assert cfg.logs_dir == tmp_path / "state"
 
+    def test_broker_tray_launcher_defaults_to_none(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.broker_tray_launcher is None
+
+    def test_loads_broker_tray_launcher(self, tmp_path: Path):
+        vbs = tmp_path / "launch_broker_tray.vbs"
+        vbs.touch()
+        cfg_file = tmp_path / "genau_config.json"
+        cfg_file.write_text(json.dumps({
+            "clips_dir": str(tmp_path / "clips"),
+            "state_dir": "state",
+            "broker_tray_launcher": str(vbs),
+            "genau": {
+                "shuffle_on_load": True,
+                "beats_per_loop": 1.0,
+                "clip_cache_size": 2,
+                "render_batch": 6,
+                "bpm_smoothing": 0.14,
+                "sync_strength": 0.35,
+                "udp_host": "127.0.0.1",
+                "udp_port": 50555,
+                "notify_host": "127.0.0.1",
+                "notify_port": 50556,
+                "status_hide_ms": 1200,
+                "resize_debounce_ms": 120,
+            },
+        }), encoding="utf-8")
+        (tmp_path / "state").mkdir(exist_ok=True)
+        (tmp_path / "clips").mkdir(exist_ok=True)
+        cfg = load_config(cfg_file)
+        assert cfg.broker_tray_launcher == vbs
+
     def test_relative_state_dir_resolved_against_project_dir(self, tmp_path: Path):
         cfg_file = tmp_path / "genau_config.json"
         cfg_file.write_text(json.dumps({
