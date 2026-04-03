@@ -38,6 +38,7 @@ class ProjectConfig:
     clips_dir: Path
     state_dir: Path
     genau: GenauConfig
+    fun_time_project_dir: Path | None = None
 
     @property
     def genau_cmd_file(self) -> Path:
@@ -90,4 +91,5 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
             status_hide_ms=int(genau_raw["status_hide_ms"]),
             resize_debounce_ms=int(genau_raw["resize_debounce_ms"]),
         ),
+        fun_time_project_dir=_resolve_path(base, raw["fun_time_project_dir"]) if raw.get("fun_time_project_dir") else None,
     )

@@ -66,11 +66,17 @@ def main(argv: list[str] | None = None) -> int:
 
     # Set AppUserModelID before any window creation so Genau gets its
     # own taskbar identity (icon + title) instead of inheriting python.exe's.
-    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id
+    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id, stamp_shortcut_aumid
     try:
         set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:
         pass  # Non-fatal
+    stamp_shortcut_aumid()
+
+    # Ensure the broker (OSR2 serial bridge) is running.
+    if config.fun_time_project_dir:
+        from .broker import ensure_broker_running
+        ensure_broker_running(config.fun_time_project_dir / "launch_broker_tray.vbs")
 
     logger = configure_logging("genau", config.log_file("genau_listener"))
     install_exception_logging(logger)
@@ -206,6 +212,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=config.genau.resize_debounce_ms,
+        quarter_offset=lambda: engine.__setattr__("phase", (engine.phase + 0.25) % 1.0),
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)

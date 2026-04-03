@@ -40,7 +40,7 @@ class FakeNotifier:
         self.closed += 1
 
 
-def _build_controller():
+def _build_controller(*, quarter_offset=None):
     view = FakeView()
     renderer = FakeRenderer()
     selection = FakeSelection()
@@ -53,6 +53,7 @@ def _build_controller():
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=75,
+        quarter_offset=quarter_offset or (lambda: None),
     )
     return controller, view, renderer, selection, notifier, stop_event
 
@@ -85,3 +86,24 @@ def test_on_close_stops_notifier():
     assert stop_event.is_set()
     assert notifier.visible_updates == [False]
     assert notifier.closed == 1
+
+
+def test_ctrl_q_triggers_close():
+    controller, _view, _renderer, _selection, _notifier, stop_event = _build_controller()
+
+    event = type("Event", (), {"key": pygame.K_q, "mod": pygame.KMOD_CTRL})()
+    controller._handle_key(event)
+
+    assert stop_event.is_set()
+
+
+def test_backslash_triggers_quarter_offset():
+    offsets = []
+    controller, _view, _renderer, _selection, _notifier, _stop_event = _build_controller(
+        quarter_offset=lambda: offsets.append(1),
+    )
+
+    event = type("Event", (), {"key": pygame.K_BACKSLASH, "mod": 0})()
+    controller._handle_key(event)
+
+    assert offsets == [1]

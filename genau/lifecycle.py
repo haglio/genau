@@ -15,6 +15,7 @@ class RobotHandLifecycleController:
         stop_event,
         notifier,
         resize_delay_ms: int,
+        quarter_offset=lambda: None,
     ):
         self.view = view
         self.renderer = renderer
@@ -22,6 +23,7 @@ class RobotHandLifecycleController:
         self.stop_event = stop_event
         self.notifier = notifier
         self.resize_delay_ms = resize_delay_ms
+        self.quarter_offset = quarter_offset
         self._resize_pending_at: float | None = None
 
     def process_events(self) -> None:
@@ -36,10 +38,14 @@ class RobotHandLifecycleController:
         self._flush_pending_resize()
 
     def _handle_key(self, event) -> None:
-        if event.key == pygame.K_LEFTBRACKET:
+        if event.key == pygame.K_q and event.mod & pygame.KMOD_CTRL:
+            self.on_close()
+        elif event.key == pygame.K_LEFTBRACKET:
             self.selection.step(-1)
         elif event.key == pygame.K_RIGHTBRACKET:
             self.selection.step(1)
+        elif event.key == pygame.K_BACKSLASH:
+            self.quarter_offset()
 
     def _on_resize(self) -> None:
         self._resize_pending_at = time.monotonic()
