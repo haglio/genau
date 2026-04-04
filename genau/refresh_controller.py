@@ -33,6 +33,8 @@ class RobotHandRefreshController:
         now_source=time.monotonic,
         consume_command=consume_command_file,
         read_paused_state=None,
+        direct_state=None,
+        tcode_sender=None,
     ):
         self.state = state
         self.loader = loader
@@ -54,6 +56,8 @@ class RobotHandRefreshController:
         self.now_source = now_source
         self.consume_command = consume_command
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
+        self.direct_state = direct_state
+        self.tcode_sender = tcode_sender
         self.window_visible = False
 
     def refresh(self) -> None:
@@ -69,30 +73,44 @@ class RobotHandRefreshController:
         self.selection.adopt_pending_clip()
 
         shared = read_shared_state_snapshot(self.state)
-        self.rh_paused["value"] = self.read_paused_state(self.paused_file, logger=self.logger)
+
+        if self.direct_state is not None:
+            auto_active = self.direct_state.playing
+            raw_bpm = self.direct_state.bpm
+            paused = not self.direct_state.playing
+            sync_pulse_id = 0
+        else:
+            self.rh_paused["value"] = self.read_paused_state(self.paused_file, logger=self.logger)
+            auto_active = shared.auto_active
+            raw_bpm = shared.raw_bpm
+            paused = self.rh_paused["value"]
+            sync_pulse_id = shared.sync_pulse_id
 
         self.window_visible = self.notifier.sync_window_visibility(
-            desired_visible=shared.visible,
+            desired_visible=shared.visible if self.direct_state is None else True,
             window_visible=self.window_visible,
             current_clip_path=self.renderer.current_clip_path,
             show_window=self.show_window,
             hide_window=self.hide_window,
         )
 
-        if shared.error:
+        if shared.error and self.direct_state is None:
             return
 
         loop_duration = update_engine(
             self.engine,
             now=now,
-            auto_active=shared.auto_active,
-            raw_bpm=shared.raw_bpm,
-            sync_pulse_id=shared.sync_pulse_id,
+            auto_active=auto_active,
+            raw_bpm=raw_bpm,
+            sync_pulse_id=sync_pulse_id,
             beats_per_loop=self.beats_per_loop,
             bpm_smoothing=self.bpm_smoothing,
             sync_strength=self.sync_strength,
-            paused=self.rh_paused["value"],
+            paused=paused,
         )
+
+        if self.tcode_sender is not None:
+            self.tcode_sender.maybe_send(self.engine.phase, now)
 
         apply_runtime_command(
             self.consume_command(self.command_file, logger=self.logger),
@@ -108,7 +126,7 @@ class RobotHandRefreshController:
             display_index = display_index_for_phase(
                 phase=self.engine.phase,
                 frame_count=frame_count,
-                auto_active=shared.auto_active,
+                auto_active=auto_active,
                 current_frame_index=self.renderer.current_frame_index,
             )
             self.renderer.display_frame(display_index)

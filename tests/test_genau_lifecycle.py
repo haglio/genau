@@ -40,13 +40,13 @@ class FakeNotifier:
         self.closed += 1
 
 
-def _build_controller(*, quarter_offset=None):
+def _build_controller(*, quarter_offset=None, on_toggle_playing=None, on_set_speed=None):
     view = FakeView()
     renderer = FakeRenderer()
     selection = FakeSelection()
     notifier = FakeNotifier()
     stop_event = threading.Event()
-    controller = RobotHandLifecycleController(
+    kwargs = dict(
         view=view,
         renderer=renderer,
         selection=selection,
@@ -55,6 +55,11 @@ def _build_controller(*, quarter_offset=None):
         resize_delay_ms=75,
         quarter_offset=quarter_offset or (lambda: None),
     )
+    if on_toggle_playing is not None:
+        kwargs["on_toggle_playing"] = on_toggle_playing
+    if on_set_speed is not None:
+        kwargs["on_set_speed"] = on_set_speed
+    controller = RobotHandLifecycleController(**kwargs)
     return controller, view, renderer, selection, notifier, stop_event
 
 
@@ -107,3 +112,49 @@ def test_backslash_triggers_quarter_offset():
     controller._handle_key(event)
 
     assert offsets == [1]
+
+
+def test_space_bar_triggers_toggle_playing():
+    toggles = []
+    controller, *_ = _build_controller(
+        on_toggle_playing=lambda: toggles.append(1),
+    )
+
+    event = type("Event", (), {"key": pygame.K_SPACE, "mod": 0})()
+    controller._handle_key(event)
+
+    assert toggles == [1]
+
+
+def test_number_key_5_triggers_set_speed():
+    speeds = []
+    controller, *_ = _build_controller(
+        on_set_speed=lambda level: speeds.append(level),
+    )
+
+    event = type("Event", (), {"key": pygame.K_5, "mod": 0})()
+    controller._handle_key(event)
+
+    assert speeds == [5]
+
+
+def test_number_key_0_maps_to_speed_level_10():
+    speeds = []
+    controller, *_ = _build_controller(
+        on_set_speed=lambda level: speeds.append(level),
+    )
+
+    event = type("Event", (), {"key": pygame.K_0, "mod": 0})()
+    controller._handle_key(event)
+
+    assert speeds == [10]
+
+
+def test_default_callbacks_do_not_raise():
+    controller, *_ = _build_controller()
+
+    event_space = type("Event", (), {"key": pygame.K_SPACE, "mod": 0})()
+    controller._handle_key(event_space)
+
+    event_5 = type("Event", (), {"key": pygame.K_5, "mod": 0})()
+    controller._handle_key(event_5)

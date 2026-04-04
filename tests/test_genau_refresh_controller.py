@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from genau.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
 from genau.refresh_controller import RobotHandRefreshController
 from genau.state import SharedState
@@ -65,6 +66,18 @@ class FakeSelection:
         self.prefetch_calls += 1
 
 
+class FakeTCodeSender:
+    def __init__(self):
+        self.sends: list[tuple[float, float]] = []
+        self.closed = False
+
+    def maybe_send(self, phase: float, now: float) -> None:
+        self.sends.append((phase, now))
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def _build_controller(
     *,
     state: SharedState | None = None,
@@ -75,6 +88,8 @@ def _build_controller(
     command: str | None = None,
     paused_state: bool = False,
     pending_clip_name: str | None = None,
+    direct_state: DirectControlState | None = None,
+    tcode_sender: FakeTCodeSender | None = None,
 ):
     loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
@@ -111,6 +126,8 @@ def _build_controller(
         now_source=lambda: 5.0,
         consume_command=lambda _path, logger=None: command,
         read_paused_state=lambda _path, logger=None: paused_state,
+        direct_state=direct_state,
+        tcode_sender=tcode_sender,
     )
     return {
         "controller": controller,
@@ -215,3 +232,49 @@ def test_refresh_calls_adopt_pending_clip():
     built["controller"].refresh()
 
     assert built["selection"].adopt_calls == 1
+
+
+def test_direct_mode_playing_advances_phase():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    entry = {"frames": [object() for _ in range(8)]}
+    # SharedState has auto_active=False, but direct mode should override
+    built = _build_controller(entry=entry, direct_state=dc)
+    # Advance the clock so dt > 0 (engine.last_tick starts at 5.0)
+    built["controller"].now_source = lambda: 5.05
+
+    built["controller"].refresh()
+
+    # Engine should have advanced phase since direct_state.playing=True
+    assert built["engine"].phase != 0.25  # initial was 0.25
+
+
+def test_direct_mode_not_playing_freezes_phase():
+    dc = DirectControlState(playing=False, bpm=120.0)
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc)
+
+    built["controller"].refresh()
+
+    assert built["engine"].phase == 0.25  # unchanged
+
+
+def test_direct_mode_calls_tcode_sender():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert len(tcode.sends) == 1
+    phase, now = tcode.sends[0]
+    assert now == 5.0
+
+
+def test_no_tcode_sender_in_passive_mode():
+    entry = {"frames": [object() for _ in range(8)]}
+    state = SharedState(auto_active=True, visible=True, raw_bpm=120.0)
+    built = _build_controller(state=state, entry=entry, tcode_sender=None)
+
+    # Should not raise
+    built["controller"].refresh()

@@ -47,6 +47,14 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--notify-port", type=int, default=config.genau.notify_port)
     ap.add_argument("--command-file", default=str(config.genau_cmd_file))
     ap.add_argument("--paused-file", default=str(config.genau_paused_file))
+    ap.add_argument(
+        "--direct", action="store_true", default=False,
+        help="Direct control mode: generate T-Code output to drive the device",
+    )
+    ap.add_argument(
+        "--serial-port", default="COM4",
+        help="Serial port for direct control T-Code output (default: COM4)",
+    )
     return ap
 
 
@@ -61,8 +69,16 @@ def read_paused_state(path: Path, *, logger: logging.Logger | None = None) -> bo
         return False
 
 
+def _preparse_direct(argv: list[str] | None) -> bool:
+    ap = argparse.ArgumentParser(add_help=False)
+    ap.add_argument("--direct", action="store_true", default=False)
+    known, _ = ap.parse_known_args(argv)
+    return known.direct
+
+
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
+    direct_mode = _preparse_direct(argv)
 
     # Set AppUserModelID before any window creation so Genau gets its
     # own taskbar identity (icon + title) instead of inheriting python.exe's.
@@ -73,8 +89,8 @@ def main(argv: list[str] | None = None) -> int:
         pass  # Non-fatal
     stamp_shortcut_aumid()
 
-    # Ensure the broker (OSR2 serial bridge) is running.
-    if config.broker_tray_launcher:
+    # Ensure the broker (OSR2 serial bridge) is running (skip in direct mode).
+    if config.broker_tray_launcher and not direct_mode:
         from .broker import ensure_broker_running
         ensure_broker_running(config.broker_tray_launcher)
 
@@ -156,6 +172,25 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     rh_paused = {"value": False}
 
+    direct_state = None
+    tcode_sender = None
+    if args.direct:
+        from .direct_control import DirectControlState, bpm_for_speed_level
+        from .tcode import RateLimitedTCodeSender, SerialTCodeSink
+        direct_state = DirectControlState(
+            playing=False,
+            speed_level=5,
+            bpm=bpm_for_speed_level(5),
+        )
+        try:
+            sink = SerialTCodeSink(port=args.serial_port)
+            tcode_sender = RateLimitedTCodeSender(sink)
+            logger.info("Direct control: opened %s for T-Code output", args.serial_port)
+        except Exception:
+            logger.error("Failed to open %s for direct control", args.serial_port, exc_info=True)
+            view.destroy()
+            return 1
+
     load_state = DecodeRequestState()
     prefetch_state = DecodeRequestState()
     notifier = RobotHandNotifier(args.notify_host, args.notify_port)
@@ -204,7 +239,17 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         logger=logger,
         log_name=config.log_file("genau_listener").name,
         read_paused_state=read_paused_state,
+        direct_state=direct_state,
+        tcode_sender=tcode_sender,
     )
+    if direct_state is not None:
+        from .direct_control import toggle_playing, set_speed
+        on_toggle = lambda: toggle_playing(direct_state)
+        on_speed = lambda level: set_speed(direct_state, level)
+    else:
+        on_toggle = lambda: None
+        on_speed = lambda level: None
+
     lifecycle = RobotHandLifecycleController(
         view=view,
         renderer=renderer,
@@ -213,6 +258,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         notifier=notifier,
         resize_delay_ms=config.genau.resize_debounce_ms,
         quarter_offset=lambda: engine.__setattr__("phase", (engine.phase + 0.25) % 1.0),
+        on_toggle_playing=on_toggle,
+        on_set_speed=on_speed,
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
@@ -228,6 +275,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         refresh_controller.refresh()
         view.clock.tick(120)
 
+    if tcode_sender is not None:
+        tcode_sender.close()
     view.destroy()
     return 0
 
