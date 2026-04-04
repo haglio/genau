@@ -74,7 +74,16 @@ class TestPhaseToPosition:
         pos = phase_to_position(0.25)
         assert 1000 < pos < 3000
 
+    def test_continuous_phase_2_returns_to_base(self):
+        assert phase_to_position(2.0) == pytest.approx(0, abs=1)
+
+    def test_continuous_phase_1_5_returns_midpoint_on_return(self):
+        assert phase_to_position(1.5) == pytest.approx(5000, abs=1)
+
+    def test_continuous_phase_3_returns_tip_again(self):
+        assert phase_to_position(3.0) == 9999
+
     def test_result_always_in_range(self):
-        for p in [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.999]:
+        for p in [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.999, 1.5, 2.0, 3.0]:
             pos = phase_to_position(p)
             assert 0 <= pos <= 9999

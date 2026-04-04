@@ -61,6 +61,26 @@ class TestRateLimitedTCodeSender:
         # Second command should have I50 (50ms elapsed)
         assert "I50" in sink.sent[1]
 
+    def test_phase_wrap_accumulates_stroke_phase(self):
+        sink = FakeTCodeSink()
+        sender = RateLimitedTCodeSender(sink, min_interval=0.0)
+        # Phase goes 0.9 → 0.1 (wrap). Stroke phase should go 0.9 → 1.1
+        sender.maybe_send(phase=0.9, now=1.0)
+        sender.maybe_send(phase=0.1, now=1.05)
+        # After wrap, stroke_phase is ~1.1. phase_to_position(1.1) should be
+        # near tip (descending from tip). NOT snapping back to base.
+        # position at stroke_phase=1.0 is 9999 (tip), at 1.1 it's heading back
+        # If it snapped to base, the command would contain L00 (near 0)
+        assert "L09" in sink.sent[1] or "L08" in sink.sent[1]
+
+    def test_no_wrap_advances_stroke_phase_normally(self):
+        sink = FakeTCodeSink()
+        sender = RateLimitedTCodeSender(sink, min_interval=0.0)
+        sender.maybe_send(phase=0.0, now=1.0)
+        sender.maybe_send(phase=0.5, now=1.05)
+        # stroke_phase=0.5 → phase_to_position(0.5) ≈ 5000
+        assert "L04999" in sink.sent[1] or "L05000" in sink.sent[1]
+
     def test_close_delegates_to_sink(self):
         sink = FakeTCodeSink()
         sender = RateLimitedTCodeSender(sink, min_interval=0.033)

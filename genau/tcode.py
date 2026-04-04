@@ -40,13 +40,22 @@ class RateLimitedTCodeSender:
         self._min_interval = min_interval
         self._now_source = now_source
         self._last_send_time: float = 0.0
+        self._last_phase: float = 0.0
+        self._stroke_phase: float = 0.0
 
     def maybe_send(self, phase: float, now: float) -> None:
+        # Accumulate continuous stroke phase, detecting wraps.
+        delta = phase - self._last_phase
+        if delta < -0.5:
+            delta += 1.0
+        self._stroke_phase += max(0.0, delta)
+        self._last_phase = phase
+
         elapsed = now - self._last_send_time
         if elapsed < self._min_interval:
             return
         interval_ms = max(1, min(9999, round(elapsed * 1000)))
-        position = phase_to_position(phase)
+        position = phase_to_position(self._stroke_phase)
         self._sink.send(format_tcode_command("L0", position, interval_ms))
         self._last_send_time = now
 
