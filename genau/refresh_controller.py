@@ -142,6 +142,8 @@ class RobotHandRefreshController:
             engine=self.engine,
             rh_paused=self.rh_paused,
             step_clip=self.selection.step,
+            direct_state=self.direct_state,
+            auto_pilot_state=self.auto_pilot,
         )
 
         active_entry = self.renderer.current_clip_entry()

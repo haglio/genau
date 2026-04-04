@@ -9,6 +9,8 @@ from genau.runtime_commands import (
     apply_runtime_command,
 )
 from genau.engine import PlaybackEngine
+from genau.direct_control import DirectControlState, WaveformShape
+from genau.auto_pilot import AutoPilotState
 
 
 class TestApplyRuntimeCommand:
@@ -111,6 +113,192 @@ class TestApplyRuntimeCommand:
 
         assert handled is True
         assert rh_paused["value"] is False
+
+    def test_pause_sets_direct_state_not_playing(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True)
+
+        apply_runtime_command(
+            "PAUSE",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert ds.playing is False
+
+    def test_resume_sets_direct_state_playing(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": True}
+        ds = DirectControlState(playing=False)
+
+        apply_runtime_command(
+            "RESUME",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert ds.playing is True
+
+    def test_speed_down_decreases_speed(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, speed=50)
+
+        handled = apply_runtime_command(
+            "SPEED_DOWN",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.speed == 45
+
+    def test_speed_up_increases_speed(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, speed=50)
+
+        handled = apply_runtime_command(
+            "SPEED_UP",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.speed == 55
+
+    def test_amplitude_down_decreases_amplitude(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, amplitude=80)
+
+        handled = apply_runtime_command(
+            "AMPLITUDE_DOWN",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.amplitude == 70
+
+    def test_amplitude_up_increases_amplitude(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, amplitude=80)
+
+        handled = apply_runtime_command(
+            "AMPLITUDE_UP",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.amplitude == 90
+
+    def test_center_down_decreases_center(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
+
+        handled = apply_runtime_command(
+            "CENTER_DOWN",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.intended_center == 45
+
+    def test_center_up_increases_center(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
+
+        handled = apply_runtime_command(
+            "CENTER_UP",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.intended_center == 55
+
+    def test_cycle_shape_advances_shape(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True)
+        assert ds.shape == WaveformShape.SINE
+
+        handled = apply_runtime_command(
+            "CYCLE_SHAPE",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.shape == WaveformShape.TRIANGLE
+
+    def test_toggle_auto_activates_auto_pilot(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        auto = AutoPilotState(active=False)
+
+        handled = apply_runtime_command(
+            "TOGGLE_AUTO",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            auto_pilot_state=auto,
+        )
+
+        assert handled is True
+        assert auto.active is True
+
+    def test_direct_commands_ignored_without_direct_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+
+        for cmd in ("SPEED_DOWN", "SPEED_UP", "AMPLITUDE_DOWN", "AMPLITUDE_UP",
+                     "CENTER_DOWN", "CENTER_UP", "CYCLE_SHAPE"):
+            handled = apply_runtime_command(
+                cmd,
+                engine=engine,
+                rh_paused=rh_paused,
+                step_clip=lambda _step: None,
+            )
+            assert handled is False, f"{cmd} should be ignored without direct_state"
+
+    def test_toggle_auto_ignored_without_auto_pilot_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+
+        handled = apply_runtime_command(
+            "TOGGLE_AUTO",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+        )
+
+        assert handled is False
 
     def test_unknown_command_is_ignored(self):
         engine = PlaybackEngine(phase=0.4, last_tick=0.0)

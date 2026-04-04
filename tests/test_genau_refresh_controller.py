@@ -351,6 +351,53 @@ def test_passive_mode_does_not_call_present_scene():
     assert len(built["present_calls"]) == 0
 
 
+def test_pause_command_stops_direct_mode_playback():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
+
+    built["controller"].refresh()
+
+    assert dc.playing is False
+
+
+def test_resume_command_starts_direct_mode_playback():
+    dc = DirectControlState(playing=False, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="RESUME")
+
+    built["controller"].refresh()
+
+    assert dc.playing is True
+
+
+def test_speed_up_command_via_refresh():
+    dc = DirectControlState(playing=True, bpm=120.0, speed=50)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="SPEED_UP")
+
+    built["controller"].refresh()
+
+    assert dc.speed == 55
+
+
+def test_toggle_auto_command_via_refresh():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    auto = AutoPilotState(active=False)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode, auto_pilot=auto, command="TOGGLE_AUTO"
+    )
+
+    built["controller"].refresh()
+
+    assert auto.active is True
+
+
 def test_auto_pilot_ticks_during_refresh():
     dc = DirectControlState(playing=True, bpm=120.0, speed=50)
     auto = AutoPilotState(active=True, rng=random.Random(42))
