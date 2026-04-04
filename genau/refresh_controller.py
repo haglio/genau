@@ -109,7 +109,7 @@ class RobotHandRefreshController:
             paused=paused,
         )
 
-        if self.tcode_sender is not None:
+        if self.tcode_sender is not None and self.direct_state is not None and self.direct_state.playing:
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
         apply_runtime_command(

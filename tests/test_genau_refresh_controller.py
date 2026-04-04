@@ -271,6 +271,17 @@ def test_direct_mode_calls_tcode_sender():
     assert now == 5.0
 
 
+def test_direct_mode_paused_does_not_send_tcode():
+    dc = DirectControlState(playing=False, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert tcode.sends == []
+
+
 def test_no_tcode_sender_in_passive_mode():
     entry = {"frames": [object() for _ in range(8)]}
     state = SharedState(auto_active=True, visible=True, raw_bpm=120.0)
