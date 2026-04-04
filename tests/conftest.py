@@ -61,6 +61,8 @@ def _write_genau_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "notify_port": 50556,
             "status_hide_ms": 1200,
             "resize_debounce_ms": 120,
+            "tcode_udp_host": "127.0.0.1",
+            "tcode_udp_port": 50557,
         },
     }
 

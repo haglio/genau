@@ -29,6 +29,8 @@ class GenauConfig:
     notify_port: int
     status_hide_ms: int
     resize_debounce_ms: int
+    tcode_udp_host: str
+    tcode_udp_port: int
 
 
 @dataclass(frozen=True)
@@ -90,6 +92,8 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
             notify_port=int(genau_raw["notify_port"]),
             status_hide_ms=int(genau_raw["status_hide_ms"]),
             resize_debounce_ms=int(genau_raw["resize_debounce_ms"]),
+            tcode_udp_host=str(genau_raw.get("tcode_udp_host", "127.0.0.1")),
+            tcode_udp_port=int(genau_raw.get("tcode_udp_port", 50557)),
         ),
         broker_tray_launcher=_resolve_path(base, raw["broker_tray_launcher"]) if raw.get("broker_tray_launcher") else None,
     )

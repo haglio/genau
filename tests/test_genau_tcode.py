@@ -1,6 +1,38 @@
 from __future__ import annotations
 
-from genau.tcode import RateLimitedTCodeSender, format_tcode_command
+from genau.tcode import RateLimitedTCodeSender, UdpTCodeSink, format_tcode_command
+
+
+class FakeSock:
+    def __init__(self):
+        self.sent: list[tuple[bytes, tuple[str, int]]] = []
+        self.closed = False
+
+    def sendto(self, data: bytes, addr: tuple[str, int]) -> None:
+        self.sent.append((data, addr))
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class TestUdpTCodeSink:
+    def test_send_transmits_newline_terminated_ascii_datagram(self):
+        sock = FakeSock()
+        sink = UdpTCodeSink(host="127.0.0.1", port=50557, sock=sock)
+        sink.send("L05000I33")
+        assert sock.sent == [(b"L05000I33\n", ("127.0.0.1", 50557))]
+
+    def test_close_closes_socket(self):
+        sock = FakeSock()
+        sink = UdpTCodeSink(sock=sock)
+        sink.close()
+        assert sock.closed is True
+
+    def test_defaults(self):
+        sock = FakeSock()
+        sink = UdpTCodeSink(sock=sock)
+        sink.send("L09999I50")
+        assert sock.sent == [(b"L09999I50\n", ("127.0.0.1", 50557))]
 
 
 class FakeTCodeSink:

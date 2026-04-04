@@ -51,10 +51,8 @@ def build_parser(config) -> argparse.ArgumentParser:
         "--direct", action="store_true", default=False,
         help="Direct control mode: generate T-Code output to drive the device",
     )
-    ap.add_argument(
-        "--serial-port", default="COM4",
-        help="Serial port for direct control T-Code output (default: COM4)",
-    )
+    ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
+    ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
     return ap
 
 
@@ -176,20 +174,15 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     tcode_sender = None
     if args.direct:
         from .direct_control import DirectControlState, bpm_for_speed_level
-        from .tcode import RateLimitedTCodeSender, SerialTCodeSink
+        from .tcode import RateLimitedTCodeSender, UdpTCodeSink
         direct_state = DirectControlState(
             playing=False,
             speed_level=5,
             bpm=bpm_for_speed_level(5),
         )
-        try:
-            sink = SerialTCodeSink(port=args.serial_port)
-            tcode_sender = RateLimitedTCodeSender(sink)
-            logger.info("Direct control: opened %s for T-Code output", args.serial_port)
-        except Exception:
-            logger.error("Failed to open %s for direct control", args.serial_port, exc_info=True)
-            view.destroy()
-            return 1
+        sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
+        tcode_sender = RateLimitedTCodeSender(sink)
+        logger.info("Direct control: T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
 
     load_state = DecodeRequestState()
     prefetch_state = DecodeRequestState()

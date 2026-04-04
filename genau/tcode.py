@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import socket
 import time
 from typing import Protocol
 
@@ -17,16 +18,17 @@ class TCodeSink(Protocol):
     def close(self) -> None: ...
 
 
-class SerialTCodeSink:
-    def __init__(self, port: str = "COM4", baudrate: int = 115200) -> None:
-        import serial
-        self._ser = serial.Serial(port, baudrate, timeout=0)
+class UdpTCodeSink:
+    def __init__(self, host: str = "127.0.0.1", port: int = 50557, *, sock=None) -> None:
+        self._host = host
+        self._port = port
+        self._sock = sock if sock is not None else socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send(self, command: str) -> None:
-        self._ser.write((command + "\n").encode("ascii"))
+        self._sock.sendto((command + "\n").encode("ascii"), (self._host, self._port))
 
     def close(self) -> None:
-        self._ser.close()
+        self._sock.close()
 
 
 class RateLimitedTCodeSender:

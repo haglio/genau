@@ -76,6 +76,8 @@ class TestLoadConfig:
                 "notify_port": 50556,
                 "status_hide_ms": 1200,
                 "resize_debounce_ms": 120,
+                "tcode_udp_host": "127.0.0.1",
+                "tcode_udp_port": 50557,
             },
         }), encoding="utf-8")
         (tmp_path / "state").mkdir(exist_ok=True)
@@ -101,6 +103,8 @@ class TestLoadConfig:
                 "notify_port": 50556,
                 "status_hide_ms": 1200,
                 "resize_debounce_ms": 120,
+                "tcode_udp_host": "127.0.0.1",
+                "tcode_udp_port": 50557,
             },
         }), encoding="utf-8")
         cfg = load_config(cfg_file)
