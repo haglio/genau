@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from genau.direct_control import DirectControlState, WaveformShape
 from genau.tcode import RateLimitedTCodeSender, UdpTCodeSink, format_tcode_command
 
 
@@ -120,3 +121,37 @@ class TestRateLimitedTCodeSender:
         sender = RateLimitedTCodeSender(sink, min_interval=0.033)
         sender.close()
         assert sink.closed is True
+
+
+class TestSenderWithDirectState:
+    def test_reads_amplitude_from_state(self):
+        sink = FakeTCodeSink()
+        state = DirectControlState(amplitude=50, center=50)
+        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        sender.maybe_send(phase=0.5, now=1.0)
+        # amplitude=50, center=50: tip should be ~7500, not 9999
+        pos_value = int(sink.sent[0][2:6])
+        assert 7000 < pos_value < 8000
+
+    def test_reads_shape_from_state(self):
+        sink = FakeTCodeSink()
+        state = DirectControlState(shape=WaveformShape.TRIANGLE)
+        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        sender.maybe_send(phase=0.25, now=1.0)
+        # Triangle at 0.25 should be 5000 (same as sine at 0.25 for default params)
+        pos_value = int(sink.sent[0][2:6])
+        assert 4900 < pos_value < 5100
+
+    def test_current_position(self):
+        sink = FakeTCodeSink()
+        state = DirectControlState()
+        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        sender.maybe_send(phase=0.5, now=1.0)
+        assert sender.current_position() == 9999
+
+    def test_stroke_phase_frac(self):
+        sink = FakeTCodeSink()
+        state = DirectControlState()
+        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        sender.maybe_send(phase=0.7, now=1.0)
+        assert sender.stroke_phase_frac == 0.7

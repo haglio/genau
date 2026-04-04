@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import random
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from genau.auto_pilot import AutoPilotState
 from genau.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
 from genau.refresh_controller import RobotHandRefreshController
@@ -70,9 +72,19 @@ class FakeTCodeSender:
     def __init__(self):
         self.sends: list[tuple[float, float]] = []
         self.closed = False
+        self._position = 5000
+        self._phase_frac = 0.0
 
     def maybe_send(self, phase: float, now: float) -> None:
         self.sends.append((phase, now))
+        self._phase_frac = phase % 1.0
+
+    def current_position(self) -> int:
+        return self._position
+
+    @property
+    def stroke_phase_frac(self) -> float:
+        return self._phase_frac
 
     def close(self) -> None:
         self.closed = True
@@ -90,10 +102,13 @@ def _build_controller(
     pending_clip_name: str | None = None,
     direct_state: DirectControlState | None = None,
     tcode_sender: FakeTCodeSender | None = None,
+    auto_pilot: AutoPilotState | None = None,
 ):
     loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
     hide_window_calls: list[str] = []
+    overlay_data_list: list = []
+    present_calls: list[int] = []
 
     loader = FakeLoader(loading=loading)
     notifier = FakeNotifier()
@@ -128,6 +143,9 @@ def _build_controller(
         read_paused_state=lambda _path, logger=None: paused_state,
         direct_state=direct_state,
         tcode_sender=tcode_sender,
+        auto_pilot=auto_pilot,
+        set_direct_overlay=overlay_data_list.append,
+        present_scene=lambda: present_calls.append(1),
     )
     return {
         "controller": controller,
@@ -140,6 +158,8 @@ def _build_controller(
         "loading_texts": loading_texts,
         "show_window_calls": show_window_calls,
         "hide_window_calls": hide_window_calls,
+        "overlay_data_list": overlay_data_list,
+        "present_calls": present_calls,
     }
 
 
@@ -278,3 +298,57 @@ def test_no_tcode_sender_in_passive_mode():
 
     # Should not raise
     built["controller"].refresh()
+
+
+def test_direct_mode_sets_overlay_data():
+    dc = DirectControlState(playing=True, bpm=120.0, amplitude=70, center=60)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert len(built["overlay_data_list"]) == 1
+    data = built["overlay_data_list"][0]
+    assert data.amplitude == 70
+    assert data.center == 60
+    assert data.speed_level == 5
+
+
+def test_direct_mode_calls_present_scene():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert len(built["present_calls"]) == 1
+
+
+def test_passive_mode_does_not_call_present_scene():
+    entry = {"frames": [object() for _ in range(8)]}
+    state = SharedState(auto_active=True, visible=True, raw_bpm=120.0)
+    built = _build_controller(state=state, entry=entry)
+
+    built["controller"].refresh()
+
+    assert len(built["present_calls"]) == 0
+
+
+def test_auto_pilot_ticks_during_refresh():
+    dc = DirectControlState(playing=True, bpm=120.0, speed_level=5)
+    auto = AutoPilotState(active=True, rng=random.Random(42))
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode, auto_pilot=auto
+    )
+    # Advance clock enough that auto pilot actually triggers changes
+    tick = 0.0
+    for _ in range(200):
+        tick += 0.1
+        built["controller"].now_source = lambda t=tick: 5.0 + t
+        built["controller"].refresh()
+    # Auto pilot should have changed something
+    assert dc.speed_level != 5 or dc.amplitude != 100 or dc.center != 50

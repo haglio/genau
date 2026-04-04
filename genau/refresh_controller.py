@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from .runtime_support import consume_command_file
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command, get_engine_estimated_bpm
+
+
+@dataclass
+class DirectOverlayData:
+    speed_level: int
+    bpm: float
+    amplitude: int
+    center: int
+    waveform_points: list[float]
+    phase_frac: float
+    position: int
+    auto_active: bool
 
 
 class RobotHandRefreshController:
@@ -35,6 +48,9 @@ class RobotHandRefreshController:
         read_paused_state=None,
         direct_state=None,
         tcode_sender=None,
+        auto_pilot=None,
+        set_direct_overlay=None,
+        present_scene=None,
     ):
         self.state = state
         self.loader = loader
@@ -58,6 +74,9 @@ class RobotHandRefreshController:
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
         self.direct_state = direct_state
         self.tcode_sender = tcode_sender
+        self.auto_pilot = auto_pilot
+        self.set_direct_overlay = set_direct_overlay or (lambda _data: None)
+        self.present_scene = present_scene or (lambda: None)
         self.window_visible = False
 
     def refresh(self) -> None:
@@ -75,6 +94,9 @@ class RobotHandRefreshController:
         shared = read_shared_state_snapshot(self.state)
 
         if self.direct_state is not None:
+            if self.auto_pilot is not None:
+                from .auto_pilot import tick_auto_pilot
+                tick_auto_pilot(self.direct_state, self.auto_pilot, now)
             auto_active = self.direct_state.playing
             raw_bpm = self.direct_state.bpm
             paused = not self.direct_state.playing
@@ -112,6 +134,9 @@ class RobotHandRefreshController:
         if self.tcode_sender is not None:
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
+        if self.direct_state is not None:
+            self._update_direct_overlay()
+
         apply_runtime_command(
             self.consume_command(self.command_file, logger=self.logger),
             engine=self.engine,
@@ -136,3 +161,27 @@ class RobotHandRefreshController:
         self.set_loading_text(f"Loading {pending}" if pending else None)
 
         self.selection.request_nearby_prefetch()
+
+        if self.direct_state is not None:
+            self.present_scene()
+
+    def _update_direct_overlay(self) -> None:
+        from .direct_control import sample_waveform
+
+        ds = self.direct_state
+        phase_frac = 0.0
+        position = 0
+        if self.tcode_sender is not None:
+            phase_frac = self.tcode_sender.stroke_phase_frac
+            position = self.tcode_sender.current_position()
+
+        self.set_direct_overlay(DirectOverlayData(
+            speed_level=ds.speed_level,
+            bpm=ds.bpm,
+            amplitude=ds.amplitude,
+            center=ds.center,
+            waveform_points=sample_waveform(ds.shape, ds.amplitude, ds.center, 60),
+            phase_frac=phase_frac,
+            position=position,
+            auto_active=self.auto_pilot.active if self.auto_pilot else False,
+        ))

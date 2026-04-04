@@ -172,7 +172,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     direct_state = None
     tcode_sender = None
+    auto_pilot = None
     if args.direct:
+        from .auto_pilot import AutoPilotState
         from .direct_control import DirectControlState, bpm_for_speed_level
         from .tcode import RateLimitedTCodeSender, UdpTCodeSink
         direct_state = DirectControlState(
@@ -180,8 +182,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             speed_level=5,
             bpm=bpm_for_speed_level(5),
         )
+        auto_pilot = AutoPilotState()
         sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
-        tcode_sender = RateLimitedTCodeSender(sink)
+        tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
         logger.info("Direct control: T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
 
     load_state = DecodeRequestState()
@@ -234,14 +237,32 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         read_paused_state=read_paused_state,
         direct_state=direct_state,
         tcode_sender=tcode_sender,
+        auto_pilot=auto_pilot,
+        set_direct_overlay=view.set_direct_overlay if direct_state else None,
+        present_scene=view.present if direct_state else None,
     )
     if direct_state is not None:
-        from .direct_control import toggle_playing, set_speed
+        from .auto_pilot import toggle_auto_pilot
+        from .direct_control import (
+            adjust_amplitude,
+            adjust_center,
+            adjust_speed,
+            cycle_shape,
+            toggle_playing,
+        )
         on_toggle = lambda: toggle_playing(direct_state)
-        on_speed = lambda level: set_speed(direct_state, level)
+        on_adj_speed = lambda delta: adjust_speed(direct_state, delta)
+        on_adj_amp = lambda delta: adjust_amplitude(direct_state, delta)
+        on_adj_center = lambda delta: adjust_center(direct_state, delta)
+        on_cycle = lambda: cycle_shape(direct_state)
+        on_auto = lambda: toggle_auto_pilot(auto_pilot)
     else:
         on_toggle = lambda: None
-        on_speed = lambda level: None
+        on_adj_speed = lambda delta: None
+        on_adj_amp = lambda delta: None
+        on_adj_center = lambda delta: None
+        on_cycle = lambda: None
+        on_auto = lambda: None
 
     lifecycle = RobotHandLifecycleController(
         view=view,
@@ -252,7 +273,11 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         resize_delay_ms=config.genau.resize_debounce_ms,
         quarter_offset=lambda: engine.__setattr__("phase", (engine.phase + 0.25) % 1.0),
         on_toggle_playing=on_toggle,
-        on_set_speed=on_speed,
+        on_adjust_speed=on_adj_speed,
+        on_adjust_amplitude=on_adj_amp,
+        on_adjust_center=on_adj_center,
+        on_cycle_shape=on_cycle,
+        on_toggle_auto=on_auto,
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
