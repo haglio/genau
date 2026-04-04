@@ -40,7 +40,16 @@ class FakeNotifier:
         self.closed += 1
 
 
-def _build_controller(*, quarter_offset=None, on_toggle_playing=None, on_set_speed=None):
+def _build_controller(
+    *,
+    quarter_offset=None,
+    on_toggle_playing=None,
+    on_adjust_speed=None,
+    on_adjust_amplitude=None,
+    on_adjust_center=None,
+    on_cycle_shape=None,
+    on_toggle_auto=None,
+):
     view = FakeView()
     renderer = FakeRenderer()
     selection = FakeSelection()
@@ -57,17 +66,25 @@ def _build_controller(*, quarter_offset=None, on_toggle_playing=None, on_set_spe
     )
     if on_toggle_playing is not None:
         kwargs["on_toggle_playing"] = on_toggle_playing
-    if on_set_speed is not None:
-        kwargs["on_set_speed"] = on_set_speed
+    if on_adjust_speed is not None:
+        kwargs["on_adjust_speed"] = on_adjust_speed
+    if on_adjust_amplitude is not None:
+        kwargs["on_adjust_amplitude"] = on_adjust_amplitude
+    if on_adjust_center is not None:
+        kwargs["on_adjust_center"] = on_adjust_center
+    if on_cycle_shape is not None:
+        kwargs["on_cycle_shape"] = on_cycle_shape
+    if on_toggle_auto is not None:
+        kwargs["on_toggle_auto"] = on_toggle_auto
     controller = RobotHandLifecycleController(**kwargs)
     return controller, view, renderer, selection, notifier, stop_event
 
 
-def test_handle_key_steps_selection_on_bracket_keys():
+def test_handle_key_steps_selection_on_m_and_period_keys():
     controller, _view, _renderer, selection, _notifier, _stop_event = _build_controller()
 
-    controller._handle_key(type("Event", (), {"key": pygame.K_LEFTBRACKET})())
-    controller._handle_key(type("Event", (), {"key": pygame.K_RIGHTBRACKET})())
+    controller._handle_key(type("Event", (), {"key": pygame.K_m, "mod": 0})())
+    controller._handle_key(type("Event", (), {"key": pygame.K_PERIOD, "mod": 0})())
 
     assert selection.steps == [-1, 1]
 
@@ -126,35 +143,107 @@ def test_space_bar_triggers_toggle_playing():
     assert toggles == [1]
 
 
-def test_number_key_5_triggers_set_speed():
-    speeds = []
+def test_j_key_triggers_speed_down():
+    deltas = []
     controller, *_ = _build_controller(
-        on_set_speed=lambda level: speeds.append(level),
+        on_adjust_speed=lambda d: deltas.append(d),
     )
 
-    event = type("Event", (), {"key": pygame.K_5, "mod": 0})()
+    event = type("Event", (), {"key": pygame.K_j, "mod": 0})()
     controller._handle_key(event)
 
-    assert speeds == [5]
+    assert deltas == [-1]
 
 
-def test_number_key_0_maps_to_speed_level_10():
-    speeds = []
+def test_l_key_triggers_speed_up():
+    deltas = []
     controller, *_ = _build_controller(
-        on_set_speed=lambda level: speeds.append(level),
+        on_adjust_speed=lambda d: deltas.append(d),
     )
 
-    event = type("Event", (), {"key": pygame.K_0, "mod": 0})()
+    event = type("Event", (), {"key": pygame.K_l, "mod": 0})()
     controller._handle_key(event)
 
-    assert speeds == [10]
+    assert deltas == [1]
+
+
+def test_k_key_triggers_amplitude_down():
+    deltas = []
+    controller, *_ = _build_controller(
+        on_adjust_amplitude=lambda d: deltas.append(d),
+    )
+
+    event = type("Event", (), {"key": pygame.K_k, "mod": 0})()
+    controller._handle_key(event)
+
+    assert deltas == [-10]
+
+
+def test_i_key_triggers_amplitude_up():
+    deltas = []
+    controller, *_ = _build_controller(
+        on_adjust_amplitude=lambda d: deltas.append(d),
+    )
+
+    event = type("Event", (), {"key": pygame.K_i, "mod": 0})()
+    controller._handle_key(event)
+
+    assert deltas == [10]
+
+
+def test_u_key_triggers_center_down():
+    deltas = []
+    controller, *_ = _build_controller(
+        on_adjust_center=lambda d: deltas.append(d),
+    )
+
+    event = type("Event", (), {"key": pygame.K_u, "mod": 0})()
+    controller._handle_key(event)
+
+    assert deltas == [-10]
+
+
+def test_o_key_triggers_center_up():
+    deltas = []
+    controller, *_ = _build_controller(
+        on_adjust_center=lambda d: deltas.append(d),
+    )
+
+    event = type("Event", (), {"key": pygame.K_o, "mod": 0})()
+    controller._handle_key(event)
+
+    assert deltas == [10]
+
+
+def test_comma_key_triggers_cycle_shape():
+    calls = []
+    controller, *_ = _build_controller(
+        on_cycle_shape=lambda: calls.append(1),
+    )
+
+    event = type("Event", (), {"key": pygame.K_COMMA, "mod": 0})()
+    controller._handle_key(event)
+
+    assert calls == [1]
+
+
+def test_slash_key_triggers_toggle_auto():
+    calls = []
+    controller, *_ = _build_controller(
+        on_toggle_auto=lambda: calls.append(1),
+    )
+
+    event = type("Event", (), {"key": pygame.K_SLASH, "mod": 0})()
+    controller._handle_key(event)
+
+    assert calls == [1]
 
 
 def test_default_callbacks_do_not_raise():
     controller, *_ = _build_controller()
 
-    event_space = type("Event", (), {"key": pygame.K_SPACE, "mod": 0})()
-    controller._handle_key(event_space)
-
-    event_5 = type("Event", (), {"key": pygame.K_5, "mod": 0})()
-    controller._handle_key(event_5)
+    for key in [pygame.K_SPACE, pygame.K_j, pygame.K_l, pygame.K_k,
+                pygame.K_i, pygame.K_u, pygame.K_o, pygame.K_COMMA,
+                pygame.K_SLASH]:
+        event = type("Event", (), {"key": key, "mod": 0})()
+        controller._handle_key(event)

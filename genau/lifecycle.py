@@ -5,12 +5,6 @@ import time
 import pygame
 
 
-_SPEED_KEYS = {
-    pygame.K_1: 1, pygame.K_2: 2, pygame.K_3: 3, pygame.K_4: 4, pygame.K_5: 5,
-    pygame.K_6: 6, pygame.K_7: 7, pygame.K_8: 8, pygame.K_9: 9, pygame.K_0: 10,
-}
-
-
 class RobotHandLifecycleController:
     def __init__(
         self,
@@ -23,7 +17,11 @@ class RobotHandLifecycleController:
         resize_delay_ms: int,
         quarter_offset=lambda: None,
         on_toggle_playing=lambda: None,
-        on_set_speed=lambda level: None,
+        on_adjust_speed=lambda delta: None,
+        on_adjust_amplitude=lambda delta: None,
+        on_adjust_center=lambda delta: None,
+        on_cycle_shape=lambda: None,
+        on_toggle_auto=lambda: None,
     ):
         self.view = view
         self.renderer = renderer
@@ -33,7 +31,11 @@ class RobotHandLifecycleController:
         self.resize_delay_ms = resize_delay_ms
         self.quarter_offset = quarter_offset
         self.on_toggle_playing = on_toggle_playing
-        self.on_set_speed = on_set_speed
+        self.on_adjust_speed = on_adjust_speed
+        self.on_adjust_amplitude = on_adjust_amplitude
+        self.on_adjust_center = on_adjust_center
+        self.on_cycle_shape = on_cycle_shape
+        self.on_toggle_auto = on_toggle_auto
         self._resize_pending_at: float | None = None
 
     def process_events(self) -> None:
@@ -50,16 +52,30 @@ class RobotHandLifecycleController:
     def _handle_key(self, event) -> None:
         if event.key == pygame.K_q and event.mod & pygame.KMOD_CTRL:
             self.on_close()
-        elif event.key == pygame.K_LEFTBRACKET:
+        elif event.key == pygame.K_m:
             self.selection.step(-1)
-        elif event.key == pygame.K_RIGHTBRACKET:
+        elif event.key == pygame.K_PERIOD:
             self.selection.step(1)
         elif event.key == pygame.K_BACKSLASH:
             self.quarter_offset()
         elif event.key == pygame.K_SPACE:
             self.on_toggle_playing()
-        elif event.key in _SPEED_KEYS:
-            self.on_set_speed(_SPEED_KEYS[event.key])
+        elif event.key == pygame.K_j:
+            self.on_adjust_speed(-1)
+        elif event.key == pygame.K_l:
+            self.on_adjust_speed(1)
+        elif event.key == pygame.K_k:
+            self.on_adjust_amplitude(-10)
+        elif event.key == pygame.K_i:
+            self.on_adjust_amplitude(10)
+        elif event.key == pygame.K_u:
+            self.on_adjust_center(-10)
+        elif event.key == pygame.K_o:
+            self.on_adjust_center(10)
+        elif event.key == pygame.K_COMMA:
+            self.on_cycle_shape()
+        elif event.key == pygame.K_SLASH:
+            self.on_toggle_auto()
 
     def _on_resize(self) -> None:
         self._resize_pending_at = time.monotonic()
