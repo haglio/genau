@@ -27,11 +27,13 @@ class DirectControlState:
     bpm: float = 0.0
     amplitude: int = 100
     center: int = 50
+    intended_center: int = 50
     shape: WaveformShape = WaveformShape.SINE
 
     def __post_init__(self) -> None:
         if self.bpm == 0.0:
             self.bpm = bpm_for_speed_level(self.speed_level)
+        _recompute_center(self)
 
 
 def toggle_playing(state: DirectControlState) -> None:
@@ -48,12 +50,32 @@ def adjust_speed(state: DirectControlState, delta: int) -> None:
     set_speed(state, state.speed_level + delta)
 
 
+def _recompute_center(state: DirectControlState) -> None:
+    """Set effective center from intended_center, clamped to amplitude range."""
+    half = state.amplitude // 2
+    state.center = max(half, min(100 - half, state.intended_center))
+
+
 def adjust_amplitude(state: DirectControlState, delta: int) -> None:
     state.amplitude = max(0, min(100, state.amplitude + delta))
+    _recompute_center(state)
 
 
 def adjust_center(state: DirectControlState, delta: int) -> None:
-    state.center = max(0, min(100, state.center + delta))
+    half = state.amplitude // 2
+    lo, hi = half, 100 - half
+    new = state.intended_center + delta
+    if new < lo:
+        if state.intended_center <= lo:
+            return
+        new = lo
+    elif new > hi:
+        if state.intended_center >= hi:
+            return
+        new = hi
+    new = max(0, min(100, new))
+    state.intended_center = new
+    _recompute_center(state)
 
 
 def cycle_shape(state: DirectControlState) -> None:
@@ -81,15 +103,44 @@ def _waveform_raw(phase: float, shape: WaveformShape) -> float:
     return (1 - math.cos(2 * math.pi * phase)) / 2
 
 
+_PEAK_PHASE = {
+    WaveformShape.SINE: 0.5,
+    WaveformShape.TRIANGLE: 0.5,
+    WaveformShape.ROUNDED_SQUARE: 0.5,
+    WaveformShape.SAWTOOTH: 0.3,
+}
+
+
+def display_phase_for_position(phase: float, shape: WaveformShape) -> float:
+    """Convert engine phase + waveform to a display phase for frame selection.
+
+    Maps the waveform's position (0-1 round trip) to a linear display phase so
+    clip frames track the actual device position, not the raw engine phase.
+    """
+    raw = _waveform_raw(phase, shape)
+    frac = phase % 1.0
+    peak = _PEAK_PHASE[shape]
+    if frac <= peak:
+        return raw * 0.5
+    else:
+        return 1.0 - raw * 0.5
+
+
 def sample_waveform(
     shape: WaveformShape,
     amplitude: int,
     center: int,
     n_points: int,
+    *,
+    start_phase: float = 0.0,
+    phase_range: float = 1.0,
 ) -> list[float]:
-    """Sample one cycle of the waveform, returning 0-1 normalized positions."""
+    """Sample waveform over a phase range, returning 0-1 normalized positions."""
     return [
-        phase_to_position(i / n_points, shape=shape, amplitude=amplitude, center=center) / 9999
+        phase_to_position(
+            start_phase + (i / n_points) * phase_range,
+            shape=shape, amplitude=amplitude, center=center,
+        ) / 9999
         for i in range(n_points)
     ]
 

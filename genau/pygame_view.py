@@ -135,7 +135,7 @@ class PygameView:
         surface = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
         surface.fill((0, 0, 0, 160))
 
-        # Waveform graph
+        # Waveform graph — shows upcoming 1 second, scrolls as phase advances
         wave_x, wave_y = pad, pad
         points = data.waveform_points
         if len(points) >= 2:
@@ -145,13 +145,6 @@ class PygameView:
                 y = wave_y + int((1 - val) * (wave_h - 1))
                 coords.append((x, y))
             pygame.draw.lines(surface, (100, 200, 255), False, coords, 2)
-
-            # Playhead dot
-            idx = int(data.phase_frac * (len(points) - 1))
-            idx = max(0, min(len(points) - 1, idx))
-            px = wave_x + int(idx / (len(points) - 1) * (wave_w - 1))
-            py = wave_y + int((1 - points[idx]) * (wave_h - 1))
-            pygame.draw.circle(surface, (255, 255, 100), (px, py), 4)
 
         # Waveform border
         pygame.draw.rect(surface, (80, 80, 80), (wave_x, wave_y, wave_w, wave_h), 1)
@@ -170,12 +163,12 @@ class PygameView:
 
         # Text row 1: speed + amplitude
         text_y = wave_y + wave_h + gap
-        line1 = f"SPD {data.speed_level}  AMP {data.amplitude}%"
+        line1 = f"SPD {data.speed_level}  AMP {data.amplitude}"
         surf1 = self._overlay_font.render(line1, True, (200, 200, 200))
         surface.blit(surf1, (pad, text_y))
 
         # Text row 2: center + auto
-        line2 = f"CTR {data.center}%"
+        line2 = f"CTR {data.center}"
         if data.auto_active:
             line2 += "  AUTO"
         surf2 = self._overlay_font.render(line2, True, (200, 200, 200))

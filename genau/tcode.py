@@ -65,6 +65,10 @@ class RateLimitedTCodeSender:
         return self._compute_position()
 
     @property
+    def stroke_phase(self) -> float:
+        return self._stroke_phase
+
+    @property
     def stroke_phase_frac(self) -> float:
         return self._stroke_phase % 1.0
 

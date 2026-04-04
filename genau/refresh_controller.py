@@ -17,7 +17,6 @@ class DirectOverlayData:
     amplitude: int
     center: int
     waveform_points: list[float]
-    phase_frac: float
     position: int
     auto_active: bool
 
@@ -148,8 +147,15 @@ class RobotHandRefreshController:
 
         if active_entry and active_entry["frames"]:
             frame_count = len(active_entry["frames"])
+            if self.direct_state is not None:
+                from .direct_control import display_phase_for_position
+                display_phase = display_phase_for_position(
+                    self.engine.phase, self.direct_state.shape,
+                )
+            else:
+                display_phase = self.engine.phase
             display_index = display_index_for_phase(
-                phase=self.engine.phase,
+                phase=display_phase,
                 frame_count=frame_count,
                 auto_active=auto_active,
                 current_frame_index=self.renderer.current_frame_index,
@@ -169,19 +175,25 @@ class RobotHandRefreshController:
         from .direct_control import sample_waveform
 
         ds = self.direct_state
-        phase_frac = 0.0
         position = 0
+        start_phase = 0.0
         if self.tcode_sender is not None:
-            phase_frac = self.tcode_sender.stroke_phase_frac
             position = self.tcode_sender.current_position()
+            start_phase = self.tcode_sender.stroke_phase
+
+        # Sample 1 second of upcoming waveform
+        phase_per_second = ds.bpm / 60.0 / self.beats_per_loop if ds.bpm > 0 else 1.0
 
         self.set_direct_overlay(DirectOverlayData(
             speed_level=ds.speed_level,
             bpm=ds.bpm,
             amplitude=ds.amplitude,
             center=ds.center,
-            waveform_points=sample_waveform(ds.shape, ds.amplitude, ds.center, 60),
-            phase_frac=phase_frac,
+            waveform_points=sample_waveform(
+                ds.shape, ds.amplitude, ds.center, 60,
+                start_phase=start_phase,
+                phase_range=phase_per_second,
+            ),
             position=position,
             auto_active=self.auto_pilot.active if self.auto_pilot else False,
         ))

@@ -10,6 +10,7 @@ from genau.direct_control import (
     adjust_speed,
     bpm_for_speed_level,
     cycle_shape,
+    display_phase_for_position,
     phase_to_position,
     sample_waveform,
     set_speed,
@@ -238,9 +239,19 @@ class TestDirectControlStateNewFields:
         state = DirectControlState()
         assert state.center == 50
 
+    def test_default_intended_center(self):
+        state = DirectControlState()
+        assert state.intended_center == 50
+
     def test_default_shape(self):
         state = DirectControlState()
         assert state.shape is WaveformShape.SINE
+
+    def test_all_values_are_multiples_of_5(self):
+        state = DirectControlState()
+        assert state.amplitude % 5 == 0
+        assert state.center % 5 == 0
+        assert state.intended_center % 5 == 0
 
 
 class TestAdjustAmplitude:
@@ -264,22 +275,65 @@ class TestAdjustAmplitude:
         adjust_amplitude(state, -10)
         assert state.amplitude == 0
 
+    def test_increasing_amplitude_pushes_center_toward_50(self):
+        state = DirectControlState(amplitude=40, intended_center=80)
+        # range [20, 80], center=80 is valid
+        adjust_amplitude(state, 10)
+        # amplitude=50, range [25, 75], intended=80 is outside → center clamped to 75
+        assert state.amplitude == 50
+        assert state.center == 75
+        assert state.intended_center == 80  # unchanged
+
+    def test_repeated_amplitude_increase_forces_center_to_50(self):
+        state = DirectControlState(amplitude=0, intended_center=80)
+        for _ in range(10):
+            adjust_amplitude(state, 10)
+        assert state.amplitude == 100
+        assert state.center == 50
+
+    def test_decreasing_amplitude_restores_intended_center(self):
+        state = DirectControlState(amplitude=40, intended_center=80)
+        # Increase then decrease amplitude
+        adjust_amplitude(state, 10)  # amp=50, center clamped to 75
+        adjust_amplitude(state, 10)  # amp=60, center clamped to 70
+        adjust_amplitude(state, -10)  # amp=50, center restores to 75
+        adjust_amplitude(state, -10)  # amp=40, center restores to 80
+        assert state.center == 80
+        assert state.intended_center == 80
+
 
 class TestAdjustCenter:
     def test_increase(self):
-        state = DirectControlState(center=50)
+        state = DirectControlState(amplitude=60, intended_center=50)
         adjust_center(state, 10)
         assert state.center == 60
+        assert state.intended_center == 60
 
-    def test_clamps_at_100(self):
-        state = DirectControlState(center=100)
-        adjust_center(state, 10)
-        assert state.center == 100
-
-    def test_clamps_at_0(self):
-        state = DirectControlState(center=0)
+    def test_decrease(self):
+        state = DirectControlState(amplitude=60, intended_center=50)
         adjust_center(state, -10)
-        assert state.center == 0
+        assert state.center == 40
+        assert state.intended_center == 40
+
+    def test_half_step_when_5_from_edge(self):
+        # amplitude=80, range [40, 60]. intended=55, try +10 → would be 65 > 60
+        # 55 is 5 from edge (60), accept half → intended=60
+        state = DirectControlState(amplitude=80, intended_center=55)
+        adjust_center(state, 10)
+        assert state.intended_center == 60
+        assert state.center == 60
+
+    def test_ignored_when_at_edge(self):
+        # amplitude=80, range [40, 60]. intended=60, try +10 → at edge, ignore
+        state = DirectControlState(amplitude=80, intended_center=60)
+        adjust_center(state, 10)
+        assert state.intended_center == 60
+        assert state.center == 60
+
+    def test_center_never_affects_amplitude(self):
+        state = DirectControlState(amplitude=80, intended_center=50)
+        adjust_center(state, 10)
+        assert state.amplitude == 80
 
 
 class TestCycleShape:
@@ -314,6 +368,34 @@ class TestSampleWaveform:
         # With amplitude=50, center=50: range is 2500-7500, normalized to ~0.25-0.75
         assert min(points) >= 0.24
         assert max(points) <= 0.76
+
+
+class TestDisplayPhaseForPosition:
+    def test_sine_at_base_returns_0(self):
+        # phase=0, sine raw=0, going up → display_phase=0
+        dp = display_phase_for_position(phase=0.0, shape=WaveformShape.SINE)
+        assert dp == pytest.approx(0.0, abs=0.01)
+
+    def test_sine_at_tip_returns_0_5(self):
+        dp = display_phase_for_position(phase=0.5, shape=WaveformShape.SINE)
+        assert dp == pytest.approx(0.5, abs=0.01)
+
+    def test_triangle_matches_linear_phase(self):
+        # Triangle is linear, so display_phase should equal engine phase
+        for p in [0.0, 0.1, 0.25, 0.5, 0.75, 0.9]:
+            dp = display_phase_for_position(phase=p, shape=WaveformShape.TRIANGLE)
+            assert dp == pytest.approx(p, abs=0.02)
+
+    def test_sine_phase_0_1_gives_earlier_display_phase(self):
+        # Sine at 0.1: raw≈0.095. Going up → display_phase = raw*0.5 ≈ 0.048
+        # This is earlier than 0.1, matching the slower start of sine
+        dp = display_phase_for_position(phase=0.1, shape=WaveformShape.SINE)
+        assert dp < 0.1
+
+    def test_sawtooth_peak_at_0_3_returns_0_5(self):
+        # Sawtooth peaks at frac=0.3 (raw=1), display_phase should be 0.5 (tip)
+        dp = display_phase_for_position(phase=0.3, shape=WaveformShape.SAWTOOTH)
+        assert dp == pytest.approx(0.5, abs=0.01)
 
 
 class TestAdjustSpeed:

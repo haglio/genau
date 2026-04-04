@@ -73,18 +73,22 @@ class FakeTCodeSender:
         self.sends: list[tuple[float, float]] = []
         self.closed = False
         self._position = 5000
-        self._phase_frac = 0.0
+        self._stroke_phase = 0.0
 
     def maybe_send(self, phase: float, now: float) -> None:
         self.sends.append((phase, now))
-        self._phase_frac = phase % 1.0
+        self._stroke_phase = phase
 
     def current_position(self) -> int:
         return self._position
 
     @property
+    def stroke_phase(self) -> float:
+        return self._stroke_phase
+
+    @property
     def stroke_phase_frac(self) -> float:
-        return self._phase_frac
+        return self._stroke_phase % 1.0
 
     def close(self) -> None:
         self.closed = True
@@ -312,7 +316,7 @@ def test_no_tcode_sender_in_passive_mode():
 
 
 def test_direct_mode_sets_overlay_data():
-    dc = DirectControlState(playing=True, bpm=120.0, amplitude=70, center=60)
+    dc = DirectControlState(playing=True, bpm=120.0, amplitude=70, intended_center=60)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)

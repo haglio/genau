@@ -4,10 +4,14 @@ import random
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from .direct_control import WaveformShape, set_speed
+from .direct_control import WaveformShape, _recompute_center, set_speed
 
 if TYPE_CHECKING:
     from .direct_control import DirectControlState
+
+
+def _snap_to_5(value: float) -> int:
+    return round(value / 5) * 5
 
 
 @dataclass
@@ -44,14 +48,15 @@ def tick_auto_pilot(
         auto._center_target = auto.rng.uniform(20, 80)
         auto._next_retarget = now + auto.rng.uniform(3, 8)
 
-    # Smooth interpolation toward targets
+    # Smooth interpolation toward targets, snapped to multiples of 5
     lerp_rate = 2.0 * dt
-    direct.amplitude = max(0, min(100, round(
+    direct.amplitude = _snap_to_5(max(0, min(100,
         direct.amplitude + (auto._amplitude_target - direct.amplitude) * lerp_rate
     )))
-    direct.center = max(0, min(100, round(
-        direct.center + (auto._center_target - direct.center) * lerp_rate
+    direct.intended_center = _snap_to_5(max(0, min(100,
+        direct.intended_center + (auto._center_target - direct.intended_center) * lerp_rate
     )))
+    _recompute_center(direct)
 
     # Step speed periodically
     if now >= auto._next_speed_change:
