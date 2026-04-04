@@ -131,13 +131,13 @@ def test_backslash_triggers_quarter_offset():
     assert offsets == [1]
 
 
-def test_space_bar_triggers_toggle_playing():
+def test_escape_triggers_toggle_playing():
     toggles = []
     controller, *_ = _build_controller(
         on_toggle_playing=lambda: toggles.append(1),
     )
 
-    event = type("Event", (), {"key": pygame.K_SPACE, "mod": 0})()
+    event = type("Event", (), {"key": pygame.K_ESCAPE, "mod": 0})()
     controller._handle_key(event)
 
     assert toggles == [1]
@@ -152,7 +152,7 @@ def test_j_key_triggers_speed_down():
     event = type("Event", (), {"key": pygame.K_j, "mod": 0})()
     controller._handle_key(event)
 
-    assert deltas == [-1]
+    assert deltas == [-5]
 
 
 def test_l_key_triggers_speed_up():
@@ -164,7 +164,7 @@ def test_l_key_triggers_speed_up():
     event = type("Event", (), {"key": pygame.K_l, "mod": 0})()
     controller._handle_key(event)
 
-    assert deltas == [1]
+    assert deltas == [5]
 
 
 def test_k_key_triggers_amplitude_down():
@@ -200,7 +200,7 @@ def test_u_key_triggers_center_down():
     event = type("Event", (), {"key": pygame.K_u, "mod": 0})()
     controller._handle_key(event)
 
-    assert deltas == [-10]
+    assert deltas == [-5]
 
 
 def test_o_key_triggers_center_up():
@@ -212,7 +212,7 @@ def test_o_key_triggers_center_up():
     event = type("Event", (), {"key": pygame.K_o, "mod": 0})()
     controller._handle_key(event)
 
-    assert deltas == [10]
+    assert deltas == [5]
 
 
 def test_comma_key_triggers_cycle_shape():
@@ -242,7 +242,7 @@ def test_slash_key_triggers_toggle_auto():
 def test_default_callbacks_do_not_raise():
     controller, *_ = _build_controller()
 
-    for key in [pygame.K_SPACE, pygame.K_j, pygame.K_l, pygame.K_k,
+    for key in [pygame.K_ESCAPE, pygame.K_j, pygame.K_l, pygame.K_k,
                 pygame.K_i, pygame.K_u, pygame.K_o, pygame.K_COMMA,
                 pygame.K_SLASH]:
         event = type("Event", (), {"key": key, "mod": 0})()

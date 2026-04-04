@@ -12,13 +12,14 @@ from .runtime_commands import apply_runtime_command, get_engine_estimated_bpm
 
 @dataclass
 class DirectOverlayData:
-    speed_level: int
+    speed: int
     bpm: float
     amplitude: int
     center: int
     waveform_points: list[float]
     position: int
     auto_active: bool
+    phase_per_second: float = 1.0
 
 
 class RobotHandRefreshController:
@@ -181,19 +182,21 @@ class RobotHandRefreshController:
             position = self.tcode_sender.current_position()
             start_phase = self.tcode_sender.stroke_phase
 
-        # Sample 1 second of upcoming waveform
+        # Sample 4 seconds of upcoming waveform
         phase_per_second = ds.bpm / 60.0 / self.beats_per_loop if ds.bpm > 0 else 1.0
+        display_seconds = 4.0
 
         self.set_direct_overlay(DirectOverlayData(
-            speed_level=ds.speed_level,
+            speed=ds.speed,
             bpm=ds.bpm,
             amplitude=ds.amplitude,
             center=ds.center,
             waveform_points=sample_waveform(
-                ds.shape, ds.amplitude, ds.center, 60,
+                ds.shape, ds.amplitude, ds.center, 80,
                 start_phase=start_phase,
-                phase_range=phase_per_second,
+                phase_range=phase_per_second * display_seconds,
             ),
             position=position,
             auto_active=self.auto_pilot.active if self.auto_pilot else False,
+            phase_per_second=phase_per_second,
         ))

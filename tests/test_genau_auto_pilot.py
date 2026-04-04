@@ -20,26 +20,32 @@ class TestToggleAutoPilot:
 
 class TestTickAutoPilotInactive:
     def test_does_not_change_direct_state_when_inactive(self):
-        dc = DirectControlState(speed_level=5, amplitude=80, center=50)
+        dc = DirectControlState(speed=50, amplitude=80, intended_center=50)
         auto = AutoPilotState(active=False, rng=random.Random(42))
         tick_auto_pilot(dc, auto, now=10.0)
-        assert dc.speed_level == 5
+        assert dc.speed == 50
         assert dc.amplitude == 80
         assert dc.center == 50
 
 
 class TestTickAutoPilotActive:
     def test_changes_parameters_over_time(self):
-        dc = DirectControlState(speed_level=5, amplitude=80, center=50, shape=WaveformShape.SINE)
+        dc = DirectControlState(speed=50, amplitude=80, intended_center=50, shape=WaveformShape.SINE)
         auto = AutoPilotState(active=True, rng=random.Random(42))
         # Initialize timing
         tick_auto_pilot(dc, auto, now=0.0)
-        original = (dc.speed_level, dc.amplitude, dc.center, dc.shape)
+        original_speed = dc.speed
         # Tick forward enough for all parameters to have changed
         for i in range(200):
             tick_auto_pilot(dc, auto, now=0.1 * (i + 1))
-        current = (dc.speed_level, dc.amplitude, dc.center, dc.shape)
-        assert current != original
+        # At least one parameter should have changed
+        changed = (
+            dc.speed != original_speed
+            or dc.amplitude != 80
+            or dc.center != 50
+            or dc.shape is not WaveformShape.SINE
+        )
+        assert changed
 
     def test_amplitude_stays_in_range(self):
         dc = DirectControlState(amplitude=50)
@@ -58,12 +64,12 @@ class TestTickAutoPilotActive:
         assert 0 <= dc.center <= 100
 
     def test_speed_stays_in_range(self):
-        dc = DirectControlState(speed_level=5)
+        dc = DirectControlState(speed=50)
         auto = AutoPilotState(active=True, rng=random.Random(42))
         tick_auto_pilot(dc, auto, now=0.0)
         for i in range(500):
             tick_auto_pilot(dc, auto, now=0.05 * (i + 1))
-        assert 1 <= dc.speed_level <= 10
+        assert 0 <= dc.speed <= 100
 
     def test_shape_is_valid(self):
         dc = DirectControlState()

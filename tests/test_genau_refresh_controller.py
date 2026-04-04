@@ -327,7 +327,7 @@ def test_direct_mode_sets_overlay_data():
     data = built["overlay_data_list"][0]
     assert data.amplitude == 70
     assert data.center == 60
-    assert data.speed_level == 5
+    assert data.speed == 50
 
 
 def test_direct_mode_calls_present_scene():
@@ -352,7 +352,7 @@ def test_passive_mode_does_not_call_present_scene():
 
 
 def test_auto_pilot_ticks_during_refresh():
-    dc = DirectControlState(playing=True, bpm=120.0, speed_level=5)
+    dc = DirectControlState(playing=True, bpm=120.0, speed=50)
     auto = AutoPilotState(active=True, rng=random.Random(42))
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
@@ -366,4 +366,4 @@ def test_auto_pilot_ticks_during_refresh():
         built["controller"].now_source = lambda t=tick: 5.0 + t
         built["controller"].refresh()
     # Auto pilot should have changed something
-    assert dc.speed_level != 5 or dc.amplitude != 100 or dc.center != 50
+    assert dc.speed != 50 or dc.amplitude != 100 or dc.center != 50

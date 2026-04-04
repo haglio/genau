@@ -58,20 +58,20 @@ class RobotHandLifecycleController:
             self.selection.step(1)
         elif event.key == pygame.K_BACKSLASH:
             self.quarter_offset()
-        elif event.key == pygame.K_SPACE:
+        elif event.key == pygame.K_ESCAPE:
             self.on_toggle_playing()
         elif event.key == pygame.K_j:
-            self.on_adjust_speed(-1)
+            self.on_adjust_speed(-5)
         elif event.key == pygame.K_l:
-            self.on_adjust_speed(1)
+            self.on_adjust_speed(5)
         elif event.key == pygame.K_k:
             self.on_adjust_amplitude(-10)
         elif event.key == pygame.K_i:
             self.on_adjust_amplitude(10)
         elif event.key == pygame.K_u:
-            self.on_adjust_center(-10)
+            self.on_adjust_center(-5)
         elif event.key == pygame.K_o:
-            self.on_adjust_center(10)
+            self.on_adjust_center(5)
         elif event.key == pygame.K_COMMA:
             self.on_cycle_shape()
         elif event.key == pygame.K_SLASH:

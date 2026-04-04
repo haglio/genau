@@ -175,12 +175,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     auto_pilot = None
     if args.direct:
         from .auto_pilot import AutoPilotState
-        from .direct_control import DirectControlState, bpm_for_speed_level
+        from .direct_control import DirectControlState, bpm_for_speed
         from .tcode import RateLimitedTCodeSender, UdpTCodeSink
         direct_state = DirectControlState(
             playing=False,
-            speed_level=5,
-            bpm=bpm_for_speed_level(5),
+            speed=50,
+            bpm=bpm_for_speed(50),
         )
         auto_pilot = AutoPilotState()
         sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)

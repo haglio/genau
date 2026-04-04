@@ -120,23 +120,38 @@ class PygameView:
         if data is None:
             return
         if self._overlay_font is None:
-            self._overlay_font = pygame.font.SysFont("consolas", 14)
+            self._overlay_font = pygame.font.SysFont("consolas", 12)
 
-        wave_w, wave_h = 120, 60
-        bar_w = 15
+        wave_w, wave_h = 160, 60
+        amp_bar_w = 20
+        spd_bar_h = 16
         pad = 8
         gap = 4
 
-        panel_w = pad + wave_w + gap + bar_w + pad
-        font_h = self._overlay_font.get_height()
-        text_h = font_h * 2 + 2
-        panel_h = pad + wave_h + gap + text_h + pad
+        panel_w = pad + wave_w + gap + amp_bar_w + pad
+        panel_h = pad + spd_bar_h + gap + wave_h + pad
 
         surface = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
         surface.fill((0, 0, 0, 160))
 
-        # Waveform graph — shows upcoming 1 second, scrolls as phase advances
-        wave_x, wave_y = pad, pad
+        # --- Speed bar above waveform ---
+        spd_x, spd_y = pad, pad
+        # Width = fraction of wave_w corresponding to one cycle in the 4s window
+        display_seconds = 4.0
+        pps = data.phase_per_second
+        cycle_frac = min(1.0, 1.0 / (pps * display_seconds)) if pps > 0 else 1.0
+        spd_fill_w = max(4, int(cycle_frac * wave_w))
+        pygame.draw.rect(surface, (60, 60, 60), (spd_x, spd_y, wave_w, spd_bar_h))
+        pygame.draw.rect(surface, (80, 180, 80), (spd_x, spd_y, spd_fill_w, spd_bar_h))
+        spd_text = self._overlay_font.render(f"SPD {data.speed}", True, (220, 220, 220))
+        surface.blit(spd_text, (spd_x + 3, spd_y + 1))
+        if data.auto_active:
+            auto_text = self._overlay_font.render("AUTO", True, (255, 200, 100))
+            surface.blit(auto_text, (spd_x + wave_w - auto_text.get_width() - 3, spd_y + 1))
+
+        # --- Waveform graph (4 seconds, scrolling) ---
+        wave_x = pad
+        wave_y = pad + spd_bar_h + gap
         points = data.waveform_points
         if len(points) >= 2:
             coords = []
@@ -146,37 +161,42 @@ class PygameView:
                 coords.append((x, y))
             pygame.draw.lines(surface, (100, 200, 255), False, coords, 2)
 
+        # Center dotted line through waveform
+        center_norm = data.center / 100
+        ctr_y = wave_y + int((1 - center_norm) * (wave_h - 1))
+        for dx in range(0, wave_w, 6):
+            x1 = wave_x + dx
+            x2 = min(wave_x + dx + 3, wave_x + wave_w - 1)
+            pygame.draw.line(surface, (200, 200, 100, 180), (x1, ctr_y), (x2, ctr_y), 1)
+
+        # Highlight dot on left edge at current position
+        pos_norm = data.position / 9999
+        dot_y = wave_y + int((1 - pos_norm) * (wave_h - 1))
+        pygame.draw.circle(surface, (255, 255, 100), (wave_x, dot_y), 4)
+
         # Waveform border
         pygame.draw.rect(surface, (80, 80, 80), (wave_x, wave_y, wave_w, wave_h), 1)
 
-        # Position bar
-        bar_x = wave_x + wave_w + gap
-        bar_y = wave_y
-        pygame.draw.rect(surface, (80, 80, 80), (bar_x, bar_y, bar_w, wave_h), 1)
-        fill_h = int(data.position / 9999 * (wave_h - 2))
-        if fill_h > 0:
-            pygame.draw.rect(
-                surface,
-                (100, 255, 100),
-                (bar_x + 1, bar_y + wave_h - 1 - fill_h, bar_w - 2, fill_h),
-            )
-
-        # Text row 1: speed + amplitude
-        text_y = wave_y + wave_h + gap
-        line1 = f"SPD {data.speed_level}  AMP {data.amplitude}"
-        surf1 = self._overlay_font.render(line1, True, (200, 200, 200))
-        surface.blit(surf1, (pad, text_y))
-
-        # Text row 2: center + auto
-        line2 = f"CTR {data.center}"
-        if data.auto_active:
-            line2 += "  AUTO"
-        surf2 = self._overlay_font.render(line2, True, (200, 200, 200))
-        surface.blit(surf2, (pad, text_y + font_h + 2))
+        # --- Amplitude bar to the right of waveform ---
+        amp_x = wave_x + wave_w + gap
+        amp_y = wave_y
+        # Bar height and position reflect amplitude and center
+        amp_frac = data.amplitude / 100
+        ctr_frac = data.center / 100
+        bar_h = max(2, int(amp_frac * wave_h))
+        bar_top = amp_y + int((1 - ctr_frac) * wave_h - bar_h / 2)
+        bar_top = max(amp_y, min(amp_y + wave_h - bar_h, bar_top))
+        pygame.draw.rect(surface, (60, 60, 60), (amp_x, amp_y, amp_bar_w, wave_h))
+        pygame.draw.rect(surface, (100, 160, 255), (amp_x, bar_top, amp_bar_w, bar_h))
+        # AMP label
+        amp_label = self._overlay_font.render(f"{data.amplitude}", True, (220, 220, 220))
+        label_y = bar_top + (bar_h - amp_label.get_height()) // 2
+        label_y = max(amp_y, min(amp_y + wave_h - amp_label.get_height(), label_y))
+        label_x = amp_x + (amp_bar_w - amp_label.get_width()) // 2
+        surface.blit(amp_label, (label_x, label_y))
 
         texture = Texture.from_surface(self.renderer, surface)
-        win_w, win_h = self.window.size
-        dest = pygame.Rect(win_w - panel_w - pad, win_h - panel_h - pad, panel_w, panel_h)
+        dest = pygame.Rect(pad, pad, panel_w, panel_h)
         texture.draw(dstrect=dest)
 
     def show(self) -> None:

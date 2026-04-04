@@ -13,17 +13,18 @@ class WaveformShape(Enum):
 
 MIN_BPM = 15.0
 MAX_BPM = 200.0
-SPEED_LEVELS = 10
+MAX_SPEED = 100
 
 
-def bpm_for_speed_level(level: int) -> float:
-    return MIN_BPM * (MAX_BPM / MIN_BPM) ** ((level - 1) / (SPEED_LEVELS - 1))
+def bpm_for_speed(speed: int) -> float:
+    """Map speed 0-100 to BPM using exponential curve."""
+    return MIN_BPM * (MAX_BPM / MIN_BPM) ** (speed / MAX_SPEED)
 
 
 @dataclass
 class DirectControlState:
     playing: bool = False
-    speed_level: int = 5
+    speed: int = 50
     bpm: float = 0.0
     amplitude: int = 100
     center: int = 50
@@ -32,7 +33,7 @@ class DirectControlState:
 
     def __post_init__(self) -> None:
         if self.bpm == 0.0:
-            self.bpm = bpm_for_speed_level(self.speed_level)
+            self.bpm = bpm_for_speed(self.speed)
         _recompute_center(self)
 
 
@@ -40,14 +41,14 @@ def toggle_playing(state: DirectControlState) -> None:
     state.playing = not state.playing
 
 
-def set_speed(state: DirectControlState, level: int) -> None:
-    level = max(1, min(SPEED_LEVELS, level))
-    state.speed_level = level
-    state.bpm = bpm_for_speed_level(level)
+def set_speed(state: DirectControlState, speed: int) -> None:
+    speed = max(0, min(MAX_SPEED, speed))
+    state.speed = speed
+    state.bpm = bpm_for_speed(speed)
 
 
 def adjust_speed(state: DirectControlState, delta: int) -> None:
-    set_speed(state, state.speed_level + delta)
+    set_speed(state, state.speed + delta)
 
 
 def _recompute_center(state: DirectControlState) -> None:

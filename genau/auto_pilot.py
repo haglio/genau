@@ -60,8 +60,8 @@ def tick_auto_pilot(
 
     # Step speed periodically
     if now >= auto._next_speed_change:
-        delta = auto.rng.choice([-1, 1])
-        set_speed(direct, direct.speed_level + delta)
+        delta = auto.rng.choice([-5, 5])
+        set_speed(direct, direct.speed + delta)
         auto._next_speed_change = now + auto.rng.uniform(2, 5)
 
     # Change shape periodically

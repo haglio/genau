@@ -8,7 +8,7 @@ from genau.direct_control import (
     adjust_amplitude,
     adjust_center,
     adjust_speed,
-    bpm_for_speed_level,
+    bpm_for_speed,
     cycle_shape,
     display_phase_for_position,
     phase_to_position,
@@ -29,21 +29,21 @@ class TestWaveformShapeEnum:
         assert WaveformShape.SAWTOOTH is not None
 
 
-class TestBpmForSpeedLevel:
-    def test_level_1_returns_minimum_bpm(self):
-        assert bpm_for_speed_level(1) == pytest.approx(15.0)
+class TestBpmForSpeed:
+    def test_speed_0_returns_minimum_bpm(self):
+        assert bpm_for_speed(0) == pytest.approx(15.0)
 
-    def test_level_10_returns_maximum_bpm(self):
-        assert bpm_for_speed_level(10) == pytest.approx(200.0)
+    def test_speed_100_returns_maximum_bpm(self):
+        assert bpm_for_speed(100) == pytest.approx(200.0)
 
     def test_monotonically_increasing(self):
-        bpms = [bpm_for_speed_level(i) for i in range(1, 11)]
+        bpms = [bpm_for_speed(i) for i in range(0, 101, 5)]
         for i in range(len(bpms) - 1):
             assert bpms[i] < bpms[i + 1]
 
     def test_exponential_curve_gives_finer_control_at_low_end(self):
-        low_step = bpm_for_speed_level(2) - bpm_for_speed_level(1)
-        high_step = bpm_for_speed_level(10) - bpm_for_speed_level(9)
+        low_step = bpm_for_speed(5) - bpm_for_speed(0)
+        high_step = bpm_for_speed(100) - bpm_for_speed(95)
         assert low_step < high_step
 
 
@@ -60,21 +60,21 @@ class TestTogglePlaying:
 
 
 class TestSetSpeed:
-    def test_sets_level_and_bpm(self):
+    def test_sets_speed_and_bpm(self):
         state = DirectControlState()
-        set_speed(state, 3)
-        assert state.speed_level == 3
-        assert state.bpm == pytest.approx(bpm_for_speed_level(3))
+        set_speed(state, 30)
+        assert state.speed == 30
+        assert state.bpm == pytest.approx(bpm_for_speed(30))
 
-    def test_clamps_below_1(self):
+    def test_clamps_below_0(self):
         state = DirectControlState()
-        set_speed(state, 0)
-        assert state.speed_level == 1
+        set_speed(state, -5)
+        assert state.speed == 0
 
-    def test_clamps_above_10(self):
+    def test_clamps_above_100(self):
         state = DirectControlState()
-        set_speed(state, 11)
-        assert state.speed_level == 10
+        set_speed(state, 105)
+        assert state.speed == 100
 
 
 class TestTriangleWaveform:
@@ -400,22 +400,22 @@ class TestDisplayPhaseForPosition:
 
 class TestAdjustSpeed:
     def test_increase(self):
-        state = DirectControlState(speed_level=5)
-        adjust_speed(state, 1)
-        assert state.speed_level == 6
-        assert state.bpm == pytest.approx(bpm_for_speed_level(6))
+        state = DirectControlState(speed=50)
+        adjust_speed(state, 5)
+        assert state.speed == 55
+        assert state.bpm == pytest.approx(bpm_for_speed(55))
 
     def test_decrease(self):
-        state = DirectControlState(speed_level=5)
-        adjust_speed(state, -1)
-        assert state.speed_level == 4
+        state = DirectControlState(speed=50)
+        adjust_speed(state, -5)
+        assert state.speed == 45
 
     def test_clamps_at_max(self):
-        state = DirectControlState(speed_level=10)
-        adjust_speed(state, 1)
-        assert state.speed_level == 10
+        state = DirectControlState(speed=100)
+        adjust_speed(state, 5)
+        assert state.speed == 100
 
     def test_clamps_at_min(self):
-        state = DirectControlState(speed_level=1)
-        adjust_speed(state, -1)
-        assert state.speed_level == 1
+        state = DirectControlState(speed=0)
+        adjust_speed(state, -5)
+        assert state.speed == 0
