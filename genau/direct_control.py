@@ -3,13 +3,13 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-MIN_BPM = 30.0
+MIN_BPM = 15.0
 MAX_BPM = 200.0
 SPEED_LEVELS = 10
 
 
 def bpm_for_speed_level(level: int) -> float:
-    return MIN_BPM + (level - 1) * (MAX_BPM - MIN_BPM) / (SPEED_LEVELS - 1)
+    return MIN_BPM * (MAX_BPM / MIN_BPM) ** ((level - 1) / (SPEED_LEVELS - 1))
 
 
 @dataclass
@@ -34,5 +34,7 @@ def set_speed(state: DirectControlState, level: int) -> None:
 
 
 def phase_to_position(phase: float) -> int:
-    pos = 5000 + 4999 * math.sin(2 * math.pi * phase)
-    return max(0, min(9999, round(pos)))
+    # One stroke direction per phase cycle: base(0) at phase 0, tip(9999) at phase 1.
+    # Half-cosine gives smooth acceleration/deceleration at endpoints.
+    normalized = (1 - math.cos(math.pi * phase)) / 2
+    return max(0, min(9999, round(9999 * normalized)))

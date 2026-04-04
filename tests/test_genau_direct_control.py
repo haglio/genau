@@ -13,7 +13,7 @@ from genau.direct_control import (
 
 class TestBpmForSpeedLevel:
     def test_level_1_returns_minimum_bpm(self):
-        assert bpm_for_speed_level(1) == pytest.approx(30.0)
+        assert bpm_for_speed_level(1) == pytest.approx(15.0)
 
     def test_level_10_returns_maximum_bpm(self):
         assert bpm_for_speed_level(10) == pytest.approx(200.0)
@@ -22,6 +22,11 @@ class TestBpmForSpeedLevel:
         bpms = [bpm_for_speed_level(i) for i in range(1, 11)]
         for i in range(len(bpms) - 1):
             assert bpms[i] < bpms[i + 1]
+
+    def test_exponential_curve_gives_finer_control_at_low_end(self):
+        low_step = bpm_for_speed_level(2) - bpm_for_speed_level(1)
+        high_step = bpm_for_speed_level(10) - bpm_for_speed_level(9)
+        assert low_step < high_step
 
 
 class TestTogglePlaying:
@@ -55,17 +60,19 @@ class TestSetSpeed:
 
 
 class TestPhaseToPosition:
-    def test_phase_0_returns_center(self):
-        assert phase_to_position(0.0) == 5000
+    def test_phase_0_returns_base(self):
+        assert phase_to_position(0.0) == 0
 
-    def test_phase_quarter_returns_max(self):
-        assert phase_to_position(0.25) == 9999
-
-    def test_phase_half_returns_center(self):
+    def test_phase_half_returns_midpoint(self):
         assert phase_to_position(0.5) == pytest.approx(5000, abs=1)
 
-    def test_phase_three_quarter_returns_min(self):
-        assert phase_to_position(0.75) == pytest.approx(1, abs=1)
+    def test_phase_1_returns_tip(self):
+        assert phase_to_position(1.0) == 9999
+
+    def test_smooth_curve_quarter_is_below_midpoint(self):
+        # Half-cosine curve: at 0.25, position should be ~1464 (below linear midpoint)
+        pos = phase_to_position(0.25)
+        assert 1000 < pos < 3000
 
     def test_result_always_in_range(self):
         for p in [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.999]:
