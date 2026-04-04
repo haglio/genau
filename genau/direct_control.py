@@ -34,7 +34,7 @@ def set_speed(state: DirectControlState, level: int) -> None:
 
 
 def phase_to_position(phase: float) -> int:
-    # One stroke direction per phase cycle: base(0) at phase 0, tip(9999) at phase 1.
-    # Half-cosine gives smooth acceleration/deceleration at endpoints.
-    normalized = (1 - math.cos(math.pi * phase)) / 2
+    # Full round trip per phase cycle: base(0) at phase 0, tip(9999) at phase 0.5,
+    # base(0) at phase 1. Smooth cosine with no discontinuities.
+    normalized = (1 - math.cos(2 * math.pi * phase)) / 2
     return max(0, min(9999, round(9999 * normalized)))

@@ -63,25 +63,23 @@ class TestPhaseToPosition:
     def test_phase_0_returns_base(self):
         assert phase_to_position(0.0) == 0
 
-    def test_phase_half_returns_midpoint(self):
-        assert phase_to_position(0.5) == pytest.approx(5000, abs=1)
+    def test_phase_quarter_returns_midpoint(self):
+        assert phase_to_position(0.25) == pytest.approx(5000, abs=1)
 
-    def test_phase_1_returns_tip(self):
-        assert phase_to_position(1.0) == 9999
+    def test_phase_half_returns_tip(self):
+        assert phase_to_position(0.5) == 9999
 
-    def test_smooth_curve_quarter_is_below_midpoint(self):
-        # Half-cosine curve: at 0.25, position should be ~1464 (below linear midpoint)
-        pos = phase_to_position(0.25)
-        assert 1000 < pos < 3000
+    def test_phase_three_quarter_returns_midpoint(self):
+        assert phase_to_position(0.75) == pytest.approx(5000, abs=1)
 
-    def test_continuous_phase_2_returns_to_base(self):
+    def test_phase_1_returns_base(self):
+        assert phase_to_position(1.0) == pytest.approx(0, abs=1)
+
+    def test_continuous_phase_1_5_returns_tip(self):
+        assert phase_to_position(1.5) == 9999
+
+    def test_continuous_phase_2_returns_base(self):
         assert phase_to_position(2.0) == pytest.approx(0, abs=1)
-
-    def test_continuous_phase_1_5_returns_midpoint_on_return(self):
-        assert phase_to_position(1.5) == pytest.approx(5000, abs=1)
-
-    def test_continuous_phase_3_returns_tip_again(self):
-        assert phase_to_position(3.0) == 9999
 
     def test_result_always_in_range(self):
         for p in [0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 0.999, 1.5, 2.0, 3.0]:
