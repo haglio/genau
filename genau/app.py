@@ -48,7 +48,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--command-file", default=str(config.genau_cmd_file))
     ap.add_argument("--paused-file", default=str(config.genau_paused_file))
     ap.add_argument(
-        "--direct", action="store_true", default=False,
+        "--direct", action="store_true", default=True,
         help="Direct control mode: generate T-Code output to drive the device",
     )
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
