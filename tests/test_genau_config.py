@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from genau.config import ProjectConfig, load_config
+from genau.config import ProjectConfig, VoiceConfig, load_config
 
 
 class TestLoadConfig:
@@ -108,3 +108,21 @@ class TestLoadConfig:
         cfg = load_config(cfg_file)
         # Relative state_dir resolves against the config file's parent directory
         assert cfg.state_dir.is_absolute()
+
+    def test_voice_defaults_to_none_when_absent(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.voice is None
+
+    def test_voice_loaded_when_present(self, cfg_factory):
+        cfg_path = cfg_factory({
+            "voice_control": {
+                "model_path": "vosk-model-small-en-us-0.15",
+                "device_index": 2,
+            },
+        })
+        cfg = load_config(cfg_path)
+        assert isinstance(cfg.voice, VoiceConfig)
+        assert cfg.voice.model_path == "vosk-model-small-en-us-0.15"
+        assert cfg.voice.device_index == 2
+        assert cfg.voice.confidence_threshold == 0.7
+        assert cfg.voice.sample_rate == 16000

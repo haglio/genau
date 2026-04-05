@@ -53,6 +53,10 @@ def build_parser(config) -> argparse.ArgumentParser:
     )
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
+    ap.add_argument(
+        "--voice", action="store_true", default=False,
+        help="Enable voice control (requires vosk and sounddevice)",
+    )
     return ap
 
 
@@ -186,6 +190,28 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
         tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
         logger.info("Direct control: T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
+
+    voice_listener = None
+    if args.voice:
+        from .voice import VOICE_AVAILABLE, VOICE_COMMANDS, VoiceListener
+        if not VOICE_AVAILABLE:
+            logger.warning("--voice requested but vosk/sounddevice not installed; voice disabled")
+        elif config.voice is None:
+            logger.warning("--voice requested but no voice_control section in config; voice disabled")
+        else:
+            voice_listener = VoiceListener(
+                commands=VOICE_COMMANDS,
+                cmd_file=command_file,
+                model_path=config.voice.model_path,
+                confidence_threshold=config.voice.confidence_threshold,
+                device_index=config.voice.device_index,
+                sample_rate=config.voice.sample_rate,
+            )
+            start_daemon_thread(
+                target=voice_listener.run,
+                name="genau-voice",
+            )
+            logger.info("Voice control enabled (model=%s)", config.voice.model_path)
 
     load_state = DecodeRequestState()
     prefetch_state = DecodeRequestState()

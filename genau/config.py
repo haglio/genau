@@ -16,6 +16,14 @@ def _resolve_path(base: Path, raw: str) -> Path:
 
 
 @dataclass(frozen=True)
+class VoiceConfig:
+    model_path: str = "vosk-model-small-en-us-0.15"
+    confidence_threshold: float = 0.7
+    device_index: int | None = None
+    sample_rate: int = 16000
+
+
+@dataclass(frozen=True)
 class GenauConfig:
     shuffle_on_load: bool
     beats_per_loop: float
@@ -39,6 +47,7 @@ class ProjectConfig:
     clips_dir: Path
     state_dir: Path
     genau: GenauConfig
+    voice: VoiceConfig | None = None
     broker_tray_launcher: Path | None = None
 
     @property
@@ -93,5 +102,17 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
             tcode_udp_host=str(genau_raw.get("tcode_udp_host", "127.0.0.1")),
             tcode_udp_port=int(genau_raw.get("tcode_udp_port", 50557)),
         ),
+        voice=_parse_voice_config(raw.get("voice_control")),
         broker_tray_launcher=_resolve_path(base, raw["broker_tray_launcher"]) if raw.get("broker_tray_launcher") else None,
+    )
+
+
+def _parse_voice_config(raw: dict[str, Any] | None) -> VoiceConfig | None:
+    if raw is None:
+        return None
+    return VoiceConfig(
+        model_path=str(raw.get("model_path", VoiceConfig.model_path)),
+        confidence_threshold=float(raw.get("confidence_threshold", VoiceConfig.confidence_threshold)),
+        device_index=raw.get("device_index"),
+        sample_rate=int(raw.get("sample_rate", VoiceConfig.sample_rate)),
     )

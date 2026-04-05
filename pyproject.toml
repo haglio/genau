@@ -15,6 +15,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+voice = [
+    "vosk",
+    "sounddevice",
+]
 dev = [
     "pytest",
     "vulture",
