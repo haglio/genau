@@ -46,6 +46,13 @@ def pause_playing(state: DirectControlState) -> None:
     state.playing = False
 
 
+def space_action(state: DirectControlState, *, auto_active: bool) -> None:
+    if auto_active:
+        pause_playing(state)
+    else:
+        toggle_playing(state)
+
+
 def set_speed(state: DirectControlState, speed: int) -> None:
     speed = max(MIN_SPEED, min(MAX_SPEED, speed))
     state.speed = speed

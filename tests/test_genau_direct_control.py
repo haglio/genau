@@ -17,6 +17,7 @@ from genau.direct_control import (
     set_amplitude,
     set_center,
     set_speed,
+    space_action,
     toggle_playing,
 )
 
@@ -60,6 +61,28 @@ class TestPausePlaying:
     def test_noop_when_already_paused(self):
         state = DirectControlState(playing=False)
         pause_playing(state)
+        assert state.playing is False
+
+
+class TestSpaceAction:
+    def test_solo_toggles_on(self):
+        state = DirectControlState(playing=False)
+        space_action(state, auto_active=False)
+        assert state.playing is True
+
+    def test_solo_toggles_off(self):
+        state = DirectControlState(playing=True)
+        space_action(state, auto_active=False)
+        assert state.playing is False
+
+    def test_fun_time_only_pauses(self):
+        state = DirectControlState(playing=True)
+        space_action(state, auto_active=True)
+        assert state.playing is False
+
+    def test_fun_time_does_not_resume(self):
+        state = DirectControlState(playing=False)
+        space_action(state, auto_active=True)
         assert state.playing is False
 
 

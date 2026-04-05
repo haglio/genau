@@ -248,7 +248,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         adjust_center,
         adjust_speed,
         cycle_shape,
-        pause_playing,
+        space_action,
         toggle_playing,
     )
 
@@ -261,7 +261,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         resize_delay_ms=config.genau.resize_debounce_ms,
         quarter_offset=lambda: engine.__setattr__("phase", (engine.phase + 0.25) % 1.0),
         on_toggle_playing=lambda: toggle_playing(direct_state),
-        on_pause_playing=lambda: pause_playing(direct_state),
+        on_pause_playing=lambda: space_action(direct_state, auto_active=state.auto_active),
         on_adjust_speed=lambda delta: adjust_speed(direct_state, delta),
         on_adjust_amplitude=lambda delta: adjust_amplitude(direct_state, delta),
         on_adjust_center=lambda delta: adjust_center(direct_state, delta),
