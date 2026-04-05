@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,7 @@ class AutoPilotState:
     _next_retarget: float = 0.0
     _next_speed_change: float = 0.0
     _next_shape_change: float = 0.0
+    _next_clip_change: float = 0.0
 
 
 def toggle_auto_pilot(state: AutoPilotState) -> None:
@@ -31,7 +33,10 @@ def toggle_auto_pilot(state: AutoPilotState) -> None:
 
 
 def tick_auto_pilot(
-    direct: DirectControlState, auto: AutoPilotState, now: float
+    direct: DirectControlState,
+    auto: AutoPilotState,
+    now: float,
+    step_clip: Callable[[int], None] | None = None,
 ) -> None:
     if not auto.active:
         return
@@ -69,3 +74,8 @@ def tick_auto_pilot(
         shapes = list(WaveformShape)
         direct.shape = auto.rng.choice(shapes)
         auto._next_shape_change = now + auto.rng.uniform(5, 15)
+
+    # Advance clip periodically
+    if step_clip is not None and now >= auto._next_clip_change:
+        step_clip(1)
+        auto._next_clip_change = now + auto.rng.uniform(8, 12)

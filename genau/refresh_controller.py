@@ -96,7 +96,7 @@ class RobotHandRefreshController:
         if self.direct_state is not None:
             if self.auto_pilot is not None:
                 from .auto_pilot import tick_auto_pilot
-                tick_auto_pilot(self.direct_state, self.auto_pilot, now)
+                tick_auto_pilot(self.direct_state, self.auto_pilot, now, step_clip=self.selection.step)
             auto_active = self.direct_state.playing
             raw_bpm = self.direct_state.bpm
             paused = not self.direct_state.playing

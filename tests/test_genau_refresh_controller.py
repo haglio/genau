@@ -410,3 +410,20 @@ def test_auto_pilot_ticks_during_refresh():
         built["controller"].refresh()
     # Auto pilot should have changed something
     assert dc.speed != 50 or dc.amplitude != 100 or dc.center != 50
+
+
+def test_auto_pilot_advances_clip_during_refresh():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    auto = AutoPilotState(active=True, rng=random.Random(42))
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode, auto_pilot=auto
+    )
+    tick = 0.0
+    for _ in range(150):
+        tick += 0.1
+        built["controller"].now_source = lambda t=tick: 5.0 + t
+        built["controller"].refresh()
+    assert len(built["selection"].step_calls) >= 1
+    assert all(c == 1 for c in built["selection"].step_calls)
