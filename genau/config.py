@@ -48,7 +48,6 @@ class ProjectConfig:
     state_dir: Path
     genau: GenauConfig
     voice: VoiceConfig | None = None
-    broker_tray_launcher: Path | None = None
 
     @property
     def genau_cmd_file(self) -> Path:
@@ -103,7 +102,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
             tcode_udp_port=int(genau_raw.get("tcode_udp_port", 50557)),
         ),
         voice=_parse_voice_config(raw.get("voice_control")),
-        broker_tray_launcher=_resolve_path(base, raw["broker_tray_launcher"]) if raw.get("broker_tray_launcher") else None,
     )
 
 
