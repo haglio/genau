@@ -50,8 +50,8 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
     ap.add_argument(
-        "--no-voice", action="store_true", default=False,
-        help="Suppress voice control even when configured",
+        "--fun-time", action="store_true", default=False,
+        help="Running under Fun Time (suppresses voice, space pauses only)",
     )
     return ap
 
@@ -170,7 +170,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
     logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
 
-    if config.voice is not None and not args.no_voice:
+    if config.voice is not None and not args.fun_time:
         from .voice import VOICE_AVAILABLE, VOICE_COMMANDS, VoiceListener
         if VOICE_AVAILABLE:
             voice_listener = VoiceListener(
@@ -261,7 +261,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         resize_delay_ms=config.genau.resize_debounce_ms,
         quarter_offset=lambda: engine.__setattr__("phase", (engine.phase + 0.25) % 1.0),
         on_toggle_playing=lambda: toggle_playing(direct_state),
-        on_pause_playing=lambda: space_action(direct_state, auto_active=state.auto_active),
+        on_pause_playing=lambda: space_action(direct_state, pause_only=args.fun_time),
         on_adjust_speed=lambda delta: adjust_speed(direct_state, delta),
         on_adjust_amplitude=lambda delta: adjust_amplitude(direct_state, delta),
         on_adjust_center=lambda delta: adjust_center(direct_state, delta),

@@ -67,22 +67,22 @@ class TestPausePlaying:
 class TestSpaceAction:
     def test_solo_toggles_on(self):
         state = DirectControlState(playing=False)
-        space_action(state, auto_active=False)
+        space_action(state, pause_only=False)
         assert state.playing is True
 
     def test_solo_toggles_off(self):
         state = DirectControlState(playing=True)
-        space_action(state, auto_active=False)
+        space_action(state, pause_only=False)
         assert state.playing is False
 
     def test_fun_time_only_pauses(self):
         state = DirectControlState(playing=True)
-        space_action(state, auto_active=True)
+        space_action(state, pause_only=True)
         assert state.playing is False
 
     def test_fun_time_does_not_resume(self):
         state = DirectControlState(playing=False)
-        space_action(state, auto_active=True)
+        space_action(state, pause_only=True)
         assert state.playing is False
 
 

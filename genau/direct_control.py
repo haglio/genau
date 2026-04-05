@@ -47,8 +47,8 @@ def pause_playing(state: DirectControlState) -> None:
     state.playing = False
 
 
-def space_action(state: DirectControlState, *, auto_active: bool) -> None:
-    if auto_active:
+def space_action(state: DirectControlState, *, pause_only: bool) -> None:
+    if pause_only:
         pause_playing(state)
     else:
         toggle_playing(state)

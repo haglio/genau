@@ -149,18 +149,18 @@ class TestVoiceListener:
         assert listener._stop.is_set()
 
 
-class TestNoVoiceFlag:
-    def test_parser_accepts_no_voice(self, cfg_path):
+class TestFunTimeFlag:
+    def test_parser_accepts_fun_time(self, cfg_path):
         from genau.app import build_parser
         from genau.config import load_config
         config = load_config(cfg_path)
         parser = build_parser(config)
 
-        args = parser.parse_args(["--no-voice"])
+        args = parser.parse_args(["--fun-time"])
 
-        assert args.no_voice is True
+        assert args.fun_time is True
 
-    def test_parser_defaults_no_voice_to_false(self, cfg_path):
+    def test_parser_defaults_fun_time_to_false(self, cfg_path):
         from genau.app import build_parser
         from genau.config import load_config
         config = load_config(cfg_path)
@@ -168,4 +168,4 @@ class TestNoVoiceFlag:
 
         args = parser.parse_args([])
 
-        assert args.no_voice is False
+        assert args.fun_time is False
