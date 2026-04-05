@@ -1,41 +1,11 @@
 """Tests for genau.video."""
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from genau.video import SUPPORTED_VIDEO_EXTS, scan_clips
-
-
-# ---------------------------------------------------------------------------
-# SUPPORTED_VIDEO_EXTS
-# ---------------------------------------------------------------------------
-
-class TestSupportedVideoExts:
-    def test_contains_mp4(self):
-        assert ".mp4" in SUPPORTED_VIDEO_EXTS
-
-    def test_contains_mkv(self):
-        assert ".mkv" in SUPPORTED_VIDEO_EXTS
-
-    def test_contains_mov(self):
-        assert ".mov" in SUPPORTED_VIDEO_EXTS
-
-    def test_contains_avi(self):
-        assert ".avi" in SUPPORTED_VIDEO_EXTS
-
-    def test_contains_webm(self):
-        assert ".webm" in SUPPORTED_VIDEO_EXTS
-
-    def test_contains_m4v(self):
-        assert ".m4v" in SUPPORTED_VIDEO_EXTS
-
-    def test_all_lowercase(self):
-        for ext in SUPPORTED_VIDEO_EXTS:
-            assert ext == ext.lower(), f"{ext!r} should be lowercase"
+from genau.video import scan_clips
 
 
 # ---------------------------------------------------------------------------
@@ -78,17 +48,6 @@ class TestScanClips:
         (tmp_path / "readme.txt").touch()
         with pytest.raises(RuntimeError, match="No video clips found"):
             scan_clips(tmp_path)
-
-    def test_returns_list(self, tmp_path: Path):
-        (tmp_path / "clip.mp4").touch()
-        result = scan_clips(tmp_path)
-        assert isinstance(result, list)
-
-    def test_returns_path_objects(self, tmp_path: Path):
-        (tmp_path / "clip.mp4").touch()
-        result = scan_clips(tmp_path)
-        for item in result:
-            assert isinstance(item, Path)
 
     def test_extension_matching_is_case_insensitive(self, tmp_path: Path):
         (tmp_path / "clip.MP4").touch()

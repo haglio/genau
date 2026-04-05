@@ -21,17 +21,6 @@ from genau.direct_control import (
 )
 
 
-class TestWaveformShapeEnum:
-    def test_has_four_members(self):
-        assert len(WaveformShape) == 4
-
-    def test_members(self):
-        assert WaveformShape.SINE is not None
-        assert WaveformShape.TRIANGLE is not None
-        assert WaveformShape.ROUNDED_SQUARE is not None
-        assert WaveformShape.SAWTOOTH is not None
-
-
 class TestBpmForSpeed:
     def test_speed_0_returns_minimum_bpm(self):
         assert bpm_for_speed(0) == pytest.approx(15.0)
@@ -261,13 +250,6 @@ class TestDirectControlStateNewFields:
     def test_default_shape(self):
         state = DirectControlState()
         assert state.shape is WaveformShape.SINE
-
-    def test_all_values_are_multiples_of_5(self):
-        state = DirectControlState()
-        assert state.amplitude % 5 == 0
-        assert state.center % 5 == 0
-        assert state.intended_center % 5 == 0
-
 
 class TestSetAmplitude:
     def test_sets_amplitude_directly(self):

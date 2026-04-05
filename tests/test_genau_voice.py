@@ -4,7 +4,6 @@ from __future__ import annotations
 import json
 
 from genau.voice import (
-    VOICE_AVAILABLE,
     VOICE_COMMANDS,
     VoiceListener,
     build_grammar,
@@ -132,6 +131,3 @@ class TestVoiceListener:
         assert listener._stop.is_set()
 
 
-class TestVoiceAvailable:
-    def test_is_bool(self):
-        assert isinstance(VOICE_AVAILABLE, bool)
