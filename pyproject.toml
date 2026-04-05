@@ -17,6 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "vulture",
 ]
 
 [tool.pytest.ini_options]
