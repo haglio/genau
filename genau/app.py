@@ -49,6 +49,10 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--paused-file", default=str(config.genau_paused_file))
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
+    ap.add_argument(
+        "--no-voice", action="store_true", default=False,
+        help="Suppress voice control even when configured",
+    )
     return ap
 
 
@@ -166,7 +170,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
     logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
 
-    if config.voice is not None:
+    if config.voice is not None and not args.no_voice:
         from .voice import VOICE_AVAILABLE, VOICE_COMMANDS, VoiceListener
         if VOICE_AVAILABLE:
             voice_listener = VoiceListener(
