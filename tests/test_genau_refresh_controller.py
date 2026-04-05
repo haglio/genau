@@ -86,10 +86,6 @@ class FakeTCodeSender:
     def stroke_phase(self) -> float:
         return self._stroke_phase
 
-    @property
-    def stroke_phase_frac(self) -> float:
-        return self._stroke_phase % 1.0
-
     def close(self) -> None:
         self.closed = True
 

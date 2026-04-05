@@ -61,7 +61,3 @@ def read_rhcache_all_frames(cache_path: Path) -> list[np.ndarray]:
     return frames
 
 
-def read_rhcache_frame(cache_path: Path, index: int) -> np.ndarray:
-    with zipfile.ZipFile(cache_path, "r") as zf:
-        buf = zf.read(f"frames/{index:06d}.webp")
-    return _decode_webp_rgb(buf)

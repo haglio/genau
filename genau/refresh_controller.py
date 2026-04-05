@@ -7,7 +7,7 @@ from pathlib import Path
 from .runtime_support import consume_command_file
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
-from .runtime_commands import apply_runtime_command, get_engine_estimated_bpm
+from .runtime_commands import apply_runtime_command
 
 
 @dataclass

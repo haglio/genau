@@ -1,14 +1,10 @@
 from __future__ import annotations
 
-from collections import OrderedDict, deque
+from collections import OrderedDict
 from pathlib import Path
 from typing import TypeVar
 
 T = TypeVar("T")
-
-
-def render_queue_for_frame_count(frame_count: int) -> deque[int]:
-    return deque(range(max(0, frame_count)))
 
 
 def trim_path_lru_cache(

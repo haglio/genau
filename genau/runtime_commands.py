@@ -9,10 +9,6 @@ QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
 LEGACY_QUARTER_CYCLE_OFFSET_COMMAND = "NUDGE25"
 
 
-def get_engine_estimated_bpm(engine: PlaybackEngine) -> float | None:
-    return None if engine.estimated_bpm is None else float(engine.estimated_bpm)
-
-
 def apply_runtime_command(
     command,
     *,

@@ -205,9 +205,6 @@ class PygameView:
     def hide(self) -> None:
         self.window.hide()
 
-    def set_title(self, title: str) -> None:
-        self.window.title = title
-
     def destroy(self) -> None:
         self._current_texture = None
         self.window.destroy()

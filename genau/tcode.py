@@ -46,7 +46,6 @@ class RateLimitedTCodeSender:
         self._sink = sink
         self._direct_state = direct_state
         self._min_interval = min_interval
-        self._now_source = now_source
         self._last_send_time: float = 0.0
         self._last_phase: float = 0.0
         self._stroke_phase: float = 0.0
@@ -67,10 +66,6 @@ class RateLimitedTCodeSender:
     @property
     def stroke_phase(self) -> float:
         return self._stroke_phase
-
-    @property
-    def stroke_phase_frac(self) -> float:
-        return self._stroke_phase % 1.0
 
     def maybe_send(self, phase: float, now: float) -> None:
         # Accumulate continuous stroke phase, detecting wraps.

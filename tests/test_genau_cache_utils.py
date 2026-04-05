@@ -3,15 +3,7 @@ from __future__ import annotations
 from collections import OrderedDict
 from pathlib import Path
 
-from genau.cache_utils import render_queue_for_frame_count, trim_path_lru_cache
-
-
-class TestRenderQueueForFrameCount:
-    def test_returns_empty_queue_for_zero_frames(self):
-        assert list(render_queue_for_frame_count(0)) == []
-
-    def test_returns_sequential_indices(self):
-        assert list(render_queue_for_frame_count(4)) == [0, 1, 2, 3]
+from genau.cache_utils import trim_path_lru_cache
 
 
 class TestTrimPathLruCache:

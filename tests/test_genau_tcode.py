@@ -149,9 +149,3 @@ class TestSenderWithDirectState:
         sender.maybe_send(phase=0.5, now=1.0)
         assert sender.current_position() == 9999
 
-    def test_stroke_phase_frac(self):
-        sink = FakeTCodeSink()
-        state = DirectControlState()
-        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
-        sender.maybe_send(phase=0.7, now=1.0)
-        assert sender.stroke_phase_frac == 0.7
