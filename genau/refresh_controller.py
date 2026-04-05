@@ -52,6 +52,7 @@ class GenauRefreshController:
         broker_cmd_file: Path | None = None,
         set_direct_overlay=None,
         present_scene=None,
+        stop_event=None,
     ):
         self.state = state
         self.loader = loader
@@ -79,6 +80,7 @@ class GenauRefreshController:
         self.broker_cmd_file = broker_cmd_file
         self.set_direct_overlay = set_direct_overlay or (lambda _data: None)
         self.present_scene = present_scene or (lambda: None)
+        self.stop_event = stop_event
         self.window_visible = False
 
     def refresh(self) -> None:
@@ -152,6 +154,7 @@ class GenauRefreshController:
             step_clip=self.selection.step,
             direct_state=self.direct_state,
             cruise_control_state=self.cruise_control,
+            stop_event=self.stop_event,
         )
 
         if self.direct_state is not None and self.broker_cmd_file is not None:

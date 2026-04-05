@@ -90,7 +90,7 @@ class TestVoiceCommands:
             "AMPLITUDE_DOWN", "AMPLITUDE_UP",
             "CENTER_DOWN", "CENTER_UP",
             "CYCLE_SHAPE", "TOGGLE_CRUISE", "CRUISE_ON", "CRUISE_OFF",
-            "PREV", "NEXT",
+            "PREV", "NEXT", "QUIT",
         }
         numeric_prefixes = ("AMP ", "CENTER ", "SPEED ")
         for phrase, cmd in VOICE_COMMANDS.items():
@@ -100,6 +100,9 @@ class TestVoiceCommands:
             else:
                 assert cmd in valid_static, f"'{phrase}' maps to unknown command '{cmd}'"
 
+    def test_quit_maps_to_quit_command(self):
+        assert VOICE_COMMANDS["quit"] == "QUIT"
+
     def test_contains_expected_phrases(self):
         expected = {
             "pause", "play", "resume",
@@ -108,6 +111,7 @@ class TestVoiceCommands:
             "center down", "center up",
             "cycle shape", "cruise control", "cruise on", "cruise off",
             "previous clip", "next clip",
+            "quit",
         }
         assert expected <= set(VOICE_COMMANDS.keys())
 

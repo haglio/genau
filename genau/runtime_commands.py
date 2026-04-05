@@ -29,12 +29,18 @@ def apply_runtime_command(
     step_clip,
     direct_state=None,
     cruise_control_state=None,
+    stop_event=None,
 ) -> bool:
     if not command:
         return False
 
     normalized = command.strip().upper()
-    if normalized == "PREV":
+    if normalized == "QUIT":
+        if stop_event is None:
+            return False
+        stop_event.set()
+        return True
+    elif normalized == "PREV":
         step_clip(-1)
     elif normalized == "NEXT":
         step_clip(1)

@@ -1,6 +1,8 @@
 """Tests for genau.runtime_commands."""
 from __future__ import annotations
 
+import threading
+
 import pytest
 
 from genau.runtime_commands import (
@@ -433,6 +435,35 @@ class TestApplyRuntimeCommand:
             rh_paused=rh_paused,
             step_clip=lambda _step: None,
             direct_state=ds,
+        )
+
+        assert handled is False
+
+    def test_quit_sets_stop_event(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        stop = threading.Event()
+
+        handled = apply_runtime_command(
+            "QUIT",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            stop_event=stop,
+        )
+
+        assert handled is True
+        assert stop.is_set()
+
+    def test_quit_ignored_without_stop_event(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+
+        handled = apply_runtime_command(
+            "QUIT",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
         )
 
         assert handled is False

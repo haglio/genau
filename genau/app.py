@@ -241,6 +241,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         broker_cmd_file=config.broker_cmd_file,
         set_direct_overlay=view.set_direct_overlay,
         present_scene=view.present,
+        stop_event=stop_event,
     )
     from .cruise_control import toggle_cruise_control
     from .direct_control import (
