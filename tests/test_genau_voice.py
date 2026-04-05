@@ -85,14 +85,19 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["speed down"] == "SPEED_DOWN"
 
     def test_all_values_are_recognized_runtime_commands(self):
-        valid = {
+        valid_static = {
             "PAUSE", "RESUME", "SPEED_DOWN", "SPEED_UP",
             "AMPLITUDE_DOWN", "AMPLITUDE_UP",
             "CENTER_DOWN", "CENTER_UP",
             "CYCLE_SHAPE", "TOGGLE_CRUISE", "PREV", "NEXT",
         }
+        numeric_prefixes = ("AMP ", "CENTER ", "SPEED ")
         for phrase, cmd in VOICE_COMMANDS.items():
-            assert cmd in valid, f"'{phrase}' maps to unknown command '{cmd}'"
+            if any(cmd.startswith(p) for p in numeric_prefixes):
+                _, value = cmd.split(" ", 1)
+                assert value.isdigit(), f"'{phrase}' has non-integer value '{value}'"
+            else:
+                assert cmd in valid_static, f"'{phrase}' maps to unknown command '{cmd}'"
 
     def test_contains_expected_phrases(self):
         expected = {
@@ -104,6 +109,19 @@ class TestVoiceCommands:
             "previous clip", "next clip",
         }
         assert expected <= set(VOICE_COMMANDS.keys())
+
+    def test_amp_fifty_maps_to_numeric_command(self):
+        assert VOICE_COMMANDS["amp fifty"] == "AMP 50"
+
+    def test_center_eighty_maps_to_numeric_command(self):
+        assert VOICE_COMMANDS["center eighty"] == "CENTER 80"
+
+    def test_speed_thirty_maps_to_numeric_command(self):
+        assert VOICE_COMMANDS["speed thirty"] == "SPEED 30"
+
+    def test_amp_zero_and_one_hundred(self):
+        assert VOICE_COMMANDS["amp zero"] == "AMP 0"
+        assert VOICE_COMMANDS["amp one hundred"] == "AMP 100"
 
 
 class TestVoiceListener:

@@ -28,6 +28,17 @@ VOICE_COMMANDS: dict[str, str] = {
     "next clip": "NEXT",
 }
 
+_NUMBER_WORDS: dict[str, int] = {
+    "zero": 0, "ten": 10, "twenty": 20, "thirty": 30, "forty": 40,
+    "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+    "one hundred": 100,
+}
+
+for _word, _value in _NUMBER_WORDS.items():
+    VOICE_COMMANDS[f"amp {_word}"] = f"AMP {_value}"
+    VOICE_COMMANDS[f"center {_word}"] = f"CENTER {_value}"
+    VOICE_COMMANDS[f"speed {_word}"] = f"SPEED {_value}"
+
 try:
     import vosk
     import sounddevice as sd
