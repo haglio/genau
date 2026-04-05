@@ -13,6 +13,7 @@ class WaveformShape(Enum):
 
 MIN_BPM = 15.0
 MAX_BPM = 200.0
+MIN_SPEED = 5
 MAX_SPEED = 100
 
 
@@ -46,7 +47,7 @@ def pause_playing(state: DirectControlState) -> None:
 
 
 def set_speed(state: DirectControlState, speed: int) -> None:
-    speed = max(0, min(MAX_SPEED, speed))
+    speed = max(MIN_SPEED, min(MAX_SPEED, speed))
     state.speed = speed
     state.bpm = bpm_for_speed(speed)
 

@@ -70,10 +70,10 @@ class TestSetSpeed:
         assert state.speed == 30
         assert state.bpm == pytest.approx(bpm_for_speed(30))
 
-    def test_clamps_below_0(self):
+    def test_clamps_below_minimum_to_5(self):
         state = DirectControlState()
-        set_speed(state, -5)
-        assert state.speed == 0
+        set_speed(state, 0)
+        assert state.speed == 5
 
     def test_clamps_above_100(self):
         state = DirectControlState()
@@ -469,6 +469,6 @@ class TestAdjustSpeed:
         assert state.speed == 100
 
     def test_clamps_at_min(self):
-        state = DirectControlState(speed=0)
+        state = DirectControlState(speed=5)
         adjust_speed(state, -5)
-        assert state.speed == 0
+        assert state.speed == 5
