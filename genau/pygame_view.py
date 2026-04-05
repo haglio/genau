@@ -192,25 +192,15 @@ class PygameView:
         label_x = amp_x + (amp_bar_w - amp_label.get_width()) // 2
         surface.blit(amp_label, (label_x, label_y))
 
+        if data.cruise_active:
+            cc_text = self._overlay_font.render("CC", True, (255, 200, 100))
+            surface.blit(
+                cc_text, (panel_w - cc_text.get_width() - pad, pad + 1)
+            )
+
         texture = Texture.from_surface(self.renderer, surface)
         dest = pygame.Rect(pad, pad, panel_w, panel_h)
         texture.draw(dstrect=dest)
-
-        if data.cruise_active:
-            win_w, _win_h = self.window.size
-            cruise_text = self._overlay_font.render("CC", True, (255, 200, 100))
-            cw, ch = cruise_text.get_width(), cruise_text.get_height()
-            cc_pad = 4
-            cc_surface = pygame.Surface(
-                (cw + cc_pad * 2, ch + cc_pad * 2), pygame.SRCALPHA
-            )
-            cc_surface.fill((0, 0, 0, 160))
-            cc_surface.blit(cruise_text, (cc_pad, cc_pad))
-            cc_texture = Texture.from_surface(self.renderer, cc_surface)
-            cc_dest = pygame.Rect(
-                win_w - cw - cc_pad * 3, pad, cw + cc_pad * 2, ch + cc_pad * 2
-            )
-            cc_texture.draw(dstrect=cc_dest)
 
     def show(self) -> None:
         self.window.show()
