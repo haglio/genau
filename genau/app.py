@@ -47,16 +47,8 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--notify-port", type=int, default=config.genau.notify_port)
     ap.add_argument("--command-file", default=str(config.genau_cmd_file))
     ap.add_argument("--paused-file", default=str(config.genau_paused_file))
-    ap.add_argument(
-        "--direct", action="store_true", default=True,
-        help="Direct control mode: generate T-Code output to drive the device",
-    )
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
-    ap.add_argument(
-        "--voice", action="store_true", default=False,
-        help="Enable voice control (requires vosk and sounddevice)",
-    )
     return ap
 
 
@@ -71,16 +63,8 @@ def read_paused_state(path: Path, *, logger: logging.Logger | None = None) -> bo
         return False
 
 
-def _preparse_direct(argv: list[str] | None) -> bool:
-    ap = argparse.ArgumentParser(add_help=False)
-    ap.add_argument("--direct", action="store_true", default=False)
-    known, _ = ap.parse_known_args(argv)
-    return known.direct
-
-
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
-    direct_mode = _preparse_direct(argv)
 
     # Set AppUserModelID before any window creation so Genau gets its
     # own taskbar identity (icon + title) instead of inheriting python.exe's.
@@ -90,11 +74,6 @@ def main(argv: list[str] | None = None) -> int:
     except OSError:
         pass  # Non-fatal
     stamp_shortcut_aumid()
-
-    # Ensure the broker (OSR2 serial bridge) is running (skip in direct mode).
-    if config.broker_tray_launcher and not direct_mode:
-        from .broker import ensure_broker_running
-        ensure_broker_running(config.broker_tray_launcher)
 
     logger = configure_logging("genau", config.log_file("genau_listener"))
     install_exception_logging(logger)
@@ -174,31 +153,22 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     rh_paused = {"value": False}
 
-    direct_state = None
-    tcode_sender = None
-    cruise_control = None
-    if args.direct:
-        from .cruise_control import CruiseControlState
-        from .direct_control import DirectControlState, bpm_for_speed
-        from .tcode import RateLimitedTCodeSender, UdpTCodeSink
-        direct_state = DirectControlState(
-            playing=False,
-            speed=50,
-            bpm=bpm_for_speed(50),
-        )
-        cruise_control = CruiseControlState()
-        sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
-        tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
-        logger.info("Direct control: T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
+    from .cruise_control import CruiseControlState
+    from .direct_control import DirectControlState, bpm_for_speed
+    from .tcode import RateLimitedTCodeSender, UdpTCodeSink
+    direct_state = DirectControlState(
+        playing=False,
+        speed=50,
+        bpm=bpm_for_speed(50),
+    )
+    cruise_control = CruiseControlState()
+    sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
+    tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
+    logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
 
-    voice_listener = None
-    if args.voice:
+    if config.voice is not None:
         from .voice import VOICE_AVAILABLE, VOICE_COMMANDS, VoiceListener
-        if not VOICE_AVAILABLE:
-            logger.warning("--voice requested but vosk/sounddevice not installed; voice disabled")
-        elif config.voice is None:
-            logger.warning("--voice requested but no voice_control section in config; voice disabled")
-        else:
+        if VOICE_AVAILABLE:
             voice_listener = VoiceListener(
                 commands=VOICE_COMMANDS,
                 cmd_file=command_file,
@@ -264,34 +234,18 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         direct_state=direct_state,
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
-        set_direct_overlay=view.set_direct_overlay if direct_state else None,
-        present_scene=view.present if direct_state else None,
+        set_direct_overlay=view.set_direct_overlay,
+        present_scene=view.present,
     )
-    if direct_state is not None:
-        from .cruise_control import toggle_cruise_control
-        from .direct_control import (
-            adjust_amplitude,
-            adjust_center,
-            adjust_speed,
-            cycle_shape,
-            pause_playing,
-            toggle_playing,
-        )
-        on_toggle = lambda: toggle_playing(direct_state)
-        on_pause = lambda: pause_playing(direct_state)
-        on_adj_speed = lambda delta: adjust_speed(direct_state, delta)
-        on_adj_amp = lambda delta: adjust_amplitude(direct_state, delta)
-        on_adj_center = lambda delta: adjust_center(direct_state, delta)
-        on_cycle = lambda: cycle_shape(direct_state)
-        on_auto = lambda: toggle_cruise_control(cruise_control)
-    else:
-        on_toggle = lambda: None
-        on_pause = lambda: None
-        on_adj_speed = lambda delta: None
-        on_adj_amp = lambda delta: None
-        on_adj_center = lambda delta: None
-        on_cycle = lambda: None
-        on_auto = lambda: None
+    from .cruise_control import toggle_cruise_control
+    from .direct_control import (
+        adjust_amplitude,
+        adjust_center,
+        adjust_speed,
+        cycle_shape,
+        pause_playing,
+        toggle_playing,
+    )
 
     lifecycle = GenauLifecycleController(
         view=view,
@@ -301,13 +255,13 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         notifier=notifier,
         resize_delay_ms=config.genau.resize_debounce_ms,
         quarter_offset=lambda: engine.__setattr__("phase", (engine.phase + 0.25) % 1.0),
-        on_toggle_playing=on_toggle,
-        on_pause_playing=on_pause,
-        on_adjust_speed=on_adj_speed,
-        on_adjust_amplitude=on_adj_amp,
-        on_adjust_center=on_adj_center,
-        on_cycle_shape=on_cycle,
-        on_toggle_cruise=on_auto,
+        on_toggle_playing=lambda: toggle_playing(direct_state),
+        on_pause_playing=lambda: pause_playing(direct_state),
+        on_adjust_speed=lambda delta: adjust_speed(direct_state, delta),
+        on_adjust_amplitude=lambda delta: adjust_amplitude(direct_state, delta),
+        on_adjust_center=lambda delta: adjust_center(direct_state, delta),
+        on_cycle_shape=lambda: cycle_shape(direct_state),
+        on_toggle_cruise=lambda: toggle_cruise_control(cruise_control),
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
@@ -323,8 +277,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         refresh_controller.refresh()
         view.clock.tick(120)
 
-    if tcode_sender is not None:
-        tcode_sender.close()
+    tcode_sender.close()
     view.destroy()
     return 0
 
