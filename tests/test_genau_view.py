@@ -19,7 +19,7 @@ def mock_pygame():
 def test_pygame_view_creates_window_and_renderer(mock_pygame):
     from genau.pygame_view import PygameView
 
-    view = PygameView(width=1200, height=900, x=10, y=20, title="Robot Hand")
+    view = PygameView(width=1200, height=900, x=10, y=20, title="Genau")
 
     assert view.width == 1200
     assert view.height == 900

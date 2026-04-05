@@ -22,7 +22,7 @@ class DirectOverlayData:
     phase_per_second: float = 1.0
 
 
-class RobotHandRefreshController:
+class GenauRefreshController:
     def __init__(
         self,
         *,

@@ -5,7 +5,7 @@ import time
 
 import pygame
 
-from genau.lifecycle import RobotHandLifecycleController
+from genau.lifecycle import GenauLifecycleController
 
 
 class FakeView:
@@ -79,7 +79,7 @@ def _build_controller(
         kwargs["on_cycle_shape"] = on_cycle_shape
     if on_toggle_auto is not None:
         kwargs["on_toggle_auto"] = on_toggle_auto
-    controller = RobotHandLifecycleController(**kwargs)
+    controller = GenauLifecycleController(**kwargs)
     return controller, view, renderer, selection, notifier, stop_event
 
 

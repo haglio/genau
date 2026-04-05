@@ -11,10 +11,10 @@ from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
 from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
-from .lifecycle import RobotHandLifecycleController
-from .notifier import RobotHandNotifier
+from .lifecycle import GenauLifecycleController
+from .notifier import GenauNotifier
 from .pygame_view import PygameView
-from .refresh_controller import RobotHandRefreshController
+from .refresh_controller import GenauRefreshController
 from .config import load_config
 from .logging_utils import configure_logging, enable_faulthandler, install_exception_logging
 from .runtime_support import preparse_config_path
@@ -189,7 +189,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     load_state = DecodeRequestState()
     prefetch_state = DecodeRequestState()
-    notifier = RobotHandNotifier(args.notify_host, args.notify_port)
+    notifier = GenauNotifier(args.notify_host, args.notify_port)
 
     renderer = ClipRenderController(
         clip_store=clip_store,
@@ -216,7 +216,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         notifier=notifier,
     )
 
-    refresh_controller = RobotHandRefreshController(
+    refresh_controller = GenauRefreshController(
         state=state,
         loader=loader,
         notifier=notifier,
@@ -267,7 +267,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_cycle = lambda: None
         on_auto = lambda: None
 
-    lifecycle = RobotHandLifecycleController(
+    lifecycle = GenauLifecycleController(
         view=view,
         renderer=renderer,
         selection=selection,

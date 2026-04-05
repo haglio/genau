@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 from genau.auto_pilot import AutoPilotState
 from genau.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
-from genau.refresh_controller import RobotHandRefreshController
+from genau.refresh_controller import GenauRefreshController
 from genau.state import SharedState
 
 
@@ -120,7 +120,7 @@ def _build_controller(
     selection = FakeSelection(pending_clip_name=pending_clip_name)
     engine = PlaybackEngine(phase=0.25, last_tick=5.0)
     logger = MagicMock()
-    controller = RobotHandRefreshController(
+    controller = GenauRefreshController(
         state=state or SharedState(),
         loader=loader,
         notifier=notifier,
@@ -137,7 +137,7 @@ def _build_controller(
         hide_window=lambda: hide_window_calls.append("hide"),
         set_loading_text=loading_texts.append,
         logger=logger,
-        log_name="robot_hand_listener.log",
+        log_name="genau_listener.log",
         now_source=lambda: 5.0,
         consume_command=lambda _path, logger=None: command,
         read_paused_state=lambda _path, logger=None: paused_state,

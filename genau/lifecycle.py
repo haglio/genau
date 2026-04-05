@@ -5,7 +5,7 @@ import time
 import pygame
 
 
-class RobotHandLifecycleController:
+class GenauLifecycleController:
     def __init__(
         self,
         *,

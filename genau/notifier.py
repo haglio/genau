@@ -4,7 +4,7 @@ import socket
 from pathlib import Path
 
 
-class RobotHandNotifier:
+class GenauNotifier:
     def __init__(self, host: str, port: int, *, sock=None):
         self.host = host
         self.port = port
