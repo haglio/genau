@@ -154,9 +154,12 @@ class GenauRefreshController:
             cruise_control_state=self.cruise_control,
         )
 
-        if was_playing and self.direct_state is not None and not self.direct_state.playing:
-            if self.broker_cmd_file is not None:
+        if self.direct_state is not None and self.broker_cmd_file is not None:
+            now_playing = self.direct_state.playing
+            if was_playing and not now_playing:
                 self.broker_cmd_file.write_text("PARK", encoding="utf-8")
+            elif not was_playing and now_playing:
+                self.broker_cmd_file.write_text("RESUME", encoding="utf-8")
 
         active_entry = self.renderer.current_clip_entry()
 

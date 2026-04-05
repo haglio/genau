@@ -384,7 +384,7 @@ def test_pause_without_broker_cmd_file_does_not_error():
     built["controller"].refresh()  # No broker_cmd_file — should not raise
 
 
-def test_resume_command_does_not_write_park(tmp_path):
+def test_resume_command_writes_resume_to_broker_cmd_file(tmp_path):
     broker_cmd = tmp_path / "broker_cmd.txt"
     dc = DirectControlState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
@@ -396,7 +396,7 @@ def test_resume_command_does_not_write_park(tmp_path):
 
     built["controller"].refresh()
 
-    assert not broker_cmd.exists()
+    assert broker_cmd.read_text(encoding="utf-8") == "RESUME"
 
 
 def test_resume_command_starts_direct_mode_playback():

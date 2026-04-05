@@ -47,6 +47,7 @@ class ProjectConfig:
     clips_dir: Path
     state_dir: Path
     genau: GenauConfig
+    broker_cmd_file: Path
     voice: VoiceConfig | None = None
 
     @property
@@ -56,10 +57,6 @@ class ProjectConfig:
     @property
     def genau_paused_file(self) -> Path:
         return self.state_dir / "genau_paused.txt"
-
-    @property
-    def broker_cmd_file(self) -> Path:
-        return self.state_dir / "broker_cmd.txt"
 
     @property
     def logs_dir(self) -> Path:
@@ -85,11 +82,15 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     if genau_raw is None:
         raise ValueError(f"Missing required config section: genau (in {path})")
 
+    state_dir = _resolve_path(base, raw["state_dir"])
+    broker_cmd_raw = raw.get("broker_cmd_file")
+    broker_cmd_file = _resolve_path(base, broker_cmd_raw) if broker_cmd_raw else state_dir / "broker_cmd.txt"
+
     return ProjectConfig(
         project_dir=base,
         config_path=path,
         clips_dir=_resolve_path(base, raw["clips_dir"]),
-        state_dir=_resolve_path(base, raw["state_dir"]),
+        state_dir=state_dir,
         genau=GenauConfig(
             shuffle_on_load=bool(genau_raw["shuffle_on_load"]),
             beats_per_loop=float(genau_raw["beats_per_loop"]),
@@ -105,6 +106,7 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
             tcode_udp_host=str(genau_raw.get("tcode_udp_host", "127.0.0.1")),
             tcode_udp_port=int(genau_raw.get("tcode_udp_port", 50557)),
         ),
+        broker_cmd_file=broker_cmd_file,
         voice=_parse_voice_config(raw.get("voice_control")),
     )
 
