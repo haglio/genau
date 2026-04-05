@@ -36,7 +36,7 @@ def apply_runtime_command(
         rh_paused["value"] = False
         if direct_state is not None:
             direct_state.playing = True
-    elif normalized == "SPEED_DOWN" and direct_state is not None:
+    elif normalized in {"SPEED_DOWN", "SLOW_DOWN"} and direct_state is not None:
         adjust_speed(direct_state, -5)
     elif normalized == "SPEED_UP" and direct_state is not None:
         adjust_speed(direct_state, 5)

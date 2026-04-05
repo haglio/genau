@@ -160,6 +160,22 @@ class TestApplyRuntimeCommand:
         assert handled is True
         assert ds.speed == 45
 
+    def test_slow_down_is_alias_for_speed_down(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, speed=50)
+
+        handled = apply_runtime_command(
+            "SLOW_DOWN",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.speed == 45
+
     def test_speed_up_increases_speed(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}
