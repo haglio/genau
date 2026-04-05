@@ -71,6 +71,7 @@ class FakeSelection:
 class FakeTCodeSender:
     def __init__(self):
         self.sends: list[tuple[float, float]] = []
+        self.park_calls: list[int] = []
         self.closed = False
         self._position = 5000
         self._stroke_phase = 0.0
@@ -85,6 +86,9 @@ class FakeTCodeSender:
     @property
     def stroke_phase(self) -> float:
         return self._stroke_phase
+
+    def send_park(self, interval_ms: int = 500) -> None:
+        self.park_calls.append(interval_ms)
 
     def close(self) -> None:
         self.closed = True
@@ -356,6 +360,28 @@ def test_pause_command_stops_direct_mode_playback():
     built["controller"].refresh()
 
     assert dc.playing is False
+
+
+def test_pause_command_sends_park_tcode():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
+
+    built["controller"].refresh()
+
+    assert tcode.park_calls == [500]
+
+
+def test_resume_command_does_not_send_park():
+    dc = DirectControlState(playing=False, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="RESUME")
+
+    built["controller"].refresh()
+
+    assert tcode.park_calls == []
 
 
 def test_resume_command_starts_direct_mode_playback():

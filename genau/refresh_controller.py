@@ -137,6 +137,8 @@ class GenauRefreshController:
         if self.direct_state is not None:
             self._update_direct_overlay()
 
+        was_playing = self.direct_state.playing if self.direct_state is not None else False
+
         apply_runtime_command(
             self.consume_command(self.command_file, logger=self.logger),
             engine=self.engine,
@@ -145,6 +147,10 @@ class GenauRefreshController:
             direct_state=self.direct_state,
             auto_pilot_state=self.auto_pilot,
         )
+
+        if was_playing and self.direct_state is not None and not self.direct_state.playing:
+            if self.tcode_sender is not None:
+                self.tcode_sender.send_park()
 
         active_entry = self.renderer.current_clip_entry()
 
