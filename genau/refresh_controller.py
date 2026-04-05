@@ -82,6 +82,7 @@ class GenauRefreshController:
         self.present_scene = present_scene or (lambda: None)
         self.stop_event = stop_event
         self.window_visible = False
+        self._prev_playing: bool | None = None
 
     def refresh(self) -> None:
         try:
@@ -145,7 +146,10 @@ class GenauRefreshController:
         elif self.direct_state is not None:
             self.set_direct_overlay(None)
 
-        was_playing = self.direct_state.playing if self.direct_state is not None else False
+        prev_playing = self._prev_playing
+        if self.direct_state is not None:
+            if prev_playing is None:
+                prev_playing = self.direct_state.playing
 
         apply_runtime_command(
             self.consume_command(self.command_file, logger=self.logger),
@@ -159,10 +163,11 @@ class GenauRefreshController:
 
         if self.direct_state is not None and self.broker_cmd_file is not None:
             now_playing = self.direct_state.playing
-            if was_playing and not now_playing:
-                self.broker_cmd_file.write_text("PARK", encoding="utf-8")
-            elif not was_playing and now_playing:
-                self.broker_cmd_file.write_text("RESUME", encoding="utf-8")
+            if now_playing != prev_playing:
+                self.broker_cmd_file.write_text(
+                    "RESUME" if now_playing else "PARK", encoding="utf-8",
+                )
+            self._prev_playing = now_playing
 
         active_entry = self.renderer.current_clip_entry()
 

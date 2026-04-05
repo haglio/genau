@@ -399,6 +399,52 @@ def test_resume_command_writes_resume_to_broker_cmd_file(tmp_path):
     assert broker_cmd.read_text(encoding="utf-8") == "RESUME"
 
 
+def test_pause_between_refreshes_writes_park(tmp_path):
+    """Pause via lifecycle controller (not command file) is detected on next refresh."""
+    broker_cmd = tmp_path / "broker_cmd.txt"
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        broker_cmd_file=broker_cmd,
+    )
+
+    # First refresh — playing, no transition
+    built["controller"].refresh()
+    assert not broker_cmd.exists()
+
+    # Pause happens outside the refresh loop (e.g. space key)
+    dc.playing = False
+
+    # Next refresh should detect the transition
+    built["controller"].refresh()
+    assert broker_cmd.read_text(encoding="utf-8") == "PARK"
+
+
+def test_resume_between_refreshes_writes_resume(tmp_path):
+    """Resume via lifecycle controller is detected on next refresh."""
+    broker_cmd = tmp_path / "broker_cmd.txt"
+    dc = DirectControlState(playing=False, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        broker_cmd_file=broker_cmd,
+    )
+
+    # First refresh — paused, no transition
+    built["controller"].refresh()
+    assert not broker_cmd.exists()
+
+    # Resume happens outside the refresh loop
+    dc.playing = True
+
+    # Next refresh should detect the transition
+    built["controller"].refresh()
+    assert broker_cmd.read_text(encoding="utf-8") == "RESUME"
+
+
 def test_resume_command_starts_direct_mode_playback():
     dc = DirectControlState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
