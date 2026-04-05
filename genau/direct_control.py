@@ -18,8 +18,9 @@ MAX_SPEED = 100
 
 
 def bpm_for_speed(speed: int) -> float:
-    """Map speed 0-100 to BPM using exponential curve."""
-    return MIN_BPM * (MAX_BPM / MIN_BPM) ** (speed / MAX_SPEED)
+    """Map speed MIN_SPEED-MAX_SPEED to BPM using exponential curve."""
+    t = (speed - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
+    return MIN_BPM * (MAX_BPM / MIN_BPM) ** t
 
 
 @dataclass

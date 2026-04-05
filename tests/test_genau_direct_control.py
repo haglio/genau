@@ -23,19 +23,19 @@ from genau.direct_control import (
 
 
 class TestBpmForSpeed:
-    def test_speed_0_returns_minimum_bpm(self):
-        assert bpm_for_speed(0) == pytest.approx(15.0)
+    def test_min_speed_returns_minimum_bpm(self):
+        assert bpm_for_speed(5) == pytest.approx(15.0)
 
     def test_speed_100_returns_maximum_bpm(self):
         assert bpm_for_speed(100) == pytest.approx(200.0)
 
     def test_monotonically_increasing(self):
-        bpms = [bpm_for_speed(i) for i in range(0, 101, 5)]
+        bpms = [bpm_for_speed(i) for i in range(5, 101, 5)]
         for i in range(len(bpms) - 1):
             assert bpms[i] < bpms[i + 1]
 
     def test_exponential_curve_gives_finer_control_at_low_end(self):
-        low_step = bpm_for_speed(5) - bpm_for_speed(0)
+        low_step = bpm_for_speed(10) - bpm_for_speed(5)
         high_step = bpm_for_speed(100) - bpm_for_speed(95)
         assert low_step < high_step
 
