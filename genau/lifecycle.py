@@ -22,7 +22,7 @@ class GenauLifecycleController:
         on_adjust_amplitude=lambda delta: None,
         on_adjust_center=lambda delta: None,
         on_cycle_shape=lambda: None,
-        on_toggle_auto=lambda: None,
+        on_toggle_cruise=lambda: None,
     ):
         self.view = view
         self.renderer = renderer
@@ -37,7 +37,7 @@ class GenauLifecycleController:
         self.on_adjust_amplitude = on_adjust_amplitude
         self.on_adjust_center = on_adjust_center
         self.on_cycle_shape = on_cycle_shape
-        self.on_toggle_auto = on_toggle_auto
+        self.on_toggle_cruise = on_toggle_cruise
         self._resize_pending_at: float | None = None
 
     def process_events(self) -> None:
@@ -79,7 +79,7 @@ class GenauLifecycleController:
         elif event.key == pygame.K_COMMA:
             self.on_cycle_shape()
         elif event.key == pygame.K_SLASH:
-            self.on_toggle_auto()
+            self.on_toggle_cruise()
 
     def _on_resize(self) -> None:
         self._resize_pending_at = time.monotonic()

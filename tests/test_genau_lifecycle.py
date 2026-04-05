@@ -49,7 +49,7 @@ def _build_controller(
     on_adjust_amplitude=None,
     on_adjust_center=None,
     on_cycle_shape=None,
-    on_toggle_auto=None,
+    on_toggle_cruise=None,
 ):
     view = FakeView()
     renderer = FakeRenderer()
@@ -77,8 +77,8 @@ def _build_controller(
         kwargs["on_adjust_center"] = on_adjust_center
     if on_cycle_shape is not None:
         kwargs["on_cycle_shape"] = on_cycle_shape
-    if on_toggle_auto is not None:
-        kwargs["on_toggle_auto"] = on_toggle_auto
+    if on_toggle_cruise is not None:
+        kwargs["on_toggle_cruise"] = on_toggle_cruise
     controller = GenauLifecycleController(**kwargs)
     return controller, view, renderer, selection, notifier, stop_event
 
@@ -233,7 +233,7 @@ def test_comma_key_triggers_cycle_shape():
 def test_slash_key_triggers_toggle_auto():
     calls = []
     controller, *_ = _build_controller(
-        on_toggle_auto=lambda: calls.append(1),
+        on_toggle_cruise=lambda: calls.append(1),
     )
 
     event = type("Event", (), {"key": pygame.K_SLASH, "mod": 0})()

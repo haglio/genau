@@ -145,9 +145,9 @@ class PygameView:
         pygame.draw.rect(surface, (80, 180, 80), (spd_x, spd_y, spd_fill_w, spd_bar_h))
         spd_text = self._overlay_font.render(f"SPD {data.speed}", True, (220, 220, 220))
         surface.blit(spd_text, (spd_x + 3, spd_y + 1))
-        if data.auto_active:
-            auto_text = self._overlay_font.render("AUTO", True, (255, 200, 100))
-            surface.blit(auto_text, (spd_x + wave_w - auto_text.get_width() - 3, spd_y + 1))
+        if data.cruise_active:
+            cruise_text = self._overlay_font.render("CRUISE", True, (255, 200, 100))
+            surface.blit(cruise_text, (spd_x + wave_w - cruise_text.get_width() - 3, spd_y + 1))
 
         # --- Waveform graph (4 seconds, scrolling) ---
         wave_x = pad

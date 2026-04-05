@@ -10,7 +10,7 @@ from .direct_control import (
     set_center,
     set_speed,
 )
-from .auto_pilot import toggle_auto_pilot
+from .cruise_control import toggle_cruise_control
 
 
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
@@ -24,7 +24,7 @@ def apply_runtime_command(
     rh_paused,
     step_clip,
     direct_state=None,
-    auto_pilot_state=None,
+    cruise_control_state=None,
 ) -> bool:
     if not command:
         return False
@@ -58,8 +58,8 @@ def apply_runtime_command(
         adjust_center(direct_state, 5)
     elif normalized == "CYCLE_SHAPE" and direct_state is not None:
         cycle_shape(direct_state)
-    elif normalized == "TOGGLE_AUTO" and auto_pilot_state is not None:
-        toggle_auto_pilot(auto_pilot_state)
+    elif normalized == "TOGGLE_CRUISE" and cruise_control_state is not None:
+        toggle_cruise_control(cruise_control_state)
     else:
         return _try_numeric_command(normalized, direct_state)
     return True

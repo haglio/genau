@@ -10,7 +10,7 @@ from genau.runtime_commands import (
 )
 from genau.engine import PlaybackEngine
 from genau.direct_control import DirectControlState, WaveformShape
-from genau.auto_pilot import AutoPilotState
+from genau.cruise_control import CruiseControlState
 
 
 class TestApplyRuntimeCommand:
@@ -273,17 +273,17 @@ class TestApplyRuntimeCommand:
         assert handled is True
         assert ds.shape == WaveformShape.TRIANGLE
 
-    def test_toggle_auto_activates_auto_pilot(self):
+    def test_toggle_cruise_activates_cruise_control(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}
-        auto = AutoPilotState(active=False)
+        auto = CruiseControlState(active=False)
 
         handled = apply_runtime_command(
-            "TOGGLE_AUTO",
+            "TOGGLE_CRUISE",
             engine=engine,
             rh_paused=rh_paused,
             step_clip=lambda _step: None,
-            auto_pilot_state=auto,
+            cruise_control_state=auto,
         )
 
         assert handled is True
@@ -303,12 +303,12 @@ class TestApplyRuntimeCommand:
             )
             assert handled is False, f"{cmd} should be ignored without direct_state"
 
-    def test_toggle_auto_ignored_without_auto_pilot_state(self):
+    def test_toggle_cruise_ignored_without_cruise_control_state(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}
 
         handled = apply_runtime_command(
-            "TOGGLE_AUTO",
+            "TOGGLE_CRUISE",
             engine=engine,
             rh_paused=rh_paused,
             step_clip=lambda _step: None,

@@ -172,9 +172,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     direct_state = None
     tcode_sender = None
-    auto_pilot = None
+    cruise_control = None
     if args.direct:
-        from .auto_pilot import AutoPilotState
+        from .cruise_control import CruiseControlState
         from .direct_control import DirectControlState, bpm_for_speed
         from .tcode import RateLimitedTCodeSender, UdpTCodeSink
         direct_state = DirectControlState(
@@ -182,7 +182,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             speed=50,
             bpm=bpm_for_speed(50),
         )
-        auto_pilot = AutoPilotState()
+        cruise_control = CruiseControlState()
         sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
         tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
         logger.info("Direct control: T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
@@ -237,12 +237,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         read_paused_state=read_paused_state,
         direct_state=direct_state,
         tcode_sender=tcode_sender,
-        auto_pilot=auto_pilot,
+        cruise_control=cruise_control,
         set_direct_overlay=view.set_direct_overlay if direct_state else None,
         present_scene=view.present if direct_state else None,
     )
     if direct_state is not None:
-        from .auto_pilot import toggle_auto_pilot
+        from .cruise_control import toggle_cruise_control
         from .direct_control import (
             adjust_amplitude,
             adjust_center,
@@ -257,7 +257,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_adj_amp = lambda delta: adjust_amplitude(direct_state, delta)
         on_adj_center = lambda delta: adjust_center(direct_state, delta)
         on_cycle = lambda: cycle_shape(direct_state)
-        on_auto = lambda: toggle_auto_pilot(auto_pilot)
+        on_auto = lambda: toggle_cruise_control(cruise_control)
     else:
         on_toggle = lambda: None
         on_pause = lambda: None
@@ -281,7 +281,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_adjust_amplitude=on_adj_amp,
         on_adjust_center=on_adj_center,
         on_cycle_shape=on_cycle,
-        on_toggle_auto=on_auto,
+        on_toggle_cruise=on_auto,
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)

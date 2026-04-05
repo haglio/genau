@@ -4,7 +4,7 @@ import random
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from genau.auto_pilot import AutoPilotState
+from genau.cruise_control import CruiseControlState
 from genau.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
 from genau.refresh_controller import GenauRefreshController
@@ -106,7 +106,7 @@ def _build_controller(
     pending_clip_name: str | None = None,
     direct_state: DirectControlState | None = None,
     tcode_sender: FakeTCodeSender | None = None,
-    auto_pilot: AutoPilotState | None = None,
+    cruise_control: CruiseControlState | None = None,
 ):
     loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
@@ -147,7 +147,7 @@ def _build_controller(
         read_paused_state=lambda _path, logger=None: paused_state,
         direct_state=direct_state,
         tcode_sender=tcode_sender,
-        auto_pilot=auto_pilot,
+        cruise_control=cruise_control,
         set_direct_overlay=overlay_data_list.append,
         present_scene=lambda: present_calls.append(1),
     )
@@ -406,13 +406,13 @@ def test_speed_up_command_via_refresh():
     assert dc.speed == 55
 
 
-def test_toggle_auto_command_via_refresh():
+def test_toggle_cruise_command_via_refresh():
     dc = DirectControlState(playing=True, bpm=120.0)
-    auto = AutoPilotState(active=False)
+    auto = CruiseControlState(active=False)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode, auto_pilot=auto, command="TOGGLE_AUTO"
+        entry=entry, direct_state=dc, tcode_sender=tcode, cruise_control=auto, command="TOGGLE_CRUISE"
     )
 
     built["controller"].refresh()
@@ -420,13 +420,13 @@ def test_toggle_auto_command_via_refresh():
     assert auto.active is True
 
 
-def test_auto_pilot_ticks_during_refresh():
+def test_cruise_control_ticks_during_refresh():
     dc = DirectControlState(playing=True, bpm=120.0, speed=50)
-    auto = AutoPilotState(active=True, rng=random.Random(42))
+    auto = CruiseControlState(active=True, rng=random.Random(42))
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode, auto_pilot=auto
+        entry=entry, direct_state=dc, tcode_sender=tcode, cruise_control=auto
     )
     # Advance clock enough that auto pilot actually triggers changes
     tick = 0.0
@@ -438,13 +438,13 @@ def test_auto_pilot_ticks_during_refresh():
     assert dc.speed != 50 or dc.amplitude != 100 or dc.center != 50
 
 
-def test_auto_pilot_advances_clip_during_refresh():
+def test_cruise_control_advances_clip_during_refresh():
     dc = DirectControlState(playing=True, bpm=120.0)
-    auto = AutoPilotState(active=True, rng=random.Random(42))
+    auto = CruiseControlState(active=True, rng=random.Random(42))
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode, auto_pilot=auto
+        entry=entry, direct_state=dc, tcode_sender=tcode, cruise_control=auto
     )
     tick = 0.0
     for _ in range(150):

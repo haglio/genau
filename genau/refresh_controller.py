@@ -18,7 +18,7 @@ class DirectOverlayData:
     center: int
     waveform_points: list[float]
     position: int
-    auto_active: bool
+    cruise_active: bool
     phase_per_second: float = 1.0
 
 
@@ -48,7 +48,7 @@ class GenauRefreshController:
         read_paused_state=None,
         direct_state=None,
         tcode_sender=None,
-        auto_pilot=None,
+        cruise_control=None,
         set_direct_overlay=None,
         present_scene=None,
     ):
@@ -74,7 +74,7 @@ class GenauRefreshController:
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
         self.direct_state = direct_state
         self.tcode_sender = tcode_sender
-        self.auto_pilot = auto_pilot
+        self.cruise_control = cruise_control
         self.set_direct_overlay = set_direct_overlay or (lambda _data: None)
         self.present_scene = present_scene or (lambda: None)
         self.window_visible = False
@@ -94,9 +94,9 @@ class GenauRefreshController:
         shared = read_shared_state_snapshot(self.state)
 
         if self.direct_state is not None:
-            if self.auto_pilot is not None:
-                from .auto_pilot import tick_auto_pilot
-                tick_auto_pilot(self.direct_state, self.auto_pilot, now, step_clip=self.selection.step)
+            if self.cruise_control is not None:
+                from .cruise_control import tick_cruise_control
+                tick_cruise_control(self.direct_state, self.cruise_control, now, step_clip=self.selection.step)
             auto_active = self.direct_state.playing
             raw_bpm = self.direct_state.bpm
             paused = not self.direct_state.playing
@@ -145,7 +145,7 @@ class GenauRefreshController:
             rh_paused=self.rh_paused,
             step_clip=self.selection.step,
             direct_state=self.direct_state,
-            auto_pilot_state=self.auto_pilot,
+            cruise_control_state=self.cruise_control,
         )
 
         if was_playing and self.direct_state is not None and not self.direct_state.playing:
@@ -205,6 +205,6 @@ class GenauRefreshController:
                 phase_range=phase_per_second * display_seconds,
             ),
             position=position,
-            auto_active=self.auto_pilot.active if self.auto_pilot else False,
+            cruise_active=self.cruise_control.active if self.cruise_control else False,
             phase_per_second=phase_per_second,
         ))
