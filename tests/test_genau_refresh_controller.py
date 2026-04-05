@@ -453,3 +453,94 @@ def test_cruise_control_advances_clip_during_refresh():
         built["controller"].refresh()
     assert len(built["selection"].step_calls) >= 1
     assert all(c == 1 for c in built["selection"].step_calls)
+
+
+def test_broker_auto_uses_broker_bpm_for_phase():
+    """When broker signals auto, direct mode should use broker BPM for phase."""
+    dc = DirectControlState(playing=False, bpm=60.0)
+    state = SharedState(auto_active=True, raw_bpm=120.0)
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(state=state, entry=entry, direct_state=dc)
+    built["controller"].now_source = lambda: 5.05
+
+    built["controller"].refresh()
+
+    # Phase should have advanced using broker BPM (120), not direct_state BPM (60)
+    # With 120 BPM, beats_per_loop=4, loop_duration = (60/120)*4 = 2s
+    # dt=0.05, phase advance = 0.05/2 = 0.025 → 0.25 + 0.025 = 0.275
+    assert abs(built["engine"].phase - 0.275) < 0.001
+
+
+def test_broker_auto_does_not_send_tcode():
+    """When broker signals auto, T-Code should not be sent even if direct_state.playing."""
+    dc = DirectControlState(playing=True, bpm=120.0)
+    state = SharedState(auto_active=True, raw_bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(state=state, entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert tcode.sends == []
+
+
+def test_broker_auto_uses_linear_display_phase():
+    """When broker signals auto, display should use engine phase directly, not waveform."""
+    dc = DirectControlState(playing=False, bpm=60.0)
+    state = SharedState(auto_active=True, raw_bpm=120.0)
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(state=state, entry=entry, direct_state=dc)
+
+    built["controller"].refresh()
+
+    # Engine phase is 0.25, frame_count=8
+    # Linear: logical_index = int(0.25 * 8) = 2, display = 7 - 2 = 5
+    assert built["renderer"].display_calls == [5]
+
+
+def test_broker_auto_does_not_tick_cruise_control():
+    """When broker signals auto, cruise control should not modify direct state."""
+    dc = DirectControlState(playing=True, bpm=120.0, speed=50)
+    cruise = CruiseControlState(active=True, rng=random.Random(42))
+    state = SharedState(auto_active=True, raw_bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(
+        state=state, entry=entry, direct_state=dc, tcode_sender=tcode, cruise_control=cruise,
+    )
+    tick = 0.0
+    for _ in range(200):
+        tick += 0.1
+        built["controller"].now_source = lambda t=tick: 5.0 + t
+        built["controller"].refresh()
+
+    assert dc.speed == 50 and dc.amplitude == 100 and dc.center == 50
+
+
+def test_broker_auto_respects_sync_pulses():
+    """When broker signals auto, sync pulses should pull phase toward zero."""
+    dc = DirectControlState(playing=False, bpm=60.0)
+    state = SharedState(auto_active=True, raw_bpm=120.0, sync_pulse_id=1)
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(state=state, entry=entry, direct_state=dc)
+
+    built["controller"].refresh()
+
+    # Engine starts at phase 0.25, sync_strength=0.5
+    # Sync correction: error = -0.25 (since 0.25 <= 0.5), phase += -0.25 * 0.5 = -0.125
+    # New phase = 0.25 - 0.125 = 0.125
+    assert abs(built["engine"].phase - 0.125) < 0.001
+
+
+def test_broker_auto_cleared_resumes_direct_control():
+    """When broker auto clears, direct control resumes: T-Code sends, overlay updates."""
+    dc = DirectControlState(playing=True, bpm=120.0)
+    state = SharedState(auto_active=False, raw_bpm=0.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(state=state, entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert len(tcode.sends) == 1
+    assert len(built["overlay_data_list"]) == 1

@@ -93,7 +93,9 @@ class GenauRefreshController:
 
         shared = read_shared_state_snapshot(self.state)
 
-        if self.direct_state is not None:
+        direct_active = self.direct_state is not None and not shared.auto_active
+
+        if direct_active:
             if self.cruise_control is not None:
                 from .cruise_control import tick_cruise_control
                 tick_cruise_control(self.direct_state, self.cruise_control, now, step_clip=self.selection.step)
@@ -131,11 +133,13 @@ class GenauRefreshController:
             paused=paused,
         )
 
-        if self.tcode_sender is not None and self.direct_state is not None and self.direct_state.playing:
+        if self.tcode_sender is not None and direct_active and self.direct_state.playing:
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
-        if self.direct_state is not None:
+        if direct_active:
             self._update_direct_overlay()
+        elif self.direct_state is not None:
+            self.set_direct_overlay(None)
 
         was_playing = self.direct_state.playing if self.direct_state is not None else False
 
@@ -156,7 +160,7 @@ class GenauRefreshController:
 
         if active_entry and active_entry["frames"]:
             frame_count = len(active_entry["frames"])
-            if self.direct_state is not None:
+            if direct_active:
                 from .direct_control import display_phase_for_position
                 display_phase = display_phase_for_position(
                     self.engine.phase, self.direct_state.shape,
