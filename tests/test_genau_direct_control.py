@@ -11,6 +11,7 @@ from genau.direct_control import (
     bpm_for_speed,
     cycle_shape,
     display_phase_for_position,
+    pause_playing,
     phase_to_position,
     sample_waveform,
     set_speed,
@@ -56,6 +57,18 @@ class TestTogglePlaying:
     def test_true_to_false(self):
         state = DirectControlState(playing=True)
         toggle_playing(state)
+        assert state.playing is False
+
+
+class TestPausePlaying:
+    def test_pauses_when_playing(self):
+        state = DirectControlState(playing=True)
+        pause_playing(state)
+        assert state.playing is False
+
+    def test_noop_when_already_paused(self):
+        state = DirectControlState(playing=False)
+        pause_playing(state)
         assert state.playing is False
 
 

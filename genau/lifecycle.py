@@ -17,6 +17,7 @@ class RobotHandLifecycleController:
         resize_delay_ms: int,
         quarter_offset=lambda: None,
         on_toggle_playing=lambda: None,
+        on_pause_playing=lambda: None,
         on_adjust_speed=lambda delta: None,
         on_adjust_amplitude=lambda delta: None,
         on_adjust_center=lambda delta: None,
@@ -31,6 +32,7 @@ class RobotHandLifecycleController:
         self.resize_delay_ms = resize_delay_ms
         self.quarter_offset = quarter_offset
         self.on_toggle_playing = on_toggle_playing
+        self.on_pause_playing = on_pause_playing
         self.on_adjust_speed = on_adjust_speed
         self.on_adjust_amplitude = on_adjust_amplitude
         self.on_adjust_center = on_adjust_center
@@ -60,6 +62,8 @@ class RobotHandLifecycleController:
             self.quarter_offset()
         elif event.key == pygame.K_ESCAPE:
             self.on_toggle_playing()
+        elif event.key == pygame.K_SPACE:
+            self.on_pause_playing()
         elif event.key == pygame.K_j:
             self.on_adjust_speed(-5)
         elif event.key == pygame.K_l:

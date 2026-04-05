@@ -41,6 +41,10 @@ def toggle_playing(state: DirectControlState) -> None:
     state.playing = not state.playing
 
 
+def pause_playing(state: DirectControlState) -> None:
+    state.playing = False
+
+
 def set_speed(state: DirectControlState, speed: int) -> None:
     speed = max(0, min(MAX_SPEED, speed))
     state.speed = speed

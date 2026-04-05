@@ -44,6 +44,7 @@ def _build_controller(
     *,
     quarter_offset=None,
     on_toggle_playing=None,
+    on_pause_playing=None,
     on_adjust_speed=None,
     on_adjust_amplitude=None,
     on_adjust_center=None,
@@ -66,6 +67,8 @@ def _build_controller(
     )
     if on_toggle_playing is not None:
         kwargs["on_toggle_playing"] = on_toggle_playing
+    if on_pause_playing is not None:
+        kwargs["on_pause_playing"] = on_pause_playing
     if on_adjust_speed is not None:
         kwargs["on_adjust_speed"] = on_adjust_speed
     if on_adjust_amplitude is not None:
@@ -239,11 +242,23 @@ def test_slash_key_triggers_toggle_auto():
     assert calls == [1]
 
 
+def test_space_triggers_pause_playing():
+    pauses = []
+    controller, *_ = _build_controller(
+        on_pause_playing=lambda: pauses.append(1),
+    )
+
+    event = type("Event", (), {"key": pygame.K_SPACE, "mod": 0})()
+    controller._handle_key(event)
+
+    assert pauses == [1]
+
+
 def test_default_callbacks_do_not_raise():
     controller, *_ = _build_controller()
 
     for key in [pygame.K_ESCAPE, pygame.K_j, pygame.K_l, pygame.K_k,
                 pygame.K_i, pygame.K_u, pygame.K_o, pygame.K_COMMA,
-                pygame.K_SLASH]:
+                pygame.K_SLASH, pygame.K_SPACE]:
         event = type("Event", (), {"key": key, "mod": 0})()
         controller._handle_key(event)
