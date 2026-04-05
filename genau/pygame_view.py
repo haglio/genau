@@ -145,9 +145,6 @@ class PygameView:
         pygame.draw.rect(surface, (80, 180, 80), (spd_x, spd_y, spd_fill_w, spd_bar_h))
         spd_text = self._overlay_font.render(f"SPD {data.speed}", True, (220, 220, 220))
         surface.blit(spd_text, (spd_x + 3, spd_y + 1))
-        if data.cruise_active:
-            cruise_text = self._overlay_font.render("CRUISE", True, (255, 200, 100))
-            surface.blit(cruise_text, (spd_x + wave_w - cruise_text.get_width() - 3, spd_y + 1))
 
         # --- Waveform graph (4 seconds, scrolling) ---
         wave_x = pad
@@ -198,6 +195,22 @@ class PygameView:
         texture = Texture.from_surface(self.renderer, surface)
         dest = pygame.Rect(pad, pad, panel_w, panel_h)
         texture.draw(dstrect=dest)
+
+        if data.cruise_active:
+            win_w, _win_h = self.window.size
+            cruise_text = self._overlay_font.render("CC", True, (255, 200, 100))
+            cw, ch = cruise_text.get_width(), cruise_text.get_height()
+            cc_pad = 4
+            cc_surface = pygame.Surface(
+                (cw + cc_pad * 2, ch + cc_pad * 2), pygame.SRCALPHA
+            )
+            cc_surface.fill((0, 0, 0, 160))
+            cc_surface.blit(cruise_text, (cc_pad, cc_pad))
+            cc_texture = Texture.from_surface(self.renderer, cc_surface)
+            cc_dest = pygame.Rect(
+                win_w - cw - cc_pad * 3, pad, cw + cc_pad * 2, ch + cc_pad * 2
+            )
+            cc_texture.draw(dstrect=cc_dest)
 
     def show(self) -> None:
         self.window.show()
