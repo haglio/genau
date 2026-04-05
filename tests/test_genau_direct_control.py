@@ -24,7 +24,7 @@ from genau.direct_control import (
 
 class TestBpmForSpeed:
     def test_min_speed_returns_minimum_bpm(self):
-        assert bpm_for_speed(5) == pytest.approx(15.0)
+        assert bpm_for_speed(5) == pytest.approx(5.0)
 
     def test_speed_100_returns_maximum_bpm(self):
         assert bpm_for_speed(100) == pytest.approx(200.0)

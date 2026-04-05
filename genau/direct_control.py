@@ -11,7 +11,7 @@ class WaveformShape(Enum):
     ROUNDED_SQUARE = "rounded_square"
     SAWTOOTH = "sawtooth"
 
-MIN_BPM = 15.0
+MIN_BPM = 5.0
 MAX_BPM = 200.0
 MIN_SPEED = 5
 MAX_SPEED = 100
