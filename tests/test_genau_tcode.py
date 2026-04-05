@@ -153,11 +153,11 @@ class TestSenderWithDirectState:
         sink = FakeTCodeSink()
         sender = RateLimitedTCodeSender(sink, min_interval=0.0)
         sender.send_park()
-        assert sink.sent == ["L09999I500"]
+        assert sink.sent == ["L00000I500"]
 
     def test_send_park_custom_interval(self):
         sink = FakeTCodeSink()
         sender = RateLimitedTCodeSender(sink, min_interval=0.0)
         sender.send_park(interval_ms=1000)
-        assert sink.sent == ["L09999I1000"]
+        assert sink.sent == ["L00000I1000"]
 
