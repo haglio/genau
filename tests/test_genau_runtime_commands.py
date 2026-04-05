@@ -316,6 +316,51 @@ class TestApplyRuntimeCommand:
 
         assert handled is False
 
+    def test_cruise_on_enables_cruise_control(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        cc = CruiseControlState(active=False)
+
+        handled = apply_runtime_command(
+            "CRUISE_ON",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            cruise_control_state=cc,
+        )
+
+        assert handled is True
+        assert cc.active is True
+
+    def test_cruise_off_disables_cruise_control(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        cc = CruiseControlState(active=True)
+
+        handled = apply_runtime_command(
+            "CRUISE_OFF",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            cruise_control_state=cc,
+        )
+
+        assert handled is True
+        assert cc.active is False
+
+    def test_cruise_on_off_ignored_without_cruise_control_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+
+        for cmd in ("CRUISE_ON", "CRUISE_OFF"):
+            handled = apply_runtime_command(
+                cmd,
+                engine=engine,
+                rh_paused=rh_paused,
+                step_clip=lambda _step: None,
+            )
+            assert handled is False, f"{cmd} should be ignored without cruise_control_state"
+
     def test_amp_sets_amplitude(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}

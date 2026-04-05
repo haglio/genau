@@ -89,7 +89,8 @@ class TestVoiceCommands:
             "PAUSE", "RESUME", "SPEED_DOWN", "SPEED_UP",
             "AMPLITUDE_DOWN", "AMPLITUDE_UP",
             "CENTER_DOWN", "CENTER_UP",
-            "CYCLE_SHAPE", "TOGGLE_CRUISE", "PREV", "NEXT",
+            "CYCLE_SHAPE", "TOGGLE_CRUISE", "CRUISE_ON", "CRUISE_OFF",
+            "PREV", "NEXT",
         }
         numeric_prefixes = ("AMP ", "CENTER ", "SPEED ")
         for phrase, cmd in VOICE_COMMANDS.items():
@@ -105,7 +106,7 @@ class TestVoiceCommands:
             "slow down", "speed down", "speed up",
             "amp down", "amp up",
             "center down", "center up",
-            "cycle shape", "genau auto",
+            "cycle shape", "cruise control", "cruise on", "cruise off",
             "previous clip", "next clip",
         }
         assert expected <= set(VOICE_COMMANDS.keys())

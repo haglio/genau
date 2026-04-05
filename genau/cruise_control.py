@@ -32,6 +32,14 @@ def toggle_cruise_control(state: CruiseControlState) -> None:
     state.active = not state.active
 
 
+def enable_cruise_control(state: CruiseControlState) -> None:
+    state.active = True
+
+
+def disable_cruise_control(state: CruiseControlState) -> None:
+    state.active = False
+
+
 def tick_cruise_control(
     direct: DirectControlState,
     cc: CruiseControlState,

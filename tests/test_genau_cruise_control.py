@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import random
 
-from genau.cruise_control import CruiseControlState, tick_cruise_control, toggle_cruise_control
+from genau.cruise_control import (
+    CruiseControlState,
+    disable_cruise_control,
+    enable_cruise_control,
+    tick_cruise_control,
+    toggle_cruise_control,
+)
 from genau.direct_control import DirectControlState, WaveformShape
 
 
@@ -15,6 +21,30 @@ class TestToggleCruiseControl:
     def test_active_to_inactive(self):
         state = CruiseControlState(active=True, rng=random.Random(42))
         toggle_cruise_control(state)
+        assert state.active is False
+
+
+class TestEnableCruiseControl:
+    def test_activates_when_inactive(self):
+        state = CruiseControlState(rng=random.Random(42))
+        enable_cruise_control(state)
+        assert state.active is True
+
+    def test_stays_active_when_already_active(self):
+        state = CruiseControlState(active=True, rng=random.Random(42))
+        enable_cruise_control(state)
+        assert state.active is True
+
+
+class TestDisableCruiseControl:
+    def test_deactivates_when_active(self):
+        state = CruiseControlState(active=True, rng=random.Random(42))
+        disable_cruise_control(state)
+        assert state.active is False
+
+    def test_stays_inactive_when_already_inactive(self):
+        state = CruiseControlState(rng=random.Random(42))
+        disable_cruise_control(state)
         assert state.active is False
 
 

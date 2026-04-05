@@ -23,7 +23,9 @@ VOICE_COMMANDS: dict[str, str] = {
     "center down": "CENTER_DOWN",
     "center up": "CENTER_UP",
     "cycle shape": "CYCLE_SHAPE",
-    "genau auto": "TOGGLE_CRUISE",
+    "cruise control": "TOGGLE_CRUISE",
+    "cruise on": "CRUISE_ON",
+    "cruise off": "CRUISE_OFF",
     "previous clip": "PREV",
     "next clip": "NEXT",
 }

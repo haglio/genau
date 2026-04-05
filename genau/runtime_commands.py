@@ -10,7 +10,11 @@ from .direct_control import (
     set_center,
     set_speed,
 )
-from .cruise_control import toggle_cruise_control
+from .cruise_control import (
+    disable_cruise_control,
+    enable_cruise_control,
+    toggle_cruise_control,
+)
 
 
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
@@ -60,6 +64,10 @@ def apply_runtime_command(
         cycle_shape(direct_state)
     elif normalized == "TOGGLE_CRUISE" and cruise_control_state is not None:
         toggle_cruise_control(cruise_control_state)
+    elif normalized == "CRUISE_ON" and cruise_control_state is not None:
+        enable_cruise_control(cruise_control_state)
+    elif normalized == "CRUISE_OFF" and cruise_control_state is not None:
+        disable_cruise_control(cruise_control_state)
     else:
         return _try_numeric_command(normalized, direct_state)
     return True
