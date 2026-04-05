@@ -4,10 +4,22 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import sys
 import uuid
 from pathlib import Path
 
 import pytest
+
+# Ensure the genau *package* (with __init__.py) is found before any
+# namespace-package resolution.  When the CWD is an ancestor directory
+# (e.g. C:/.../projects), Python may treat the project root
+# "genau/" as a namespace package — shadowing the real genau/
+# package and making submodule imports (genau.state, etc.) fail.
+# Inserting the project root at the front of sys.path guarantees
+# that `import genau` resolves to genau/__init__.py correctly.
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
 
 
 TMP_ROOT = Path(
