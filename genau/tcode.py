@@ -83,8 +83,5 @@ class RateLimitedTCodeSender:
         self._sink.send(format_tcode_command("L0", position, interval_ms))
         self._last_send_time = now
 
-    def send_park(self, interval_ms: int = 500) -> None:
-        self._sink.send(format_tcode_command("L0", 0, interval_ms))
-
     def close(self) -> None:
         self._sink.close()

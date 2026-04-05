@@ -58,6 +58,10 @@ class ProjectConfig:
         return self.state_dir / "genau_paused.txt"
 
     @property
+    def broker_cmd_file(self) -> Path:
+        return self.state_dir / "broker_cmd.txt"
+
+    @property
     def logs_dir(self) -> Path:
         return self.state_dir
 

@@ -71,7 +71,6 @@ class FakeSelection:
 class FakeTCodeSender:
     def __init__(self):
         self.sends: list[tuple[float, float]] = []
-        self.park_calls: list[int] = []
         self.closed = False
         self._position = 5000
         self._stroke_phase = 0.0
@@ -86,9 +85,6 @@ class FakeTCodeSender:
     @property
     def stroke_phase(self) -> float:
         return self._stroke_phase
-
-    def send_park(self, interval_ms: int = 500) -> None:
-        self.park_calls.append(interval_ms)
 
     def close(self) -> None:
         self.closed = True
@@ -107,6 +103,7 @@ def _build_controller(
     direct_state: DirectControlState | None = None,
     tcode_sender: FakeTCodeSender | None = None,
     cruise_control: CruiseControlState | None = None,
+    broker_cmd_file: Path | None = None,
 ):
     loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
@@ -148,6 +145,7 @@ def _build_controller(
         direct_state=direct_state,
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
+        broker_cmd_file=broker_cmd_file,
         set_direct_overlay=overlay_data_list.append,
         present_scene=lambda: present_calls.append(1),
     )
@@ -362,26 +360,43 @@ def test_pause_command_stops_direct_mode_playback():
     assert dc.playing is False
 
 
-def test_pause_command_sends_park_tcode():
+def test_pause_command_writes_park_to_broker_cmd_file(tmp_path):
+    broker_cmd = tmp_path / "broker_cmd.txt"
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        command="PAUSE", broker_cmd_file=broker_cmd,
+    )
+
+    built["controller"].refresh()
+
+    assert broker_cmd.read_text(encoding="utf-8") == "PARK"
+
+
+def test_pause_without_broker_cmd_file_does_not_error():
     dc = DirectControlState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
 
-    built["controller"].refresh()
-
-    assert tcode.park_calls == [500]
+    built["controller"].refresh()  # No broker_cmd_file — should not raise
 
 
-def test_resume_command_does_not_send_park():
+def test_resume_command_does_not_write_park(tmp_path):
+    broker_cmd = tmp_path / "broker_cmd.txt"
     dc = DirectControlState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="RESUME")
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        command="RESUME", broker_cmd_file=broker_cmd,
+    )
 
     built["controller"].refresh()
 
-    assert tcode.park_calls == []
+    assert not broker_cmd.exists()
 
 
 def test_resume_command_starts_direct_mode_playback():

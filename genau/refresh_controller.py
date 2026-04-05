@@ -49,6 +49,7 @@ class GenauRefreshController:
         direct_state=None,
         tcode_sender=None,
         cruise_control=None,
+        broker_cmd_file: Path | None = None,
         set_direct_overlay=None,
         present_scene=None,
     ):
@@ -75,6 +76,7 @@ class GenauRefreshController:
         self.direct_state = direct_state
         self.tcode_sender = tcode_sender
         self.cruise_control = cruise_control
+        self.broker_cmd_file = broker_cmd_file
         self.set_direct_overlay = set_direct_overlay or (lambda _data: None)
         self.present_scene = present_scene or (lambda: None)
         self.window_visible = False
@@ -153,8 +155,8 @@ class GenauRefreshController:
         )
 
         if was_playing and self.direct_state is not None and not self.direct_state.playing:
-            if self.tcode_sender is not None:
-                self.tcode_sender.send_park()
+            if self.broker_cmd_file is not None:
+                self.broker_cmd_file.write_text("PARK", encoding="utf-8")
 
         active_entry = self.renderer.current_clip_entry()
 

@@ -149,15 +149,4 @@ class TestSenderWithDirectState:
         sender.maybe_send(phase=0.5, now=1.0)
         assert sender.current_position() == 9999
 
-    def test_send_park_sends_position_100_percent(self):
-        sink = FakeTCodeSink()
-        sender = RateLimitedTCodeSender(sink, min_interval=0.0)
-        sender.send_park()
-        assert sink.sent == ["L00000I500"]
-
-    def test_send_park_custom_interval(self):
-        sink = FakeTCodeSink()
-        sender = RateLimitedTCodeSender(sink, min_interval=0.0)
-        sender.send_park(interval_ms=1000)
-        assert sink.sent == ["L00000I1000"]
 
