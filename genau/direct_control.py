@@ -61,8 +61,17 @@ def _recompute_center(state: DirectControlState) -> None:
     state.center = max(half, min(100 - half, state.intended_center))
 
 
+def set_amplitude(state: DirectControlState, value: int) -> None:
+    state.amplitude = max(0, min(100, value))
+    _recompute_center(state)
+
+
 def adjust_amplitude(state: DirectControlState, delta: int) -> None:
-    state.amplitude = max(0, min(100, state.amplitude + delta))
+    set_amplitude(state, state.amplitude + delta)
+
+
+def set_center(state: DirectControlState, value: int) -> None:
+    state.intended_center = max(0, min(100, value))
     _recompute_center(state)
 
 

@@ -14,6 +14,8 @@ from genau.direct_control import (
     pause_playing,
     phase_to_position,
     sample_waveform,
+    set_amplitude,
+    set_center,
     set_speed,
     toggle_playing,
 )
@@ -267,6 +269,37 @@ class TestDirectControlStateNewFields:
         assert state.intended_center % 5 == 0
 
 
+class TestSetAmplitude:
+    def test_sets_amplitude_directly(self):
+        state = DirectControlState(amplitude=30)
+
+        set_amplitude(state, 75)
+
+        assert state.amplitude == 75
+
+    def test_clamps_above_100(self):
+        state = DirectControlState(amplitude=50)
+
+        set_amplitude(state, 120)
+
+        assert state.amplitude == 100
+
+    def test_clamps_below_0(self):
+        state = DirectControlState(amplitude=50)
+
+        set_amplitude(state, -10)
+
+        assert state.amplitude == 0
+
+    def test_recomputes_center(self):
+        state = DirectControlState(amplitude=20, intended_center=90)
+        assert state.center == 90  # within range for amp=20
+
+        set_amplitude(state, 100)
+
+        assert state.center == 50  # forced to center for full amplitude
+
+
 class TestAdjustAmplitude:
     def test_increase(self):
         state = DirectControlState(amplitude=70)
@@ -313,6 +346,31 @@ class TestAdjustAmplitude:
         adjust_amplitude(state, -10)  # amp=40, center restores to 80
         assert state.center == 80
         assert state.intended_center == 80
+
+
+class TestSetCenter:
+    def test_sets_intended_center(self):
+        state = DirectControlState(amplitude=40, intended_center=50)
+
+        set_center(state, 80)
+
+        assert state.intended_center == 80
+
+    def test_clamps_to_0_100(self):
+        state = DirectControlState(amplitude=40)
+
+        set_center(state, 120)
+
+        assert state.intended_center == 100
+
+    def test_recomputes_effective_center(self):
+        state = DirectControlState(amplitude=100, intended_center=50)
+
+        set_center(state, 90)
+
+        # With amplitude=100, effective center is clamped to 50
+        assert state.intended_center == 90
+        assert state.center == 50
 
 
 class TestAdjustCenter:

@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from .engine import PlaybackEngine
-from .direct_control import adjust_speed, adjust_amplitude, adjust_center, cycle_shape
+from .direct_control import (
+    adjust_speed,
+    adjust_amplitude,
+    adjust_center,
+    cycle_shape,
+    set_amplitude,
+    set_center,
+    set_speed,
+)
 from .auto_pilot import toggle_auto_pilot
 
 
@@ -53,5 +61,30 @@ def apply_runtime_command(
     elif normalized == "TOGGLE_AUTO" and auto_pilot_state is not None:
         toggle_auto_pilot(auto_pilot_state)
     else:
+        return _try_numeric_command(normalized, direct_state)
+    return True
+
+
+_NUMERIC_SETTERS = {
+    "AMP": set_amplitude,
+    "CENTER": set_center,
+    "SPEED": set_speed,
+}
+
+
+def _try_numeric_command(normalized: str, direct_state) -> bool:
+    if direct_state is None:
         return False
+    parts = normalized.split(None, 1)
+    if len(parts) != 2:
+        return False
+    keyword, raw_value = parts
+    setter = _NUMERIC_SETTERS.get(keyword)
+    if setter is None:
+        return False
+    try:
+        value = int(raw_value)
+    except ValueError:
+        return False
+    setter(direct_state, value)
     return True

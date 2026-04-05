@@ -316,6 +316,82 @@ class TestApplyRuntimeCommand:
 
         assert handled is False
 
+    def test_amp_sets_amplitude(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, amplitude=80)
+
+        handled = apply_runtime_command(
+            "AMP 50",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.amplitude == 50
+
+    def test_center_sets_center(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
+
+        handled = apply_runtime_command(
+            "CENTER 80",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.intended_center == 80
+
+    def test_speed_sets_speed(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, speed=50)
+
+        handled = apply_runtime_command(
+            "SPEED 30",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.speed == 30
+
+    def test_numeric_commands_ignored_without_direct_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+
+        for cmd in ("AMP 50", "CENTER 80", "SPEED 30"):
+            handled = apply_runtime_command(
+                cmd,
+                engine=engine,
+                rh_paused=rh_paused,
+                step_clip=lambda _step: None,
+            )
+            assert handled is False, f"{cmd} should be ignored without direct_state"
+
+    def test_numeric_command_with_non_integer_is_ignored(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True)
+
+        handled = apply_runtime_command(
+            "AMP abc",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is False
+
     def test_unknown_command_is_ignored(self):
         engine = PlaybackEngine(phase=0.4, last_tick=0.0)
         rh_paused = {"value": False}
