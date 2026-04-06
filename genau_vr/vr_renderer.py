@@ -47,7 +47,7 @@ void main() {
 
     // VR180: discard directions behind the viewer
     if (abs(theta) > PI * 0.5) {
-        frag_color = vec4(0.0, 0.0, 0.0, 1.0);
+        frag_color = vec4(1.0, 0.0, 0.0, 1.0);  // RED = behind viewer (diagnostic)
         return;
     }
 

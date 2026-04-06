@@ -197,6 +197,18 @@ def _run_loop(
 
                 vp = proj @ view_mat
                 inv_vp = np.linalg.inv(vp)
+
+                if render_count <= 3 and eye_index == 0:
+                    center_clip = np.array([0, 0, -1, 1], dtype=np.float32)
+                    world_dir = inv_vp @ center_clip
+                    logger.info(
+                        "FOV: L=%.3f R=%.3f U=%.3f D=%.3f",
+                        view.fov.angle_left, view.fov.angle_right,
+                        view.fov.angle_up, view.fov.angle_down,
+                    )
+                    logger.info("center_clip→world: %s (normalized: %s)",
+                        world_dir, world_dir[:3] / np.linalg.norm(world_dir[:3]))
+
                 renderer.render_eye(eye_index, inv_vp)
 
                 session.release_eye_framebuffer(eye_index)
