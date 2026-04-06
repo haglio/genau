@@ -23,6 +23,11 @@ dev = [
     "pytest",
     "vulture",
 ]
+vr = [
+    "pyopenxr",
+    "PyOpenGL",
+    "glfw",
+]
 
 [tool.pytest.ini_options]
 addopts = "-p no:cacheprovider"
