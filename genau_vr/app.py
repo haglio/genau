@@ -199,15 +199,21 @@ def _run_loop(
                 inv_vp = np.linalg.inv(vp)
 
                 if render_count <= 3 and eye_index == 0:
-                    center_clip = np.array([0, 0, -1, 1], dtype=np.float32)
-                    world_dir = inv_vp @ center_clip
+                    q = view.pose.orientation
+                    p = view.pose.position
+                    logger.info(
+                        "Pose: pos=(%.3f,%.3f,%.3f) quat=(%.3f,%.3f,%.3f,%.3f)",
+                        p.x, p.y, p.z, q.x, q.y, q.z, q.w,
+                    )
                     logger.info(
                         "FOV: L=%.3f R=%.3f U=%.3f D=%.3f",
                         view.fov.angle_left, view.fov.angle_right,
                         view.fov.angle_up, view.fov.angle_down,
                     )
-                    logger.info("center_clip→world: %s (normalized: %s)",
-                        world_dir, world_dir[:3] / np.linalg.norm(world_dir[:3]))
+
+                # DEBUG: ignore head tracking, use identity view
+                vp = proj  # view_mat = identity
+                inv_vp = np.linalg.inv(vp)
 
                 renderer.render_eye(eye_index, inv_vp)
 
