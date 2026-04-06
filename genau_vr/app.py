@@ -79,7 +79,7 @@ def _resolve_tcode_endpoint(args: argparse.Namespace) -> tuple[str, int]:
 
 
 def main(argv: list[str] | None = None) -> None:
-    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
     args = _parse_args(argv)
     clip_path = _resolve_clip_path(args)
@@ -144,11 +144,6 @@ def _run_loop(
 
         should_render, display_time, views = session.frame_begin()
         render_count += 1
-        if render_count <= 5:
-            logger.info(
-                "Render %d: should_render=%s, views=%d, state=%s",
-                render_count, should_render, len(views), session._session_state.name,
-            )
 
         now = time.monotonic()
         update_engine(
@@ -198,23 +193,16 @@ def _run_loop(
                 vp = proj @ view_mat
                 inv_vp = np.linalg.inv(vp)
 
-                if render_count <= 3 and eye_index == 0:
-                    q = view.pose.orientation
-                    p = view.pose.position
-                    logger.info(
-                        "Pose: pos=(%.3f,%.3f,%.3f) quat=(%.3f,%.3f,%.3f,%.3f)",
-                        p.x, p.y, p.z, q.x, q.y, q.z, q.w,
-                    )
-                    logger.info(
-                        "FOV: L=%.3f R=%.3f U=%.3f D=%.3f",
-                        view.fov.angle_left, view.fov.angle_right,
-                        view.fov.angle_up, view.fov.angle_down,
-                    )
+                # For VR video: use rotation only, ignore position
+                # (video is on a hemisphere at infinity, position is irrelevant)
+                view_mat = pose_to_view_matrix(
+                    (0.0, 0.0, 0.0),
+                    (view.pose.orientation.x, view.pose.orientation.y,
+                     view.pose.orientation.z, view.pose.orientation.w),
+                )
 
-                # DEBUG: ignore head tracking, use identity view
-                vp = proj  # view_mat = identity
+                vp = proj @ view_mat
                 inv_vp = np.linalg.inv(vp)
-
                 renderer.render_eye(eye_index, inv_vp)
 
                 session.release_eye_framebuffer(eye_index)

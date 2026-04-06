@@ -47,7 +47,7 @@ void main() {
 
     // VR180: discard directions behind the viewer
     if (abs(theta) > PI * 0.5) {
-        frag_color = vec4(1.0, 0.0, 0.0, 1.0);  // RED = behind viewer (diagnostic)
+        frag_color = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
@@ -116,16 +116,6 @@ class VRRenderer:
 
         GL.glUseProgram(0)
 
-        if self._render_count <= 4:
-            err = GL.glGetError()
-            fbo_status = GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER)
-            pixel = GL.glReadPixels(10, 10, 1, 1, GL.GL_RGBA, GL.GL_UNSIGNED_BYTE)
-            pixel_bytes = bytes(pixel) if pixel is not None else b""
-            logger.info(
-                "render_eye(%d): gl_error=%d, fbo=%d(ok=%d), pixel=%s",
-                eye_index, err, fbo_status, GL.GL_FRAMEBUFFER_COMPLETE,
-                pixel_bytes[:4].hex() if pixel_bytes else "none",
-            )
 
     def close(self) -> None:
         GL.glDeleteProgram(self._program)
