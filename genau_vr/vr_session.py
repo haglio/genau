@@ -1,4 +1,4 @@
-"""OpenXR session lifecycle and swapchain management."""
+"""OpenXR session lifecycle, swapchain management, and controller input."""
 from __future__ import annotations
 
 import ctypes
@@ -18,11 +18,11 @@ class SwapchainInfo:
     handle: xr.Swapchain
     width: int
     height: int
-    images: list[int] = field(default_factory=list)  # GL texture IDs
+    images: list[int] = field(default_factory=list)
 
 
 class VRSession:
-    """Manages the OpenXR instance, session, reference space, and swapchains."""
+    """Manages the OpenXR instance, session, reference space, swapchains, and input."""
 
     def __init__(self, *, app_name: str = "GenauVR") -> None:
         self.running = True
@@ -36,9 +36,15 @@ class VRSession:
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._fbo = 0
         self._depth_buffers: list[int] = []
+        # Controller
+        self._action_set = None
+        self._thumbstick_y_action = None
+        self._actions_attached = False
+        self.thumbstick_y: float = 0.0
 
         self._init_glfw()
         self._init_openxr(app_name)
+        self._init_actions()
         self._create_swapchains()
         self._create_framebuffer()
 
@@ -77,10 +83,8 @@ class VRSession:
             self._instance, system_id, xr.ViewConfigurationType.PRIMARY_STEREO,
         )
 
-        # Query graphics requirements (mandatory before xrCreateSession)
         xr.get_opengl_graphics_requirements_khr(self._instance, system_id)
 
-        # Build graphics binding for the current platform
         if platform.system() == "Windows":
             from OpenGL import WGL
             graphics_binding = xr.GraphicsBindingOpenGLWin32KHR(
@@ -109,6 +113,57 @@ class VRSession:
             ),
         )
 
+    def _init_actions(self) -> None:
+        """Create action set and actions for VR controller input."""
+        try:
+            self._action_set = xr.create_action_set(
+                self._instance,
+                xr.ActionSetCreateInfo(
+                    action_set_name="genau_vr",
+                    localized_action_set_name="GenauVR Controls",
+                    priority=0,
+                ),
+            )
+
+            self._thumbstick_y_action = xr.create_action(
+                self._action_set,
+                xr.ActionCreateInfo(
+                    action_name="pitch_adjust",
+                    action_type=xr.ActionType.FLOAT_INPUT,
+                    localized_action_name="Pitch Adjust",
+                ),
+            )
+
+            # Suggest bindings for common controller profiles
+            for profile_path, stick_path in [
+                ("/interaction_profiles/oculus/touch_controller", "/user/hand/right/input/thumbstick/y"),
+                ("/interaction_profiles/valve/index_controller", "/user/hand/right/input/thumbstick/y"),
+                ("/interaction_profiles/htc/vive_controller", "/user/hand/right/input/trackpad/y"),
+            ]:
+                try:
+                    binding = xr.ActionSuggestedBinding(
+                        action=self._thumbstick_y_action,
+                        binding=xr.string_to_path(self._instance, stick_path),
+                    )
+                    xr.suggest_interaction_profile_bindings(
+                        self._instance,
+                        xr.InteractionProfileSuggestedBinding(
+                            interaction_profile=xr.string_to_path(self._instance, profile_path),
+                            suggested_bindings=[binding],
+                        ),
+                    )
+                except xr.ResultException as exc:
+                    logger.debug("Skipping profile %s: %s", profile_path, exc)
+
+            xr.attach_session_action_sets(
+                self._session,
+                xr.SessionActionSetsAttachInfo(action_sets=[self._action_set]),
+            )
+            self._actions_attached = True
+            logger.info("VR controller input initialized")
+        except Exception:
+            logger.warning("VR controller input unavailable", exc_info=True)
+
     def _create_swapchains(self) -> None:
         for view_cfg in self.view_config_views:
             w = view_cfg.recommended_image_rect_width
@@ -135,7 +190,7 @@ class VRSession:
                 height=h,
                 images=[img.image for img in images],
             )
-            logger.info("Swapchain %d: %dx%d, %d images, tex_ids=%s", len(self.swapchains), w, h, len(sc_info.images), sc_info.images)
+            logger.info("Swapchain %d: %dx%d, %d images", len(self.swapchains), w, h, len(sc_info.images))
             self.swapchains.append(sc_info)
 
     def _create_framebuffer(self) -> None:
@@ -152,17 +207,13 @@ class VRSession:
     # ------------------------------------------------------------------
 
     def poll_events(self) -> None:
-        """Process OpenXR events. Must be called each frame."""
         while True:
             try:
                 buf = xr.poll_event(self._instance)
             except xr.EventUnavailable:
                 break
 
-            event_type = buf.type
-            logger.debug("Event type=%d", event_type)
-
-            if event_type == xr.StructureType.EVENT_DATA_SESSION_STATE_CHANGED:
+            if buf.type == xr.StructureType.EVENT_DATA_SESSION_STATE_CHANGED:
                 event = ctypes.cast(
                     ctypes.byref(buf),
                     ctypes.POINTER(xr.EventDataSessionStateChanged),
@@ -187,14 +238,33 @@ class VRSession:
 
     @property
     def session_ready(self) -> bool:
-        """True when the session is in a state that accepts frame calls."""
         return self._session_begun
 
-    def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
-        """Wait for and begin a new frame.
+    def sync_controller(self) -> None:
+        """Sync controller actions and update thumbstick state."""
+        if not self._actions_attached or self._action_set is None:
+            return
+        try:
+            xr.sync_actions(
+                self._session,
+                xr.ActionsSyncInfo(
+                    active_action_sets=[
+                        xr.ActiveActionSet(action_set=self._action_set, subaction_path=0),
+                    ],
+                ),
+            )
+            state = xr.get_action_state_float(
+                self._session,
+                xr.ActionStateGetInfo(action=self._thumbstick_y_action, subaction_path=0),
+            )
+            if state.is_active:
+                self.thumbstick_y = state.current_state
+            else:
+                self.thumbstick_y = 0.0
+        except xr.ResultException:
+            pass
 
-        Returns (should_render, predicted_display_time_ns, views).
-        """
+    def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
         frame_state = xr.wait_frame(self._session, xr.FrameWaitInfo())
         xr.begin_frame(self._session, xr.FrameBeginInfo())
 
@@ -217,10 +287,6 @@ class VRSession:
         return should_render, frame_state.predicted_display_time, views
 
     def bind_eye_framebuffer(self, eye_index: int) -> int:
-        """Acquire swapchain image and bind FBO for rendering to an eye.
-
-        Returns the swapchain image index.
-        """
         sc_info = self.swapchains[eye_index]
         image_index = xr.acquire_swapchain_image(sc_info.handle, xr.SwapchainImageAcquireInfo())
         xr.wait_swapchain_image(sc_info.handle, xr.SwapchainImageWaitInfo(timeout=xr.INFINITE_DURATION))
@@ -238,13 +304,11 @@ class VRSession:
         return image_index
 
     def release_eye_framebuffer(self, eye_index: int) -> None:
-        """Release the swapchain image after rendering."""
         GL.glFlush()
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         xr.release_swapchain_image(self.swapchains[eye_index].handle, xr.SwapchainImageReleaseInfo())
 
     def frame_end(self, display_time: int, views: list[xr.View]) -> None:
-        """End the current frame, submitting rendered layers."""
         projection_views = []
         for i, view in enumerate(views):
             sc_info = self.swapchains[i]

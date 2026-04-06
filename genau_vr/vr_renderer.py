@@ -73,7 +73,6 @@ class VRRenderer:
         self._loc_inv_vp = GL.glGetUniformLocation(self._program, "inv_view_proj")
         self._loc_eye = GL.glGetUniformLocation(self._program, "eye")
         self._loc_tex = GL.glGetUniformLocation(self._program, "video_tex")
-        self._render_count = 0
         logger.info(
             "Renderer init: program=%d, vao=%d, tex=%d, locs=(%d,%d,%d)",
             self._program, self._vao, self._texture,
@@ -97,9 +96,7 @@ class VRRenderer:
 
         Assumes the target framebuffer is already bound.
         """
-        self._render_count += 1
-
-        GL.glClearColor(0.2, 0.0, 0.2, 1.0)  # Dark purple so we can distinguish from "nothing rendered"
+        GL.glClearColor(0.0, 0.0, 0.0, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
         GL.glUseProgram(self._program)

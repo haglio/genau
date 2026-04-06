@@ -16,15 +16,15 @@ from genau_vr.playback import (
 
 
 class TestBpmForSpeed:
-    def test_speed_zero_gives_min_bpm(self):
-        assert bpm_for_speed(0) == pytest.approx(15.0)
+    def test_min_speed_gives_min_bpm(self):
+        assert bpm_for_speed(5) == pytest.approx(5.0)
 
-    def test_speed_100_gives_max_bpm(self):
+    def test_max_speed_gives_max_bpm(self):
         assert bpm_for_speed(100) == pytest.approx(200.0)
 
     def test_speed_50_is_between(self):
         bpm = bpm_for_speed(50)
-        assert 15.0 < bpm < 200.0
+        assert 5.0 < bpm < 200.0
 
 
 class TestDirectControlState:

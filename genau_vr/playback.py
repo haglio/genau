@@ -78,13 +78,15 @@ class WaveformShape(Enum):
     SAWTOOTH = "sawtooth"
 
 
-MIN_BPM = 15.0
+MIN_BPM = 5.0
 MAX_BPM = 200.0
+MIN_SPEED = 5
 MAX_SPEED = 100
 
 
 def bpm_for_speed(speed: int) -> float:
-    return MIN_BPM * (MAX_BPM / MIN_BPM) ** (speed / MAX_SPEED)
+    t = (speed - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
+    return MIN_BPM * (MAX_BPM / MIN_BPM) ** t
 
 
 @dataclass
@@ -100,8 +102,55 @@ class DirectControlState:
     def __post_init__(self) -> None:
         if self.bpm == 0.0:
             self.bpm = bpm_for_speed(self.speed)
-        half = self.amplitude // 2
-        self.center = max(half, min(100 - half, self.intended_center))
+        _recompute_center(self)
+
+
+def _recompute_center(state: DirectControlState) -> None:
+    half = state.amplitude // 2
+    state.center = max(half, min(100 - half, state.intended_center))
+
+
+def toggle_playing(state: DirectControlState) -> None:
+    state.playing = not state.playing
+
+
+def set_speed(state: DirectControlState, speed: int) -> None:
+    state.speed = max(MIN_SPEED, min(MAX_SPEED, speed))
+    state.bpm = bpm_for_speed(state.speed)
+
+
+def adjust_speed(state: DirectControlState, delta: int) -> None:
+    set_speed(state, state.speed + delta)
+
+
+def set_amplitude(state: DirectControlState, value: int) -> None:
+    state.amplitude = max(0, min(100, value))
+    _recompute_center(state)
+
+
+def adjust_amplitude(state: DirectControlState, delta: int) -> None:
+    set_amplitude(state, state.amplitude + delta)
+
+
+def set_center(state: DirectControlState, value: int) -> None:
+    state.intended_center = max(0, min(100, value))
+    _recompute_center(state)
+
+
+def adjust_center(state: DirectControlState, delta: int) -> None:
+    half = state.amplitude // 2
+    lo, hi = half, 100 - half
+    new = state.intended_center + delta
+    new = max(lo, min(hi, new))
+    new = max(0, min(100, new))
+    state.intended_center = new
+    _recompute_center(state)
+
+
+def cycle_shape(state: DirectControlState) -> None:
+    shapes = list(WaveformShape)
+    idx = shapes.index(state.shape)
+    state.shape = shapes[(idx + 1) % len(shapes)]
 
 
 def _waveform_raw(phase: float, shape: WaveformShape) -> float:
