@@ -52,24 +52,23 @@ def _load_config(args: argparse.Namespace) -> dict:
     return {}
 
 
-def _resolve_clip_path(args: argparse.Namespace, cfg: dict) -> Path:
+def _resolve_clip_list(args: argparse.Namespace, cfg: dict) -> list[Path]:
     if args.clip:
         p = Path(args.clip)
         if not p.exists():
             print(f"Error: clip not found: {p}", file=sys.stderr)
             sys.exit(1)
-        return p
+        return [p]
 
     vr_clips_dir = cfg.get("vr_clips_dir")
     if vr_clips_dir:
         vr_dir = Path(vr_clips_dir)
         if vr_dir.exists():
-            clips = scan_clips(vr_dir)
-            return clips[0]
+            return scan_clips(vr_dir)
 
     clips_dir = cfg.get("clips_dir")
     if clips_dir:
-        return scan_clips(Path(clips_dir))[0]
+        return scan_clips(Path(clips_dir))
 
     print("Error: no clip specified and no clips_dir in config", file=sys.stderr)
     sys.exit(1)
@@ -122,11 +121,12 @@ def main(argv: list[str] | None = None) -> None:
 
     args = _parse_args(argv)
     cfg = _load_config(args)
-    clip_path = _resolve_clip_path(args, cfg)
+    clip_list = _resolve_clip_list(args, cfg)
     tcode_host, tcode_port = _resolve_tcode_endpoint(cfg)
 
-    logger.info("Loading clip: %s", clip_path)
-    frames = load_clip(clip_path)
+    logger.info("Found %d clip(s)", len(clip_list))
+    logger.info("Loading clip: %s", clip_list[0])
+    frames = load_clip(clip_list[0])
     logger.info("Loaded %d frames (%dx%d)", len(frames), frames[0].shape[1], frames[0].shape[0])
 
     from .vr_renderer import VRRenderer
@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         _run_loop(session, renderer, engine, state, cruise, tcode_sender,
-                  frames, cmd_file, stop_event, rh_paused)
+                  frames, clip_list, cmd_file, stop_event, rh_paused)
     except KeyboardInterrupt:
         logger.info("Interrupted")
     finally:
@@ -191,19 +191,30 @@ def _run_loop(
     cruise: CruiseControlState,
     tcode_sender: RateLimitedTCodeSender,
     frames: list[np.ndarray],
+    clip_list: list[Path],
     cmd_file: Path,
     stop_event: threading.Event,
     rh_paused: dict,
 ) -> None:
     import glfw
 
+    clip_index = 0
     frame_count = len(frames)
     last_frame_idx = -1
     pitch_offset = 0.0
     last_time = time.monotonic()
 
     def step_clip(delta: int) -> None:
-        pass  # Single-clip MVP — no playlist yet
+        nonlocal frames, frame_count, last_frame_idx, clip_index
+        if len(clip_list) <= 1:
+            return
+        clip_index = (clip_index + delta) % len(clip_list)
+        new_path = clip_list[clip_index]
+        logger.info("Switching to clip: %s", new_path.name)
+        frames = load_clip(new_path)
+        frame_count = len(frames)
+        last_frame_idx = -1
+        engine.phase = 0.0
 
     while session.running and not stop_event.is_set():
         session.poll_events()
