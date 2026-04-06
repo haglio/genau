@@ -77,7 +77,7 @@ class VRSession:
         )
 
         # Query graphics requirements (mandatory before xrCreateSession)
-        xr.get_open_gl_graphics_requirements_khr(self._instance, system_id)
+        xr.get_opengl_graphics_requirements_khr(self._instance, system_id)
 
         # Build graphics binding for the current platform
         if platform.system() == "Windows":
