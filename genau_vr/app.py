@@ -136,6 +136,11 @@ def _run_loop(
         if glfw.window_should_close(session._window):
             break
 
+        if not session.session_ready:
+            glfw.poll_events()
+            time.sleep(0.01)
+            continue
+
         should_render, display_time, views = session.frame_begin()
 
         now = time.monotonic()
