@@ -79,7 +79,7 @@ def _resolve_tcode_endpoint(args: argparse.Namespace) -> tuple[str, int]:
 
 
 def main(argv: list[str] | None = None) -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    logging.basicConfig(level=logging.DEBUG, format="%(levelname)s: %(message)s")
 
     args = _parse_args(argv)
     clip_path = _resolve_clip_path(args)
@@ -138,6 +138,9 @@ def _run_loop(
             break
 
         if not session.session_ready:
+            if loop_count % 100 == 0:
+                logger.info("Waiting for VR session (state=%s, loops=%d)...", session._session_state.name, loop_count)
+            loop_count += 1
             glfw.poll_events()
             time.sleep(0.01)
             continue
