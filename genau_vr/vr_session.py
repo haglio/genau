@@ -31,6 +31,7 @@ class VRSession:
         self._session = None
         self._space = None
         self._session_state = xr.SessionState.UNKNOWN
+        self._session_begun = False
         self.swapchains: list[SwapchainInfo] = []
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._fbo = 0
@@ -174,6 +175,7 @@ class VRSession:
                             primary_view_configuration_type=xr.ViewConfigurationType.PRIMARY_STEREO,
                         ),
                     )
+                    self._session_begun = True
                 elif self._session_state == xr.SessionState.STOPPING:
                     xr.end_session(self._session)
                 elif self._session_state in (
@@ -185,11 +187,7 @@ class VRSession:
     @property
     def session_ready(self) -> bool:
         """True when the session is in a state that accepts frame calls."""
-        return self._session_state in (
-            xr.SessionState.SYNCHRONIZED,
-            xr.SessionState.VISIBLE,
-            xr.SessionState.FOCUSED,
-        )
+        return self._session_begun
 
     def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
         """Wait for and begin a new frame.
