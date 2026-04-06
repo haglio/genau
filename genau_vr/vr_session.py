@@ -225,9 +225,9 @@ class VRSession:
         xr.wait_swapchain_image(sc_info.handle, xr.SwapchainImageWaitInfo(timeout=xr.INFINITE_DURATION))
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._fbo)
-        GL.glFramebufferTexture2D(
+        GL.glFramebufferTexture(
             GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0,
-            GL.GL_TEXTURE_2D, sc_info.images[image_index], 0,
+            sc_info.images[image_index], 0,
         )
         GL.glFramebufferRenderbuffer(
             GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT,
