@@ -76,6 +76,9 @@ class VRSession:
             self._instance, system_id, xr.ViewConfigurationType.PRIMARY_STEREO,
         )
 
+        # Query graphics requirements (mandatory before xrCreateSession)
+        xr.get_open_gl_graphics_requirements_khr(self._instance, system_id)
+
         # Build graphics binding for the current platform
         if platform.system() == "Windows":
             from OpenGL import WGL
