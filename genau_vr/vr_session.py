@@ -156,13 +156,16 @@ class VRSession:
                 buf = xr.poll_event(self._instance)
             except xr.EventUnavailable:
                 break
-            except Exception as exc:
-                logger.warning("poll_event error: %s", exc)
-                break
 
-            logger.debug("Event: %s", type(buf).__name__)
-            if isinstance(buf, xr.EventDataSessionStateChanged):
-                self._session_state = xr.SessionState(buf.state)
+            event_type = buf.type
+            logger.debug("Event type=%d", event_type)
+
+            if event_type == xr.StructureType.EVENT_DATA_SESSION_STATE_CHANGED:
+                event = ctypes.cast(
+                    ctypes.byref(buf),
+                    ctypes.POINTER(xr.EventDataSessionStateChanged),
+                ).contents
+                self._session_state = xr.SessionState(event.state)
                 logger.info("Session state → %s", self._session_state.name)
                 if self._session_state == xr.SessionState.READY:
                     xr.begin_session(
