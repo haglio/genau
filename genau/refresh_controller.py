@@ -8,6 +8,7 @@ from .runtime_support import consume_command_file
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
+from .status_writer import write_status_file
 
 
 @dataclass
@@ -196,6 +197,10 @@ class GenauRefreshController:
 
         if self.direct_state is not None:
             self.present_scene()
+
+        if self.direct_state is not None and self.cruise_control is not None:
+            status_path = self.command_file.parent / "genau_status.txt"
+            write_status_file(status_path, self.direct_state, self.cruise_control)
 
     def _update_direct_overlay(self) -> None:
         from .direct_control import sample_waveform
