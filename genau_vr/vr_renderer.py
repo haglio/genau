@@ -73,6 +73,12 @@ class VRRenderer:
         self._loc_inv_vp = GL.glGetUniformLocation(self._program, "inv_view_proj")
         self._loc_eye = GL.glGetUniformLocation(self._program, "eye")
         self._loc_tex = GL.glGetUniformLocation(self._program, "video_tex")
+        self._render_count = 0
+        logger.info(
+            "Renderer init: program=%d, vao=%d, tex=%d, locs=(%d,%d,%d)",
+            self._program, self._vao, self._texture,
+            self._loc_inv_vp, self._loc_eye, self._loc_tex,
+        )
 
     def upload_frame(self, frame: np.ndarray) -> None:
         """Upload a numpy RGB frame to the video texture."""
@@ -91,7 +97,9 @@ class VRRenderer:
 
         Assumes the target framebuffer is already bound.
         """
-        GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+        self._render_count += 1
+
+        GL.glClearColor(0.2, 0.0, 0.2, 1.0)  # Dark purple so we can distinguish from "nothing rendered"
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
         GL.glUseProgram(self._program)
@@ -107,6 +115,14 @@ class VRRenderer:
         GL.glBindVertexArray(0)
 
         GL.glUseProgram(0)
+
+        if self._render_count <= 4:
+            err = GL.glGetError()
+            fbo_status = GL.glCheckFramebufferStatus(GL.GL_FRAMEBUFFER)
+            logger.info(
+                "render_eye(%d): gl_error=%d, fbo_status=%d (complete=%d)",
+                eye_index, err, fbo_status, GL.GL_FRAMEBUFFER_COMPLETE,
+            )
 
     def close(self) -> None:
         GL.glDeleteProgram(self._program)

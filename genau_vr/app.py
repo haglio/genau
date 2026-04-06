@@ -127,7 +127,7 @@ def _run_loop(
 
     frame_count = len(frames)
     last_frame_idx = -1
-    loop_count = 0
+    render_count = 0
 
     while session.running:
         session.poll_events()
@@ -138,19 +138,16 @@ def _run_loop(
             break
 
         if not session.session_ready:
-            if loop_count % 100 == 0:
-                logger.info("Waiting for VR session (state=%s, loops=%d)...", session._session_state.name, loop_count)
-            loop_count += 1
             glfw.poll_events()
             time.sleep(0.01)
             continue
 
         should_render, display_time, views = session.frame_begin()
-        loop_count += 1
-        if loop_count <= 5:
+        render_count += 1
+        if render_count <= 5:
             logger.info(
-                "Frame %d: should_render=%s, views=%d, state=%s",
-                loop_count, should_render, len(views), session._session_state.name,
+                "Render %d: should_render=%s, views=%d, state=%s",
+                render_count, should_render, len(views), session._session_state.name,
             )
 
         now = time.monotonic()
