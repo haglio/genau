@@ -159,6 +159,7 @@ class VRSession:
 
             if isinstance(buf, xr.EventDataSessionStateChanged):
                 self._session_state = xr.SessionState(buf.state)
+                logger.info("Session state → %s", self._session_state.name)
                 if self._session_state == xr.SessionState.READY:
                     xr.begin_session(
                         self._session,
@@ -191,7 +192,9 @@ class VRSession:
         frame_state = xr.wait_frame(self._session, xr.FrameWaitInfo())
         xr.begin_frame(self._session, xr.FrameBeginInfo())
 
-        should_render = bool(frame_state.should_render) and self._session_state == xr.SessionState.FOCUSED
+        should_render = bool(frame_state.should_render) and self._session_state in (
+            xr.SessionState.VISIBLE, xr.SessionState.FOCUSED,
+        )
 
         views: list[xr.View] = []
         if should_render:

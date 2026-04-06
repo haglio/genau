@@ -127,6 +127,7 @@ def _run_loop(
 
     frame_count = len(frames)
     last_frame_idx = -1
+    loop_count = 0
 
     while session.running:
         session.poll_events()
@@ -142,6 +143,12 @@ def _run_loop(
             continue
 
         should_render, display_time, views = session.frame_begin()
+        loop_count += 1
+        if loop_count <= 5:
+            logger.info(
+                "Frame %d: should_render=%s, views=%d, state=%s",
+                loop_count, should_render, len(views), session._session_state.name,
+            )
 
         now = time.monotonic()
         update_engine(
