@@ -52,7 +52,7 @@ void main() {
     }
 
     // Map to equirectangular UV over 180 degrees
-    float u = (theta / PI) * 0.5 + 0.5;  // [0, 1] over front hemisphere
+    float u = theta / PI + 0.5;  // [-PI/2, PI/2] → [0, 1]
     float v = (-phi / PI) + 0.5;          // [0, 1] top to bottom
 
     // Side-by-side layout: left eye uses left half, right eye uses right half
