@@ -135,6 +135,7 @@ class VRSession:
                 height=h,
                 images=[img.image for img in images],
             )
+            logger.info("Swapchain %d: %dx%d, %d images, tex_ids=%s", len(self.swapchains), w, h, len(sc_info.images), sc_info.images)
             self.swapchains.append(sc_info)
 
     def _create_framebuffer(self) -> None:
@@ -225,9 +226,9 @@ class VRSession:
         xr.wait_swapchain_image(sc_info.handle, xr.SwapchainImageWaitInfo(timeout=xr.INFINITE_DURATION))
 
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self._fbo)
-        GL.glFramebufferTexture(
+        GL.glFramebufferTextureLayer(
             GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0,
-            sc_info.images[image_index], 0,
+            sc_info.images[image_index], 0, 0,  # mip level 0, layer 0
         )
         GL.glFramebufferRenderbuffer(
             GL.GL_FRAMEBUFFER, GL.GL_DEPTH_ATTACHMENT,
@@ -238,6 +239,7 @@ class VRSession:
 
     def release_eye_framebuffer(self, eye_index: int) -> None:
         """Release the swapchain image after rendering."""
+        GL.glFlush()
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
         xr.release_swapchain_image(self.swapchains[eye_index].handle, xr.SwapchainImageReleaseInfo())
 
