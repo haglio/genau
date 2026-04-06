@@ -605,3 +605,22 @@ def test_broker_auto_cleared_resumes_direct_control():
 
     assert len(tcode.sends) == 1
     assert len(built["overlay_data_list"]) == 1
+
+
+def test_overlay_display_seconds_derived_from_min_bpm():
+    """Display window must fit one full waveform cycle at the minimum BPM."""
+    from genau.direct_control import MIN_BPM
+
+    dc = DirectControlState(playing=True, bpm=60.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    beats_per_loop = 4.0
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    data = built["overlay_data_list"][0]
+    # At MIN_BPM, one cycle = 60 * beats_per_loop / MIN_BPM seconds.
+    # display_seconds must equal that so the bar fills exactly at min speed.
+    expected = 60.0 * beats_per_loop / MIN_BPM
+    assert data.display_seconds == expected

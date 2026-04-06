@@ -136,17 +136,15 @@ class PygameView:
 
         # --- Speed bar above waveform ---
         spd_x, spd_y = pad, pad
-        # Width = fraction of wave_w corresponding to one cycle in the 4s window
-        display_seconds = 4.0
         pps = data.phase_per_second
-        cycle_frac = min(1.0, 1.0 / (pps * display_seconds)) if pps > 0 else 1.0
+        cycle_frac = min(1.0, 1.0 / (pps * data.display_seconds)) if pps > 0 else 1.0
         spd_fill_w = max(4, int(cycle_frac * wave_w))
         pygame.draw.rect(surface, (60, 60, 60), (spd_x, spd_y, wave_w, spd_bar_h))
         pygame.draw.rect(surface, (80, 180, 80), (spd_x, spd_y, spd_fill_w, spd_bar_h))
         spd_text = self._overlay_font.render(f"SPD {data.speed}", True, (220, 220, 220))
         surface.blit(spd_text, (spd_x + 3, spd_y + 1))
 
-        # --- Waveform graph (4 seconds, scrolling) ---
+        # --- Waveform graph (scrolling) ---
         wave_x = pad
         wave_y = pad + spd_bar_h + gap
         points = data.waveform_points

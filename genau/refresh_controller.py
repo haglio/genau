@@ -21,6 +21,7 @@ class DirectOverlayData:
     position: int
     cruise_active: bool
     phase_per_second: float = 1.0
+    display_seconds: float = 4.0
 
 
 class GenauRefreshController:
@@ -203,7 +204,7 @@ class GenauRefreshController:
             write_status_file(status_path, self.direct_state, self.cruise_control)
 
     def _update_direct_overlay(self) -> None:
-        from .direct_control import sample_waveform
+        from .direct_control import MIN_BPM, sample_waveform
 
         ds = self.direct_state
         position = 0
@@ -212,9 +213,9 @@ class GenauRefreshController:
             position = self.tcode_sender.current_position()
             start_phase = self.tcode_sender.stroke_phase
 
-        # Sample 4 seconds of upcoming waveform
         phase_per_second = ds.bpm / 60.0 / self.beats_per_loop if ds.bpm > 0 else 1.0
-        display_seconds = 4.0
+        # Show enough time so one full waveform cycle is visible at the slowest speed
+        display_seconds = 60.0 * self.beats_per_loop / MIN_BPM
 
         self.set_direct_overlay(DirectOverlayData(
             speed=ds.speed,
@@ -229,4 +230,5 @@ class GenauRefreshController:
             position=position,
             cruise_active=self.cruise_control.active if self.cruise_control else False,
             phase_per_second=phase_per_second,
+            display_seconds=display_seconds,
         ))
