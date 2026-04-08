@@ -70,9 +70,21 @@ class VRSession:
     def _set_window_icon(self) -> None:
         ico_path = Path(__file__).resolve().parent.parent / "genau_vr_icon.ico"
         try:
-            from PIL import Image
-            img = Image.open(str(ico_path)).resize((32, 32)).convert("RGBA")
-            glfw.set_window_icon(self._window, 1, [img])
+            import ctypes
+            import ctypes.wintypes
+            hwnd = glfw.get_win32_window(self._window)
+            # Load .ico via Win32 — gives both small (16x16) and large (32x32) icons
+            IMAGE_ICON = 1
+            LR_LOADFROMFILE = 0x10
+            LR_DEFAULTSIZE = 0x40
+            for wparam, cx, cy in [(0, 16, 16), (1, 32, 32)]:  # ICON_SMALL, ICON_BIG
+                hicon = ctypes.windll.user32.LoadImageW(
+                    None, str(ico_path), IMAGE_ICON, cx, cy, LR_LOADFROMFILE,
+                )
+                if hicon:
+                    WM_SETICON = 0x80
+                    ctypes.windll.user32.SendMessageW(hwnd, WM_SETICON, wparam, hicon)
+            logger.info("Window icon set from %s", ico_path.name)
         except Exception:
             logger.debug("Could not set window icon", exc_info=True)
 
