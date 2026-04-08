@@ -269,7 +269,7 @@ def _run_loop(
         # Controller pitch adjustment
         session.sync_controller()
         if abs(session.thumbstick_y) > 0.1:  # deadzone
-            pitch_offset += session.thumbstick_y * dt * 1.5  # ~85°/sec at full tilt
+            pitch_offset -= session.thumbstick_y * dt * 1.5  # ~85°/sec at full tilt
             pitch_offset = max(-math.pi / 2, min(math.pi / 2, pitch_offset))
 
         # Frame selection
