@@ -289,11 +289,10 @@ def display_index_for_phase(
     auto_active: bool,
     current_frame_index: int | None,
 ) -> int:
+    # VR clips play forward (unlike classic Genau which reverses for stroke sync)
     logical_index = int(phase * frame_count)
     if logical_index >= frame_count:
         logical_index = frame_count - 1
-
-    display_index = (frame_count - 1) - logical_index
     if not auto_active and current_frame_index is not None:
         return current_frame_index
-    return display_index
+    return logical_index

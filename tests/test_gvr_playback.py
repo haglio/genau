@@ -100,13 +100,13 @@ class TestFormatTcodeCommand:
 
 
 class TestDisplayIndexForPhase:
-    def test_phase_zero_gives_last_frame(self):
+    def test_phase_zero_gives_first_frame(self):
         idx = display_index_for_phase(phase=0.0, frame_count=10, auto_active=True, current_frame_index=None)
-        assert idx == 9
-
-    def test_phase_near_one_gives_first_frame(self):
-        idx = display_index_for_phase(phase=0.99, frame_count=10, auto_active=True, current_frame_index=None)
         assert idx == 0
+
+    def test_phase_near_one_gives_last_frame(self):
+        idx = display_index_for_phase(phase=0.99, frame_count=10, auto_active=True, current_frame_index=None)
+        assert idx == 9
 
     def test_paused_holds_current(self):
         idx = display_index_for_phase(phase=0.5, frame_count=10, auto_active=False, current_frame_index=3)
