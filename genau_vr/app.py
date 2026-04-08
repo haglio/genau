@@ -124,12 +124,14 @@ class AudioPlayer:
         self._initialized = False
         try:
             import pygame
+            pygame.init()
             from pygame._sdl2.audio import get_audio_device_names
             device = None
             for name in get_audio_device_names(False):
                 if "pimax" in name.lower():
                     device = name
                     break
+            pygame.mixer.quit()
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048,
                               devicename=device)
             self._initialized = True
