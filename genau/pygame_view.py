@@ -213,34 +213,54 @@ class PygameView:
         self.hud_active = active
         self._apply_layered_window(active)
 
+    def _find_hwnd(self) -> int:
+        """Find this window's HWND via Win32 FindWindowW.
+
+        pygame.display.get_wm_info() only works with pygame.display windows,
+        not pygame._sdl2.video.Window objects.
+        """
+        import ctypes
+        hwnd = ctypes.windll.user32.FindWindowW(None, self.window.title)
+        return hwnd
+
     def _apply_layered_window(self, enable: bool) -> None:
         """Toggle Win32 layered-window color key transparency.
 
         When enabled, pixels matching HUD_COLOR_KEY (1, 0, 1) become fully
         transparent, letting the window beneath (VLC) show through.
         """
-        try:
-            import ctypes
-            hwnd = pygame.display.get_wm_info()["window"]
-            GWL_EXSTYLE = -20
-            WS_EX_LAYERED = 0x80000
-            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            if enable:
-                ctypes.windll.user32.SetWindowLongW(
-                    hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED,
-                )
-                LWA_COLORKEY = 0x1
-                # Win32 COLORREF is 0x00BBGGRR
-                colorkey = HUD_COLOR_KEY[0] | (HUD_COLOR_KEY[1] << 8) | (HUD_COLOR_KEY[2] << 16)
-                ctypes.windll.user32.SetLayeredWindowAttributes(
-                    hwnd, colorkey, 0, LWA_COLORKEY,
-                )
+        import ctypes
+        import logging
+
+        logger = logging.getLogger(__name__)
+        hwnd = self._find_hwnd()
+        if not hwnd:
+            logger.warning("HUD: could not find window HWND for title %r", self.window.title)
+            return
+
+        GWL_EXSTYLE = -20
+        WS_EX_LAYERED = 0x80000
+        style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+        if enable:
+            ctypes.windll.user32.SetWindowLongW(
+                hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED,
+            )
+            LWA_COLORKEY = 0x1
+            # Win32 COLORREF is 0x00BBGGRR
+            colorkey = HUD_COLOR_KEY[0] | (HUD_COLOR_KEY[1] << 8) | (HUD_COLOR_KEY[2] << 16)
+            result = ctypes.windll.user32.SetLayeredWindowAttributes(
+                hwnd, colorkey, 0, LWA_COLORKEY,
+            )
+            if not result:
+                logger.warning("HUD: SetLayeredWindowAttributes failed (error %d)",
+                               ctypes.windll.kernel32.GetLastError())
             else:
-                ctypes.windll.user32.SetWindowLongW(
-                    hwnd, GWL_EXSTYLE, style & ~WS_EX_LAYERED,
-                )
-        except Exception:
-            pass
+                logger.info("HUD: layered window enabled (hwnd=%#x, colorkey=%#08x)", hwnd, colorkey)
+        else:
+            ctypes.windll.user32.SetWindowLongW(
+                hwnd, GWL_EXSTYLE, style & ~WS_EX_LAYERED,
+            )
+            logger.info("HUD: layered window disabled")
 
     def show(self) -> None:
         self.window.show()
