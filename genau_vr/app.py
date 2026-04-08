@@ -8,7 +8,6 @@ import argparse
 import json
 import logging
 import math
-import os
 import sys
 import threading
 import time
@@ -16,7 +15,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .clip import extract_audio, load_clip, scan_clips
+from .clip import load_clip, scan_clips
 from .cruise_control import CruiseControlState, tick_cruise_control
 from .playback import (
     DirectControlState,
@@ -137,9 +136,9 @@ class AudioPlayer:
             return
         import pygame
         self.stop()
-        audio_path = extract_audio(clip_path)
+        audio_path = self._find_audio(clip_path)
         if audio_path is None:
-            logger.info("No audio in clip: %s", clip_path.name)
+            logger.info("No audio found for clip: %s", clip_path.name)
             return
         self._audio_path = audio_path
         try:
@@ -170,6 +169,15 @@ class AudioPlayer:
         if drift > 0.15 and drift < self._duration - 0.15:
             pygame.mixer.music.set_pos(target_pos)
 
+    @staticmethod
+    def _find_audio(clip_path: Path) -> Path | None:
+        """Find matching MP3 in the audio/ sibling directory."""
+        audio_dir = clip_path.parent.parent / "audio"
+        mp3 = audio_dir / (clip_path.stem + ".mp3")
+        if mp3.exists():
+            return mp3
+        return None
+
     def set_paused(self, paused: bool) -> None:
         if not self._initialized:
             return
@@ -184,13 +192,8 @@ class AudioPlayer:
             return
         import pygame
         pygame.mixer.music.stop()
-        if self._audio_path is not None:
-            try:
-                os.unlink(self._audio_path)
-            except OSError:
-                pass
-            self._audio_path = None
-            self._duration = 0.0
+        self._audio_path = None
+        self._duration = 0.0
 
     def close(self) -> None:
         self.stop()
