@@ -5,6 +5,7 @@ Features: voice commands, cruise control, VR controller pitch adjust.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import logging
 import math
@@ -33,6 +34,13 @@ from .runtime_commands import apply_runtime_command
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
+
+
+def _show_error_popup(message: str) -> None:
+    """Show a Win32 MessageBox error dialog."""
+    MB_OK = 0x0
+    MB_ICONERROR = 0x10
+    ctypes.windll.user32.MessageBoxW(None, message, "GenauVR", MB_OK | MB_ICONERROR)
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -219,8 +227,18 @@ def main(argv: list[str] | None = None) -> None:
     from .vr_session import VRSession
 
     logger.info("Initializing VR session...")
-    session = VRSession()
-    renderer = VRRenderer()
+    try:
+        session = VRSession()
+        renderer = VRRenderer()
+    except Exception as exc:
+        logger.error("VR initialization failed: %s", exc)
+        _show_error_popup(
+            f"Could not start VR session.\n\n"
+            f"Make sure your VR headset and runtime (e.g. PimaxXR, SteamVR) "
+            f"are running before launching GenauVR.\n\n"
+            f"Error: {exc}"
+        )
+        return
 
     audio = AudioPlayer()
     audio.load_for_clip(clip_list[0])
