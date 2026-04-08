@@ -163,17 +163,25 @@ def _set_lnk_aumid(lnk_path: str, app_id: str) -> None:
         _release(shell_link.value)
 
 
-def stamp_shortcut_aumid() -> None:
-    """Stamp pinned Genau taskbar shortcuts with the AppUserModelID."""
+def stamp_pinned_shortcuts(app_id: str, *, include: str, exclude: str | None = None) -> None:
+    """Stamp pinned taskbar shortcuts matching *include* with *app_id*.
+
+    Shortcuts whose stem (lowered) contains *exclude* are skipped, preventing
+    e.g. a "genau" pattern from also stamping "genauvr" shortcuts.
+    """
     _log = logging.getLogger(__name__)
     appdata = os.environ.get("APPDATA", "")
     pin_dir = Path(appdata) / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar"
     if not pin_dir.is_dir():
         return
     for lnk in pin_dir.glob("*.lnk"):
-        if "genau" in lnk.stem.lower():
-            try:
-                set_shortcut_app_user_model_id(str(lnk), APP_USER_MODEL_ID)
-                _log.info("Stamped AppUserModelID on %s", lnk)
-            except OSError as exc:
-                _log.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)
+        stem = lnk.stem.lower()
+        if include not in stem:
+            continue
+        if exclude and exclude in stem:
+            continue
+        try:
+            set_shortcut_app_user_model_id(str(lnk), app_id)
+            _log.info("Stamped AppUserModelID on %s", lnk)
+        except OSError as exc:
+            _log.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)

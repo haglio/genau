@@ -190,8 +190,20 @@ class AudioPlayer:
             pygame.mixer.quit()
 
 
+VR_APP_USER_MODEL_ID = "GenauVR.App"
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    # Set AppUserModelID before any window creation so GenauVR gets its
+    # own taskbar identity instead of inheriting python.exe's.
+    from genau.win32 import set_app_user_model_id, stamp_pinned_shortcuts
+    try:
+        set_app_user_model_id(VR_APP_USER_MODEL_ID)
+    except OSError:
+        pass  # Non-fatal
+    stamp_pinned_shortcuts(VR_APP_USER_MODEL_ID, include="genauvr")
 
     args = _parse_args(argv)
     cfg = _load_config(args)

@@ -72,12 +72,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # Set AppUserModelID before any window creation so Genau gets its
     # own taskbar identity (icon + title) instead of inheriting python.exe's.
-    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id, stamp_shortcut_aumid
+    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id, stamp_pinned_shortcuts
     try:
         set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:
         pass  # Non-fatal
-    stamp_shortcut_aumid()
+    stamp_pinned_shortcuts(APP_USER_MODEL_ID, include="genau", exclude="genauvr")
 
     logger = configure_logging("genau", config.log_file("genau_listener"))
     install_exception_logging(logger)
