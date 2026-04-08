@@ -32,6 +32,7 @@ out vec4 frag_color;
 uniform sampler2D video_tex;
 uniform mat4 inv_view_proj;
 uniform int eye;  // 0=left, 1=right
+uniform float brightness;  // multiplier, 1.0 = no change
 
 const float PI = 3.14159265359;
 
@@ -58,7 +59,8 @@ void main() {
     // Side-by-side layout: left eye uses left half, right eye uses right half
     float u_sbs = u * 0.5 + float(eye) * 0.5;
 
-    frag_color = texture(video_tex, vec2(u_sbs, v));
+    vec4 color = texture(video_tex, vec2(u_sbs, v));
+    frag_color = vec4(color.rgb * brightness, color.a);
 }
 """
 
@@ -73,6 +75,8 @@ class VRRenderer:
         self._loc_inv_vp = GL.glGetUniformLocation(self._program, "inv_view_proj")
         self._loc_eye = GL.glGetUniformLocation(self._program, "eye")
         self._loc_tex = GL.glGetUniformLocation(self._program, "video_tex")
+        self._loc_brightness = GL.glGetUniformLocation(self._program, "brightness")
+        self.brightness = 1.4
         logger.info(
             "Renderer init: program=%d, vao=%d, tex=%d, locs=(%d,%d,%d)",
             self._program, self._vao, self._texture,
@@ -102,6 +106,7 @@ class VRRenderer:
         GL.glUseProgram(self._program)
         GL.glUniform1i(self._loc_eye, eye_index)
         GL.glUniform1i(self._loc_tex, 0)
+        GL.glUniform1f(self._loc_brightness, self.brightness)
         GL.glUniformMatrix4fv(self._loc_inv_vp, 1, GL.GL_TRUE, inv_view_proj.astype(np.float32))
 
         GL.glActiveTexture(GL.GL_TEXTURE0)
