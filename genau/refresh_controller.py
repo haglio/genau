@@ -55,6 +55,8 @@ class GenauRefreshController:
         set_direct_overlay=None,
         present_scene=None,
         stop_event=None,
+        hud_state=None,
+        set_hud_mode=None,
     ):
         self.state = state
         self.loader = loader
@@ -83,6 +85,9 @@ class GenauRefreshController:
         self.set_direct_overlay = set_direct_overlay or (lambda _data: None)
         self.present_scene = present_scene or (lambda: None)
         self.stop_event = stop_event
+        self.hud_state = hud_state
+        self.set_hud_mode = set_hud_mode or (lambda _active: None)
+        self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
         self.window_visible = False
         self._prev_playing: bool | None = None
 
@@ -153,15 +158,23 @@ class GenauRefreshController:
             if prev_playing is None:
                 prev_playing = self.direct_state.playing
 
-        apply_runtime_command(
-            self.consume_command(self.command_file, logger=self.logger),
-            engine=self.engine,
-            rh_paused=self.rh_paused,
-            step_clip=self.selection.step,
-            direct_state=self.direct_state,
-            cruise_control_state=self.cruise_control,
-            stop_event=self.stop_event,
-        )
+        for cmd in self.consume_command(self.command_file, logger=self.logger):
+            apply_runtime_command(
+                cmd,
+                engine=self.engine,
+                rh_paused=self.rh_paused,
+                step_clip=self.selection.step,
+                direct_state=self.direct_state,
+                cruise_control_state=self.cruise_control,
+                stop_event=self.stop_event,
+                hud_state=self.hud_state,
+            )
+
+        if self.hud_state is not None:
+            hud_active = self.hud_state["active"]
+            if hud_active != self._prev_hud_active:
+                self.set_hud_mode(hud_active)
+                self._prev_hud_active = hud_active
 
         if self.direct_state is not None and self.broker_cmd_file is not None:
             now_playing = self.direct_state.playing
@@ -201,7 +214,8 @@ class GenauRefreshController:
 
         if self.direct_state is not None and self.cruise_control is not None:
             status_path = self.command_file.parent / "genau_status.txt"
-            write_status_file(status_path, self.direct_state, self.cruise_control)
+            hud_on = self.hud_state["active"] if self.hud_state is not None else False
+            write_status_file(status_path, self.direct_state, self.cruise_control, hud_active=hud_on)
 
     def _update_direct_overlay(self) -> None:
         from .direct_control import MIN_BPM, sample_waveform

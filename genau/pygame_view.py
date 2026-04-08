@@ -11,6 +11,10 @@ from pygame._sdl2.video import Renderer, Texture, Window
 if TYPE_CHECKING:
     from .refresh_controller import DirectOverlayData
 
+# Near-black magenta used as the Win32 color key for HUD transparency.
+# Any pixel drawn in this exact color becomes fully transparent.
+HUD_COLOR_KEY = (1, 0, 1)
+
 
 def _get_window_chrome_height() -> int:
     try:
@@ -63,6 +67,7 @@ class PygameView:
         self._loading_text: str | None = None
         self._direct_overlay: DirectOverlayData | None = None
         self._overlay_font: pygame.font.Font | None = None
+        self.hud_active: bool = False
 
     @property
     def width(self) -> int:
@@ -92,8 +97,10 @@ class PygameView:
         self._present_scene()
 
     def _present_scene(self) -> None:
+        if self.hud_active:
+            self.renderer.draw_color = HUD_COLOR_KEY + (255,)
         self.renderer.clear()
-        if self._current_texture is not None:
+        if not self.hud_active and self._current_texture is not None:
             self._current_texture.draw()
         if self._loading_text:
             self._draw_loading_overlay()
@@ -199,6 +206,41 @@ class PygameView:
         texture = Texture.from_surface(self.renderer, surface)
         dest = pygame.Rect(pad, pad, panel_w, panel_h)
         texture.draw(dstrect=dest)
+
+    def set_hud_mode(self, active: bool) -> None:
+        if active == self.hud_active:
+            return
+        self.hud_active = active
+        self._apply_layered_window(active)
+
+    def _apply_layered_window(self, enable: bool) -> None:
+        """Toggle Win32 layered-window color key transparency.
+
+        When enabled, pixels matching HUD_COLOR_KEY (1, 0, 1) become fully
+        transparent, letting the window beneath (VLC) show through.
+        """
+        try:
+            import ctypes
+            hwnd = pygame.display.get_wm_info()["window"]
+            GWL_EXSTYLE = -20
+            WS_EX_LAYERED = 0x80000
+            style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+            if enable:
+                ctypes.windll.user32.SetWindowLongW(
+                    hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED,
+                )
+                LWA_COLORKEY = 0x1
+                # Win32 COLORREF is 0x00BBGGRR
+                colorkey = HUD_COLOR_KEY[0] | (HUD_COLOR_KEY[1] << 8) | (HUD_COLOR_KEY[2] << 16)
+                ctypes.windll.user32.SetLayeredWindowAttributes(
+                    hwnd, colorkey, 0, LWA_COLORKEY,
+                )
+            else:
+                ctypes.windll.user32.SetWindowLongW(
+                    hwnd, GWL_EXSTYLE, style & ~WS_EX_LAYERED,
+                )
+        except Exception:
+            pass
 
     def show(self) -> None:
         self.window.show()

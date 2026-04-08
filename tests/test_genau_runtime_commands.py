@@ -484,3 +484,48 @@ class TestApplyRuntimeCommand:
         assert engine.phase == 0.4
         assert rh_paused["value"] is False
         assert steps == []
+
+    def test_hud_on_activates_hud_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        hud = {"active": False}
+
+        handled = apply_runtime_command(
+            "HUD_ON",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            hud_state=hud,
+        )
+
+        assert handled is True
+        assert hud["active"] is True
+
+    def test_hud_off_deactivates_hud_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        hud = {"active": True}
+
+        handled = apply_runtime_command(
+            "HUD_OFF",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            hud_state=hud,
+        )
+
+        assert handled is True
+        assert hud["active"] is False
+
+    def test_hud_commands_ignored_without_hud_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+
+        for cmd in ("HUD_ON", "HUD_OFF"):
+            handled = apply_runtime_command(
+                cmd,
+                engine=engine,
+                rh_paused=rh_paused,
+                step_clip=lambda _step: None,
+            )
+            assert handled is False, f"{cmd} should be ignored without hud_state"

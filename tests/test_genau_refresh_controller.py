@@ -98,18 +98,22 @@ def _build_controller(
     entry=None,
     current_frame_index: int | None = None,
     command: str | None = None,
+    commands: list[str] | None = None,
     paused_state: bool = False,
     pending_clip_name: str | None = None,
     direct_state: DirectControlState | None = None,
     tcode_sender: FakeTCodeSender | None = None,
     cruise_control: CruiseControlState | None = None,
     broker_cmd_file: Path | None = None,
+    hud_state: dict | None = None,
+    set_hud_mode=None,
 ):
     loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
     hide_window_calls: list[str] = []
     overlay_data_list: list = []
     present_calls: list[int] = []
+    hud_mode_calls: list[bool] = []
 
     loader = FakeLoader(loading=loading)
     notifier = FakeNotifier()
@@ -140,7 +144,7 @@ def _build_controller(
         logger=logger,
         log_name="genau_listener.log",
         now_source=lambda: 5.0,
-        consume_command=lambda _path, logger=None: command,
+        consume_command=lambda _path, logger=None: (commands if commands is not None else ([command] if command else [])),
         read_paused_state=lambda _path, logger=None: paused_state,
         direct_state=direct_state,
         tcode_sender=tcode_sender,
@@ -148,6 +152,8 @@ def _build_controller(
         broker_cmd_file=broker_cmd_file,
         set_direct_overlay=overlay_data_list.append,
         present_scene=lambda: present_calls.append(1),
+        hud_state=hud_state,
+        set_hud_mode=set_hud_mode or hud_mode_calls.append,
     )
     return {
         "controller": controller,
@@ -162,6 +168,7 @@ def _build_controller(
         "hide_window_calls": hide_window_calls,
         "overlay_data_list": overlay_data_list,
         "present_calls": present_calls,
+        "hud_mode_calls": hud_mode_calls,
     }
 
 
@@ -624,3 +631,73 @@ def test_overlay_display_seconds_derived_from_min_bpm():
     # display_seconds must equal that so the bar fills exactly at min speed.
     expected = 60.0 * beats_per_loop / MIN_BPM
     assert data.display_seconds == expected
+
+
+def test_multiline_commands_all_applied():
+    dc = DirectControlState(playing=False, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    hud = {"active": False}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        commands=["RESUME", "HUD_ON"],
+        hud_state=hud,
+    )
+
+    built["controller"].refresh()
+
+    assert dc.playing is True
+    assert hud["active"] is True
+
+
+def test_hud_on_command_calls_set_hud_mode():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    hud = {"active": False}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        commands=["HUD_ON"],
+        hud_state=hud,
+    )
+
+    built["controller"].refresh()
+
+    assert built["hud_mode_calls"] == [True]
+
+
+def test_hud_off_command_calls_set_hud_mode_false():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    hud = {"active": True}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        commands=["HUD_OFF"],
+        hud_state=hud,
+    )
+
+    built["controller"].refresh()
+
+    assert built["hud_mode_calls"] == [False]
+
+
+def test_hud_state_included_in_status_file(tmp_path):
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    hud = {"active": True}
+    cruise = CruiseControlState()
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        cruise_control=cruise, hud_state=hud,
+    )
+    # Point the command file parent at tmp_path so status file lands there
+    built["controller"].command_file = tmp_path / "genau_cmd.txt"
+
+    built["controller"].refresh()
+
+    status_path = tmp_path / "genau_status.txt"
+    assert status_path.exists()
+    text = status_path.read_text(encoding="utf-8")
+    assert "hud=1" in text

@@ -17,6 +17,7 @@ def test_build_status_text_defaults():
     assert "shape=sine" in text
     assert "amp_at_max=" in text
     assert "spd_at_min=" in text
+    assert "hud=0" in text
 
 
 def test_build_status_text_cruise_active():
@@ -97,6 +98,24 @@ def test_build_status_text_ctr_not_at_limits():
 
     assert "ctr_at_max=0" in text
     assert "ctr_at_min=0" in text
+
+
+def test_build_status_text_hud_active():
+    ds = DirectControlState()
+    cs = CruiseControlState()
+
+    text = build_status_text(ds, cs, hud_active=True)
+
+    assert "hud=1" in text
+
+
+def test_build_status_text_hud_inactive():
+    ds = DirectControlState()
+    cs = CruiseControlState()
+
+    text = build_status_text(ds, cs, hud_active=False)
+
+    assert "hud=0" in text
 
 
 def test_write_status_file_creates_file(tmp_path: Path):

@@ -30,6 +30,7 @@ def apply_runtime_command(
     direct_state=None,
     cruise_control_state=None,
     stop_event=None,
+    hud_state=None,
 ) -> bool:
     if not command:
         return False
@@ -74,6 +75,10 @@ def apply_runtime_command(
         enable_cruise_control(cruise_control_state)
     elif normalized == "CRUISE_OFF" and cruise_control_state is not None:
         disable_cruise_control(cruise_control_state)
+    elif normalized == "HUD_ON" and hud_state is not None:
+        hud_state["active"] = True
+    elif normalized == "HUD_OFF" and hud_state is not None:
+        hud_state["active"] = False
     else:
         return _try_numeric_command(normalized, direct_state)
     return True

@@ -13,6 +13,8 @@ from .direct_control import (
 def build_status_text(
     direct: DirectControlState,
     cruise: CruiseControlState,
+    *,
+    hud_active: bool = False,
 ) -> str:
     half = direct.amplitude // 2
     ctr_lo = half
@@ -26,6 +28,7 @@ def build_status_text(
         f"ctr_at_min={'1' if direct.center <= ctr_lo else '0'}\n"
         f"spd_at_max={'1' if direct.speed >= MAX_SPEED else '0'}\n"
         f"spd_at_min={'1' if direct.speed <= MIN_SPEED else '0'}\n"
+        f"hud={'1' if hud_active else '0'}\n"
     )
 
 
@@ -33,8 +36,10 @@ def write_status_file(
     path: Path,
     direct: DirectControlState,
     cruise: CruiseControlState,
+    *,
+    hud_active: bool = False,
 ) -> bool:
-    text = build_status_text(direct, cruise)
+    text = build_status_text(direct, cruise, hud_active=hud_active)
     try:
         if path.read_text(encoding="utf-8") == text:
             return False

@@ -16,19 +16,19 @@ def preparse_config_path(argv: list[str] | None) -> str | None:
     return known.config
 
 
-def consume_command_file(path: Path, *, logger: logging.Logger | None = None) -> str | None:
+def consume_command_file(path: Path, *, logger: logging.Logger | None = None) -> list[str]:
     try:
         if not path.exists():
-            return None
+            return []
         text = path.read_text(encoding="utf-8").replace("\ufeff", "").strip().upper()
         if not text:
-            return None
+            return []
         path.write_text("", encoding="utf-8")
-        return text
+        return [line for line in text.splitlines() if line.strip()]
     except Exception:
         if logger is not None:
             logger.exception("Failed to consume command file %s", path)
-        return None
+        return []
 
 
 def hidden_subprocess_kwargs() -> dict[str, Any]:

@@ -156,6 +156,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     engine = PlaybackEngine(last_tick=time.monotonic())
 
     rh_paused = {"value": False}
+    hud_state = {"active": False}
 
     from .cruise_control import CruiseControlState
     from .direct_control import DirectControlState, bpm_for_speed
@@ -242,6 +243,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_direct_overlay=view.set_direct_overlay,
         present_scene=view.present,
         stop_event=stop_event,
+        hud_state=hud_state,
+        set_hud_mode=view.set_hud_mode,
     )
     from .cruise_control import toggle_cruise_control
     from .direct_control import (
