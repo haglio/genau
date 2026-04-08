@@ -8,6 +8,7 @@ import argparse
 import json
 import logging
 import math
+import os
 import sys
 import threading
 import time
@@ -15,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .clip import load_clip, scan_clips
+from .clip import extract_audio, load_clip, scan_clips
 from .cruise_control import CruiseControlState, tick_cruise_control
 from .playback import (
     DirectControlState,
@@ -116,6 +117,88 @@ def _consume_command_file(cmd_file: Path) -> str | None:
         return None
 
 
+class AudioPlayer:
+    """Manages looping audio playback synced to engine phase."""
+
+    def __init__(self) -> None:
+        self._audio_path: Path | None = None
+        self._duration: float = 0.0
+        self._initialized = False
+        try:
+            import pygame
+            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
+            self._initialized = True
+            logger.info("Audio mixer initialized")
+        except Exception:
+            logger.warning("Audio mixer unavailable", exc_info=True)
+
+    def load_for_clip(self, clip_path: Path) -> None:
+        if not self._initialized:
+            return
+        import pygame
+        self.stop()
+        audio_path = extract_audio(clip_path)
+        if audio_path is None:
+            logger.info("No audio in clip: %s", clip_path.name)
+            return
+        self._audio_path = audio_path
+        try:
+            pygame.mixer.music.load(str(audio_path))
+            sound = pygame.mixer.Sound(str(audio_path))
+            self._duration = sound.get_length()
+            sound.stop()
+            del sound
+            pygame.mixer.music.play(loops=-1)
+            logger.info("Audio loaded: %.1fs from %s", self._duration, clip_path.name)
+        except Exception:
+            logger.warning("Failed to load audio", exc_info=True)
+            self._audio_path = None
+            self._duration = 0.0
+
+    def sync_to_phase(self, phase: float) -> None:
+        if not self._initialized or self._duration <= 0:
+            return
+        import pygame
+        if not pygame.mixer.music.get_busy():
+            return
+        target_pos = phase * self._duration
+        current_pos = pygame.mixer.music.get_pos() / 1000.0
+        if current_pos < 0:
+            return
+        current_in_loop = current_pos % self._duration
+        drift = abs(current_in_loop - target_pos)
+        if drift > 0.15 and drift < self._duration - 0.15:
+            pygame.mixer.music.set_pos(target_pos)
+
+    def set_paused(self, paused: bool) -> None:
+        if not self._initialized:
+            return
+        import pygame
+        if paused:
+            pygame.mixer.music.pause()
+        else:
+            pygame.mixer.music.unpause()
+
+    def stop(self) -> None:
+        if not self._initialized:
+            return
+        import pygame
+        pygame.mixer.music.stop()
+        if self._audio_path is not None:
+            try:
+                os.unlink(self._audio_path)
+            except OSError:
+                pass
+            self._audio_path = None
+            self._duration = 0.0
+
+    def close(self) -> None:
+        self.stop()
+        if self._initialized:
+            import pygame
+            pygame.mixer.quit()
+
+
 def main(argv: list[str] | None = None) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 
@@ -135,6 +218,9 @@ def main(argv: list[str] | None = None) -> None:
     logger.info("Initializing VR session...")
     session = VRSession()
     renderer = VRRenderer()
+
+    audio = AudioPlayer()
+    audio.load_for_clip(clip_list[0])
 
     state = DirectControlState(playing=True, speed=args.speed, shape=WaveformShape.SINE)
     engine = PlaybackEngine(last_tick=time.monotonic())
@@ -162,11 +248,12 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         _run_loop(session, renderer, engine, state, cruise, tcode_sender,
-                  frames, clip_list, cmd_file, stop_event, rh_paused)
+                  frames, clip_list, audio, cmd_file, stop_event, rh_paused)
     except KeyboardInterrupt:
         logger.info("Interrupted")
     finally:
         tcode_sender.close()
+        audio.close()
         renderer.close()
         session.close()
         logger.info("Shutdown complete")
@@ -192,6 +279,7 @@ def _run_loop(
     tcode_sender: RateLimitedTCodeSender,
     frames: list[np.ndarray],
     clip_list: list[Path],
+    audio: AudioPlayer,
     cmd_file: Path,
     stop_event: threading.Event,
     rh_paused: dict,
@@ -203,6 +291,7 @@ def _run_loop(
     last_frame_idx = -1
     pitch_offset = 0.0
     last_time = time.monotonic()
+    audio_sync_counter = 0
 
     def step_clip(delta: int) -> None:
         nonlocal frames, frame_count, last_frame_idx, clip_index
@@ -215,6 +304,7 @@ def _run_loop(
         frame_count = len(frames)
         last_frame_idx = -1
         engine.phase = 0.0
+        audio.load_for_clip(new_path)
 
     while session.running and not stop_event.is_set():
         session.poll_events()
@@ -265,6 +355,12 @@ def _run_loop(
         )
 
         tcode_sender.maybe_send(engine.phase, now)
+
+        # Audio sync (every ~30 frames to avoid overhead)
+        audio_sync_counter += 1
+        if audio_sync_counter >= 30:
+            audio_sync_counter = 0
+            audio.sync_to_phase(engine.phase)
 
         # Controller pitch adjustment
         session.sync_controller()
