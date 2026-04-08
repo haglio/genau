@@ -5,6 +5,7 @@ import ctypes
 import logging
 import platform
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import glfw
 import xr
@@ -58,12 +59,22 @@ class VRSession:
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 5)
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-        glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
-        self._window = glfw.create_window(100, 100, "GenauVR (hidden)", None, None)
+        glfw.window_hint(glfw.DECORATED, glfw.TRUE)
+        self._window = glfw.create_window(300, 200, "GenauVR", None, None)
         if not self._window:
             glfw.terminate()
             raise RuntimeError("Failed to create GLFW window")
         glfw.make_context_current(self._window)
+        self._set_window_icon()
+
+    def _set_window_icon(self) -> None:
+        ico_path = Path(__file__).resolve().parent.parent / "genau_vr_icon.ico"
+        try:
+            from PIL import Image
+            img = Image.open(str(ico_path)).resize((32, 32)).convert("RGBA")
+            glfw.set_window_icon(self._window, 1, [img])
+        except Exception:
+            logger.debug("Could not set window icon", exc_info=True)
 
     def _init_openxr(self, app_name: str) -> None:
         extensions = [xr.KHR_OPENGL_ENABLE_EXTENSION_NAME]
