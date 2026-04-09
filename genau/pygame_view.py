@@ -8,6 +8,8 @@ import pygame
 from PIL import Image
 from pygame._sdl2.video import Renderer, Texture, Window
 
+from .layout import compute_video_rects
+
 if TYPE_CHECKING:
     from .refresh_controller import DirectOverlayData
 
@@ -63,6 +65,7 @@ class PygameView:
         self._width = width
         self._height = height
         self._current_texture: Texture | None = None
+        self._video_size: tuple[int, int] | None = None
         self._loading_font: pygame.font.Font | None = None
         self._loading_text: str | None = None
         self._direct_overlay: DirectOverlayData | None = None
@@ -88,6 +91,7 @@ class PygameView:
 
     def display_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
+        self._video_size = (w, h)
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
         self._current_texture = Texture.from_surface(self.renderer, surface)
         if self._direct_overlay is None:
@@ -101,7 +105,13 @@ class PygameView:
             self.renderer.draw_color = HUD_COLOR_KEY + (255,)
         self.renderer.clear()
         if not self.hud_active and self._current_texture is not None:
-            self._current_texture.draw()
+            if self._video_size is not None:
+                win_w, win_h = self.window.size
+                rects = compute_video_rects(*self._video_size, win_w, win_h)
+                for x, y, w, h in rects:
+                    self._current_texture.draw(dstrect=pygame.Rect(x, y, w, h))
+            else:
+                self._current_texture.draw()
         if self._loading_text:
             self._draw_loading_overlay()
         if self._direct_overlay is not None:

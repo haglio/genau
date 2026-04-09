@@ -46,17 +46,36 @@ def test_present_scene_skips_texture_in_hud_mode(mock_pygame):
     texture.draw.assert_not_called()
 
 
-def test_present_scene_draws_texture_when_not_hud(mock_pygame):
+def test_present_scene_draws_texture_with_dstrect(mock_pygame):
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
+    view.window.size = (800, 600)
     texture = MagicMock()
     view._current_texture = texture
+    view._video_size = (1920, 1080)
     view.hud_active = False
 
     view._present_scene()
 
-    texture.draw.assert_called_once()
+    texture.draw.assert_called()
+    # Every draw call must pass a dstrect (no bare .draw())
+    for call in texture.draw.call_args_list:
+        assert "dstrect" in call.kwargs
+
+def test_present_scene_tiles_portrait_texture(mock_pygame):
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=1200, height=900)
+    view.window.size = (1200, 900)
+    texture = MagicMock()
+    view._current_texture = texture
+    view._video_size = (1080, 1920)  # portrait
+    view.hud_active = False
+
+    view._present_scene()
+
+    assert texture.draw.call_count == 2
 
 
 def test_present_scene_calls_draw_overlay_in_hud_mode(mock_pygame):
