@@ -20,6 +20,8 @@ from .tcode_driver import FunscriptTCodeDriver, UdpTCodeSink
 logger = logging.getLogger(__name__)
 
 _DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
+_ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
+_APP_USER_MODEL_ID = "Nau.App"
 _SEEK_STEP_MS = 10_000
 
 
@@ -100,11 +102,36 @@ def main(argv: list[str] | None = None) -> int:
     return _run(args, pairs)
 
 
+def _set_aumid() -> None:
+    try:
+        from genau.win32 import set_app_user_model_id, stamp_pinned_shortcuts
+        set_app_user_model_id(_APP_USER_MODEL_ID)
+        stamp_pinned_shortcuts(_APP_USER_MODEL_ID, include="nau", exclude="genau")
+    except Exception:
+        pass
+
+
+def _set_window_icon(window: Window) -> None:
+    if not _ICON_PATH.exists():
+        return
+    try:
+        from PIL import Image
+        pil_icon = Image.open(str(_ICON_PATH)).convert("RGBA")
+        icon_surface = pygame.image.frombuffer(
+            pil_icon.tobytes(), pil_icon.size, "RGBA",
+        )
+        window.set_icon(icon_surface)
+    except Exception:
+        pass
+
+
 def _run(args, pairs: list[tuple[Path, Path]]) -> int:
+    _set_aumid()
     pygame.init()
     chrome = _get_window_chrome_height()
     client_h = max(1, args.height - chrome)
     window = Window("Nau", size=(args.width, client_h))
+    _set_window_icon(window)
     renderer = Renderer(window, accelerated=True)
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 14)
