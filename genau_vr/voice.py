@@ -26,6 +26,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "cruise off": "CRUISE_OFF",
     "previous clip": "PREV",
     "next clip": "NEXT",
+    "louder": "VOLUME_UP",
+    "quieter": "VOLUME_DOWN",
     "quit": "QUIT",
 }
 

@@ -130,6 +130,7 @@ class AudioPlayer:
     def __init__(self) -> None:
         self._audio_path: Path | None = None
         self._initialized = False
+        self._volume = 0.25
         try:
             import pygame
             pygame.init()
@@ -160,6 +161,7 @@ class AudioPlayer:
         try:
             pygame.mixer.music.load(str(audio_path))
             pygame.mixer.music.play(loops=-1)
+            pygame.mixer.music.set_volume(self._volume)
             logger.info("Audio playing: %s", audio_path.name)
         except Exception:
             logger.warning("Failed to load audio", exc_info=True)
@@ -173,6 +175,13 @@ class AudioPlayer:
         if mp3.exists():
             return mp3
         return None
+
+    def adjust_volume(self, delta: float) -> None:
+        self._volume = max(0.0, min(1.0, self._volume + delta))
+        if not self._initialized:
+            return
+        import pygame
+        pygame.mixer.music.set_volume(self._volume)
 
     def set_paused(self, paused: bool) -> None:
         if not self._initialized:
@@ -355,6 +364,7 @@ def _run_loop(
                 direct_state=state,
                 cruise_control_state=cruise,
                 stop_event=stop_event,
+                audio_player=audio,
             )
 
         # Tick cruise control

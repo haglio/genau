@@ -21,6 +21,9 @@ from .cruise_control import (
 )
 
 
+VOLUME_STEP = 0.1
+
+
 def apply_runtime_command(
     command,
     *,
@@ -30,6 +33,7 @@ def apply_runtime_command(
     direct_state=None,
     cruise_control_state=None,
     stop_event=None,
+    audio_player=None,
 ) -> bool:
     if not command:
         return False
@@ -74,6 +78,10 @@ def apply_runtime_command(
         enable_cruise_control(cruise_control_state)
     elif normalized == "CRUISE_OFF" and cruise_control_state is not None:
         disable_cruise_control(cruise_control_state)
+    elif normalized == "VOLUME_UP" and audio_player is not None:
+        audio_player.adjust_volume(VOLUME_STEP)
+    elif normalized == "VOLUME_DOWN" and audio_player is not None:
+        audio_player.adjust_volume(-VOLUME_STEP)
     else:
         return _try_numeric_command(normalized, direct_state)
     return True
