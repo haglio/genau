@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import bisect
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,18 +11,6 @@ class Funscript:
 
     def __post_init__(self) -> None:
         self._times = [a[0] for a in self.actions]
-
-
-def interpolate(fs: Funscript, time_ms: int) -> float:
-    idx = bisect.bisect_right(fs._times, time_ms)
-    if idx == 0:
-        return float(fs.actions[0][1])
-    if idx >= len(fs.actions):
-        return float(fs.actions[-1][1])
-    t0, p0 = fs.actions[idx - 1]
-    t1, p1 = fs.actions[idx]
-    frac = (time_ms - t0) / (t1 - t0)
-    return p0 + frac * (p1 - p0)
 
 
 _BASE_THRESHOLD = 95

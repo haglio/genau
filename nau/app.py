@@ -129,6 +129,7 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
         loop_ctrl = LoopController(funscript)
         video.open(vid_path)
         audio.load(vid_path)
+        tcode.reset()
         pclock.seek(0)
         pclock.start()
         audio.play(0)
@@ -155,6 +156,7 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
                         was_looping = loop_ctrl.state == LoopState.LOOPING
                         loop_ctrl.on_space_down(int(pclock.position_ms))
                         if was_looping:
+                            tcode.reset()
                             audio.stop_loop(pclock.position_ms)
                 elif ev.key == pygame.K_LEFTBRACKET:
                     load_video(idx - 1)
@@ -164,15 +166,18 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
                     new_pos = max(0, pclock.position_ms - _SEEK_STEP_MS)
                     pclock.seek(new_pos)
                     audio.seek(new_pos)
+                    tcode.reset()
                 elif ev.key == pygame.K_EQUALS:
                     new_pos = min(video.duration_ms, pclock.position_ms + _SEEK_STEP_MS)
                     pclock.seek(new_pos)
                     audio.seek(new_pos)
+                    tcode.reset()
             elif ev.type == pygame.KEYUP:
                 if ev.key == pygame.K_SPACE:
                     if loop_ctrl is not None and loop_ctrl.state == LoopState.MARKING:
                         loop_ctrl.on_space_up(int(pclock.position_ms))
                         if loop_ctrl.state == LoopState.LOOPING:
+                            tcode.reset()
                             pclock.seek(loop_ctrl.in_ms)
                             audio.start_loop(loop_ctrl.in_ms, loop_ctrl.out_ms)
 
@@ -185,6 +190,7 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
                 loop_target = loop_ctrl.check_loop(pos_ms)
                 if loop_target is not None:
                     pclock.seek(loop_target)
+                    tcode.reset()
                     pos_ms = loop_target
 
             tcode.update(int(pos_ms), funscript)
