@@ -147,10 +147,11 @@ def adjust_center(state: DirectControlState, delta: int) -> None:
     _recompute_center(state)
 
 
-def cycle_shape(state: DirectControlState) -> None:
+def cycle_shape(state: DirectControlState, step: int = 1) -> None:
+    """Advance the waveform shape by *step* (default +1; pass -1 to go back)."""
     shapes = list(WaveformShape)
     idx = shapes.index(state.shape)
-    state.shape = shapes[(idx + 1) % len(shapes)]
+    state.shape = shapes[(idx + step) % len(shapes)]
 
 
 def _waveform_raw(phase: float, shape: WaveformShape) -> float:

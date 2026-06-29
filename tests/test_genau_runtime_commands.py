@@ -275,6 +275,23 @@ class TestApplyRuntimeCommand:
         assert handled is True
         assert ds.shape == WaveformShape.TRIANGLE
 
+    def test_cycle_shape_prev_reverses_shape(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True)
+        assert ds.shape == WaveformShape.SINE
+
+        handled = apply_runtime_command(
+            "CYCLE_SHAPE_PREV",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.shape == WaveformShape.SAWTOOTH  # SINE wraps backward to SAWTOOTH
+
     def test_toggle_cruise_activates_cruise_control(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}

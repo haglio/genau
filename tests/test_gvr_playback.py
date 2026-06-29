@@ -7,12 +7,42 @@ from genau_vr.playback import (
     PlaybackEngine,
     WaveformShape,
     bpm_for_speed,
+    cycle_shape,
     display_index_for_phase,
     display_phase_for_position,
     format_tcode_command,
     phase_to_position,
     update_engine,
 )
+from genau_vr.runtime_commands import apply_runtime_command
+
+
+class TestCycleShapeReverse:
+    def test_step_minus_one_goes_backward(self):
+        state = DirectControlState(playing=True, shape=WaveformShape.TRIANGLE)
+        cycle_shape(state, -1)
+        assert state.shape is WaveformShape.SINE
+
+    def test_backward_wraps_from_first_to_last(self):
+        state = DirectControlState(playing=True, shape=WaveformShape.SINE)
+        cycle_shape(state, -1)
+        assert state.shape is WaveformShape.SAWTOOTH
+
+    def test_cycle_shape_prev_command_reverses_shape(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        ds = DirectControlState(playing=True)
+        assert ds.shape is WaveformShape.SINE
+
+        handled = apply_runtime_command(
+            "CYCLE_SHAPE_PREV",
+            engine=engine,
+            rh_paused={"value": False},
+            step_clip=lambda _step: None,
+            direct_state=ds,
+        )
+
+        assert handled is True
+        assert ds.shape is WaveformShape.SAWTOOTH
 
 
 class TestBpmForSpeed:

@@ -423,6 +423,16 @@ class TestCycleShape:
         cycle_shape(state)
         assert state.shape is WaveformShape.SINE
 
+    def test_step_minus_one_goes_backward(self):
+        state = DirectControlState(shape=WaveformShape.TRIANGLE)
+        cycle_shape(state, -1)
+        assert state.shape is WaveformShape.SINE
+
+    def test_backward_wraps_from_first_to_last(self):
+        state = DirectControlState(shape=WaveformShape.SINE)
+        cycle_shape(state, -1)
+        assert state.shape is WaveformShape.SAWTOOTH
+
 
 class TestSampleWaveform:
     def test_returns_correct_number_of_points(self):

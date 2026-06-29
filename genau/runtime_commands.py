@@ -69,6 +69,8 @@ def apply_runtime_command(
         adjust_center(direct_state, 5)
     elif normalized == "CYCLE_SHAPE" and direct_state is not None:
         cycle_shape(direct_state)
+    elif normalized == "CYCLE_SHAPE_PREV" and direct_state is not None:
+        cycle_shape(direct_state, -1)
     elif normalized == "TOGGLE_CRUISE" and cruise_control_state is not None:
         toggle_cruise_control(cruise_control_state)
     elif normalized == "CRUISE_ON" and cruise_control_state is not None:
