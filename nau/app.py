@@ -12,6 +12,7 @@ from genau.pygame_view import get_window_chrome_height, load_window_icon
 from genau.tcode import UdpTCodeSink
 
 from .discovery import discover_videos
+from .overlay import RecordingStrip, draw_indicator, draw_strip, indicator_for
 from .playback import AudioPlayer, PlaybackClock, VideoStream
 from .session import PlayerSession
 from .tcode_driver import FunscriptTCodeDriver
@@ -115,6 +116,9 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
             UdpTCodeSink(args.tcode_host, args.tcode_port),
         ),
     )
+    strip = RecordingStrip(
+        tile_height=max(32, client_h // 12), max_width=args.width,
+    )
     running = True
 
     while running:
@@ -141,27 +145,22 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
                     session.record_up()
 
         display_frame = session.advance()
+        strip.update(session.loop_state, session.position_ms, display_frame)
 
         renderer.draw_color = (0, 0, 0, 255)
         renderer.clear()
+        win_w, win_h = window.size
         if display_frame is not None:
             h, w = display_frame.shape[:2]
             surface = pygame.image.frombuffer(display_frame.tobytes(), (w, h), "RGB")
             texture = Texture.from_surface(renderer, surface)
-            win_w, win_h = window.size
             rx, ry, rw, rh = _compute_video_rect(w, h, win_w, win_h)
             texture.draw(dstrect=pygame.Rect(rx, ry, rw, rh))
 
-        # Status overlay
+        # Status overlay: video name + time; playback/loop state is the icon's job.
         pos_str = _format_time(session.position_ms)
         dur_str = _format_time(session.duration_ms)
         status = f"{session.current_video.stem}  {pos_str}/{dur_str}"
-        if session.loop_state == "looping":
-            status += "  LOOP"
-        elif session.loop_state == "recording":
-            status += "  RECORDING..."
-        if session.is_paused:
-            status += "  PAUSED"
 
         text_surf = font.render(status, True, (255, 255, 255))
         pad = 6
@@ -171,6 +170,13 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
         bg.blit(text_surf, (pad, pad))
         overlay = Texture.from_surface(renderer, bg)
         overlay.draw(dstrect=pygame.Rect(8, 8, tw + pad * 2, th + pad * 2))
+
+        draw_strip(renderer, strip, session.position_ms, win_h)
+        draw_indicator(
+            renderer,
+            indicator_for(session.loop_state, paused=session.is_paused),
+            win_w,
+        )
 
         renderer.present()
         clock.tick(session.fps)
