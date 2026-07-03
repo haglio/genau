@@ -3,11 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import sys
-import time
 from pathlib import Path
 
-import numpy as np
 import pygame
 from pygame._sdl2.video import Renderer, Texture, Window
 
@@ -15,9 +12,8 @@ from genau.pygame_view import get_window_chrome_height, load_window_icon
 from genau.tcode import UdpTCodeSink
 
 from .discovery import discover_videos
-from .funscript import Funscript, load as load_funscript
-from .loop_controller import LoopController, LoopState
 from .playback import AudioPlayer, PlaybackClock, VideoStream
+from .session import PlayerSession
 from .tcode_driver import FunscriptTCodeDriver
 
 logger = logging.getLogger(__name__)
@@ -82,9 +78,10 @@ def main(argv: list[str] | None = None) -> int:
 
     pairs = discover_videos(Path(args.videos_dir), Path(args.scripts_dir))
     if not pairs:
-        logger.error("No videos with matching funscripts found")
+        logger.error("No videos found")
         return 1
-    logger.info("Found %d video(s) with funscripts", len(pairs))
+    scripted = sum(1 for _, fs in pairs if fs is not None)
+    logger.info("Found %d video(s), %d with funscripts", len(pairs), scripted)
 
     return _run(args, pairs)
 
@@ -98,7 +95,7 @@ def _set_aumid() -> None:
         pass
 
 
-def _run(args, pairs: list[tuple[Path, Path]]) -> int:
+def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
     _set_aumid()
     pygame.init()
     chrome = get_window_chrome_height()
@@ -109,32 +106,15 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 14)
 
-    video = VideoStream()
-    audio = AudioPlayer()
-    pclock = PlaybackClock()
-    tcode = FunscriptTCodeDriver(
-        UdpTCodeSink(args.tcode_host, args.tcode_port),
+    session = PlayerSession(
+        pairs,
+        video=VideoStream(),
+        audio=AudioPlayer(),
+        clock=PlaybackClock(),
+        tcode=FunscriptTCodeDriver(
+            UdpTCodeSink(args.tcode_host, args.tcode_port),
+        ),
     )
-
-    idx = 0
-    funscript: Funscript | None = None
-    loop_ctrl: LoopController | None = None
-
-    def load_video(i: int) -> None:
-        nonlocal idx, funscript, loop_ctrl
-        idx = i % len(pairs)
-        vid_path, fs_path = pairs[idx]
-        logger.info("Loading: %s", vid_path.name)
-        funscript = load_funscript(fs_path)
-        loop_ctrl = LoopController(funscript)
-        video.open(vid_path)
-        audio.load(vid_path)
-        tcode.reset()
-        pclock.seek(0)
-        pclock.start()
-        audio.play(0)
-
-    load_video(0)
     running = True
 
     while running:
@@ -145,61 +125,22 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
                     running = False
                 elif ev.key == pygame.K_ESCAPE:
-                    if pclock.is_playing:
-                        pclock.pause()
-                        audio.pause()
-                    else:
-                        pclock.resume()
-                        audio.resume()
+                    session.toggle_pause()
                 elif ev.key == pygame.K_SPACE:
-                    if loop_ctrl is not None:
-                        was_looping = loop_ctrl.state == LoopState.LOOPING
-                        loop_ctrl.on_record_down(int(pclock.position_ms))
-                        if was_looping:
-                            tcode.reset()
-                            audio.stop_loop(pclock.position_ms)
+                    session.record_down()
                 elif ev.key == pygame.K_LEFTBRACKET:
-                    load_video(idx - 1)
+                    session.step(-1)
                 elif ev.key == pygame.K_RIGHTBRACKET:
-                    load_video(idx + 1)
+                    session.step(1)
                 elif ev.key == pygame.K_MINUS:
-                    new_pos = max(0, pclock.position_ms - _SEEK_STEP_MS)
-                    pclock.seek(new_pos)
-                    audio.seek(new_pos)
-                    tcode.reset()
+                    session.seek_by(-_SEEK_STEP_MS)
                 elif ev.key == pygame.K_EQUALS:
-                    new_pos = min(video.duration_ms, pclock.position_ms + _SEEK_STEP_MS)
-                    pclock.seek(new_pos)
-                    audio.seek(new_pos)
-                    tcode.reset()
+                    session.seek_by(_SEEK_STEP_MS)
             elif ev.type == pygame.KEYUP:
                 if ev.key == pygame.K_SPACE:
-                    if loop_ctrl is not None and loop_ctrl.state == LoopState.MARKING:
-                        loop_ctrl.on_record_up(int(pclock.position_ms))
-                        if loop_ctrl.state == LoopState.LOOPING:
-                            tcode.reset()
-                            pclock.seek(loop_ctrl.in_ms)
-                            audio.start_loop(loop_ctrl.in_ms, loop_ctrl.out_ms)
+                    session.record_up()
 
-        display_frame: np.ndarray | None = None
-
-        if pclock.is_playing and funscript is not None:
-            pos_ms = pclock.position_ms
-
-            if loop_ctrl is not None:
-                loop_target = loop_ctrl.check_loop(pos_ms)
-                if loop_target is not None:
-                    pclock.seek(loop_target)
-                    tcode.reset()
-                    pos_ms = loop_target
-
-            tcode.update(int(pos_ms), funscript)
-            display_frame = video.read_frame_at(pos_ms)
-
-            if video.ended and (loop_ctrl is None or loop_ctrl.state == LoopState.NORMAL):
-                load_video(idx + 1)
-        else:
-            display_frame = video.last_frame
+        display_frame = session.advance()
 
         renderer.draw_color = (0, 0, 0, 255)
         renderer.clear()
@@ -212,17 +153,14 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
             texture.draw(dstrect=pygame.Rect(rx, ry, rw, rh))
 
         # Status overlay
-        vid_name = pairs[idx][0].stem
-        pos_str = _format_time(pclock.position_ms)
-        dur_str = _format_time(video.duration_ms)
-        status = f"{vid_name}  {pos_str}/{dur_str}"
-        if loop_ctrl and loop_ctrl.state == LoopState.LOOPING:
-            in_str = _format_time(loop_ctrl.in_ms)
-            out_str = _format_time(loop_ctrl.out_ms)
-            status += f"  LOOP {in_str}-{out_str}"
-        elif loop_ctrl and loop_ctrl.state == LoopState.MARKING:
-            status += "  MARKING..."
-        if not pclock.is_playing:
+        pos_str = _format_time(session.position_ms)
+        dur_str = _format_time(session.duration_ms)
+        status = f"{session.current_video.stem}  {pos_str}/{dur_str}"
+        if session.loop_state == "looping":
+            status += "  LOOP"
+        elif session.loop_state == "recording":
+            status += "  RECORDING..."
+        if session.is_paused:
             status += "  PAUSED"
 
         text_surf = font.render(status, True, (255, 255, 255))
@@ -235,11 +173,9 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
         overlay.draw(dstrect=pygame.Rect(8, 8, tw + pad * 2, th + pad * 2))
 
         renderer.present()
-        clock.tick(video.fps)
+        clock.tick(session.fps)
 
-    tcode.close()
-    audio.close()
-    video.close()
+    session.close()
     window.destroy()
     pygame.quit()
     return 0

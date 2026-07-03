@@ -18,7 +18,7 @@ class TestDiscoverVideos:
         assert result[0][0] == vids / "clip.mp4"
         assert result[0][1] == scripts / "clip.funscript"
 
-    def test_skips_video_without_funscript(self, tmp_path):
+    def test_includes_video_without_funscript_with_none_script(self, tmp_path):
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
         vids.mkdir()
@@ -27,7 +27,7 @@ class TestDiscoverVideos:
 
         result = discover_videos(vids, scripts)
 
-        assert result == []
+        assert result == [(vids / "clip.mp4", None)]
 
     def test_handles_subdirectories(self, tmp_path):
         vids = tmp_path / "videos" / "sub"
