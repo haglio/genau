@@ -11,9 +11,9 @@ from genau.pygame_view import get_window_chrome_height, load_window_icon
 from genau.runtime_support import consume_command_file, read_paused_state
 from genau.tcode import UdpTCodeSink
 
-from .cli import DEFAULT_CONFIG, build_parser, load_config, resolve_playlist
+from .cli import DEFAULT_CONFIG, audio_muted, build_parser, load_config, resolve_playlist
 from .overlay import RecordingStrip, draw_indicator, draw_strip, indicator_for
-from .playback import AudioPlayer, PlaybackClock, VideoStream
+from .playback import PlaybackClock, VideoStream, build_audio_player
 from .playlist import read_playlist
 from .runtime import SEEK_STEP_MS, apply_command
 from .session import PlayerSession
@@ -94,7 +94,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
     session = PlayerSession(
         pairs,
         video=VideoStream(),
-        audio=AudioPlayer(),
+        audio=build_audio_player(muted=audio_muted(args)),
         clock=PlaybackClock(),
         tcode=FunscriptTCodeDriver(
             UdpTCodeSink(args.tcode_host, args.tcode_port),

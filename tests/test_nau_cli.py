@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nau.cli import build_parser, resolve_playlist
+from nau.cli import audio_muted, build_parser, resolve_playlist
 
 
 class TestResolvePlaylist:
@@ -33,3 +33,20 @@ class TestResolvePlaylist:
         args = build_parser({}).parse_args([])
 
         assert resolve_playlist(args) == []
+
+
+class TestAudioMuted:
+    def test_default_is_unmuted(self, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+        args = build_parser({}).parse_args([])
+        assert audio_muted(args) is False
+
+    def test_no_audio_flag_mutes(self, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+        args = build_parser({}).parse_args(["--no-audio"])
+        assert audio_muted(args) is True
+
+    def test_env_mutes(self, monkeypatch):
+        monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
+        args = build_parser({}).parse_args([])
+        assert audio_muted(args) is True

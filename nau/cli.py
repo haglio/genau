@@ -41,7 +41,21 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Flag file that owns the paused state when present")
     p.add_argument("--status-file", type=Path, default=None,
                    help="Publish playback status to this file")
+    p.add_argument("--no-audio", action="store_true", default=False,
+                   help="Never extract or play audio (silent)")
     return p
+
+
+def audio_muted(args) -> bool:
+    """Whether Nau should stay silent.
+
+    Honors ``--no-audio`` and the ``FUN_TIME_MUTE_AUDIO=1`` contract the
+    rest of the stack uses, so a Fun Time integration run never spends
+    ffmpeg on audio it will not play.
+    """
+    import os
+
+    return bool(args.no_audio) or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
 
 
 def resolve_playlist(args) -> list[tuple[Path, Path | None]]:
