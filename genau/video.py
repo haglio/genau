@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import random
 import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -10,12 +9,6 @@ import numpy as np
 from .runtime_support import hidden_subprocess_kwargs
 
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
-
-
-def _subprocess_kwargs() -> dict:
-    if sys.platform != "win32":
-        return {}
-    return hidden_subprocess_kwargs()
 
 
 def scan_clips(folder: Path, *, shuffle_on_load: bool = True) -> list[Path]:
@@ -40,7 +33,7 @@ def ffprobe_size(path: Path) -> tuple[int, int]:
         "csv=p=0:s=x",
         str(path),
     ]
-    out = subprocess.check_output(cmd, text=True, **_subprocess_kwargs()).strip()
+    out = subprocess.check_output(cmd, text=True, **hidden_subprocess_kwargs()).strip()
     width, height = out.split("x", 1)
     return int(width), int(height)
 
@@ -68,7 +61,7 @@ def decode_video_to_numpy_frames(path: Path) -> list[np.ndarray]:
         "pipe:1",
     ]
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **_subprocess_kwargs())
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **hidden_subprocess_kwargs())
     frames: list[np.ndarray] = []
 
     try:

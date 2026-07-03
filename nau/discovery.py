@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
+from genau.video import SUPPORTED_VIDEO_EXTS
 
 
 def discover_videos(

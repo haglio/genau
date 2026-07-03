@@ -11,6 +11,7 @@ import numpy as np
 import pygame
 from pygame._sdl2.video import Renderer, Texture, Window
 
+from genau.pygame_view import get_window_chrome_height, load_window_icon
 from genau.tcode import UdpTCodeSink
 
 from .discovery import discover_videos
@@ -25,22 +26,6 @@ _DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 _APP_USER_MODEL_ID = "Nau.App"
 _SEEK_STEP_MS = 10_000
-
-
-def _get_window_chrome_height() -> int:
-    try:
-        import ctypes
-        SM_CYCAPTION = 4
-        SM_CYFRAME = 33
-        SM_CXPADDEDBORDER = 92
-        user32 = ctypes.windll.user32
-        return (
-            user32.GetSystemMetrics(SM_CYCAPTION)
-            + user32.GetSystemMetrics(SM_CYFRAME)
-            + user32.GetSystemMetrics(SM_CXPADDEDBORDER)
-        )
-    except Exception:
-        return 0
 
 
 def _compute_video_rect(
@@ -113,27 +98,13 @@ def _set_aumid() -> None:
         pass
 
 
-def _set_window_icon(window: Window) -> None:
-    if not _ICON_PATH.exists():
-        return
-    try:
-        from PIL import Image
-        pil_icon = Image.open(str(_ICON_PATH)).convert("RGBA")
-        icon_surface = pygame.image.frombuffer(
-            pil_icon.tobytes(), pil_icon.size, "RGBA",
-        )
-        window.set_icon(icon_surface)
-    except Exception:
-        pass
-
-
 def _run(args, pairs: list[tuple[Path, Path]]) -> int:
     _set_aumid()
     pygame.init()
-    chrome = _get_window_chrome_height()
+    chrome = get_window_chrome_height()
     client_h = max(1, args.height - chrome)
     window = Window("Nau", size=(args.width, client_h))
-    _set_window_icon(window)
+    load_window_icon(window, _ICON_PATH)
     renderer = Renderer(window, accelerated=True)
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 14)

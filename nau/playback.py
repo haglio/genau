@@ -3,7 +3,6 @@ from __future__ import annotations
 import atexit
 import logging
 import subprocess
-import sys
 import tempfile
 import time
 from pathlib import Path
@@ -11,17 +10,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from genau.runtime_support import hidden_subprocess_kwargs
+
 logger = logging.getLogger(__name__)
-
-SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
-
-
-def _subprocess_kwargs() -> dict:
-    if sys.platform != "win32":
-        return {}
-    si = subprocess.STARTUPINFO()
-    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    return {"startupinfo": si, "creationflags": subprocess.CREATE_NO_WINDOW}
 
 
 class PlaybackClock:
@@ -133,7 +124,7 @@ def _extract_audio(video_path: Path) -> Path | None:
             "-ar", "44100", "-ac", "2",
             tmp.name,
         ]
-        subprocess.run(cmd, check=True, **_subprocess_kwargs())
+        subprocess.run(cmd, check=True, **hidden_subprocess_kwargs())
         if Path(tmp.name).stat().st_size < 1000:
             Path(tmp.name).unlink(missing_ok=True)
             return None
@@ -158,7 +149,7 @@ def _extract_loop_segment(source_wav: Path, in_ms: int, out_ms: int) -> Path | N
             "-acodec", "pcm_s16le",
             tmp.name,
         ]
-        subprocess.run(cmd, check=True, **_subprocess_kwargs())
+        subprocess.run(cmd, check=True, **hidden_subprocess_kwargs())
         atexit.register(lambda p=tmp.name: Path(p).unlink(missing_ok=True))
         return Path(tmp.name)
     except (subprocess.CalledProcessError, OSError) as exc:

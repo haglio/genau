@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 HUD_COLOR_KEY = (1, 0, 1)
 
 
-def _get_window_chrome_height() -> int:
+def get_window_chrome_height() -> int:
     try:
         import ctypes
         SM_CYCAPTION = 4
@@ -34,6 +34,19 @@ def _get_window_chrome_height() -> int:
         return 0
 
 
+def load_window_icon(window: Window, icon_path: Path | None) -> None:
+    if icon_path is None or not icon_path.exists():
+        return
+    try:
+        pil_icon = Image.open(str(icon_path)).convert("RGBA")
+        icon_surface = pygame.image.frombuffer(
+            pil_icon.tobytes(), pil_icon.size, "RGBA"
+        )
+        window.set_icon(icon_surface)
+    except Exception:
+        pass
+
+
 class PygameView:
     def __init__(
         self,
@@ -46,20 +59,11 @@ class PygameView:
         icon_path: Path | None = None,
     ) -> None:
         pygame.init()
-        chrome_height = _get_window_chrome_height()
+        chrome_height = get_window_chrome_height()
         client_height = max(1, height - chrome_height)
         self.window = Window(title, size=(width, client_height))
         self.window.position = (x, y + chrome_height)
-        if icon_path is not None and icon_path.exists():
-            try:
-                pil_icon = Image.open(str(icon_path))
-                pil_icon = pil_icon.convert("RGBA")
-                icon_surface = pygame.image.frombuffer(
-                    pil_icon.tobytes(), pil_icon.size, "RGBA"
-                )
-                self.window.set_icon(icon_surface)
-            except Exception:
-                pass
+        load_window_icon(self.window, icon_path)
         self.renderer = Renderer(self.window, accelerated=True)
         self.clock = pygame.time.Clock()
         self._width = width
