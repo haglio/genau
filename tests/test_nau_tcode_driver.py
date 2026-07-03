@@ -1,20 +1,7 @@
 from __future__ import annotations
 
 from nau.funscript import Funscript
-from nau.tcode_driver import (
-    FunscriptTCodeDriver,
-    UdpTCodeSink,
-    format_tcode_command,
-)
-
-
-class TestFormatTCodeCommand:
-    def test_basic_format(self):
-        assert format_tcode_command("L0", 5000, 33) == "L05000I33"
-
-    def test_clamps_position(self):
-        assert format_tcode_command("L0", 10500, 33) == "L09999I33"
-        assert format_tcode_command("L0", -1, 33) == "L00000I33"
+from nau.tcode_driver import FunscriptTCodeDriver
 
 
 class FakeSink:

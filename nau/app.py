@@ -11,11 +11,13 @@ import numpy as np
 import pygame
 from pygame._sdl2.video import Renderer, Texture, Window
 
+from genau.tcode import UdpTCodeSink
+
 from .discovery import discover_videos
 from .funscript import Funscript, load as load_funscript
 from .loop_controller import LoopController, LoopState
 from .playback import AudioPlayer, PlaybackClock, VideoStream
-from .tcode_driver import FunscriptTCodeDriver, UdpTCodeSink
+from .tcode_driver import FunscriptTCodeDriver
 
 logger = logging.getLogger(__name__)
 

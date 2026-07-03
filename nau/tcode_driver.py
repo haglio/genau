@@ -1,36 +1,11 @@
 from __future__ import annotations
 
 import bisect
-import socket
 import time
-from typing import Protocol
+
+from genau.tcode import TCodeSink, format_tcode_command
 
 from .funscript import Funscript
-
-
-def format_tcode_command(axis: str, position: int, interval_ms: int) -> str:
-    position = max(0, min(9999, position))
-    interval_ms = max(0, interval_ms)
-    return f"{axis}{position:04d}I{interval_ms}"
-
-
-class TCodeSink(Protocol):
-    def send(self, command: str) -> None: ...
-    def close(self) -> None: ...
-
-
-class UdpTCodeSink:
-    def __init__(self, host: str = "127.0.0.1", port: int = 50557, *, sock=None) -> None:
-        self._host = host
-        self._port = port
-        self._sock = sock if sock is not None else socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    def send(self, command: str) -> None:
-        self._sock.sendto((command + "\n").encode("ascii"), (self._host, self._port))
-
-    def close(self) -> None:
-        self._sock.close()
-
 
 _RESEND_INTERVAL = 0.1
 
