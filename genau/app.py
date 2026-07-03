@@ -17,7 +17,7 @@ from .pygame_view import PygameView
 from .refresh_controller import GenauRefreshController
 from .config import load_config
 from .logging_utils import configure_logging, enable_faulthandler, install_exception_logging
-from .runtime_support import preparse_config_path, read_paused_state
+from .runtime_support import broker_cmd_file_for_mode, preparse_config_path, read_paused_state
 from .threading_utils import start_daemon_thread
 from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
@@ -51,7 +51,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
     ap.add_argument(
         "--fun-time", action="store_true", default=False,
-        help="Running under Fun Time (suppresses voice, space pauses only)",
+        help="Running under Fun Time (orchestrator owns broker handoff, suppresses voice, space pauses only)",
     )
     return ap
 
@@ -228,7 +228,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         direct_state=direct_state,
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
-        broker_cmd_file=config.broker_cmd_file,
+        broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
         set_direct_overlay=view.set_direct_overlay,
         present_scene=view.present,
         stop_event=stop_event,
