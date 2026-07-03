@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -133,7 +134,9 @@ def _build_controller(
         selection=selection,
         engine=engine,
         rh_paused={"value": False},
-        command_file=Path("command.txt"),
+        # Absolute scratch paths: the controller writes genau_status.txt next
+        # to the command file, so a relative path would pollute pytest's CWD.
+        command_file=Path(tempfile.mkdtemp(prefix="genau-refresh-")) / "command.txt",
         paused_file=Path("paused.txt"),
         beats_per_loop=4.0,
         bpm_smoothing=0.5,
