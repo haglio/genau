@@ -29,6 +29,13 @@ vr = [
     "glfw",
 ]
 
+# Three top-level app packages share this repo; setuptools' automatic
+# flat-layout discovery refuses that, so declare them explicitly. Fun Time
+# launches `python -m genau` / `python -m nau` from this venv without a
+# working directory, so all of them must ship in the (editable) install.
+[tool.setuptools.packages.find]
+include = ["genau*", "nau*", "genau_vr*"]
+
 [tool.pytest.ini_options]
 addopts = "-p no:cacheprovider"
 testpaths = ["tests"]
