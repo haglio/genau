@@ -17,7 +17,7 @@ from .pygame_view import PygameView
 from .refresh_controller import GenauRefreshController
 from .config import load_config
 from .logging_utils import configure_logging, enable_faulthandler, install_exception_logging
-from .runtime_support import preparse_config_path
+from .runtime_support import preparse_config_path, read_paused_state
 from .threading_utils import start_daemon_thread
 from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
@@ -54,17 +54,6 @@ def build_parser(config) -> argparse.ArgumentParser:
         help="Running under Fun Time (suppresses voice, space pauses only)",
     )
     return ap
-
-
-def read_paused_state(path: Path, *, logger: logging.Logger | None = None) -> bool:
-    try:
-        if not path.exists():
-            return False
-        return path.read_text(encoding="utf-8").replace("\ufeff", "").strip() == "1"
-    except Exception:
-        if logger is not None:
-            logger.exception("Failed to read Genau paused state file %s", path)
-        return False
 
 
 def main(argv: list[str] | None = None) -> int:
