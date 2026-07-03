@@ -30,22 +30,25 @@ class LoopController:
     def out_ms(self) -> int | None:
         return self._out_ms
 
-    def on_space_down(self, position_ms: int) -> None:
+    def on_record_down(self, position_ms: int) -> None:
         if self._state == LoopState.NORMAL:
             self._in_ms = position_ms
             self._state = LoopState.MARKING
         elif self._state == LoopState.LOOPING:
-            self._in_ms = None
-            self._out_ms = None
-            self._state = LoopState.NORMAL
+            self.cancel()
 
-    def on_space_up(self, position_ms: int) -> None:
+    def on_record_up(self, position_ms: int) -> None:
         if self._state != LoopState.MARKING:
             return
         self._in_ms, self._out_ms = snap_loop(
             self._funscript, self._in_ms, position_ms,
         )
         self._state = LoopState.LOOPING
+
+    def cancel(self) -> None:
+        self._in_ms = None
+        self._out_ms = None
+        self._state = LoopState.NORMAL
 
     def check_loop(self, position_ms: int) -> int | None:
         if self._state != LoopState.LOOPING:

@@ -154,7 +154,7 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
                 elif ev.key == pygame.K_SPACE:
                     if loop_ctrl is not None:
                         was_looping = loop_ctrl.state == LoopState.LOOPING
-                        loop_ctrl.on_space_down(int(pclock.position_ms))
+                        loop_ctrl.on_record_down(int(pclock.position_ms))
                         if was_looping:
                             tcode.reset()
                             audio.stop_loop(pclock.position_ms)
@@ -175,7 +175,7 @@ def _run(args, pairs: list[tuple[Path, Path]]) -> int:
             elif ev.type == pygame.KEYUP:
                 if ev.key == pygame.K_SPACE:
                     if loop_ctrl is not None and loop_ctrl.state == LoopState.MARKING:
-                        loop_ctrl.on_space_up(int(pclock.position_ms))
+                        loop_ctrl.on_record_up(int(pclock.position_ms))
                         if loop_ctrl.state == LoopState.LOOPING:
                             tcode.reset()
                             pclock.seek(loop_ctrl.in_ms)
