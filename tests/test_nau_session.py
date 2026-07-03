@@ -351,3 +351,58 @@ class TestPassthroughs:
         assert tcode.closed
         assert video.closed
         assert ("close",) in audio.calls
+
+
+class TestPlayFile:
+    def test_play_file_already_in_playlist_jumps_to_it(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path, entries=3)
+        target = tmp_path / "v2.mp4"
+
+        session.play_file(target, None)
+
+        assert session.index == 2
+        assert video.opened[-1] == target
+        assert len(session.playlist) == 3
+
+    def test_play_file_new_video_inserts_after_current(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path, entries=2)
+        new_vid = tmp_path / "extra.mp4"
+        new_vid.write_text("fake")
+        new_fs = tmp_path / "extra.funscript"
+        new_fs.write_text(_FS_JSON)
+
+        session.play_file(new_vid, new_fs)
+
+        assert video.opened[-1] == new_vid
+        assert session.has_funscript
+        assert session.playlist[1] == (new_vid, new_fs)
+        # next continues into the original order
+        session.step(1)
+        assert video.opened[-1] == tmp_path / "v1.mp4"
+
+
+class TestReplacePlaylist:
+    def test_replace_keeps_current_video_position(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path, entries=3)
+        session.step(1)  # now on v1
+        new_list = [
+            (tmp_path / "v2.mp4", None),
+            (tmp_path / "v1.mp4", None),
+        ]
+
+        session.replace_playlist(new_list)
+
+        assert session.index == 1  # v1 found in new list
+        assert video.opened[-1] == tmp_path / "v1.mp4"  # no reload
+
+    def test_replace_without_current_video_steps_to_first(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path, entries=2)
+        new_list = [(tmp_path / "other.mp4", None)]
+
+        session.replace_playlist(new_list)
+
+        # The playing video is not interrupted and still reports correctly
+        assert session.current_video == tmp_path / "v0.mp4"
+
+        session.step(1)
+        assert video.opened[-1] == tmp_path / "other.mp4"

@@ -1,0 +1,71 @@
+"""Fun Time command channel: command strings -> PlayerSession actions.
+
+Commands arrive one per line in the nau command file (consumed with
+``genau.runtime_support.consume_command_file(uppercase=False)`` because
+PLAY_FILE carries case-sensitive paths). The keyword is case-insensitive;
+the argument, when present, is TAB-separated into video and funscript.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+SEEK_STEP_MS = 10_000
+
+
+def apply_command(
+    command: str,
+    session,
+    *,
+    stop_event=None,
+    reload_playlist=None,
+) -> bool:
+    parts = command.strip().split(None, 1)
+    if not parts:
+        return False
+    keyword = parts[0].upper()
+    arg = parts[1].strip() if len(parts) > 1 else ""
+
+    if keyword == "NEXT":
+        session.step(1)
+    elif keyword == "PREV":
+        session.step(-1)
+    elif keyword == "SEEK_FWD":
+        session.seek_by(SEEK_STEP_MS)
+    elif keyword == "SEEK_BACK":
+        session.seek_by(-SEEK_STEP_MS)
+    elif keyword == "RECORD_DOWN":
+        session.record_down()
+    elif keyword == "RECORD_UP":
+        session.record_up()
+    elif keyword == "RECORD_TAP":
+        _record_tap(session)
+    elif keyword == "LOOP_CANCEL":
+        session.loop_cancel()
+    elif keyword == "PLAY_FILE" and arg:
+        video_part, _, funscript_part = arg.partition("\t")
+        funscript_part = funscript_part.strip()
+        session.play_file(
+            Path(video_part.strip()),
+            Path(funscript_part) if funscript_part else None,
+        )
+    elif keyword == "RELOAD_PLAYLIST":
+        if reload_playlist is not None:
+            reload_playlist()
+    elif keyword == "QUIT":
+        if stop_event is None:
+            return False
+        stop_event.set()
+    else:
+        return False
+    return True
+
+
+def _record_tap(session) -> None:
+    """One-button record cycle: start marking -> finish loop -> cancel."""
+    state = session.loop_state
+    if state == "normal":
+        session.record_down()
+    elif state == "recording":
+        session.record_up()
+    else:
+        session.loop_cancel()

@@ -1,28 +1,29 @@
 from __future__ import annotations
 
-import argparse
-import json
 import logging
+import threading
 from pathlib import Path
 
 import pygame
 from pygame._sdl2.video import Renderer, Texture, Window
 
 from genau.pygame_view import get_window_chrome_height, load_window_icon
+from genau.runtime_support import consume_command_file, read_paused_state
 from genau.tcode import UdpTCodeSink
 
-from .discovery import discover_videos
+from .cli import DEFAULT_CONFIG, build_parser, load_config, resolve_playlist
 from .overlay import RecordingStrip, draw_indicator, draw_strip, indicator_for
 from .playback import AudioPlayer, PlaybackClock, VideoStream
+from .playlist import read_playlist
+from .runtime import SEEK_STEP_MS, apply_command
 from .session import PlayerSession
+from .status import StatusWriter
 from .tcode_driver import FunscriptTCodeDriver
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 _APP_USER_MODEL_ID = "Nau.App"
-_SEEK_STEP_MS = 10_000
 
 
 def _compute_video_rect(
@@ -45,41 +46,18 @@ def _format_time(ms: float) -> str:
     return f"{m}:{s:02d}"
 
 
-def _load_config(config_path: Path) -> dict:
-    if config_path.exists():
-        return json.loads(config_path.read_text())
-    return {}
-
-
-def _build_parser(config: dict) -> argparse.ArgumentParser:
-    nau = config.get("nau", {})
-    p = argparse.ArgumentParser(description="Nau — funscript video player")
-    p.add_argument("--config", type=Path, default=_DEFAULT_CONFIG)
-    p.add_argument("--videos-dir", type=Path, default=nau.get("videos_dir"))
-    p.add_argument("--scripts-dir", type=Path, default=nau.get("scripts_dir"))
-    p.add_argument("--width", type=int, default=1200)
-    p.add_argument("--height", type=int, default=900)
-    p.add_argument("--tcode-host", default=nau.get("tcode_udp_host", "127.0.0.1"))
-    p.add_argument("--tcode-port", type=int, default=nau.get("tcode_udp_port", 50557))
-    return p
-
-
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    config = _load_config(_DEFAULT_CONFIG)
-    args = _build_parser(config).parse_args(argv)
+    config = load_config(DEFAULT_CONFIG)
+    args = build_parser(config).parse_args(argv)
 
-    if args.config != _DEFAULT_CONFIG:
-        config = _load_config(args.config)
-        args = _build_parser(config).parse_args(argv)
+    if args.config != DEFAULT_CONFIG:
+        config = load_config(args.config)
+        args = build_parser(config).parse_args(argv)
 
-    if args.videos_dir is None or args.scripts_dir is None:
-        logger.error("--videos-dir and --scripts-dir are required")
-        return 1
-
-    pairs = discover_videos(Path(args.videos_dir), Path(args.scripts_dir))
+    pairs = resolve_playlist(args)
     if not pairs:
-        logger.error("No videos found")
+        logger.error("No videos found (need --playlist or --videos-dir/--scripts-dir)")
         return 1
     scripted = sum(1 for _, fs in pairs if fs is not None)
     logger.info("Found %d video(s), %d with funscripts", len(pairs), scripted)
@@ -102,10 +80,16 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
     chrome = get_window_chrome_height()
     client_h = max(1, args.height - chrome)
     window = Window("Nau", size=(args.width, client_h))
+    if args.x is not None and args.y is not None:
+        window.position = (args.x, args.y + chrome)
     load_window_icon(window, _ICON_PATH)
     renderer = Renderer(window, accelerated=True)
     clock = pygame.time.Clock()
     font = pygame.font.SysFont("consolas", 14)
+
+    paused_file: Path | None = args.paused_file
+    command_file: Path | None = args.command_file
+    start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)
 
     session = PlayerSession(
         pairs,
@@ -115,19 +99,25 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
         tcode=FunscriptTCodeDriver(
             UdpTCodeSink(args.tcode_host, args.tcode_port),
         ),
+        start_paused=start_paused,
     )
     strip = RecordingStrip(
         tile_height=max(32, client_h // 12), max_width=args.width,
     )
-    running = True
+    status_writer = StatusWriter(args.status_file) if args.status_file else None
+    stop_event = threading.Event()
 
-    while running:
+    def _reload_playlist() -> None:
+        if args.playlist is not None:
+            session.replace_playlist(read_playlist(Path(args.playlist)))
+
+    while not stop_event.is_set():
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                running = False
+                stop_event.set()
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
-                    running = False
+                    stop_event.set()
                 elif ev.key == pygame.K_ESCAPE:
                     session.toggle_pause()
                 elif ev.key == pygame.K_SPACE:
@@ -137,15 +127,27 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
                 elif ev.key == pygame.K_RIGHTBRACKET:
                     session.step(1)
                 elif ev.key == pygame.K_MINUS:
-                    session.seek_by(-_SEEK_STEP_MS)
+                    session.seek_by(-SEEK_STEP_MS)
                 elif ev.key == pygame.K_EQUALS:
-                    session.seek_by(_SEEK_STEP_MS)
+                    session.seek_by(SEEK_STEP_MS)
             elif ev.type == pygame.KEYUP:
                 if ev.key == pygame.K_SPACE:
                     session.record_up()
 
+        if paused_file is not None:
+            session.set_paused(read_paused_state(paused_file, logger=logger))
+        if command_file is not None:
+            for cmd in consume_command_file(command_file, logger=logger, uppercase=False):
+                apply_command(
+                    cmd, session,
+                    stop_event=stop_event,
+                    reload_playlist=_reload_playlist,
+                )
+
         display_frame = session.advance()
         strip.update(session.loop_state, session.position_ms, display_frame)
+        if status_writer is not None:
+            status_writer.write(session)
 
         renderer.draw_color = (0, 0, 0, 255)
         renderer.clear()

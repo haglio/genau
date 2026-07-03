@@ -124,8 +124,40 @@ class PlayerSession:
     def toggle_pause(self) -> None:
         self.set_paused(not self._paused)
 
+    @property
+    def playlist(self) -> list[tuple[Path, Path | None]]:
+        return list(self._playlist)
+
     def step(self, delta: int) -> None:
         self.load(self._index + delta)
+
+    def play_file(self, video_path: Path, funscript_path: Path | None) -> None:
+        """Jump to *video_path*, inserting it after the current entry if new."""
+        for i, (vid, _fs) in enumerate(self._playlist):
+            if vid == video_path:
+                self.load(i)
+                return
+        self._playlist.insert(self._index + 1, (video_path, funscript_path))
+        self.load(self._index + 1)
+
+    def replace_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:
+        """Swap in a new playlist without interrupting the current video.
+
+        If the current video is in the new list, the index follows it;
+        otherwise the next step(+1) lands on the new list's first entry.
+        """
+        if not playlist:
+            return
+        current_entry = self._playlist[self._index]
+        self._playlist = list(playlist)
+        for i, (vid, _fs) in enumerate(self._playlist):
+            if vid == current_entry[0]:
+                self._index = i
+                return
+        # Current video was filtered out: keep it playing as a leading extra
+        # entry so step(+1) lands on the new list's first item.
+        self._playlist.insert(0, current_entry)
+        self._index = 0
 
     def seek_by(self, delta_ms: float) -> None:
         new_pos = max(0, min(self._video.duration_ms, self._clock.position_ms + delta_ms))
