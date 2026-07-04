@@ -26,6 +26,15 @@ def indicator_for(loop_state: str, *, paused: bool) -> str:
     return "play"
 
 
+def record_available(*, has_funscript: bool) -> bool:
+    """Whether loop recording (the R gesture) can do anything here.
+
+    Unscripted videos have no funscript to loop against, so R is inert; the
+    UI shows a muted "no fs" badge to explain the silence.
+    """
+    return has_funscript
+
+
 _ZOOM_SPAN_START_MS = 20_000.0
 _ZOOM_LEAD_FRAC = 0.10
 _ZOOM_GROW_FRAC = 0.85
@@ -253,6 +262,31 @@ def draw_indicator(renderer, kind: str, win_w: int) -> None:
     texture.draw(
         dstrect=pygame.Rect(win_w - _ICON_BOX - _ICON_MARGIN, _ICON_MARGIN, _ICON_BOX, _ICON_BOX)
     )
+
+
+_BADGE_MUTED = (150, 150, 150, 200)  # muted grey: readable but unobtrusive
+_BADGE_TEXT = "no fs"
+
+
+def draw_no_funscript_badge(renderer, font, win_w: int) -> None:
+    """Muted "no fs" chip just left of the corner indicator.
+
+    Drawn only for unscripted videos (see :func:`record_available`) so the
+    user understands why the record gesture has no effect.
+    """
+    import pygame
+    from pygame._sdl2.video import Texture
+
+    text = font.render(_BADGE_TEXT, True, _BADGE_MUTED[:3])
+    tw, th = text.get_size()
+    pad = 4
+    chip = pygame.Surface((tw + pad * 2, th + pad * 2), pygame.SRCALPHA)
+    chip.fill((0, 0, 0, 120))
+    chip.blit(text, (pad, pad))
+    w, h = chip.get_size()
+    x = win_w - _ICON_BOX - _ICON_MARGIN - w - 6
+    y = _ICON_MARGIN + (_ICON_BOX - h) // 2
+    Texture.from_surface(renderer, chip).draw(dstrect=pygame.Rect(x, y, w, h))
 
 
 _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
