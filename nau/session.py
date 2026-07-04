@@ -53,6 +53,11 @@ class PlayerSession:
         return self._funscript is not None
 
     @property
+    def current_funscript(self):
+        """The loaded Funscript, or None for unscripted videos."""
+        return self._funscript
+
+    @property
     def current_video(self) -> Path:
         return self._playlist[self._index][0]
 
@@ -78,6 +83,13 @@ class PlayerSession:
             LoopState.MARKING: "recording",
             LoopState.LOOPING: "looping",
         }[self._loop_ctrl.state]
+
+    @property
+    def loop_bounds(self) -> tuple[int, int] | None:
+        """Active loop (in_ms, out_ms) — None unless a loop is running."""
+        if self._loop_ctrl is None or self._loop_ctrl.state != LoopState.LOOPING:
+            return None
+        return self._loop_ctrl.in_ms, self._loop_ctrl.out_ms
 
     def record_down(self) -> None:
         if self._loop_ctrl is None:

@@ -2,7 +2,68 @@ from __future__ import annotations
 
 import numpy as np
 
-from nau.overlay import RecordingStrip, indicator_for
+from nau.funscript import Funscript
+from nau.heatmap import build_heatmap
+from nau.overlay import HeatmapStrip, RecordingStrip, cursor_x, indicator_for
+
+
+def _funscript():
+    return Funscript(actions=[(0, 0), (1000, 100), (2000, 0)])
+
+
+class TestHeatmapStrip:
+    def test_builds_one_color_per_pixel_of_width(self):
+        fs = _funscript()
+        strip = HeatmapStrip()
+
+        strip.update("v0.mp4", fs, 4000.0, width=40)
+
+        assert strip.colors == build_heatmap(fs, 4000.0, 40)
+        assert len(strip.colors) == 40
+        assert strip.height == 8
+
+    def test_unscripted_video_has_no_strip(self):
+        strip = HeatmapStrip()
+
+        strip.update("plain.mp4", None, 4000.0, width=40)
+
+        assert strip.colors == []
+        assert strip.height == 0
+
+    def test_caches_until_the_video_changes(self):
+        strip = HeatmapStrip()
+        strip.update("v0.mp4", _funscript(), 4000.0, width=40)
+        built = strip.colors
+
+        # Same video key: not rebuilt even if a different funscript is passed.
+        strip.update("v0.mp4", Funscript(actions=[]), 4000.0, width=40)
+        assert strip.colors is built
+
+        # New video key: rebuilt.
+        strip.update("v1.mp4", Funscript(actions=[]), 4000.0, width=40)
+        assert strip.colors != built
+
+    def test_width_change_rebuilds(self):
+        strip = HeatmapStrip()
+        strip.update("v0.mp4", _funscript(), 4000.0, width=40)
+
+        strip.update("v0.mp4", _funscript(), 4000.0, width=64)
+
+        assert len(strip.colors) == 64
+
+
+class TestCursorX:
+    def test_maps_position_fraction_to_pixel(self):
+        assert cursor_x(0, 10_000, 100) == 0
+        assert cursor_x(5_000, 10_000, 100) == 50
+
+    def test_clamps_to_the_strip(self):
+        assert cursor_x(10_000, 10_000, 100) == 99  # video end stays visible
+        assert cursor_x(20_000, 10_000, 100) == 99
+        assert cursor_x(-5, 10_000, 100) == 0
+
+    def test_zero_duration_pins_left(self):
+        assert cursor_x(500, 0, 100) == 0
 
 
 class TestIndicatorFor:

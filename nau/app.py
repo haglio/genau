@@ -12,7 +12,14 @@ from genau.runtime_support import consume_command_file, read_paused_state
 from genau.tcode import UdpTCodeSink
 
 from .cli import DEFAULT_CONFIG, audio_muted, build_parser, load_config, resolve_playlist
-from .overlay import RecordingStrip, draw_indicator, draw_strip, indicator_for
+from .overlay import (
+    HeatmapStrip,
+    RecordingStrip,
+    draw_heatmap,
+    draw_indicator,
+    draw_strip,
+    indicator_for,
+)
 from .playback import PlaybackClock, VideoStream, build_audio_player
 from .playlist import read_playlist
 from .runtime import SEEK_STEP_MS, apply_command
@@ -104,6 +111,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
     strip = RecordingStrip(
         tile_height=max(32, client_h // 12), max_width=args.width,
     )
+    heatmap = HeatmapStrip()
     status_writer = StatusWriter(args.status_file) if args.status_file else None
     stop_event = threading.Event()
 
@@ -173,7 +181,16 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
         overlay = Texture.from_surface(renderer, bg)
         overlay.draw(dstrect=pygame.Rect(8, 8, tw + pad * 2, th + pad * 2))
 
-        draw_strip(renderer, strip, session.position_ms, win_h)
+        heatmap.update(
+            session.current_video, session.current_funscript, session.duration_ms, win_w,
+        )
+        draw_heatmap(
+            renderer, heatmap, session.position_ms, session.duration_ms,
+            session.loop_bounds, win_w, win_h,
+        )
+        # Filmstrip stacks directly above the heatmap (flush with the bottom
+        # edge for unscripted videos, where the heatmap has no height).
+        draw_strip(renderer, strip, session.position_ms, win_h - heatmap.height)
         draw_indicator(
             renderer,
             indicator_for(session.loop_state, paused=session.is_paused),

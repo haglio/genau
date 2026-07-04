@@ -195,6 +195,34 @@ class TestRecording:
         assert "stop_loop" not in audio.names()
 
 
+class TestLoopBounds:
+    def test_none_while_not_looping(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+
+        assert session.loop_bounds is None  # normal
+
+        now.t = 2.5
+        session.record_down()
+        assert session.loop_bounds is None  # still marking
+
+    def test_none_without_funscript(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path, scripted=False)
+
+        assert session.loop_bounds is None
+
+    def test_exposes_snapped_bounds_while_looping(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+        now.t = 2.5
+        session.record_down()
+        now.t = 3.5
+        session.record_up()
+
+        assert session.loop_bounds == (2000, 4000)
+
+        session.loop_cancel()
+        assert session.loop_bounds is None
+
+
 class TestNavigation:
     def test_step_advances_and_wraps(self, tmp_path):
         session, video, audio, tcode, now = _make_session(tmp_path, entries=2)
@@ -342,6 +370,18 @@ class TestPassthroughs:
         assert session.current_video == tmp_path / "v0.mp4"
         assert session.fps == 30.0
         assert session.duration_ms == 60_000.0
+
+    def test_exposes_loaded_funscript(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+
+        fs = session.current_funscript
+        assert fs is not None
+        assert fs.actions[0] == (0, 100)
+
+    def test_current_funscript_none_when_unscripted(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path, scripted=False)
+
+        assert session.current_funscript is None
 
     def test_close_closes_all_resources(self, tmp_path):
         session, video, audio, tcode, now = _make_session(tmp_path)
