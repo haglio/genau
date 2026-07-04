@@ -82,7 +82,7 @@ class RecordingStrip:
         return min(self._max_width, int(elapsed / 1000.0 * self._tile_width))
 
 
-_HEATMAP_HEIGHT = 8
+_HEATMAP_HEIGHT = 24
 
 
 class HeatmapStrip:

@@ -20,7 +20,7 @@ class TestHeatmapStrip:
 
         assert strip.colors == build_heatmap(fs, 4000.0, 40)
         assert len(strip.colors) == 40
-        assert strip.height == 8
+        assert strip.height == 24
 
     def test_unscripted_video_has_no_strip(self):
         strip = HeatmapStrip()
