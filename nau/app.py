@@ -24,15 +24,18 @@ from .mpv_player import MpvPlayer
 from .overlay import (
     TIMELINE_HEIGHT,
     HeatmapStrip,
+    LoopThumbCapture,
     badge_bgra,
     badge_xy,
     heatmap_bgra,
     indicator_bgra,
     indicator_for,
     indicator_xy,
+    label_xs,
     name_bgra,
     progress_bar_bgra,
     record_available,
+    time_to_x,
 )
 from .playlist import read_playlist
 from .runtime import SEEK_STEP_MS, apply_command
@@ -49,6 +52,8 @@ _OV_HEATMAP = 0
 _OV_INDICATOR = 1
 _OV_BADGE = 2
 _OV_NAME = 3
+_OV_IN_THUMB = 4
+_OV_OUT_THUMB = 5
 
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 
@@ -83,6 +88,35 @@ def main(argv: list[str] | None = None) -> int:
     logger.info("Found %d video(s), %d with funscripts", len(pairs), scripted)
 
     return _run(args, pairs, source)
+
+
+def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -> None:
+    """Capture (on demand) and draw the loop in/out frame thumbnails above
+    their timeline marks."""
+    bounds = session.loop_bounds
+    which = loop_thumbs.needed(session.loop_state, bounds, session.position_ms)
+    if which is not None:
+        thumb = player.screenshot_bgra()
+        if thumb is not None:
+            loop_thumbs.set(which, thumb)
+    if bounds is None:
+        player.remove_overlay(_OV_IN_THUMB)
+        player.remove_overlay(_OV_OUT_THUMB)
+        return
+    start_ms, end_ms = heatmap.window
+    in_x = time_to_x(bounds[0], start_ms, end_ms, win_w)
+    out_x = time_to_x(bounds[1], start_ms, end_ms, win_w)
+    in_t, out_t = loop_thumbs.in_thumb, loop_thumbs.out_thumb
+    iw = in_t.shape[1] if in_t is not None else 1
+    ow = out_t.shape[1] if out_t is not None else 1
+    ix, ox = label_xs(in_x, out_x, iw, ow, win_w)
+    strip_h = heatmap.height or TIMELINE_HEIGHT
+    if in_t is not None:
+        y = win_h - strip_h - in_t.shape[0] - 2
+        player.overlay(_OV_IN_THUMB, ix, y, in_t)
+    if out_t is not None:
+        y = win_h - strip_h - out_t.shape[0] - 2
+        player.overlay(_OV_OUT_THUMB, ox, y, out_t)
 
 
 def _set_aumid() -> None:
@@ -124,6 +158,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
     )
     length_mode = DEFAULT_MODE
     heatmap = HeatmapStrip()
+    loop_thumbs = LoopThumbCapture()
     status_writer = StatusWriter(args.status_file) if args.status_file else None
     stop_event = threading.Event()
 
@@ -227,6 +262,8 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
             player.overlay(_OV_BADGE, bx, by, badge)
         else:
             player.remove_overlay(_OV_BADGE)
+
+        _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h)
 
         clock.tick(60)
 
