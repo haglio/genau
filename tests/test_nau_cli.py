@@ -43,6 +43,12 @@ class TestResolvePlaylist:
         big.write_text("a much bigger body")  # canonical
         small.write_text("sm")
         short.write_text("teaser")
+        # Standalone defaults to scripted-only (the loop-tool default), so the
+        # videos need funscripts to survive; dedup + length still apply.
+        big_fs = scripts / "Jane-1080p.funscript"
+        big_fs.write_text("{}")
+        (scripts / "Jane-540.funscript").write_text("{}")
+        (scripts / "teaser-1080p.funscript").write_text("{}")
         args = build_parser({}).parse_args([
             "--videos-dir", str(vids), "--scripts-dir", str(scripts),
         ])
@@ -51,7 +57,7 @@ class TestResolvePlaylist:
         pairs = resolve_playlist(args, durations=durations, rng=random.Random(0))
 
         # Short teaser filtered out (full-length default); Jane folded to canonical.
-        assert pairs == [(big, None)]
+        assert pairs == [(big, big_fs)]
 
     def test_discovery_deterministic_with_seed(self, tmp_path):
         vids = tmp_path / "videos"

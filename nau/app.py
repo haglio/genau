@@ -19,7 +19,7 @@ from .cli import (
     load_config,
     resolve_playlist,
 )
-from .library_source import DEFAULT_MODE
+from .library_source import DEFAULT_MODE, OTHER_MODE
 from .overlay import (
     HeatmapStrip,
     LoopThumbnails,
@@ -133,7 +133,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         nonlocal length_mode
         if source is None:
             return
-        length_mode = "shorts" if length_mode == DEFAULT_MODE else DEFAULT_MODE
+        length_mode = OTHER_MODE if length_mode == DEFAULT_MODE else DEFAULT_MODE
         logger.info("Length mode: %s", length_mode)
         session.replace_playlist(source.playlist_for(length_mode))
 

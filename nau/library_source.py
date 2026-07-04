@@ -14,6 +14,7 @@ from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
     FULL,
+    SHORTS,
     LibraryEntry,
     group_versions,
     library_playlist,
@@ -22,6 +23,7 @@ from .library import (
 
 # The app starts in full-length mode; the toggle flips to shorts and back.
 DEFAULT_MODE = FULL
+OTHER_MODE = SHORTS
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,9 @@ class LibrarySource:
     clips: list[LibraryEntry]
     durations: dict[Path, float]
     rng: random.Random
+    # Standalone Nau is the funscript/loop tool, so by default it only serves
+    # videos R can actually loop; clips (shorts mode) come through regardless.
+    scripted_only: bool = True
 
     def playlist_for(self, mode: str) -> list[tuple[Path, Path | None]]:
         return library_playlist(
@@ -38,6 +43,7 @@ class LibrarySource:
             durations=self.durations,
             clips=self.clips,
             rng=self.rng,
+            scripted_only=self.scripted_only,
         )
 
     @property
@@ -71,11 +77,14 @@ def build_library_source(
     rng: random.Random,
     duration_cache: DurationCache | None = None,
     durations: dict[Path, float] | None = None,
+    scripted_only: bool = True,
 ) -> LibrarySource:
     """Discover videos + clips and obtain the durations mode-filtering needs.
 
     Pass *durations* to supply them directly (tests); otherwise a
-    *duration_cache* is probed (cached) and persisted.
+    *duration_cache* is probed (cached) and persisted.  *scripted_only*
+    defaults True (the standalone loop-tool default); pass False to serve
+    every video regardless of funscript.
     """
     entries = discover_entries(videos_dir, scripts_dir)
     clips = discover_clips(clips_dir)
@@ -84,4 +93,7 @@ def build_library_source(
             raise ValueError("either durations or duration_cache must be given")
         durations = {e.video: duration_cache.duration_for(e.video) for e in entries}
         duration_cache.save()
-    return LibrarySource(entries=entries, clips=clips, durations=durations, rng=rng)
+    return LibrarySource(
+        entries=entries, clips=clips, durations=durations, rng=rng,
+        scripted_only=scripted_only,
+    )

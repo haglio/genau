@@ -143,6 +143,7 @@ def select_library(
     mode: str,
     durations: dict[Path, float],
     clips: list[LibraryEntry],
+    scripted_only: bool = False,
 ) -> list[LibraryEntry]:
     """Filter *entries* by length *mode*, then version-dedup the survivors.
 
@@ -152,8 +153,15 @@ def select_library(
     length). Entries with no probed duration cannot be classified and are
     dropped. When *clips* is empty, shorts mode is purely duration-driven.
 
+    *scripted_only* (the standalone default — Nau standalone is the funscript
+    loop tool) drops main entries with no funscript so the R gesture always
+    has something to loop; *clips* are always included regardless, since
+    shorts mode exists to surface them.
+
     Returns one canonical entry per surviving version group.
     """
+    if scripted_only:
+        entries = [e for e in entries if e.funscript is not None]
     if mode == SHORTS:
         kept = [e for e in entries if durations.get(e.video, float("inf")) <= SHORT_MAX_S]
         kept += clips
@@ -192,6 +200,7 @@ def library_playlist(
     durations: dict[Path, float],
     clips: list[LibraryEntry],
     rng: random.Random,
+    scripted_only: bool = False,
 ) -> list[tuple[Path, Path | None]]:
     """Full standalone build: filter by *mode*, version-dedup, shuffle, pair.
 
@@ -199,5 +208,7 @@ def library_playlist(
     startup and the length-mode toggle use, so their playlists stay
     consistent.
     """
-    selected = select_library(entries, mode=mode, durations=durations, clips=clips)
+    selected = select_library(
+        entries, mode=mode, durations=durations, clips=clips, scripted_only=scripted_only,
+    )
     return entries_to_pairs(canonical_playlist(selected, rng))
