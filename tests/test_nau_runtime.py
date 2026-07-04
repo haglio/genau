@@ -135,6 +135,30 @@ class TestApplyCommand:
 
         assert apply_command("TOGGLE_LENGTH_MODE", session) is False
 
+    def test_set_length_mode_invokes_callback_with_mode(self):
+        session = SpySession()
+        modes = []
+
+        assert apply_command(
+            "SET_LENGTH_MODE shorts", session,
+            set_length_mode=modes.append,
+        )
+
+        assert modes == ["shorts"]
+        assert session.calls == []
+
+    def test_set_length_mode_without_callback_returns_false(self):
+        session = SpySession()
+
+        assert apply_command("SET_LENGTH_MODE shorts", session) is False
+
+    def test_set_length_mode_without_argument_returns_false(self):
+        session = SpySession()
+
+        assert apply_command(
+            "SET_LENGTH_MODE", session, set_length_mode=lambda _m: None,
+        ) is False
+
     def test_quit_sets_stop_event(self):
         session = SpySession()
         stop = threading.Event()
