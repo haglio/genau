@@ -49,10 +49,3 @@ class LoopController:
         self._in_ms = None
         self._out_ms = None
         self._state = LoopState.NORMAL
-
-    def check_loop(self, position_ms: int) -> int | None:
-        if self._state != LoopState.LOOPING:
-            return None
-        if position_ms >= self._out_ms:
-            return self._in_ms
-        return None
