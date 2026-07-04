@@ -46,26 +46,8 @@ class TestLoopController:
         assert lc.in_ms is None
         assert lc.out_ms is None
 
-    def test_check_loop_returns_none_when_not_looping(self):
-        lc = LoopController(_make_fs())
 
-        assert lc.check_loop(1000) is None
 
-    def test_check_loop_returns_none_when_before_out(self):
-        lc = LoopController(_make_fs())
-        lc.on_record_down(2500)
-        lc.on_record_up(3500)
-
-        assert lc.check_loop(3000) is None
-
-    def test_check_loop_returns_in_when_past_out(self):
-        lc = LoopController(_make_fs())
-        lc.on_record_down(2500)
-        lc.on_record_up(3500)
-
-        result = lc.check_loop(4001)
-
-        assert result == 2000
 
     def test_record_up_in_normal_is_noop(self):
         lc = LoopController(_make_fs())

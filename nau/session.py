@@ -1,9 +1,12 @@
-"""Playback/loop orchestration for Nau, decoupled from pygame and the window.
+"""Playback/loop orchestration for Nau, decoupled from the window.
 
-Owns the playlist position, pause state, loop recording, seek/step actions,
-and OSR2 output gating — everything the UI shell and the Fun Time command
-channel both drive. Videos without a funscript play normally; recording and
-T-Code output are simply inert for them.
+Owns the playlist position, loop recording, seek/step actions, and OSR2
+output gating — everything the UI shell and the Fun Time command channel
+both drive.  The actual video/audio/timeline is an mpv-backed *player*
+(:class:`nau.mpv_player.MpvPlayer`): mpv hardware-decodes, keeps A/V in sync,
+seeks precisely, and loops an A/B range natively, so the session just tells it
+what to do and reads its clock back.  Videos without a funscript play
+normally; recording and T-Code output are simply inert for them.
 """
 from __future__ import annotations
 
@@ -21,9 +24,7 @@ class PlayerSession:
         self,
         playlist: list[tuple[Path, Path | None]],
         *,
-        video,
-        audio,
-        clock,
+        player,
         tcode,
         start_paused: bool = False,
         version_index: dict[Path, list[tuple[Path, Path | None]]] | None = None,
@@ -31,15 +32,14 @@ class PlayerSession:
         if not playlist:
             raise ValueError("playlist must not be empty")
         self._playlist = list(playlist)
-        self._video = video
-        self._audio = audio
-        self._clock = clock
+        self._player = player
         self._tcode = tcode
         self._version_index = version_index or {}
         self._paused = start_paused
         self._index = 0
         self._funscript = None
         self._loop_ctrl: LoopController | None = None
+        self._last_pos_ms = 0.0
         self.load(0)
 
     @property
@@ -64,16 +64,12 @@ class PlayerSession:
         return self._playlist[self._index][0]
 
     @property
-    def fps(self) -> float:
-        return self._video.fps
-
-    @property
     def position_ms(self) -> float:
-        return self._clock.position_ms
+        return self._player.position_ms
 
     @property
     def duration_ms(self) -> float:
-        return self._video.duration_ms
+        return self._player.duration_ms
 
     @property
     def loop_state(self) -> str:
@@ -104,21 +100,19 @@ class PlayerSession:
         if self._loop_ctrl is None:
             return
         was_looping = self._loop_ctrl.state == LoopState.LOOPING
-        self._loop_ctrl.on_record_down(int(self._clock.position_ms))
+        self._loop_ctrl.on_record_down(int(self._player.position_ms))
         if was_looping:
-            self._on_loop_exited()
+            self._exit_loop()
 
     def record_up(self) -> None:
         if self._loop_ctrl is None or self._loop_ctrl.state != LoopState.MARKING:
             return
-        self._loop_ctrl.on_record_up(int(self._clock.position_ms))
+        self._loop_ctrl.on_record_up(int(self._player.position_ms))
         if self._loop_ctrl.state == LoopState.LOOPING:
+            # mpv loops the A/B range natively (smooth, no seek stutter).
+            self._player.set_ab_loop(self._loop_ctrl.in_ms, self._loop_ctrl.out_ms)
+            self._player.seek_ms(self._loop_ctrl.in_ms)
             self._tcode.reset()
-            self._clock.seek(self._loop_ctrl.in_ms)
-            if self._paused:
-                self._audio_started = False
-            else:
-                self._audio.start_loop(self._loop_ctrl.in_ms, self._loop_ctrl.out_ms)
 
     def loop_cancel(self) -> None:
         if self._loop_ctrl is None:
@@ -126,35 +120,17 @@ class PlayerSession:
         was_looping = self._loop_ctrl.state == LoopState.LOOPING
         self._loop_ctrl.cancel()
         if was_looping:
-            self._on_loop_exited()
+            self._exit_loop()
 
-    def _on_loop_exited(self) -> None:
-        """Leave loop audio behind — deferred to unpause when paused, since
-        stop_loop audibly restarts the main track."""
+    def _exit_loop(self) -> None:
+        self._player.clear_ab_loop()
         self._tcode.reset()
-        if self._paused:
-            self._audio_started = False
-        else:
-            self._audio.stop_loop(self._clock.position_ms)
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:
             return
         self._paused = paused
-        if paused:
-            self._clock.pause()
-            self._audio.pause()
-        else:
-            self._clock.resume()
-            if self._audio_started:
-                self._audio.resume()
-            else:
-                bounds = self.loop_bounds
-                if bounds is not None:
-                    self._audio.start_loop(*bounds)
-                else:
-                    self._audio.play(self._clock.position_ms)
-                self._audio_started = True
+        self._player.set_paused(paused)
 
     def toggle_pause(self) -> None:
         self.set_paused(not self._paused)
@@ -214,45 +190,45 @@ class PlayerSession:
         self._index = 0
 
     def seek_by(self, delta_ms: float) -> None:
-        new_pos = max(0, min(self._video.duration_ms, self._clock.position_ms + delta_ms))
-        self._clock.seek(new_pos)
-        if self._paused:
-            # AudioPlayer.seek would audibly start playback; defer to unpause.
-            self._audio_started = False
-        else:
-            self._audio.seek(new_pos)
+        self.seek_to(self._player.position_ms + delta_ms)
+
+    def seek_to(self, position_ms: float) -> None:
+        """Seek to an absolute position (click-to-seek / nudge)."""
+        target = max(0.0, min(self._player.duration_ms, position_ms))
+        self._player.seek_ms(target)
         self._tcode.reset()
 
-    def advance(self):
-        """Per-tick update: loop wrap, OSR2 output, frame decode, auto-advance.
+    def advance(self) -> None:
+        """Per-tick update: drive OSR2 output, reset on loop wrap, auto-advance.
 
-        Returns the frame to display (or None before the first decode).
+        mpv renders the video itself, so nothing is returned — the caller reads
+        the session's position/state for the overlays.
         """
-        if not self._clock.is_playing:
-            return self._video.last_frame
+        if self._paused:
+            return
 
-        pos_ms = self._clock.position_ms
-        if self._loop_ctrl is not None:
-            loop_target = self._loop_ctrl.check_loop(pos_ms)
-            if loop_target is not None:
-                self._clock.seek(loop_target)
-                self._tcode.reset()
-                pos_ms = loop_target
+        pos_ms = self._player.position_ms
+        # mpv's A/B loop wraps B->A by jumping the clock backwards; resend the
+        # T-Code waypoint from the loop start so the OSR2 restarts cleanly.
+        if (
+            self._loop_ctrl is not None
+            and self._loop_ctrl.state == LoopState.LOOPING
+            and pos_ms + 50 < self._last_pos_ms
+        ):
+            self._tcode.reset()
+        self._last_pos_ms = pos_ms
 
         if self._funscript is not None:
             self._tcode.update(int(pos_ms), self._funscript)
-        frame = self._video.read_frame_at(pos_ms)
 
-        if self._video.ended and (
+        if self._player.eof and (
             self._loop_ctrl is None or self._loop_ctrl.state == LoopState.NORMAL
         ):
             self.load(self._index + 1)
-        return frame
 
     def close(self) -> None:
         self._tcode.close()
-        self._audio.close()
-        self._video.close()
+        self._player.close()
 
     def load(self, index: int) -> None:
         self._index = index % len(self._playlist)
@@ -262,11 +238,8 @@ class PlayerSession:
         self._loop_ctrl = (
             LoopController(self._funscript) if self._funscript is not None else None
         )
-        self._video.open(vid_path)
-        self._audio.load(vid_path)
+        self._player.clear_ab_loop()
+        self._player.load(vid_path)
+        self._player.set_paused(self._paused)
         self._tcode.reset()
-        self._clock.seek(0)
-        self._audio_started = not self._paused
-        if not self._paused:
-            self._clock.start()
-            self._audio.play(0)
+        self._last_pos_ms = 0.0
