@@ -265,3 +265,43 @@ class TestVersionIndex:
         index = version_index_from_groups(groups)
 
         assert index == {Path("solo-1080p.mp4"): [(Path("solo-1080p.mp4"), None)]}
+
+
+class TestScriptedOnly:
+    def test_full_length_scripted_only_drops_unscripted(self):
+        from nau.library import select_library, FULL
+        scripted = _entry("Amy-Long-topaz.mp4", size=900, funscript="Amy-Long.funscript")
+        unscripted = _entry("Bea-Long-1080p.mp4", size=900)
+        durations = {scripted.video: 300.0, unscripted.video: 300.0}
+
+        kept = select_library(
+            [scripted, unscripted], mode=FULL, durations=durations, clips=[],
+            scripted_only=True,
+        )
+
+        assert [e.video for e in kept] == [scripted.video]
+
+    def test_scripted_only_still_includes_clips_in_shorts(self):
+        from nau.library import select_library, SHORTS
+        scripted_short = _entry("Cee-topaz.mp4", size=100, funscript="Cee.funscript")
+        unscripted_short = _entry("Dee-1080p.mp4", size=100)
+        clip = _entry("saved-clip.mp4", size=50)
+        durations = {scripted_short.video: 30.0, unscripted_short.video: 30.0}
+
+        kept = select_library(
+            [scripted_short, unscripted_short], mode=SHORTS, durations=durations,
+            clips=[clip], scripted_only=True,
+        )
+        vids = {e.video for e in kept}
+
+        assert scripted_short.video in vids       # scripted short kept
+        assert unscripted_short.video not in vids  # unscripted short dropped
+        assert clip.video in vids                  # clips always included
+
+    def test_default_keeps_unscripted(self):
+        from nau.library import select_library, FULL
+        unscripted = _entry("Eff-1080p.mp4", size=900)
+        kept = select_library(
+            [unscripted], mode=FULL, durations={unscripted.video: 300.0}, clips=[],
+        )
+        assert [e.video for e in kept] == [unscripted.video]
