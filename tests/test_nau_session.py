@@ -446,3 +446,22 @@ class TestCycleVersion:
 
         session.cycle_version()
         assert session.current_video == big
+
+
+class TestLoadPlaylist:
+    def test_load_playlist_jumps_to_first_of_new_list(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path, entries=2)
+        a = tmp_path / "a.mp4"; a.write_text("x")
+        b = tmp_path / "b.mp4"; b.write_text("x")
+
+        session.load_playlist([(a, None), (b, None)])
+
+        assert session.index == 0
+        assert session.current_video == a
+        assert player.opened[-1] == a
+
+    def test_load_playlist_empty_is_noop(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+        before = session.current_video
+        session.load_playlist([])
+        assert session.current_video == before

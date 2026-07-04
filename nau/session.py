@@ -170,6 +170,18 @@ class PlayerSession:
         next_video, next_fs = members[(pos + 1) % len(members)]
         self.play_file(next_video, next_fs)
 
+    def load_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:
+        """Swap in a new playlist AND jump to its first video.
+
+        Used by the length-mode toggle, where the point is to visibly land on
+        the new mode's content (shorts vs full-length) rather than keep the
+        current video playing invisibly.
+        """
+        if not playlist:
+            return
+        self._playlist = list(playlist)
+        self.load(0)
+
     def replace_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:
         """Swap in a new playlist without interrupting the current video.
 
