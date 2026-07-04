@@ -12,7 +12,13 @@ from genau.runtime_support import consume_command_file, read_paused_state
 from genau.tcode import UdpTCodeSink
 
 from .cli import DEFAULT_CONFIG, audio_muted, build_parser, load_config, resolve_playlist
-from .overlay import HeatmapStrip, draw_heatmap, draw_indicator, indicator_for
+from .overlay import (
+    HeatmapStrip,
+    LoopThumbnails,
+    draw_heatmap,
+    draw_indicator,
+    indicator_for,
+)
 from .playback import PlaybackClock, VideoStream, build_audio_player
 from .playlist import read_playlist
 from .runtime import SEEK_STEP_MS, apply_command
@@ -102,6 +108,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
         start_paused=start_paused,
     )
     heatmap = HeatmapStrip()
+    loop_thumbs = LoopThumbnails()
     status_writer = StatusWriter(args.status_file) if args.status_file else None
     stop_event = threading.Event()
 
@@ -143,6 +150,9 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
                 )
 
         display_frame = session.advance()
+        loop_thumbs.update(
+            session.loop_state, session.loop_bounds, session.position_ms, display_frame,
+        )
         if status_writer is not None:
             status_writer.write(session)
 
@@ -177,7 +187,8 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
             position_ms=session.position_ms,
         )
         draw_heatmap(
-            renderer, heatmap, session.position_ms, session.loop_bounds, win_w, win_h,
+            renderer, heatmap, session.position_ms, session.loop_bounds,
+            win_w, win_h, thumbnails=loop_thumbs,
         )
         draw_indicator(
             renderer,

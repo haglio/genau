@@ -136,6 +136,72 @@ class HeatmapStrip:
             )
 
 
+_THUMB_HEIGHT = 64
+
+
+def _thumb(frame):
+    import cv2
+
+    h, w = frame.shape[:2]
+    return cv2.resize(
+        frame, (max(1, round(_THUMB_HEIGHT * w / h)), _THUMB_HEIGHT),
+        interpolation=cv2.INTER_AREA,
+    )
+
+
+class LoopThumbnails:
+    """In/out frame labels for the loop markers.
+
+    The cv2 video stream is single-handle, so decoding the exact marker
+    frames on demand would stutter playback.  Instead the labels are
+    captured opportunistically from frames advance() already returns: the
+    session seeks to the in point when a loop starts, so the FIRST looping
+    frame is the in frame; the last frame seen before each wrap (position
+    jumping backwards) approximates the out frame.
+    """
+
+    def __init__(self) -> None:
+        self._bounds: tuple[int, int] | None = None
+        self.in_thumb = None
+        self.out_thumb = None
+        self._last: tuple[float, object] | None = None
+
+    def update(self, loop_state: str, loop_bounds, position_ms: float, frame) -> None:
+        if loop_state != "looping" or loop_bounds is None:
+            self._bounds = None
+            self.in_thumb = None
+            self.out_thumb = None
+            self._last = None
+            return
+        if loop_bounds != self._bounds:
+            self._bounds = loop_bounds
+            self.in_thumb = None
+            self.out_thumb = None
+            self._last = None
+        if frame is None:
+            return
+        if self.in_thumb is None:
+            self.in_thumb = _thumb(frame)
+        if (
+            self.out_thumb is None
+            and self._last is not None
+            and position_ms < self._last[0]
+        ):
+            self.out_thumb = _thumb(self._last[1])
+        self._last = (position_ms, frame)
+
+
+def label_xs(in_x: int, out_x: int, in_w: int, out_w: int, win_w: int) -> tuple[int, int]:
+    """Left edges for the in/out thumbnail labels: centered on their markers,
+    clamped on-screen, and the out label nudged right of the in label when
+    they would overlap."""
+    ix = max(0, min(win_w - in_w, in_x - in_w // 2))
+    ox = max(0, min(win_w - out_w, out_x - out_w // 2))
+    if ox < ix + in_w:
+        ox = min(win_w - out_w, ix + in_w + 2)
+    return ix, ox
+
+
 def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
     """Strip x for a timestamp: its fraction of [start_ms, end_ms], kept on-strip."""
     span = end_ms - start_ms
@@ -211,6 +277,7 @@ def draw_heatmap(
     loop_bounds: tuple[int, int] | None,
     win_w: int,
     win_h: int,
+    thumbnails: LoopThumbnails | None = None,
 ) -> None:
     import pygame
     from pygame._sdl2.video import Texture
@@ -232,8 +299,34 @@ def draw_heatmap(
         x = time_to_x(heatmap.record_in_ms, start_ms, end_ms, win_w)
         _draw_mark(renderer, x, _BOUND_MARK_W, strip_h, win_h, _RED)
     if loop_bounds is not None:
-        for bound_ms in loop_bounds:
-            x = time_to_x(bound_ms, start_ms, end_ms, win_w)
-            _draw_mark(renderer, x, _BOUND_MARK_W, strip_h, win_h, _AMBER)
+        in_x = time_to_x(loop_bounds[0], start_ms, end_ms, win_w)
+        out_x = time_to_x(loop_bounds[1], start_ms, end_ms, win_w)
+        _draw_mark(renderer, in_x, _BOUND_MARK_W, strip_h, win_h, _AMBER)
+        _draw_mark(renderer, out_x, _BOUND_MARK_W, strip_h, win_h, _AMBER)
+        if thumbnails is not None:
+            _draw_loop_labels(renderer, thumbnails, in_x, out_x, strip_h, win_w, win_h)
     x = time_to_x(position_ms, start_ms, end_ms, win_w)
     _draw_mark(renderer, x, 1, strip_h, win_h, _WHITE)
+
+
+def _draw_loop_labels(renderer, thumbnails, in_x, out_x, strip_h, win_w, win_h) -> None:
+    """Blit the in/out frame thumbnails just above their markers."""
+    import pygame
+    from pygame._sdl2.video import Texture
+
+    in_t, out_t = thumbnails.in_thumb, thumbnails.out_thumb
+    in_w = in_t.shape[1] if in_t is not None else 0
+    out_w = out_t.shape[1] if out_t is not None else 0
+    ix, ox = label_xs(in_x, out_x, in_w or 1, out_w or 1, win_w)
+    for thumb, x in ((in_t, ix), (out_t, ox)):
+        if thumb is None:
+            continue
+        h, w = thumb.shape[:2]
+        surface = pygame.image.frombuffer(thumb.tobytes(), (w, h), "RGB")
+        rect = pygame.Rect(x, win_h - strip_h - h - 2, w, h)
+        border = pygame.Surface((w + 2, h + 2))
+        border.fill(_AMBER[:3])
+        Texture.from_surface(renderer, border).draw(
+            dstrect=pygame.Rect(rect.x - 1, rect.y - 1, w + 2, h + 2)
+        )
+        Texture.from_surface(renderer, surface).draw(dstrect=rect)
