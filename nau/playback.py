@@ -60,6 +60,7 @@ class VideoStream:
         self._duration_ms: float = 0.0
         self._last_frame: np.ndarray | None = None
         self._last_frame_ms: float = -1.0
+        self._eof: bool = False
 
     @property
     def fps(self) -> float:
@@ -77,6 +78,7 @@ class VideoStream:
         self._duration_ms = (frame_count / self._fps) * 1000 if self._fps > 0 else 0
         self._last_frame = None
         self._last_frame_ms = -1.0
+        self._eof = False
 
     def read_frame_at(self, target_ms: float) -> np.ndarray | None:
         if self._cap is None:
@@ -90,7 +92,13 @@ class VideoStream:
             current = self._cap.get(cv2.CAP_PROP_POS_MSEC)
             ret, frame = self._cap.read()
             if not ret:
+                # The decoder can't produce a frame here — the real end of
+                # content, which may fall short of the container's reported
+                # duration (VFR / overstated frame count). Flag EOF so the
+                # session auto-advances instead of freezing on a stale frame.
+                self._eof = True
                 return self._last_frame
+            self._eof = False
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             self._last_frame = rgb
             self._last_frame_ms = current
@@ -105,7 +113,7 @@ class VideoStream:
     def ended(self) -> bool:
         if self._cap is None:
             return True
-        return self._last_frame_ms >= self._duration_ms - 100
+        return self._eof or self._last_frame_ms >= self._duration_ms - 100
 
     def close(self) -> None:
         if self._cap is not None:
