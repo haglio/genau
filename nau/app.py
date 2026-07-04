@@ -137,7 +137,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
             return
         length_mode = OTHER_MODE if length_mode == DEFAULT_MODE else DEFAULT_MODE
         logger.info("Length mode: %s", length_mode)
-        session.replace_playlist(source.playlist_for(length_mode))
+        session.load_playlist(source.playlist_for(length_mode))
 
     def _timeline_h() -> int:
         # The heatmap strip when scripted (may be taller while recording),

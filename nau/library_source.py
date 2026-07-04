@@ -53,7 +53,9 @@ class LibrarySource:
         Built from all discovered content, not just the active mode, so
         cycling versions works no matter which length mode is showing.
         """
-        return version_index_from_groups(group_versions(self.entries + self.clips))
+        return version_index_from_groups(
+            group_versions(self.entries + self.clips, self.durations)
+        )
 
 
 def discover_clips(clips_dir: Path | None) -> list[LibraryEntry]:
