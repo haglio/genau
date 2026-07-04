@@ -32,8 +32,9 @@ class MpvPlayer:
             wid=str(int(wid)),
             vo="gpu",
             hwdec="auto-safe",
-            # keep_open so playback pauses at EOF instead of unloading; the
-            # session watches eof and advances the playlist itself.
+            # loop-1: the current file repeats (like the old primary VLC's
+            # --repeat), so a video never ends on its own; [ ] navigates.
+            loop_file="inf",
             keep_open="yes",
             mute="yes" if muted else "no",
             osc=False,

@@ -104,9 +104,9 @@ class TestDiscoverClips:
         assert result[0].size == len("body")
 
 
-def test_standalone_source_defaults_to_scripted_only():
-    """Standalone LibrarySource must, by default, only surface scripted
-    videos so the R gesture always has something to loop."""
+def test_standalone_source_serves_all_videos_by_default():
+    """Standalone Nau is a general player; scripted-focus is Fun Time's
+    F-mode, so the default source serves scripted and unscripted alike."""
     import random
     from pathlib import Path
     from nau.library import LibraryEntry
@@ -120,7 +120,7 @@ def test_standalone_source_defaults_to_scripted_only():
         rng=random.Random(0),
     )
 
-    pairs = src.playlist_for("full")
+    vids = {v for v, _ in src.playlist_for("full")}
 
-    assert [v for v, _ in pairs] == [scripted.video]
-    assert src.scripted_only is True
+    assert scripted.video in vids and unscripted.video in vids
+    assert src.scripted_only is False
