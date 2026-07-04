@@ -147,6 +147,58 @@ class HeatmapStrip:
 
 
 
+_THUMB_H = 64
+_OUT_CAPTURE_LEAD_MS = 400.0
+
+
+class LoopThumbCapture:
+    """Decides when to grab the loop's in/out frame thumbnails.
+
+    The frames come from mpv screenshots (the caller does the actual grab),
+    so this only owns the *when*: the in frame once the loop starts, the out
+    frame once playback nears the out point.  Cleared when the loop changes
+    or ends.  ``in_thumb`` / ``out_thumb`` hold the grabbed BGRA arrays.
+    """
+
+    def __init__(self) -> None:
+        self._bounds: tuple[int, int] | None = None
+        self.in_thumb = None
+        self.out_thumb = None
+
+    def needed(self, loop_state: str, loop_bounds, position_ms: float) -> str | None:
+        if loop_state != "looping" or loop_bounds is None:
+            self._bounds = None
+            self.in_thumb = None
+            self.out_thumb = None
+            return None
+        if loop_bounds != self._bounds:
+            self._bounds = loop_bounds
+            self.in_thumb = None
+            self.out_thumb = None
+        if self.in_thumb is None:
+            return "in"
+        if self.out_thumb is None and position_ms >= loop_bounds[1] - _OUT_CAPTURE_LEAD_MS:
+            return "out"
+        return None
+
+    def set(self, which: str, thumb) -> None:
+        if which == "in":
+            self.in_thumb = thumb
+        elif which == "out":
+            self.out_thumb = thumb
+
+
+def label_xs(in_x: int, out_x: int, in_w: int, out_w: int, win_w: int) -> tuple[int, int]:
+    """Left edges for the in/out thumbnail labels: centered on their markers,
+    clamped on-screen, and the out label nudged right of the in label when
+    they would overlap."""
+    ix = max(0, min(win_w - in_w, in_x - in_w // 2))
+    ox = max(0, min(win_w - out_w, out_x - out_w // 2))
+    if ox < ix + in_w:
+        ox = min(win_w - out_w, ix + in_w + 2)
+    return ix, ox
+
+
 def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
     """Strip x for a timestamp: its fraction of [start_ms, end_ms], kept on-strip."""
     span = end_ms - start_ms

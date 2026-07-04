@@ -216,3 +216,42 @@ class TestNameChip:
         chip = name_bgra("Some Video Name")
         assert chip.ndim == 3 and chip.shape[2] == 4
         assert chip.shape[0] > 0 and chip.shape[1] > 0
+
+
+class TestLoopThumbCapture:
+    def test_asks_for_in_first_then_out_near_end(self):
+        from nau.overlay import LoopThumbCapture
+        cap = LoopThumbCapture()
+
+        assert cap.needed("looping", (2000, 4000), 2000) == "in"
+        cap.set("in", object())
+        assert cap.needed("looping", (2000, 4000), 2500) is None  # not near out yet
+        assert cap.needed("looping", (2000, 4000), 3700) == "out"  # within 400ms of 4000
+        cap.set("out", object())
+        assert cap.needed("looping", (2000, 4000), 3900) is None
+
+    def test_clears_when_loop_ends(self):
+        from nau.overlay import LoopThumbCapture
+        cap = LoopThumbCapture()
+        cap.needed("looping", (2000, 4000), 2000)
+        cap.set("in", object())
+
+        assert cap.needed("normal", None, 0) is None
+        assert cap.in_thumb is None
+
+    def test_reset_thumbs_on_new_loop_bounds(self):
+        from nau.overlay import LoopThumbCapture
+        cap = LoopThumbCapture()
+        cap.needed("looping", (2000, 4000), 2000)
+        cap.set("in", object())
+
+        # a different loop → in_thumb must be re-requested
+        assert cap.needed("looping", (5000, 7000), 5000) == "in"
+
+
+class TestLabelXsReadded:
+    def test_centers_and_avoids_overlap(self):
+        from nau.overlay import label_xs
+        assert label_xs(100, 500, 60, 60, 1000) == (70, 470)
+        ix, ox = label_xs(100, 120, 60, 60, 1000)  # markers close
+        assert ox >= ix + 60
