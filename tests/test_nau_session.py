@@ -571,3 +571,80 @@ class TestNoAudioWhilePaused:
 
         # resume returns to the main track at the current position
         assert audio.names()[-1] in ("play", "seek")
+
+
+def _make_session_with_versions(tmp_path, version_index):
+    """Session whose playlist is the canonical of each group, plus a
+    version_index mapping every video to its group's ordered pairs."""
+    playlist = []
+    for members in version_index.values():
+        canonical = members[0]
+        if canonical not in playlist:
+            playlist.append(canonical)
+    # Materialize files so load() can open them.
+    for members in version_index.values():
+        for vid, fs in members:
+            if not vid.exists():
+                vid.write_text("fake")
+            if fs is not None and not fs.exists():
+                fs.write_text(_FS_JSON)
+    video = FakeVideo()
+    audio = FakeAudio()
+    tcode = FakeTCode()
+    clock = PlaybackClock(now_source=Clock())
+    session = PlayerSession(
+        playlist, video=video, audio=audio, clock=clock, tcode=tcode,
+        version_index=version_index,
+    )
+    return session, video
+
+
+class TestCycleVersion:
+    def test_singleton_group_is_noop(self, tmp_path):
+        solo = tmp_path / "solo.mp4"
+        index = {solo: [(solo, None)]}
+        session, video = _make_session_with_versions(tmp_path, index)
+        opened_before = list(video.opened)
+
+        session.cycle_version()
+
+        assert video.opened == opened_before  # nothing loaded
+
+    def test_no_version_index_is_noop(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path, entries=2)
+        opened_before = list(video.opened)
+
+        session.cycle_version()
+
+        assert video.opened == opened_before
+
+    def test_cycles_to_next_member_by_size_order(self, tmp_path):
+        big = tmp_path / "Jane-1080p.mp4"
+        mid = tmp_path / "Jane-720p.mp4"
+        small = tmp_path / "Jane-540.mp4"
+        members = [(big, None), (mid, None), (small, None)]
+        index = {big: members, mid: members, small: members}
+        session, video = _make_session_with_versions(tmp_path, index)
+
+        # Playlist canonical is `big`; cycling advances big -> mid -> small -> big.
+        assert session.current_video == big
+        session.cycle_version()
+        assert session.current_video == mid
+        session.cycle_version()
+        assert session.current_video == small
+        session.cycle_version()
+        assert session.current_video == big
+
+    def test_cycles_to_scripted_alternate_and_loads_its_funscript(self, tmp_path):
+        big = tmp_path / "John-1080p.mp4"
+        scripted = tmp_path / "John-topaz.mp4"
+        scripted_fs = tmp_path / "John.funscript"
+        members = [(big, None), (scripted, scripted_fs)]
+        index = {big: members, scripted: members}
+        session, video = _make_session_with_versions(tmp_path, index)
+
+        assert not session.has_funscript  # canonical is unscripted
+        session.cycle_version()
+
+        assert session.current_video == scripted
+        assert session.has_funscript

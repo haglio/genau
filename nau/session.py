@@ -26,6 +26,7 @@ class PlayerSession:
         clock,
         tcode,
         start_paused: bool = False,
+        version_index: dict[Path, list[tuple[Path, Path | None]]] | None = None,
     ) -> None:
         if not playlist:
             raise ValueError("playlist must not be empty")
@@ -34,6 +35,7 @@ class PlayerSession:
         self._audio = audio
         self._clock = clock
         self._tcode = tcode
+        self._version_index = version_index or {}
         self._paused = start_paused
         self._index = 0
         self._funscript = None
@@ -172,6 +174,25 @@ class PlayerSession:
                 return
         self._playlist.insert(self._index + 1, (video_path, funscript_path))
         self.load(self._index + 1)
+
+    def cycle_version(self) -> None:
+        """Load the current video's next same-content version, cyclically.
+
+        Uses the version index (members ordered largest-first) to find the
+        current video's alternates; a no-op for singletons or when no index
+        was supplied (e.g. Fun Time playlists). The target is a different file,
+        so it starts from the beginning — nothing is preserved.
+        """
+        members = self._version_index.get(self.current_video)
+        if members is None or len(members) <= 1:
+            return
+        videos = [vid for vid, _fs in members]
+        try:
+            pos = videos.index(self.current_video)
+        except ValueError:
+            return
+        next_video, next_fs = members[(pos + 1) % len(members)]
+        self.play_file(next_video, next_fs)
 
     def replace_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:
         """Swap in a new playlist without interrupting the current video.

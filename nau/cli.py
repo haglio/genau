@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 from pathlib import Path
 
-from .discovery import discover_videos
+from .duration_cache import DurationCache
+from .library_source import DEFAULT_MODE, LibrarySource, build_library_source
 from .playlist import read_playlist
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
@@ -27,6 +29,10 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     p.add_argument("--videos-dir", type=Path, default=nau.get("videos_dir"))
     p.add_argument("--scripts-dir", type=Path, default=nau.get("scripts_dir"))
+    p.add_argument("--clips-dir", type=Path, default=nau.get("clips_dir"),
+                   help="Saved short clips, always included in shorts mode")
+    p.add_argument("--state-dir", type=Path, default=config.get("state_dir"),
+                   help="Where the duration cache is stored")
     p.add_argument("--playlist", type=Path, default=None,
                    help="Video/funscript pair file (overrides directory discovery)")
     p.add_argument("--width", type=int, default=1200)
@@ -58,9 +64,49 @@ def audio_muted(args) -> bool:
     return bool(args.no_audio) or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
 
 
-def resolve_playlist(args) -> list[tuple[Path, Path | None]]:
+def _duration_cache_path(args) -> Path:
+    base = Path(args.state_dir) if args.state_dir else Path(args.config).resolve().parent
+    return base / "nau_durations.json"
+
+
+def library_source(
+    args,
+    *,
+    rng: random.Random | None = None,
+    durations: dict[Path, float] | None = None,
+) -> LibrarySource | None:
+    """Build the standalone :class:`LibrarySource`, or None for Fun Time / no dirs.
+
+    Fun Time supplies an explicit ``--playlist`` and owns its own selection, so
+    length-mode toggling (which this source powers) is standalone-only.
+    *durations* is a test seam; production probes via the cache.
+    """
+    if args.playlist is not None or args.videos_dir is None or args.scripts_dir is None:
+        return None
+    return build_library_source(
+        Path(args.videos_dir),
+        Path(args.scripts_dir),
+        Path(args.clips_dir) if args.clips_dir else None,
+        rng=rng or random.Random(),
+        duration_cache=None if durations is not None else DurationCache(_duration_cache_path(args)),
+        durations=durations,
+    )
+
+
+def resolve_playlist(
+    args,
+    *,
+    durations: dict[Path, float] | None = None,
+    rng: random.Random | None = None,
+) -> list[tuple[Path, Path | None]]:
+    """Initial playlist: explicit file verbatim, else deduped full-length discovery.
+
+    *durations* and *rng* are injectable seams for tests; production leaves them
+    None to probe (cached) and shuffle nondeterministically.
+    """
     if args.playlist is not None:
         return read_playlist(Path(args.playlist))
-    if args.videos_dir is None or args.scripts_dir is None:
+    source = library_source(args, rng=rng, durations=durations)
+    if source is None:
         return []
-    return discover_videos(Path(args.videos_dir), Path(args.scripts_dir))
+    return source.playlist_for(DEFAULT_MODE)

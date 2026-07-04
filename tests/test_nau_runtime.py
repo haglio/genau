@@ -26,6 +26,9 @@ class SpySession:
     def loop_cancel(self) -> None:
         self.calls.append(("loop_cancel",))
 
+    def cycle_version(self) -> None:
+        self.calls.append(("cycle_version",))
+
     def play_file(self, video: Path, funscript: Path | None) -> None:
         self.calls.append(("play_file", video, funscript))
 
@@ -99,6 +102,13 @@ class TestApplyCommand:
 
         assert session.calls == [("play_file", Path("C:/Videos/My Clip.mp4"), None)]
 
+    def test_cycle_version(self):
+        session = SpySession()
+
+        assert apply_command("CYCLE_VERSION", session)
+
+        assert session.calls == [("cycle_version",)]
+
     def test_reload_playlist_invokes_callback(self):
         session = SpySession()
         reloaded = []
@@ -107,6 +117,23 @@ class TestApplyCommand:
 
         assert reloaded == [1]
         assert session.calls == []
+
+    def test_toggle_length_mode_invokes_callback(self):
+        session = SpySession()
+        toggled = []
+
+        assert apply_command(
+            "TOGGLE_LENGTH_MODE", session,
+            toggle_length_mode=lambda: toggled.append(1),
+        )
+
+        assert toggled == [1]
+        assert session.calls == []
+
+    def test_toggle_length_mode_without_callback_returns_false(self):
+        session = SpySession()
+
+        assert apply_command("TOGGLE_LENGTH_MODE", session) is False
 
     def test_quit_sets_stop_event(self):
         session = SpySession()
