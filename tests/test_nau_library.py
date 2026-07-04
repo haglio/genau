@@ -305,3 +305,35 @@ class TestScriptedOnly:
             [unscripted], mode=FULL, durations={unscripted.video: 300.0}, clips=[],
         )
         assert [e.video for e in kept] == [unscripted.video]
+
+
+class TestDurationVersionGrouping:
+    def test_groups_same_scene_different_quality_by_duration(self):
+        from nau.library import group_versions
+        # Real case: names share only the performer; runtimes ~2.6s apart.
+        mkv = _entry("Vanessa-Leon-NAqbHTyB.mkv", size=534_715_901)
+        mp4 = _entry("vanessa-leon-redacted-it-dry-upscale-mp4-1080p_60fps.mp4", size=680_910_371)
+        durations = {mkv.video: 1174.207, mp4.video: 1171.6}
+
+        groups = group_versions([mkv, mp4], durations)
+
+        assert len(groups) == 1
+        assert groups[0].canonical is mp4  # larger file
+        assert set(groups[0].alternates) == {mkv}
+
+    def test_same_performer_far_apart_durations_stay_separate(self):
+        from nau.library import group_versions
+        a = _entry("Vanessa-Leon-scene-a.mp4", size=100)
+        b = _entry("vanessa-leon-scene-b-1080p.mp4", size=100)
+        durations = {a.video: 600.0, b.video: 1200.0}  # different scenes
+
+        groups = group_versions([a, b], durations)
+
+        assert len(groups) == 2
+
+    def test_without_durations_falls_back_to_title(self):
+        from nau.library import group_versions
+        a = _entry("Jane-1080p.mp4", size=200, funscript="Jane.funscript")
+        b = _entry("Jane-540.mp4", size=100)
+        groups = group_versions([a, b])  # no durations
+        assert len(groups) == 1  # same normalized title "jane"
