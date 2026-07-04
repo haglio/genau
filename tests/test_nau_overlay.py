@@ -10,6 +10,7 @@ from nau.overlay import (
     ZoomWindow,
     indicator_for,
     label_xs,
+    record_available,
     time_to_x,
 )
 
@@ -236,6 +237,15 @@ class TestIndicatorFor:
 
     def test_paused_trumps_looping(self):
         assert indicator_for("looping", paused=True) == "pause"
+
+
+class TestRecordAvailable:
+    def test_scripted_video_can_record(self):
+        assert record_available(has_funscript=True) is True
+
+    def test_unscripted_video_cannot_record(self):
+        # Drives the "no fs" badge that explains why R does nothing.
+        assert record_available(has_funscript=False) is False
 
 
 class TestLabelXs:
