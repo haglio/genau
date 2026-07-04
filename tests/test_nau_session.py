@@ -291,6 +291,54 @@ class TestPause:
 
         assert len(audio.calls) == calls_before
 
+    def test_seek_while_paused_is_silent_until_resume(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+        now.t = 5.0
+        session.set_paused(True)
+        calls_before = len(audio.calls)
+
+        session.seek_by(10_000)
+
+        assert audio.calls[calls_before:] == []  # nothing audible while paused
+        assert session.position_ms == 15_000
+
+        session.set_paused(False)
+        assert audio.calls[calls_before:] == [("play", 15_000)]
+
+    def test_record_gesture_while_paused_defers_loop_audio_to_resume(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+        now.t = 2.5
+        session.set_paused(True)
+        calls_before = len(audio.calls)
+
+        session.record_down()
+        session.record_up()
+
+        assert session.loop_state == "looping"
+        assert session.loop_bounds == (2000, 4000)
+        assert audio.calls[calls_before:] == []  # nothing audible while paused
+
+        session.set_paused(False)
+        assert audio.calls[calls_before:] == [("start_loop", 2000, 4000)]
+
+    def test_loop_cancel_while_paused_defers_audio_to_resume(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+        now.t = 2.5
+        session.record_down()
+        now.t = 3.5
+        session.record_up()  # looping 2000-4000, clock seeked to 2000
+        now.t = 4.0  # position 2500 inside the loop
+        session.set_paused(True)
+        calls_before = len(audio.calls)
+
+        session.loop_cancel()
+
+        assert session.loop_state == "normal"
+        assert audio.calls[calls_before:] == []  # no stop_loop seek while paused
+
+        session.set_paused(False)
+        assert audio.calls[calls_before:] == [("play", 2500)]
+
 
 class TestAdvance:
     def test_advance_updates_tcode_and_returns_frame(self, tmp_path):

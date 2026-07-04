@@ -97,8 +97,7 @@ class PlayerSession:
         was_looping = self._loop_ctrl.state == LoopState.LOOPING
         self._loop_ctrl.on_record_down(int(self._clock.position_ms))
         if was_looping:
-            self._tcode.reset()
-            self._audio.stop_loop(self._clock.position_ms)
+            self._on_loop_exited()
 
     def record_up(self) -> None:
         if self._loop_ctrl is None or self._loop_ctrl.state != LoopState.MARKING:
@@ -107,7 +106,10 @@ class PlayerSession:
         if self._loop_ctrl.state == LoopState.LOOPING:
             self._tcode.reset()
             self._clock.seek(self._loop_ctrl.in_ms)
-            self._audio.start_loop(self._loop_ctrl.in_ms, self._loop_ctrl.out_ms)
+            if self._paused:
+                self._audio_started = False
+            else:
+                self._audio.start_loop(self._loop_ctrl.in_ms, self._loop_ctrl.out_ms)
 
     def loop_cancel(self) -> None:
         if self._loop_ctrl is None:
@@ -115,7 +117,15 @@ class PlayerSession:
         was_looping = self._loop_ctrl.state == LoopState.LOOPING
         self._loop_ctrl.cancel()
         if was_looping:
-            self._tcode.reset()
+            self._on_loop_exited()
+
+    def _on_loop_exited(self) -> None:
+        """Leave loop audio behind — deferred to unpause when paused, since
+        stop_loop audibly restarts the main track."""
+        self._tcode.reset()
+        if self._paused:
+            self._audio_started = False
+        else:
             self._audio.stop_loop(self._clock.position_ms)
 
     def set_paused(self, paused: bool) -> None:
@@ -130,7 +140,11 @@ class PlayerSession:
             if self._audio_started:
                 self._audio.resume()
             else:
-                self._audio.play(self._clock.position_ms)
+                bounds = self.loop_bounds
+                if bounds is not None:
+                    self._audio.start_loop(*bounds)
+                else:
+                    self._audio.play(self._clock.position_ms)
                 self._audio_started = True
 
     def toggle_pause(self) -> None:
@@ -174,7 +188,11 @@ class PlayerSession:
     def seek_by(self, delta_ms: float) -> None:
         new_pos = max(0, min(self._video.duration_ms, self._clock.position_ms + delta_ms))
         self._clock.seek(new_pos)
-        self._audio.seek(new_pos)
+        if self._paused:
+            # AudioPlayer.seek would audibly start playback; defer to unpause.
+            self._audio_started = False
+        else:
+            self._audio.seek(new_pos)
         self._tcode.reset()
 
     def advance(self):
