@@ -6,10 +6,8 @@ from nau.funscript import Funscript
 from nau.heatmap import build_heatmap
 from nau.overlay import (
     HeatmapStrip,
-    LoopThumbnails,
     ZoomWindow,
     indicator_for,
-    label_xs,
     record_available,
     time_to_x,
 )
@@ -170,56 +168,6 @@ class TestZoomWindow:
         assert zoom.bounds == (18_000, 370_000)  # span doubled 20s -> 320s
 
 
-class TestLoopThumbnails:
-    def test_first_looping_frame_becomes_the_in_thumbnail(self):
-        thumbs = LoopThumbnails()
-
-        thumbs.update("normal", None, 1000.0, _frame(50))
-        assert thumbs.in_thumb is None
-        assert thumbs.out_thumb is None
-
-        # The session seeks to the in point when the loop starts, so the
-        # first looping frame IS the in frame.
-        thumbs.update("looping", (2000, 4000), 2000.0, _frame(10))
-
-        assert thumbs.in_thumb is not None
-        assert thumbs.in_thumb.shape == (64, 114, 3)  # 16:9 at label height
-        assert thumbs.in_thumb[0, 0, 0] == 10
-        assert thumbs.out_thumb is None
-
-    def test_wrap_captures_the_out_thumbnail_from_the_pre_wrap_frame(self):
-        thumbs = LoopThumbnails()
-        thumbs.update("looping", (2000, 4000), 2000.0, _frame(10))
-        thumbs.update("looping", (2000, 4000), 3900.0, _frame(20))
-
-        # check_loop wrapped the clock back to the in point: the frame seen
-        # just before the wrap is the out frame.
-        thumbs.update("looping", (2000, 4000), 2000.0, _frame(30))
-
-        assert thumbs.out_thumb is not None
-        assert thumbs.out_thumb[0, 0, 0] == 20
-        # the in thumbnail is not overwritten by later frames
-        assert thumbs.in_thumb[0, 0, 0] == 10
-
-    def test_leaving_the_loop_clears_both_thumbnails(self):
-        thumbs = LoopThumbnails()
-        thumbs.update("looping", (2000, 4000), 2000.0, _frame(10))
-        thumbs.update("looping", (2000, 4000), 2000.0, _frame(30))
-
-        thumbs.update("normal", None, 4100.0, _frame(40))
-
-        assert thumbs.in_thumb is None
-        assert thumbs.out_thumb is None
-
-    def test_new_loop_bounds_restart_the_captures(self):
-        thumbs = LoopThumbnails()
-        thumbs.update("looping", (2000, 4000), 2000.0, _frame(10))
-
-        thumbs.update("looping", (5000, 9000), 5000.0, _frame(60))
-
-        assert thumbs.in_thumb[0, 0, 0] == 60
-        assert thumbs.out_thumb is None
-
 
 class TestIndicatorFor:
     def test_playing_shows_play(self):
@@ -246,18 +194,3 @@ class TestRecordAvailable:
     def test_unscripted_video_cannot_record(self):
         # Drives the "no fs" badge that explains why R does nothing.
         assert record_available(has_funscript=False) is False
-
-
-class TestLabelXs:
-    def test_labels_center_on_their_markers(self):
-        assert label_xs(100, 500, 60, 60, 1000) == (70, 470)
-
-    def test_labels_clamp_to_the_window_edges(self):
-        in_x, out_x = label_xs(5, 995, 60, 60, 1000)
-        assert in_x == 0
-        assert out_x == 940
-
-    def test_overlapping_out_label_nudges_right_of_the_in_label(self):
-        in_x, out_x = label_xs(100, 120, 60, 60, 1000)
-        assert in_x == 70
-        assert out_x == 132  # in label right edge + 2px gap

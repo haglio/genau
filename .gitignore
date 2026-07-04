@@ -11,3 +11,6 @@ state/
 
 # Windows shortcuts: machine-specific, rewritten by Windows, drift constantly
 *.lnk
+
+# libmpv binary (fetched locally, not committed — see README)
+vendor/

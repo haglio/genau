@@ -145,70 +145,6 @@ class HeatmapStrip:
             )
 
 
-_THUMB_HEIGHT = 64
-
-
-def _thumb(frame):
-    import cv2
-
-    h, w = frame.shape[:2]
-    return cv2.resize(
-        frame, (max(1, round(_THUMB_HEIGHT * w / h)), _THUMB_HEIGHT),
-        interpolation=cv2.INTER_AREA,
-    )
-
-
-class LoopThumbnails:
-    """In/out frame labels for the loop markers.
-
-    The cv2 video stream is single-handle, so decoding the exact marker
-    frames on demand would stutter playback.  Instead the labels are
-    captured opportunistically from frames advance() already returns: the
-    session seeks to the in point when a loop starts, so the FIRST looping
-    frame is the in frame; the last frame seen before each wrap (position
-    jumping backwards) approximates the out frame.
-    """
-
-    def __init__(self) -> None:
-        self._bounds: tuple[int, int] | None = None
-        self.in_thumb = None
-        self.out_thumb = None
-        self._last: tuple[float, object] | None = None
-
-    def update(self, loop_state: str, loop_bounds, position_ms: float, frame) -> None:
-        if loop_state != "looping" or loop_bounds is None:
-            self._bounds = None
-            self.in_thumb = None
-            self.out_thumb = None
-            self._last = None
-            return
-        if loop_bounds != self._bounds:
-            self._bounds = loop_bounds
-            self.in_thumb = None
-            self.out_thumb = None
-            self._last = None
-        if frame is None:
-            return
-        if self.in_thumb is None:
-            self.in_thumb = _thumb(frame)
-        if (
-            self.out_thumb is None
-            and self._last is not None
-            and position_ms < self._last[0]
-        ):
-            self.out_thumb = _thumb(self._last[1])
-        self._last = (position_ms, frame)
-
-
-def label_xs(in_x: int, out_x: int, in_w: int, out_w: int, win_w: int) -> tuple[int, int]:
-    """Left edges for the in/out thumbnail labels: centered on their markers,
-    clamped on-screen, and the out label nudged right of the in label when
-    they would overlap."""
-    ix = max(0, min(win_w - in_w, in_x - in_w // 2))
-    ox = max(0, min(win_w - out_w, out_x - out_w // 2))
-    if ox < ix + in_w:
-        ox = min(win_w - out_w, ix + in_w + 2)
-    return ix, ox
 
 
 def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
@@ -219,148 +155,103 @@ def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
     return max(0, min(width - 1, int((ms - start_ms) / span * width)))
 
 
-# --- pygame drawing (thin; no decision logic below this line) ---------------
+# --- RGBA overlay rendering (BGRA arrays for mpv overlay_add) -----------------
+# mpv owns the window and hardware-decodes the video; Nau's overlays go on top
+# as BGRA bitmaps.  No pygame — these produce plain numpy arrays.
 
 _ICON_BOX = 26
 _ICON_MARGIN = 8
-_WHITE = (230, 230, 230, 220)
-_RED = (220, 40, 40, 235)
-_AMBER = (235, 180, 60, 230)
-
-
-def _icon_surface(kind: str):
-    import math
-
-    import pygame
-
-    s = pygame.Surface((_ICON_BOX, _ICON_BOX), pygame.SRCALPHA)
-    cx = cy = _ICON_BOX // 2
-    pygame.draw.circle(s, (0, 0, 0, 120), (cx, cy), _ICON_BOX // 2)
-    if kind == "play":
-        pygame.draw.polygon(s, _WHITE, [(10, 7), (10, 19), (20, 13)])
-    elif kind == "pause":
-        pygame.draw.rect(s, _WHITE, pygame.Rect(8, 7, 4, 12))
-        pygame.draw.rect(s, _WHITE, pygame.Rect(15, 7, 4, 12))
-    elif kind == "record":
-        pygame.draw.circle(s, _RED, (cx, cy), 7)
-    elif kind == "loop":
-        r = 8
-        rect = pygame.Rect(cx - r, cy - r, r * 2, r * 2)
-        pygame.draw.arc(s, _AMBER, rect, 0.5, 2.0 * math.pi - 0.9, 2)
-        pygame.draw.polygon(
-            s, _AMBER, [(cx + r - 4, cy + 2), (cx + r + 3, cy + 2), (cx + r - 1, cy + 8)]
-        )
-    return s
-
-
-def draw_indicator(renderer, kind: str, win_w: int) -> None:
-    import pygame
-    from pygame._sdl2.video import Texture
-
-    surface = _icon_surface(kind)
-    texture = Texture.from_surface(renderer, surface)
-    texture.draw(
-        dstrect=pygame.Rect(win_w - _ICON_BOX - _ICON_MARGIN, _ICON_MARGIN, _ICON_BOX, _ICON_BOX)
-    )
-
-
-_BADGE_MUTED = (150, 150, 150, 200)  # muted grey: readable but unobtrusive
-_BADGE_TEXT = "no fs"
-
-
-def draw_no_funscript_badge(renderer, font, win_w: int) -> None:
-    """Muted "no fs" chip just left of the corner indicator.
-
-    Drawn only for unscripted videos (see :func:`record_available`) so the
-    user understands why the record gesture has no effect.
-    """
-    import pygame
-    from pygame._sdl2.video import Texture
-
-    text = font.render(_BADGE_TEXT, True, _BADGE_MUTED[:3])
-    tw, th = text.get_size()
-    pad = 4
-    chip = pygame.Surface((tw + pad * 2, th + pad * 2), pygame.SRCALPHA)
-    chip.fill((0, 0, 0, 120))
-    chip.blit(text, (pad, pad))
-    w, h = chip.get_size()
-    x = win_w - _ICON_BOX - _ICON_MARGIN - w - 6
-    y = _ICON_MARGIN + (_ICON_BOX - h) // 2
-    Texture.from_surface(renderer, chip).draw(dstrect=pygame.Rect(x, y, w, h))
-
-
+_WHITE = (230, 230, 230, 235)
+_RED = (220, 40, 40, 245)
+_AMBER = (235, 180, 60, 245)
 _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
-_BOUND_MARK_W = 3  # loop in/out and record in-point marks read as bars
+_BOUND_MARK_W = 3     # loop in/out and record in-point marks read as bars
+_BADGE_MUTED = (150, 150, 150)
 
 
-def _draw_mark(renderer, x: int, width: int, strip_h: int, win_h: int, color) -> None:
-    import pygame
-    from pygame._sdl2.video import Texture
-
-    mark = pygame.Surface((width, strip_h), pygame.SRCALPHA)
-    mark.fill(color)
-    Texture.from_surface(renderer, mark).draw(
-        dstrect=pygame.Rect(x - width // 2, win_h - strip_h, width, strip_h)
-    )
+def _rgba_to_bgra(rgba):
+    """(H, W, 4) RGBA uint8 -> BGRA (mpv's overlay format), contiguous."""
+    bgra = rgba[:, :, [2, 1, 0, 3]]
+    return np.ascontiguousarray(bgra, dtype=np.uint8)
 
 
-def draw_heatmap(
-    renderer,
-    heatmap: HeatmapStrip,
-    position_ms: float,
-    loop_bounds: tuple[int, int] | None,
-    win_w: int,
-    win_h: int,
-    thumbnails: LoopThumbnails | None = None,
-) -> None:
-    import pygame
-    from pygame._sdl2.video import Texture
-
+def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
+    """The bottom heatmap strip as a BGRA array, or None when there is nothing
+    to draw.  Includes the white playcursor, amber loop in/out marks, and the
+    red record-in mark."""
     strip_h = heatmap.height
-    if strip_h <= 0:
-        return
-    row = np.asarray(heatmap.colors, dtype=np.uint8)
-    rgba = np.empty((strip_h, len(row), 4), dtype=np.uint8)
-    rgba[:, :, :3] = row[np.newaxis, :, :]
-    rgba[:, :, 3] = _HEATMAP_ALPHA
-    surface = pygame.image.frombuffer(rgba.tobytes(), (len(row), strip_h), "RGBA")
-    Texture.from_surface(renderer, surface).draw(
-        dstrect=pygame.Rect(0, win_h - strip_h, win_w, strip_h)
-    )
+    if strip_h <= 0 or not heatmap.colors:
+        return None
+    row = np.asarray(heatmap.colors, dtype=np.uint8)  # (W, 3) RGB
+    w = len(row)
+    bgra = np.empty((strip_h, w, 4), dtype=np.uint8)
+    bgra[:, :, 0] = row[np.newaxis, :, 2]
+    bgra[:, :, 1] = row[np.newaxis, :, 1]
+    bgra[:, :, 2] = row[np.newaxis, :, 0]
+    bgra[:, :, 3] = _HEATMAP_ALPHA
 
     start_ms, end_ms = heatmap.window
+
+    def mark(x, mark_w, color):
+        x0 = max(0, x - mark_w // 2)
+        x1 = min(w, x0 + mark_w)
+        bgra[:, x0:x1, 0] = color[2]
+        bgra[:, x0:x1, 1] = color[1]
+        bgra[:, x0:x1, 2] = color[0]
+        bgra[:, x0:x1, 3] = 255
+
     if heatmap.record_in_ms is not None:
-        x = time_to_x(heatmap.record_in_ms, start_ms, end_ms, win_w)
-        _draw_mark(renderer, x, _BOUND_MARK_W, strip_h, win_h, _RED)
+        mark(time_to_x(heatmap.record_in_ms, start_ms, end_ms, w), _BOUND_MARK_W, _RED)
     if loop_bounds is not None:
-        in_x = time_to_x(loop_bounds[0], start_ms, end_ms, win_w)
-        out_x = time_to_x(loop_bounds[1], start_ms, end_ms, win_w)
-        _draw_mark(renderer, in_x, _BOUND_MARK_W, strip_h, win_h, _AMBER)
-        _draw_mark(renderer, out_x, _BOUND_MARK_W, strip_h, win_h, _AMBER)
-        if thumbnails is not None:
-            _draw_loop_labels(renderer, thumbnails, in_x, out_x, strip_h, win_w, win_h)
-    x = time_to_x(position_ms, start_ms, end_ms, win_w)
-    _draw_mark(renderer, x, 1, strip_h, win_h, _WHITE)
+        mark(time_to_x(loop_bounds[0], start_ms, end_ms, w), _BOUND_MARK_W, _AMBER)
+        mark(time_to_x(loop_bounds[1], start_ms, end_ms, w), _BOUND_MARK_W, _AMBER)
+    mark(time_to_x(position_ms, start_ms, end_ms, w), 1, _WHITE)
+    return bgra
 
 
-def _draw_loop_labels(renderer, thumbnails, in_x, out_x, strip_h, win_w, win_h) -> None:
-    """Blit the in/out frame thumbnails just above their markers."""
-    import pygame
-    from pygame._sdl2.video import Texture
+def indicator_bgra(kind: str):
+    """The corner state icon (play/pause/record/loop) as a BGRA array."""
+    import math
 
-    in_t, out_t = thumbnails.in_thumb, thumbnails.out_thumb
-    in_w = in_t.shape[1] if in_t is not None else 0
-    out_w = out_t.shape[1] if out_t is not None else 0
-    ix, ox = label_xs(in_x, out_x, in_w or 1, out_w or 1, win_w)
-    for thumb, x in ((in_t, ix), (out_t, ox)):
-        if thumb is None:
-            continue
-        h, w = thumb.shape[:2]
-        surface = pygame.image.frombuffer(thumb.tobytes(), (w, h), "RGB")
-        rect = pygame.Rect(x, win_h - strip_h - h - 2, w, h)
-        border = pygame.Surface((w + 2, h + 2))
-        border.fill(_AMBER[:3])
-        Texture.from_surface(renderer, border).draw(
-            dstrect=pygame.Rect(rect.x - 1, rect.y - 1, w + 2, h + 2)
-        )
-        Texture.from_surface(renderer, surface).draw(dstrect=rect)
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGBA", (_ICON_BOX, _ICON_BOX), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    cx = cy = _ICON_BOX // 2
+    d.ellipse([0, 0, _ICON_BOX - 1, _ICON_BOX - 1], fill=(0, 0, 0, 120))
+    if kind == "play":
+        d.polygon([(10, 7), (10, 19), (20, 13)], fill=_WHITE)
+    elif kind == "pause":
+        d.rectangle([8, 7, 11, 18], fill=_WHITE)
+        d.rectangle([15, 7, 18, 18], fill=_WHITE)
+    elif kind == "record":
+        d.ellipse([cx - 7, cy - 7, cx + 7, cy + 7], fill=_RED)
+    elif kind == "loop":
+        r = 8
+        d.arc([cx - r, cy - r, cx + r, cy + r], start=200, end=110, fill=_AMBER, width=2)
+        d.polygon([(cx + r - 4, cy + 2), (cx + r + 3, cy + 2), (cx + r - 1, cy + 8)], fill=_AMBER)
+    return _rgba_to_bgra(np.asarray(img))
+
+
+def badge_bgra():
+    """A muted "no fs" chip explaining why R is inert on unscripted videos."""
+    from PIL import Image, ImageDraw
+
+    text = "no fs"
+    pad = 4
+    tmp = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    box = tmp.textbbox((0, 0), text)
+    tw, th = box[2] - box[0], box[3] - box[1]
+    img = Image.new("RGBA", (tw + pad * 2, th + pad * 3), (0, 0, 0, 120))
+    ImageDraw.Draw(img).text((pad, pad), text, fill=_BADGE_MUTED)
+    return _rgba_to_bgra(np.asarray(img))
+
+
+def indicator_xy(win_w: int) -> tuple[int, int]:
+    """Top-right anchor for the corner indicator."""
+    return win_w - _ICON_BOX - _ICON_MARGIN, _ICON_MARGIN
+
+
+def badge_xy(win_w: int, badge_w: int) -> tuple[int, int]:
+    """Anchor for the no-fs chip, just left of the indicator."""
+    return win_w - _ICON_BOX - _ICON_MARGIN - badge_w - 6, _ICON_MARGIN + 4

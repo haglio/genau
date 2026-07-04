@@ -12,6 +12,7 @@ dependencies = [
     "pillow",
     "pygame-ce",
     "pyserial",
+    "python-mpv",
 ]
 
 [project.optional-dependencies]

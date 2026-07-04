@@ -20,3 +20,9 @@ _.stop  # type: ignore[name-defined]
 # SDL2 Renderer.draw_color is a property set dynamically for HUD mode
 # (pygame_view.py: _present_scene)
 _.draw_color  # type: ignore[name-defined]
+
+# libmpv properties set via python-mpv's dynamic attribute API
+# (mpv_player.py: MpvPlayer drives pause / A-B loop on the MPV object)
+_.pause  # type: ignore[name-defined]
+_.ab_loop_a  # type: ignore[name-defined]
+_.ab_loop_b  # type: ignore[name-defined]

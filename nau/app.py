@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from pathlib import Path
 
 import pygame
-from pygame._sdl2.video import Renderer, Texture, Window
 
-from genau.pygame_view import get_window_chrome_height, load_window_icon
+from genau.pygame_view import get_window_chrome_height
 from genau.runtime_support import consume_command_file, read_paused_state
 from genau.tcode import UdpTCodeSink
 
@@ -20,16 +20,17 @@ from .cli import (
     resolve_playlist,
 )
 from .library_source import DEFAULT_MODE, OTHER_MODE
+from .mpv_player import MpvPlayer
 from .overlay import (
     HeatmapStrip,
-    LoopThumbnails,
-    draw_heatmap,
-    draw_indicator,
-    draw_no_funscript_badge,
+    badge_bgra,
+    badge_xy,
+    heatmap_bgra,
+    indicator_bgra,
     indicator_for,
+    indicator_xy,
     record_available,
 )
-from .playback import PlaybackClock, VideoStream, build_audio_player
 from .playlist import read_playlist
 from .runtime import SEEK_STEP_MS, apply_command
 from .session import PlayerSession
@@ -38,28 +39,12 @@ from .tcode_driver import FunscriptTCodeDriver
 
 logger = logging.getLogger(__name__)
 
-_ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 _APP_USER_MODEL_ID = "Nau.App"
 
-
-def _compute_video_rect(
-    video_w: int, video_h: int, win_w: int, win_h: int,
-) -> tuple[int, int, int, int]:
-    scale = min(win_w / video_w, win_h / video_h)
-    w = int(video_w * scale)
-    h = int(video_h * scale)
-    x = (win_w - w) // 2
-    y = (win_h - h) // 2
-    return x, y, w, h
-
-
-def _format_time(ms: float) -> str:
-    total_s = int(ms / 1000)
-    m, s = divmod(total_s, 60)
-    h, m = divmod(m, 60)
-    if h:
-        return f"{h}:{m:02d}:{s:02d}"
-    return f"{m}:{s:02d}"
+# Overlay ids (stable so each frame updates in place).
+_OV_HEATMAP = 0
+_OV_INDICATOR = 1
+_OV_BADGE = 2
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -96,32 +81,28 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
     pygame.init()
     chrome = get_window_chrome_height()
     client_h = max(1, args.height - chrome)
-    window = Window("Nau", size=(args.width, client_h))
     if args.x is not None and args.y is not None:
-        window.position = (args.x, args.y + chrome)
-    load_window_icon(window, _ICON_PATH)
-    renderer = Renderer(window, accelerated=True)
+        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y + chrome}"
+    screen = pygame.display.set_mode((args.width, client_h))
+    pygame.display.set_caption("Nau")
     clock = pygame.time.Clock()
-    font = pygame.font.SysFont("consolas", 14)
+    # mpv renders the video directly into this window; overlays go on top.
+    wid = pygame.display.get_wm_info()["window"]
 
     paused_file: Path | None = args.paused_file
     command_file: Path | None = args.command_file
     start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)
 
+    player = MpvPlayer(wid, muted=audio_muted(args))
     session = PlayerSession(
         pairs,
-        video=VideoStream(),
-        audio=build_audio_player(muted=audio_muted(args)),
-        clock=PlaybackClock(),
-        tcode=FunscriptTCodeDriver(
-            UdpTCodeSink(args.tcode_host, args.tcode_port),
-        ),
+        player=player,
+        tcode=FunscriptTCodeDriver(UdpTCodeSink(args.tcode_host, args.tcode_port)),
         start_paused=start_paused,
         version_index=source.version_index if source is not None else None,
     )
     length_mode = DEFAULT_MODE
     heatmap = HeatmapStrip()
-    loop_thumbs = LoopThumbnails()
     status_writer = StatusWriter(args.status_file) if args.status_file else None
     stop_event = threading.Event()
 
@@ -137,10 +118,24 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         logger.info("Length mode: %s", length_mode)
         session.replace_playlist(source.playlist_for(length_mode))
 
+    def _click_to_seek(mx: int, my: int, win_w: int, win_h: int) -> None:
+        # Click on the heatmap strip (the timeline) seeks there; a click on the
+        # video toggles pause, like any player.
+        strip_h = heatmap.height
+        if strip_h > 0 and my >= win_h - strip_h:
+            start_ms, end_ms = heatmap.window
+            frac = min(1.0, max(0.0, mx / max(1, win_w)))
+            session.seek_to(start_ms + frac * (end_ms - start_ms))
+        else:
+            session.toggle_pause()
+
     while not stop_event.is_set():
+        win_w, win_h = screen.get_size()
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
                 stop_event.set()
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                _click_to_seek(ev.pos[0], ev.pos[1], win_w, win_h)
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
                     stop_event.set()
@@ -175,59 +170,36 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
                     toggle_length_mode=_toggle_length_mode,
                 )
 
-        display_frame = session.advance()
-        loop_thumbs.update(
-            session.loop_state, session.loop_bounds, session.position_ms, display_frame,
-        )
+        session.advance()
         if status_writer is not None:
             status_writer.write(session)
 
-        renderer.draw_color = (0, 0, 0, 255)
-        renderer.clear()
-        win_w, win_h = window.size
-        if display_frame is not None:
-            h, w = display_frame.shape[:2]
-            surface = pygame.image.frombuffer(display_frame.tobytes(), (w, h), "RGB")
-            texture = Texture.from_surface(renderer, surface)
-            rx, ry, rw, rh = _compute_video_rect(w, h, win_w, win_h)
-            texture.draw(dstrect=pygame.Rect(rx, ry, rw, rh))
-
-        # Status overlay: video name + time; playback/loop state is the icon's job.
-        pos_str = _format_time(session.position_ms)
-        dur_str = _format_time(session.duration_ms)
-        status = f"{session.current_video.stem}  {pos_str}/{dur_str}"
-
-        text_surf = font.render(status, True, (255, 255, 255))
-        pad = 6
-        tw, th = text_surf.get_size()
-        bg = pygame.Surface((tw + pad * 2, th + pad * 2), pygame.SRCALPHA)
-        bg.fill((0, 0, 0, 160))
-        bg.blit(text_surf, (pad, pad))
-        overlay = Texture.from_surface(renderer, bg)
-        overlay.draw(dstrect=pygame.Rect(8, 8, tw + pad * 2, th + pad * 2))
-
+        # --- overlays on top of mpv's video ---
         heatmap.update(
             session.current_video, session.current_funscript, session.duration_ms, win_w,
             loop_state=session.loop_state,
             record_in_ms=session.record_in_ms,
             position_ms=session.position_ms,
         )
-        draw_heatmap(
-            renderer, heatmap, session.position_ms, session.loop_bounds,
-            win_w, win_h, thumbnails=loop_thumbs,
-        )
-        draw_indicator(
-            renderer,
-            indicator_for(session.loop_state, paused=session.is_paused),
-            win_w,
-        )
-        if not record_available(has_funscript=session.has_funscript):
-            draw_no_funscript_badge(renderer, font, win_w)
+        hb = heatmap_bgra(heatmap, session.position_ms, session.loop_bounds, win_w)
+        if hb is not None:
+            player.overlay(_OV_HEATMAP, 0, win_h - heatmap.height, hb)
+        else:
+            player.remove_overlay(_OV_HEATMAP)
 
-        renderer.present()
-        clock.tick(session.fps)
+        ind = indicator_bgra(indicator_for(session.loop_state, paused=session.is_paused))
+        ix, iy = indicator_xy(win_w)
+        player.overlay(_OV_INDICATOR, ix, iy, ind)
+
+        if not record_available(has_funscript=session.has_funscript):
+            badge = badge_bgra()
+            bx, by = badge_xy(win_w, badge.shape[1])
+            player.overlay(_OV_BADGE, bx, by, badge)
+        else:
+            player.remove_overlay(_OV_BADGE)
+
+        clock.tick(60)
 
     session.close()
-    window.destroy()
     pygame.quit()
     return 0
