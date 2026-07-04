@@ -514,3 +514,60 @@ class TestReplacePlaylist:
 
         session.step(1)
         assert video.opened[-1] == tmp_path / "other.mp4"
+
+
+class TestNoAudioWhilePaused:
+    def test_seek_while_paused_stays_silent_and_resume_plays_at_new_position(self, tmp_path):
+        """AudioPlayer.seek is load+play — calling it while paused audibly
+        starts sound under a frozen video (the reported bug). Seeks while
+        paused must defer audio until resume."""
+        session, video, audio, tcode, now = _make_session(tmp_path)
+        now.t = 5.0
+        session.set_paused(True)
+        calls_before = len(audio.calls)
+
+        session.seek_by(10_000)
+
+        assert audio.calls[calls_before:] == []  # no audio while paused
+        assert session.position_ms == 15_000
+
+        session.set_paused(False)
+
+        assert ("play", 15_000) in audio.calls
+        assert "resume" not in audio.names()[audio.names().index("pause"):]
+
+    def test_loop_completed_while_paused_starts_loop_audio_only_on_resume(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+        now.t = 2.5
+        session.record_down()
+        now.t = 3.5
+        session.set_paused(True)
+        calls_before = len(audio.calls)
+
+        session.record_up()
+
+        assert session.loop_state == "looping"
+        assert audio.calls[calls_before:] == []  # silent while paused
+
+        session.set_paused(False)
+
+        assert ("start_loop", 2000, 4000) in audio.calls
+
+    def test_loop_cancel_while_paused_stays_silent_and_resume_plays_main_track(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+        now.t = 2.5
+        session.record_down()
+        now.t = 3.5
+        session.record_up()  # looping, audio loop started (playing)
+        session.set_paused(True)
+        calls_before = len(audio.calls)
+
+        session.loop_cancel()
+
+        assert session.loop_state == "normal"
+        assert audio.calls[calls_before:] == []  # stop_loop would seek+play
+
+        session.set_paused(False)
+
+        # resume returns to the main track at the current position
+        assert audio.names()[-1] in ("play", "seek")
