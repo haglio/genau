@@ -29,27 +29,29 @@ def _speed_to_color(speed: float) -> tuple[int, int, int]:
 
 
 def build_heatmap(
-    fs: Funscript, duration_ms: float, buckets: int,
+    fs: Funscript, buckets: int, *, start_ms: float, end_ms: float,
 ) -> list[tuple[int, int, int]]:
-    """One color per equal bin of [0, duration_ms], by average stroke speed.
+    """One color per equal bin of [start_ms, end_ms], by average stroke speed.
 
     Each action segment spreads its |pos delta| over the bins it overlaps,
     proportional to the overlap; a bin's speed is its accumulated travel
     divided by the bin length in seconds. Bins nothing overlaps (gaps,
-    before the first action, after the last) stay at the idle color.
+    activity outside the window) stay at the idle color. The full-video
+    strip is simply the [0, duration] window.
     """
-    if duration_ms <= 0:
+    if end_ms <= start_ms:
         return []
-    bin_ms = duration_ms / buckets
+    bin_ms = (end_ms - start_ms) / buckets
     travel = [0.0] * buckets  # position units traveled inside each bin
     for (t0, p0), (t1, p1) in zip(fs.actions, fs.actions[1:]):
         if t1 <= t0:
             continue
         delta = abs(p1 - p0)
-        first = max(0, int(t0 // bin_ms))
-        last = min(buckets - 1, int(t1 // bin_ms))
+        first = max(0, int((t0 - start_ms) // bin_ms))
+        last = min(buckets - 1, int((t1 - start_ms) // bin_ms))
         for b in range(first, last + 1):
-            overlap_ms = min(t1, (b + 1) * bin_ms) - max(t0, b * bin_ms)
+            bin_start = start_ms + b * bin_ms
+            overlap_ms = min(t1, bin_start + bin_ms) - max(t0, bin_start)
             travel[b] += delta * overlap_ms / (t1 - t0)
     bin_s = bin_ms / 1000.0
     return [_speed_to_color(units / bin_s) for units in travel]

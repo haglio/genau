@@ -18,7 +18,7 @@ class TestHeatmapStrip:
 
         strip.update("v0.mp4", fs, 4000.0, width=40)
 
-        assert strip.colors == build_heatmap(fs, 4000.0, 40)
+        assert strip.colors == build_heatmap(fs, 40, start_ms=0, end_ms=4000.0)
         assert len(strip.colors) == 40
         assert strip.height == 24
 

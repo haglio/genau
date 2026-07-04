@@ -113,7 +113,9 @@ class HeatmapStrip:
         if funscript is None:
             self._colors = []
         else:
-            self._colors = build_heatmap(funscript, duration_ms, max(1, width))
+            self._colors = build_heatmap(
+                funscript, max(1, width), start_ms=0.0, end_ms=duration_ms,
+            )
 
 
 def cursor_x(position_ms: float, duration_ms: float, width: int) -> int:
