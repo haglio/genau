@@ -4,7 +4,7 @@ import numpy as np
 
 from nau.funscript import Funscript
 from nau.heatmap import build_heatmap
-from nau.overlay import HeatmapStrip, RecordingStrip, cursor_x, indicator_for
+from nau.overlay import HeatmapStrip, RecordingStrip, indicator_for, time_to_x
 
 
 def _funscript():
@@ -52,18 +52,19 @@ class TestHeatmapStrip:
         assert len(strip.colors) == 64
 
 
-class TestCursorX:
-    def test_maps_position_fraction_to_pixel(self):
-        assert cursor_x(0, 10_000, 100) == 0
-        assert cursor_x(5_000, 10_000, 100) == 50
+class TestTimeToX:
+    def test_maps_window_fraction_to_pixel(self):
+        assert time_to_x(0, 0, 10_000, 100) == 0
+        assert time_to_x(5_000, 0, 10_000, 100) == 50
+        assert time_to_x(30_000, 20_000, 40_000, 100) == 50
 
     def test_clamps_to_the_strip(self):
-        assert cursor_x(10_000, 10_000, 100) == 99  # video end stays visible
-        assert cursor_x(20_000, 10_000, 100) == 99
-        assert cursor_x(-5, 10_000, 100) == 0
+        assert time_to_x(10_000, 0, 10_000, 100) == 99  # window end stays visible
+        assert time_to_x(50_000, 20_000, 40_000, 100) == 99
+        assert time_to_x(0, 20_000, 40_000, 100) == 0
 
-    def test_zero_duration_pins_left(self):
-        assert cursor_x(500, 0, 100) == 0
+    def test_empty_window_pins_left(self):
+        assert time_to_x(500, 0, 0, 100) == 0
 
 
 class TestIndicatorFor:

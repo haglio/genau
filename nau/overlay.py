@@ -118,11 +118,12 @@ class HeatmapStrip:
             )
 
 
-def cursor_x(position_ms: float, duration_ms: float, width: int) -> int:
-    """Strip x for a timestamp: position_ms/duration_ms of width, kept on-strip."""
-    if duration_ms <= 0:
+def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
+    """Strip x for a timestamp: its fraction of [start_ms, end_ms], kept on-strip."""
+    span = end_ms - start_ms
+    if span <= 0:
         return 0
-    return max(0, min(width - 1, int(position_ms / duration_ms * width)))
+    return max(0, min(width - 1, int((ms - start_ms) / span * width)))
 
 
 # --- pygame drawing (thin; no decision logic below this line) ---------------
@@ -240,5 +241,7 @@ def draw_heatmap(
 
     if loop_bounds is not None:
         for bound_ms in loop_bounds:
-            _draw_mark(renderer, cursor_x(bound_ms, duration_ms, win_w), strip_h, win_h, _AMBER)
-    _draw_mark(renderer, cursor_x(position_ms, duration_ms, win_w), strip_h, win_h, _WHITE)
+            _draw_mark(
+                renderer, time_to_x(bound_ms, 0, duration_ms, win_w), strip_h, win_h, _AMBER,
+            )
+    _draw_mark(renderer, time_to_x(position_ms, 0, duration_ms, win_w), strip_h, win_h, _WHITE)
