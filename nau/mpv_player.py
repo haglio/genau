@@ -75,6 +75,22 @@ class MpvPlayer:
         return bool(self._mpv.eof_reached)
 
 
+    def screenshot_bgra(self, height: int = 64):
+        """Current displayed frame, resized to *height*, as a BGRA array.
+
+        Used to capture loop in/out thumbnails on demand (a few times per
+        loop) without disturbing playback — mpv renders the video itself.
+        Returns None if no frame is available yet.
+        """
+        import numpy as np
+
+        img = self._mpv.screenshot_raw()  # PIL Image
+        if img is None or img.height == 0:
+            return None
+        w = max(1, round(height * img.width / img.height))
+        arr = np.asarray(img.convert("RGBA").resize((w, height)))
+        return np.ascontiguousarray(arr[:, :, [2, 1, 0, 3]], dtype=np.uint8)
+
     def overlay(self, ident: int, x: int, y: int, rgba) -> None:
         """Composite an (H, W, 4) BGRA uint8 array at (x, y) over the video."""
         import numpy as np
