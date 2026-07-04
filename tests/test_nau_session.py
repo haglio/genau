@@ -195,6 +195,26 @@ class TestRecording:
         assert "stop_loop" not in audio.names()
 
 
+class TestRecordInMs:
+    def test_exposes_in_point_only_while_recording(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path)
+
+        assert session.record_in_ms is None  # normal
+
+        now.t = 2.5
+        session.record_down()
+        assert session.record_in_ms == 2500
+
+        now.t = 3.5
+        session.record_up()
+        assert session.record_in_ms is None  # looping
+
+    def test_none_without_funscript(self, tmp_path):
+        session, video, audio, tcode, now = _make_session(tmp_path, scripted=False)
+
+        assert session.record_in_ms is None
+
+
 class TestLoopBounds:
     def test_none_while_not_looping(self, tmp_path):
         session, video, audio, tcode, now = _make_session(tmp_path)

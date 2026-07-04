@@ -91,6 +91,13 @@ class PlayerSession:
             return None
         return self._loop_ctrl.in_ms, self._loop_ctrl.out_ms
 
+    @property
+    def record_in_ms(self) -> int | None:
+        """In point of the loop being marked — None unless recording."""
+        if self._loop_ctrl is None or self._loop_ctrl.state != LoopState.MARKING:
+            return None
+        return self._loop_ctrl.in_ms
+
     def record_down(self) -> None:
         if self._loop_ctrl is None:
             return

@@ -1,6 +1,6 @@
-"""On-screen state feedback for Nau: indicator, filmstrip, funscript heatmap.
+"""On-screen state feedback for Nau: indicator and funscript heatmap strip.
 
-The pure decision logic (which icon, when to capture a thumbnail, strip
+The pure decision logic (which icon, the visible time window, strip
 geometry) lives here untied to pygame so it is unit-testable; the drawing
 helpers at the bottom turn those decisions into textures.
 """
@@ -26,75 +26,61 @@ def indicator_for(loop_state: str, *, paused: bool) -> str:
     return "play"
 
 
-class RecordingStrip:
-    """Filmstrip that grows along the bottom edge while a loop is recorded.
+_ZOOM_SPAN_START_MS = 20_000.0
+_ZOOM_LEAD_FRAC = 0.10
+_ZOOM_GROW_FRAC = 0.85
 
-    One thumbnail is captured per recorded second (the first immediately),
-    and the bar advances continuously between captures — tile-width pixels
-    per second, capped at *max_width*.
+
+class ZoomWindow:
+    """Stepped time window for the recording zoom.
+
+    Shows [in - lead, in + span] with a 10% lead so the in point sits just
+    inside the left edge; span starts at 20s and doubles whenever the
+    playhead passes 85% of the window, so the view rescales in steps
+    rather than sliding continuously.
     """
 
-    def __init__(self, *, tile_height: int, max_width: int) -> None:
-        self._tile_height = tile_height
-        self._max_width = max_width
-        self._start_ms: float | None = None
-        self._tile_width: int | None = None
-        self._thumbs: list[np.ndarray] = []
+    def __init__(self, *, in_ms: float) -> None:
+        self._in_ms = in_ms
+        self._span = _ZOOM_SPAN_START_MS
 
     @property
-    def thumbnails(self) -> list[np.ndarray]:
-        return self._thumbs
+    def in_ms(self) -> float:
+        return self._in_ms
 
     @property
-    def tile_height(self) -> int:
-        return self._tile_height
+    def bounds(self) -> tuple[float, float]:
+        return self._in_ms - self._span * _ZOOM_LEAD_FRAC, self._in_ms + self._span
 
-    def update(self, loop_state: str, position_ms: float, frame: np.ndarray | None) -> None:
-        if loop_state != "recording":
-            self._start_ms = None
-            self._tile_width = None
-            self._thumbs = []
-            return
-        if self._start_ms is None:
-            self._start_ms = position_ms
-        self._maybe_capture(position_ms, frame)
+    def update(self, position_ms: float) -> None:
+        while position_ms > self._grow_at():
+            self._span *= 2
 
-    def _maybe_capture(self, position_ms: float, frame: np.ndarray | None) -> None:
-        if frame is None:
-            return
-        elapsed = position_ms - self._start_ms
-        if elapsed < len(self._thumbs) * 1000.0:
-            return
-        import cv2
-
-        h, w = frame.shape[:2]
-        tile_w = self._tile_width or max(1, round(self._tile_height * w / h))
-        if (len(self._thumbs) + 1) * tile_w > self._max_width:
-            return
-        thumb = cv2.resize(frame, (tile_w, self._tile_height), interpolation=cv2.INTER_AREA)
-        self._tile_width = tile_w
-        self._thumbs.append(thumb)
-
-    def bar_width_px(self, position_ms: float) -> int:
-        if self._start_ms is None or self._tile_width is None:
-            return 0
-        elapsed = position_ms - self._start_ms
-        return min(self._max_width, int(elapsed / 1000.0 * self._tile_width))
+    def _grow_at(self) -> float:
+        start, end = self.bounds
+        return start + (end - start) * _ZOOM_GROW_FRAC
 
 
-_HEATMAP_HEIGHT = 24
+_IDLE_HEIGHT = 24
+_RECORDING_HEIGHT = 48
 
 
 class HeatmapStrip:
-    """Full-duration funscript heatmap pinned to the window's bottom edge.
+    """Funscript heatmap pinned to the window's bottom edge.
 
-    The color row is expensive to build (one bucket per pixel), so update()
-    rebuilds only when the video or the width changes.
+    Normally a full-duration view; while a loop is being recorded it
+    becomes a taller strip zoomed into the section around the in point
+    (a stepped ZoomWindow), so the user can judge where to end the loop.
+    The color row is expensive to build (one bucket per pixel), so
+    update() rebuilds only when the video, the width, or the visible
+    time window changes.
     """
 
     def __init__(self) -> None:
         self._key: tuple | None = None
         self._colors: list[tuple[int, int, int]] = []
+        self._duration_ms = 0.0
+        self._zoom: ZoomWindow | None = None
 
     @property
     def colors(self) -> list[tuple[int, int, int]]:
@@ -103,18 +89,50 @@ class HeatmapStrip:
     @property
     def height(self) -> int:
         """Strip height in px — 0 when there is nothing to draw."""
-        return _HEATMAP_HEIGHT if self._colors else 0
+        if not self._colors:
+            return 0
+        return _RECORDING_HEIGHT if self._zoom is not None else _IDLE_HEIGHT
 
-    def update(self, video_key, funscript, duration_ms: float, width: int) -> None:
-        key = (video_key, width)
+    @property
+    def window(self) -> tuple[float, float]:
+        """Visible time range (start_ms, end_ms) the strip currently maps."""
+        if self._zoom is not None:
+            return self._zoom.bounds
+        return 0.0, self._duration_ms
+
+    @property
+    def record_in_ms(self) -> float | None:
+        """In point of the recording being zoomed — None outside recording."""
+        return self._zoom.in_ms if self._zoom is not None else None
+
+    def update(
+        self,
+        video_key,
+        funscript,
+        duration_ms: float,
+        width: int,
+        *,
+        loop_state: str = "normal",
+        record_in_ms: float | None = None,
+        position_ms: float = 0.0,
+    ) -> None:
+        if loop_state == "recording" and funscript is not None:
+            if self._zoom is None:
+                self._zoom = ZoomWindow(in_ms=record_in_ms)
+            self._zoom.update(position_ms)
+        else:
+            self._zoom = None
+        self._duration_ms = duration_ms
+        key = (video_key, width, self.window)
         if key == self._key:
             return
         self._key = key
         if funscript is None:
             self._colors = []
         else:
+            start, end = self.window
             self._colors = build_heatmap(
-                funscript, max(1, width), start_ms=0.0, end_ms=duration_ms,
+                funscript, max(1, width), start_ms=start, end_ms=end,
             )
 
 
@@ -171,47 +189,18 @@ def draw_indicator(renderer, kind: str, win_w: int) -> None:
     )
 
 
-def draw_strip(renderer, strip: RecordingStrip, position_ms: float, bottom: int) -> None:
-    """Draw the filmstrip with its bottom edge at y=*bottom* (stacked above
-    the heatmap when one is showing)."""
-    import pygame
-    from pygame._sdl2.video import Texture
-
-    bar_w = strip.bar_width_px(position_ms)
-    if bar_w <= 0:
-        return
-    tile_h = strip.tile_height
-    top = bottom - tile_h
-
-    # Growing red underlay — visible in the gap past the last thumbnail.
-    underlay = pygame.Surface((bar_w, tile_h), pygame.SRCALPHA)
-    underlay.fill((180, 40, 40, 130))
-    pygame.draw.rect(underlay, _RED, pygame.Rect(0, 0, bar_w, 2))
-    Texture.from_surface(renderer, underlay).draw(
-        dstrect=pygame.Rect(0, top, bar_w, tile_h)
-    )
-
-    x = 0
-    for thumb in strip.thumbnails:
-        h, w = thumb.shape[:2]
-        surface = pygame.image.frombuffer(thumb.tobytes(), (w, h), "RGB")
-        Texture.from_surface(renderer, surface).draw(dstrect=pygame.Rect(x, top, w, h))
-        x += w
-
-
 _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
-_MARK_OVERHANG = 2  # cursor/loop marks poke above the strip so they read
+_BOUND_MARK_W = 3  # loop in/out and record in-point marks read as bars
 
 
-def _draw_mark(renderer, x: int, strip_h: int, win_h: int, color) -> None:
+def _draw_mark(renderer, x: int, width: int, strip_h: int, win_h: int, color) -> None:
     import pygame
     from pygame._sdl2.video import Texture
 
-    mark_h = strip_h + _MARK_OVERHANG
-    mark = pygame.Surface((1, mark_h), pygame.SRCALPHA)
+    mark = pygame.Surface((width, strip_h), pygame.SRCALPHA)
     mark.fill(color)
     Texture.from_surface(renderer, mark).draw(
-        dstrect=pygame.Rect(x, win_h - mark_h, 1, mark_h)
+        dstrect=pygame.Rect(x - width // 2, win_h - strip_h, width, strip_h)
     )
 
 
@@ -219,7 +208,6 @@ def draw_heatmap(
     renderer,
     heatmap: HeatmapStrip,
     position_ms: float,
-    duration_ms: float,
     loop_bounds: tuple[int, int] | None,
     win_w: int,
     win_h: int,
@@ -239,9 +227,13 @@ def draw_heatmap(
         dstrect=pygame.Rect(0, win_h - strip_h, win_w, strip_h)
     )
 
+    start_ms, end_ms = heatmap.window
+    if heatmap.record_in_ms is not None:
+        x = time_to_x(heatmap.record_in_ms, start_ms, end_ms, win_w)
+        _draw_mark(renderer, x, _BOUND_MARK_W, strip_h, win_h, _RED)
     if loop_bounds is not None:
         for bound_ms in loop_bounds:
-            _draw_mark(
-                renderer, time_to_x(bound_ms, 0, duration_ms, win_w), strip_h, win_h, _AMBER,
-            )
-    _draw_mark(renderer, time_to_x(position_ms, 0, duration_ms, win_w), strip_h, win_h, _WHITE)
+            x = time_to_x(bound_ms, start_ms, end_ms, win_w)
+            _draw_mark(renderer, x, _BOUND_MARK_W, strip_h, win_h, _AMBER)
+    x = time_to_x(position_ms, start_ms, end_ms, win_w)
+    _draw_mark(renderer, x, 1, strip_h, win_h, _WHITE)

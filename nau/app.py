@@ -12,14 +12,7 @@ from genau.runtime_support import consume_command_file, read_paused_state
 from genau.tcode import UdpTCodeSink
 
 from .cli import DEFAULT_CONFIG, audio_muted, build_parser, load_config, resolve_playlist
-from .overlay import (
-    HeatmapStrip,
-    RecordingStrip,
-    draw_heatmap,
-    draw_indicator,
-    draw_strip,
-    indicator_for,
-)
+from .overlay import HeatmapStrip, draw_heatmap, draw_indicator, indicator_for
 from .playback import PlaybackClock, VideoStream, build_audio_player
 from .playlist import read_playlist
 from .runtime import SEEK_STEP_MS, apply_command
@@ -108,9 +101,6 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
         ),
         start_paused=start_paused,
     )
-    strip = RecordingStrip(
-        tile_height=max(32, client_h // 12), max_width=args.width,
-    )
     heatmap = HeatmapStrip()
     status_writer = StatusWriter(args.status_file) if args.status_file else None
     stop_event = threading.Event()
@@ -153,7 +143,6 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
                 )
 
         display_frame = session.advance()
-        strip.update(session.loop_state, session.position_ms, display_frame)
         if status_writer is not None:
             status_writer.write(session)
 
@@ -183,14 +172,13 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
 
         heatmap.update(
             session.current_video, session.current_funscript, session.duration_ms, win_w,
+            loop_state=session.loop_state,
+            record_in_ms=session.record_in_ms,
+            position_ms=session.position_ms,
         )
         draw_heatmap(
-            renderer, heatmap, session.position_ms, session.duration_ms,
-            session.loop_bounds, win_w, win_h,
+            renderer, heatmap, session.position_ms, session.loop_bounds, win_w, win_h,
         )
-        # Filmstrip stacks directly above the heatmap (flush with the bottom
-        # edge for unscripted videos, where the heatmap has no height).
-        draw_strip(renderer, strip, session.position_ms, win_h - heatmap.height)
         draw_indicator(
             renderer,
             indicator_for(session.loop_state, paused=session.is_paused),
