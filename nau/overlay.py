@@ -299,8 +299,6 @@ def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
 
 def indicator_bgra(kind: str):
     """The corner state icon (play/pause/record/loop) as a BGRA array."""
-    import math
-
     from PIL import Image, ImageDraw
 
     img = Image.new("RGBA", (_ICON_BOX, _ICON_BOX), (0, 0, 0, 0))

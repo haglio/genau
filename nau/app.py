@@ -166,13 +166,19 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         if args.playlist is not None:
             session.replace_playlist(read_playlist(Path(args.playlist)))
 
-    def _toggle_length_mode() -> None:
+    def _set_length_mode(mode: str) -> None:
         nonlocal length_mode
         if source is None:
             return
-        length_mode = OTHER_MODE if length_mode == DEFAULT_MODE else DEFAULT_MODE
+        mode = mode.strip().lower()
+        if mode not in (DEFAULT_MODE, OTHER_MODE) or mode == length_mode:
+            return
+        length_mode = mode
         logger.info("Length mode: %s", length_mode)
         session.load_playlist(source.playlist_for(length_mode))
+
+    def _toggle_length_mode() -> None:
+        _set_length_mode(OTHER_MODE if length_mode == DEFAULT_MODE else DEFAULT_MODE)
 
     def _timeline_h() -> int:
         # The heatmap strip when scripted (may be taller while recording),
@@ -230,6 +236,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
                     stop_event=stop_event,
                     reload_playlist=_reload_playlist,
                     toggle_length_mode=_toggle_length_mode,
+                    set_length_mode=_set_length_mode,
                 )
 
         session.advance()

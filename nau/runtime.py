@@ -19,6 +19,7 @@ def apply_command(
     stop_event=None,
     reload_playlist=None,
     toggle_length_mode=None,
+    set_length_mode=None,
 ) -> bool:
     parts = command.strip().split(None, 1)
     if not parts:
@@ -58,6 +59,10 @@ def apply_command(
         if toggle_length_mode is None:
             return False
         toggle_length_mode()
+    elif keyword == "SET_LENGTH_MODE":
+        if set_length_mode is None or not arg:
+            return False
+        set_length_mode(arg)
     elif keyword == "QUIT":
         if stop_event is None:
             return False
