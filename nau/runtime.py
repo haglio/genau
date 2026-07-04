@@ -18,6 +18,7 @@ def apply_command(
     *,
     stop_event=None,
     reload_playlist=None,
+    toggle_length_mode=None,
 ) -> bool:
     parts = command.strip().split(None, 1)
     if not parts:
@@ -41,6 +42,8 @@ def apply_command(
         _record_tap(session)
     elif keyword == "LOOP_CANCEL":
         session.loop_cancel()
+    elif keyword == "CYCLE_VERSION":
+        session.cycle_version()
     elif keyword == "PLAY_FILE" and arg:
         video_part, _, funscript_part = arg.partition("\t")
         funscript_part = funscript_part.strip()
@@ -51,6 +54,10 @@ def apply_command(
     elif keyword == "RELOAD_PLAYLIST":
         if reload_playlist is not None:
             reload_playlist()
+    elif keyword == "TOGGLE_LENGTH_MODE":
+        if toggle_length_mode is None:
+            return False
+        toggle_length_mode()
     elif keyword == "QUIT":
         if stop_event is None:
             return False

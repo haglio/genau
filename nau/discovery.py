@@ -1,26 +1,32 @@
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
 from genau.video import SUPPORTED_VIDEO_EXTS
 
+from .library import LibraryEntry
 
-def discover_videos(
-    videos_dir: Path,
-    scripts_dir: Path,
-) -> list[tuple[Path, Path | None]]:
-    """Pair every video under *videos_dir* with its funscript, if any.
 
-    Videos without a matching funscript are included with ``None`` — they
-    play normally, but loop recording and OSR2 output stay inert.
+def discover_entries(videos_dir: Path, scripts_dir: Path) -> list[LibraryEntry]:
+    """Pair every video under *videos_dir* with its funscript and file size.
+
+    Videos without a matching funscript get ``funscript=None`` — they play
+    normally, but loop recording and OSR2 output stay inert. File size is read
+    here so the library layer can pick the largest of several versions without
+    re-stat'ing. Order is stable (sorted); randomization is the library
+    layer's job.
     """
-    pairs: list[tuple[Path, Path | None]] = []
-    for video in videos_dir.rglob("*"):
+    entries: list[LibraryEntry] = []
+    for video in sorted(videos_dir.rglob("*")):
         if not video.is_file() or video.suffix.lower() not in SUPPORTED_VIDEO_EXTS:
             continue
         relative = video.relative_to(videos_dir)
         funscript = scripts_dir / relative.with_suffix(".funscript")
-        pairs.append((video, funscript if funscript.exists() else None))
-    random.shuffle(pairs)
-    return pairs
+        entries.append(
+            LibraryEntry(
+                video=video,
+                funscript=funscript if funscript.exists() else None,
+                size=video.stat().st_size,
+            )
+        )
+    return entries
