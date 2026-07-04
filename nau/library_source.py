@@ -32,9 +32,9 @@ class LibrarySource:
     clips: list[LibraryEntry]
     durations: dict[Path, float]
     rng: random.Random
-    # Standalone Nau is the funscript/loop tool, so by default it only serves
-    # videos R can actually loop; clips (shorts mode) come through regardless.
-    scripted_only: bool = True
+    # Nau is a general player standalone (funscript-focus is Fun Time's
+    # F-mode job); versions/length filtering apply, but every video is served.
+    scripted_only: bool = False
 
     def playlist_for(self, mode: str) -> list[tuple[Path, Path | None]]:
         return library_playlist(
@@ -77,13 +77,13 @@ def build_library_source(
     rng: random.Random,
     duration_cache: DurationCache | None = None,
     durations: dict[Path, float] | None = None,
-    scripted_only: bool = True,
+    scripted_only: bool = False,
 ) -> LibrarySource:
     """Discover videos + clips and obtain the durations mode-filtering needs.
 
     Pass *durations* to supply them directly (tests); otherwise a
     *duration_cache* is probed (cached) and persisted.  *scripted_only*
-    defaults True (the standalone loop-tool default); pass False to serve
+    defaults False (Nau plays everything standalone); pass False to serve
     every video regardless of funscript.
     """
     entries = discover_entries(videos_dir, scripts_dir)
