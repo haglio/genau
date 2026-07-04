@@ -11,13 +11,23 @@ from genau.pygame_view import get_window_chrome_height, load_window_icon
 from genau.runtime_support import consume_command_file, read_paused_state
 from genau.tcode import UdpTCodeSink
 
-from .cli import DEFAULT_CONFIG, audio_muted, build_parser, load_config, resolve_playlist
+from .cli import (
+    DEFAULT_CONFIG,
+    audio_muted,
+    build_parser,
+    library_source,
+    load_config,
+    resolve_playlist,
+)
+from .library_source import DEFAULT_MODE
 from .overlay import (
     HeatmapStrip,
     LoopThumbnails,
     draw_heatmap,
     draw_indicator,
+    draw_no_funscript_badge,
     indicator_for,
+    record_available,
 )
 from .playback import PlaybackClock, VideoStream, build_audio_player
 from .playlist import read_playlist
@@ -61,14 +71,15 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config(args.config)
         args = build_parser(config).parse_args(argv)
 
-    pairs = resolve_playlist(args)
+    source = library_source(args)
+    pairs = source.playlist_for(DEFAULT_MODE) if source is not None else resolve_playlist(args)
     if not pairs:
         logger.error("No videos found (need --playlist or --videos-dir/--scripts-dir)")
         return 1
     scripted = sum(1 for _, fs in pairs if fs is not None)
     logger.info("Found %d video(s), %d with funscripts", len(pairs), scripted)
 
-    return _run(args, pairs)
+    return _run(args, pairs, source)
 
 
 def _set_aumid() -> None:
@@ -80,7 +91,7 @@ def _set_aumid() -> None:
         pass
 
 
-def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
+def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
     _set_aumid()
     pygame.init()
     chrome = get_window_chrome_height()
@@ -106,7 +117,9 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
             UdpTCodeSink(args.tcode_host, args.tcode_port),
         ),
         start_paused=start_paused,
+        version_index=source.version_index if source is not None else None,
     )
+    length_mode = DEFAULT_MODE
     heatmap = HeatmapStrip()
     loop_thumbs = LoopThumbnails()
     status_writer = StatusWriter(args.status_file) if args.status_file else None
@@ -115,6 +128,14 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
     def _reload_playlist() -> None:
         if args.playlist is not None:
             session.replace_playlist(read_playlist(Path(args.playlist)))
+
+    def _toggle_length_mode() -> None:
+        nonlocal length_mode
+        if source is None:
+            return
+        length_mode = "shorts" if length_mode == DEFAULT_MODE else DEFAULT_MODE
+        logger.info("Length mode: %s", length_mode)
+        session.replace_playlist(source.playlist_for(length_mode))
 
     while not stop_event.is_set():
         for ev in pygame.event.get():
@@ -135,6 +156,10 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
                     session.seek_by(-SEEK_STEP_MS)
                 elif ev.key == pygame.K_EQUALS:
                     session.seek_by(SEEK_STEP_MS)
+                elif ev.key == pygame.K_v:
+                    session.cycle_version()
+                elif ev.key == pygame.K_l:
+                    _toggle_length_mode()
             elif ev.type == pygame.KEYUP:
                 if ev.key == pygame.K_SPACE:
                     session.record_up()
@@ -147,6 +172,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
                     cmd, session,
                     stop_event=stop_event,
                     reload_playlist=_reload_playlist,
+                    toggle_length_mode=_toggle_length_mode,
                 )
 
         display_frame = session.advance()
@@ -195,6 +221,8 @@ def _run(args, pairs: list[tuple[Path, Path | None]]) -> int:
             indicator_for(session.loop_state, paused=session.is_paused),
             win_w,
         )
+        if not record_available(has_funscript=session.has_funscript):
+            draw_no_funscript_badge(renderer, font, win_w)
 
         renderer.present()
         clock.tick(session.fps)
