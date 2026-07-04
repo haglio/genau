@@ -5,14 +5,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-GENAU_DIR = Path(__file__).resolve().parent.parent / "genau"
-WHITELIST = Path(__file__).resolve().parent.parent / "vulture_whitelist.py"
+_ROOT = Path(__file__).resolve().parent.parent
+GENAU_DIR = _ROOT / "genau"
+NAU_DIR = _ROOT / "nau"
+WHITELIST = _ROOT / "vulture_whitelist.py"
 
 
 def test_no_dead_code():
     cmd = [
         sys.executable, "-m", "vulture",
         str(GENAU_DIR),
+        str(NAU_DIR),
         str(WHITELIST),
         "--min-confidence", "60",
     ]
