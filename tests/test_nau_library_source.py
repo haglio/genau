@@ -22,7 +22,7 @@ class TestBuildLibrarySource:
         durations = {long_vid: 300.0, short_vid: 10.0}
 
         source = build_library_source(
-            vids, scripts, None, rng=random.Random(0), durations=durations,
+            vids, scripts, None, rng=random.Random(0), durations=durations, scripted_only=False,
         )
 
         full = source.playlist_for("full")
@@ -42,7 +42,7 @@ class TestBuildLibrarySource:
         durations = {long_vid: 300.0}
 
         source = build_library_source(
-            vids, scripts, clips, rng=random.Random(0), durations=durations,
+            vids, scripts, clips, rng=random.Random(0), durations=durations, scripted_only=False,
         )
 
         shorts_videos = {v for v, _ in source.playlist_for("shorts")}
@@ -102,3 +102,25 @@ class TestDiscoverClips:
         assert result[0].video == clips / "a.mp4"
         assert result[0].funscript is None
         assert result[0].size == len("body")
+
+
+def test_standalone_source_defaults_to_scripted_only():
+    """Standalone LibrarySource must, by default, only surface scripted
+    videos so the R gesture always has something to loop."""
+    import random
+    from pathlib import Path
+    from nau.library import LibraryEntry
+    from nau.library_source import LibrarySource
+
+    scripted = LibraryEntry(video=Path("Gigi-topaz.mp4"), funscript=Path("Gigi.funscript"), size=900)
+    unscripted = LibraryEntry(video=Path("Hana-1080p.mp4"), funscript=None, size=900)
+    src = LibrarySource(
+        entries=[scripted, unscripted], clips=[],
+        durations={scripted.video: 300.0, unscripted.video: 300.0},
+        rng=random.Random(0),
+    )
+
+    pairs = src.playlist_for("full")
+
+    assert [v for v, _ in pairs] == [scripted.video]
+    assert src.scripted_only is True
