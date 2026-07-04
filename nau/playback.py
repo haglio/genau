@@ -160,7 +160,6 @@ def _extract_loop_segment(source_wav: Path, in_ms: int, out_ms: int) -> Path | N
 class AudioPlayer:
     def __init__(self) -> None:
         self._wav_path: Path | None = None
-        self._loop_wav_path: Path | None = None
         self._initialized = False
         try:
             import pygame
@@ -208,13 +207,11 @@ class AudioPlayer:
         segment = _extract_loop_segment(self._wav_path, in_ms, out_ms)
         if segment is None:
             return
-        self._loop_wav_path = segment
         import pygame
         pygame.mixer.music.load(str(segment))
         pygame.mixer.music.play(loops=-1)
 
     def stop_loop(self, resume_ms: float) -> None:
-        self._loop_wav_path = None
         self.seek(resume_ms)
 
     def stop(self) -> None:
@@ -223,7 +220,6 @@ class AudioPlayer:
         import pygame
         pygame.mixer.music.stop()
         self._wav_path = None
-        self._loop_wav_path = None
 
     def close(self) -> None:
         self.stop()
