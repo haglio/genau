@@ -169,10 +169,46 @@ _BOUND_MARK_W = 3     # loop in/out and record in-point marks read as bars
 _BADGE_MUTED = (150, 150, 150)
 
 
+TIMELINE_HEIGHT = _IDLE_HEIGHT  # bottom strip height when not recording
+
+
 def _rgba_to_bgra(rgba):
     """(H, W, 4) RGBA uint8 -> BGRA (mpv's overlay format), contiguous."""
     bgra = rgba[:, :, [2, 1, 0, 3]]
     return np.ascontiguousarray(bgra, dtype=np.uint8)
+
+
+def progress_bar_bgra(position_ms, duration_ms, width, height=TIMELINE_HEIGHT):
+    """A plain clickable progress bar for videos with no funscript heatmap.
+
+    Dark translucent track with a filled elapsed portion and a white
+    playcursor, so every video (scripted or not) has a timeline to click.
+    """
+    bar = np.zeros((height, width, 4), dtype=np.uint8)
+    bar[:, :, 3] = 150  # dark track
+    frac = 0.0 if duration_ms <= 0 else min(1.0, max(0.0, position_ms / duration_ms))
+    fill = int(frac * width)
+    if fill > 0:
+        bar[:, :fill, 0] = 90
+        bar[:, :fill, 1] = 90
+        bar[:, :fill, 2] = 90
+        bar[:, :fill, 3] = 190
+    cx = min(width - 1, fill)
+    bar[:, max(0, cx):cx + 1, :] = 255  # white cursor
+    return bar
+
+
+def name_bgra(text: str):
+    """The current video's name as a translucent chip for the top-left."""
+    from PIL import Image, ImageDraw
+
+    pad = 5
+    tmp = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+    box = tmp.textbbox((0, 0), text)
+    tw, th = box[2] - box[0], box[3] - box[1]
+    img = Image.new("RGBA", (tw + pad * 2, th + pad * 3), (0, 0, 0, 160))
+    ImageDraw.Draw(img).text((pad, pad), text, fill=(240, 240, 240))
+    return _rgba_to_bgra(np.asarray(img))
 
 
 def heatmap_bgra(heatmap, position_ms, loop_bounds, width):

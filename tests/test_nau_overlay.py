@@ -194,3 +194,25 @@ class TestRecordAvailable:
     def test_unscripted_video_cannot_record(self):
         # Drives the "no fs" badge that explains why R does nothing.
         assert record_available(has_funscript=False) is False
+
+
+class TestProgressBar:
+    def test_shape_and_cursor_at_position(self):
+        from nau.overlay import progress_bar_bgra
+        bar = progress_bar_bgra(position_ms=5000, duration_ms=10000, width=100, height=20)
+        assert bar.shape == (20, 100, 4)
+        # white cursor column near the middle (50%)
+        assert bar[10, 50, 0] == 255 and bar[10, 50, 3] == 255
+
+    def test_zero_duration_is_safe(self):
+        from nau.overlay import progress_bar_bgra
+        bar = progress_bar_bgra(position_ms=0, duration_ms=0, width=80, height=20)
+        assert bar.shape == (20, 80, 4)
+
+
+class TestNameChip:
+    def test_produces_bgra_with_height(self):
+        from nau.overlay import name_bgra
+        chip = name_bgra("Some Video Name")
+        assert chip.ndim == 3 and chip.shape[2] == 4
+        assert chip.shape[0] > 0 and chip.shape[1] > 0

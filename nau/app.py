@@ -22,6 +22,7 @@ from .cli import (
 from .library_source import DEFAULT_MODE, OTHER_MODE
 from .mpv_player import MpvPlayer
 from .overlay import (
+    TIMELINE_HEIGHT,
     HeatmapStrip,
     badge_bgra,
     badge_xy,
@@ -29,6 +30,8 @@ from .overlay import (
     indicator_bgra,
     indicator_for,
     indicator_xy,
+    name_bgra,
+    progress_bar_bgra,
     record_available,
 )
 from .playlist import read_playlist
@@ -45,6 +48,21 @@ _APP_USER_MODEL_ID = "Nau.App"
 _OV_HEATMAP = 0
 _OV_INDICATOR = 1
 _OV_BADGE = 2
+_OV_NAME = 3
+
+_ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
+
+
+def _load_icon_surface():
+    """Nau's window icon (pink N) as a pygame surface, or None."""
+    if not _ICON_PATH.exists():
+        return None
+    try:
+        from PIL import Image
+        img = Image.open(_ICON_PATH).convert("RGBA")
+        return pygame.image.fromstring(img.tobytes(), img.size, "RGBA")
+    except Exception:
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -83,6 +101,9 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
     client_h = max(1, args.height - chrome)
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y + chrome}"
+    _icon = _load_icon_surface()
+    if _icon is not None:
+        pygame.display.set_icon(_icon)  # must precede set_mode to take effect
     screen = pygame.display.set_mode((args.width, client_h))
     pygame.display.set_caption("Nau")
     clock = pygame.time.Clock()
@@ -118,12 +139,18 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         logger.info("Length mode: %s", length_mode)
         session.replace_playlist(source.playlist_for(length_mode))
 
+    def _timeline_h() -> int:
+        # The heatmap strip when scripted (may be taller while recording),
+        # else the plain progress bar — always present so every video has a
+        # clickable timeline.
+        return heatmap.height or TIMELINE_HEIGHT
+
     def _click_to_seek(mx: int, my: int, win_w: int, win_h: int) -> None:
-        # Click on the heatmap strip (the timeline) seeks there; a click on the
-        # video toggles pause, like any player.
-        strip_h = heatmap.height
-        if strip_h > 0 and my >= win_h - strip_h:
+        # Click on the timeline seeks there; a click on the video toggles pause.
+        if my >= win_h - _timeline_h():
             start_ms, end_ms = heatmap.window
+            if end_ms <= start_ms:
+                end_ms = start_ms + session.duration_ms
             frac = min(1.0, max(0.0, mx / max(1, win_w)))
             session.seek_to(start_ms + frac * (end_ms - start_ms))
         else:
@@ -141,7 +168,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
                     stop_event.set()
                 elif ev.key == pygame.K_ESCAPE:
                     session.toggle_pause()
-                elif ev.key == pygame.K_SPACE:
+                elif ev.key == pygame.K_r:
                     session.record_down()
                 elif ev.key == pygame.K_LEFTBRACKET:
                     session.step(-1)
@@ -156,7 +183,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
                 elif ev.key == pygame.K_l:
                     _toggle_length_mode()
             elif ev.type == pygame.KEYUP:
-                if ev.key == pygame.K_SPACE:
+                if ev.key == pygame.K_r:
                     session.record_up()
 
         if paused_file is not None:
@@ -182,10 +209,13 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
             position_ms=session.position_ms,
         )
         hb = heatmap_bgra(heatmap, session.position_ms, session.loop_bounds, win_w)
-        if hb is not None:
-            player.overlay(_OV_HEATMAP, 0, win_h - heatmap.height, hb)
-        else:
-            player.remove_overlay(_OV_HEATMAP)
+        if hb is None:
+            # Unscripted video: a plain clickable progress bar instead.
+            hb = progress_bar_bgra(session.position_ms, session.duration_ms, win_w)
+        player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
+
+        name = name_bgra(session.current_video.stem)
+        player.overlay(_OV_NAME, 8, 8, name)
 
         ind = indicator_bgra(indicator_for(session.loop_state, paused=session.is_paused))
         ix, iy = indicator_xy(win_w)
