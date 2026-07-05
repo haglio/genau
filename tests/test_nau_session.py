@@ -111,14 +111,20 @@ class TestLoadAndPlay:
 
 
 class TestRecording:
-    def test_record_down_without_funscript_is_noop(self, tmp_path):
+    def test_record_gesture_without_funscript_sets_raw_ab_loop(self, tmp_path):
+        # Unscripted videos can still be looped (clips): the raw marked range is
+        # used, with no funscript snapping.
         session, player, tcode = _make_session(tmp_path, scripted=False)
+        player.position_ms = 2500
 
         session.record_down()
+        assert session.loop_state == "recording"
+
+        player.position_ms = 3500
         session.record_up()
 
-        assert session.loop_state == "normal"
-        assert player.ab_loop is None
+        assert session.loop_state == "looping"
+        assert player.ab_loop == (2500, 3500)
 
     def test_record_gesture_sets_native_ab_loop_snapped_to_bases(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
@@ -180,11 +186,6 @@ class TestRecordInMs:
         player.position_ms = 3500
         session.record_up()
         assert session.record_in_ms is None  # looping now, not marking
-
-    def test_none_without_funscript(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path, scripted=False)
-        session.record_down()
-        assert session.record_in_ms is None
 
 
 class TestLoopBounds:

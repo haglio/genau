@@ -247,9 +247,9 @@ class PlayerSession:
         vid_path, fs_path = self._playlist[self._index]
         logger.info("Loading: %s", vid_path.name)
         self._funscript = load_funscript(fs_path) if fs_path is not None else None
-        self._loop_ctrl = (
-            LoopController(self._funscript) if self._funscript is not None else None
-        )
+        # A loop controller exists for every video so clips can be recorded even
+        # without a funscript; snapping and T-Code output stay funscript-gated.
+        self._loop_ctrl = LoopController(self._funscript)
         self._player.clear_ab_loop()
         self._player.load(vid_path)
         self._player.set_paused(self._paused)

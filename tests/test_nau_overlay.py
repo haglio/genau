@@ -8,7 +8,6 @@ from nau.overlay import (
     HeatmapStrip,
     ZoomWindow,
     indicator_for,
-    record_available,
     time_to_x,
 )
 
@@ -187,15 +186,6 @@ class TestIndicatorFor:
         assert indicator_for("looping", paused=True) == "pause"
 
 
-class TestRecordAvailable:
-    def test_scripted_video_can_record(self):
-        assert record_available(has_funscript=True) is True
-
-    def test_unscripted_video_cannot_record(self):
-        # Drives the "no fs" badge that explains why R does nothing.
-        assert record_available(has_funscript=False) is False
-
-
 class TestProgressBar:
     def test_shape_and_cursor_at_position(self):
         from nau.overlay import progress_bar_bgra
@@ -208,6 +198,12 @@ class TestProgressBar:
         from nau.overlay import progress_bar_bgra
         bar = progress_bar_bgra(position_ms=0, duration_ms=0, width=80, height=20)
         assert bar.shape == (20, 80, 4)
+
+    def test_elapsed_region_is_not_grey_filled(self):
+        from nau.overlay import progress_bar_bgra
+        bar = progress_bar_bgra(position_ms=5000, duration_ms=10000, width=100, height=20)
+        # Left of the cursor stays the plain dark track — no grey elapsed fill.
+        assert tuple(int(c) for c in bar[10, 25]) == (0, 0, 0, 150)
 
 
 class TestNameChip:

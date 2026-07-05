@@ -26,15 +26,6 @@ def indicator_for(loop_state: str, *, paused: bool) -> str:
     return "play"
 
 
-def record_available(*, has_funscript: bool) -> bool:
-    """Whether loop recording (the R gesture) can do anything here.
-
-    Unscripted videos have no funscript to loop against, so R is inert; the
-    UI shows a muted "no fs" badge to explain the silence.
-    """
-    return has_funscript
-
-
 _ZOOM_SPAN_START_MS = 20_000.0
 _ZOOM_LEAD_FRAC = 0.10
 _ZOOM_GROW_FRAC = 0.85
@@ -218,7 +209,6 @@ _RED = (220, 40, 40, 245)
 _AMBER = (235, 180, 60, 245)
 _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
 _BOUND_MARK_W = 3     # loop in/out and record in-point marks read as bars
-_BADGE_MUTED = (150, 150, 150)
 
 
 TIMELINE_HEIGHT = _IDLE_HEIGHT  # bottom strip height when not recording
@@ -233,19 +223,13 @@ def _rgba_to_bgra(rgba):
 def progress_bar_bgra(position_ms, duration_ms, width, height=TIMELINE_HEIGHT):
     """A plain clickable progress bar for videos with no funscript heatmap.
 
-    Dark translucent track with a filled elapsed portion and a white
-    playcursor, so every video (scripted or not) has a timeline to click.
+    Just a dark translucent track with a white playcursor — no filled elapsed
+    portion — so every video (scripted or not) has a timeline to click.
     """
     bar = np.zeros((height, width, 4), dtype=np.uint8)
     bar[:, :, 3] = 150  # dark track
     frac = 0.0 if duration_ms <= 0 else min(1.0, max(0.0, position_ms / duration_ms))
-    fill = int(frac * width)
-    if fill > 0:
-        bar[:, :fill, 0] = 90
-        bar[:, :fill, 1] = 90
-        bar[:, :fill, 2] = 90
-        bar[:, :fill, 3] = 190
-    cx = min(width - 1, fill)
+    cx = min(width - 1, int(frac * width))
     bar[:, max(0, cx):cx + 1, :] = 255  # white cursor
     return bar
 
@@ -319,25 +303,6 @@ def indicator_bgra(kind: str):
     return _rgba_to_bgra(np.asarray(img))
 
 
-def badge_bgra():
-    """A muted "no fs" chip explaining why R is inert on unscripted videos."""
-    from PIL import Image, ImageDraw
-
-    text = "no fs"
-    pad = 4
-    tmp = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    box = tmp.textbbox((0, 0), text)
-    tw, th = box[2] - box[0], box[3] - box[1]
-    img = Image.new("RGBA", (tw + pad * 2, th + pad * 3), (0, 0, 0, 120))
-    ImageDraw.Draw(img).text((pad, pad), text, fill=_BADGE_MUTED)
-    return _rgba_to_bgra(np.asarray(img))
-
-
 def indicator_xy(win_w: int) -> tuple[int, int]:
     """Top-right anchor for the corner indicator."""
     return win_w - _ICON_BOX - _ICON_MARGIN, _ICON_MARGIN
-
-
-def badge_xy(win_w: int, badge_w: int) -> tuple[int, int]:
-    """Anchor for the no-fs chip, just left of the indicator."""
-    return win_w - _ICON_BOX - _ICON_MARGIN - badge_w - 6, _ICON_MARGIN + 4
