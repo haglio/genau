@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from nau.cli import audio_muted, build_parser, resolve_playlist
+from nau.cli import audio_muted, build_parser, library_source, resolve_playlist
 
 
 class TestResolvePlaylist:
@@ -79,6 +79,48 @@ class TestResolvePlaylist:
         args = build_parser({}).parse_args([])
 
         assert resolve_playlist(args) == []
+
+
+class TestLibrarySource:
+    def test_none_without_dirs(self):
+        args = build_parser({}).parse_args([])
+        assert library_source(args) is None
+
+    def test_built_from_dirs(self, tmp_path):
+        vids = tmp_path / "videos"
+        scripts = tmp_path / "scripts"
+        vids.mkdir()
+        scripts.mkdir()
+        vid = vids / "a-1080p.mp4"
+        vid.write_text("x")
+        args = build_parser({}).parse_args([
+            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+        ])
+        assert library_source(args, durations={vid: 300.0}) is not None
+
+    def test_built_even_when_playlist_given(self, tmp_path):
+        """Fun Time passes --playlist for its own selection, but Nau still needs
+        the source so cycle-version and length-mode work in Fun Time too."""
+        vids = tmp_path / "videos"
+        scripts = tmp_path / "scripts"
+        vids.mkdir()
+        scripts.mkdir()
+        vid = vids / "a-1080p.mp4"
+        vid.write_text("x")
+        playlist = tmp_path / "nau_playlist.tsv"
+        playlist.write_text(f"{vid}\n", encoding="utf-8")
+        args = build_parser({}).parse_args([
+            "--playlist", str(playlist),
+            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+        ])
+        assert library_source(args, durations={vid: 300.0}) is not None
+
+    def test_clips_dir_falls_back_to_top_level_config(self, tmp_path):
+        """Fun Time's config has no nau.clips_dir; shorts should still pick up
+        the saved clips from the top-level clips_dir the clipper writes to."""
+        clips = tmp_path / "clips"
+        args = build_parser({"clips_dir": str(clips)}).parse_args([])
+        assert args.clips_dir == clips
 
 
 class TestAudioMuted:

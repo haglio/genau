@@ -49,6 +49,17 @@ class TestLoopController:
 
 
 
+    def test_unscripted_loop_uses_raw_bounds(self):
+        # No funscript (a plain clip): the marked range is used as-is, no snapping.
+        lc = LoopController(None)
+
+        lc.on_record_down(2500)
+        lc.on_record_up(3500)
+
+        assert lc.state == LoopState.LOOPING
+        assert lc.in_ms == 2500
+        assert lc.out_ms == 3500
+
     def test_record_up_in_normal_is_noop(self):
         lc = LoopController(_make_fs())
 
