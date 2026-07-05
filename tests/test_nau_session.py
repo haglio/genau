@@ -448,6 +448,31 @@ class TestCycleVersion:
         session.cycle_version()
         assert session.current_video == big
 
+    def test_replaces_in_place_so_navigation_skips_the_alternate(self, tmp_path):
+        # Cycling a version must not add a playlist entry: [ still steps back to
+        # the previous distinct video, not the version we cycled away from.
+        x = tmp_path / "x.mp4"
+        a1 = tmp_path / "Jane-1080p.mp4"
+        a2 = tmp_path / "Jane-540.mp4"
+        b = tmp_path / "b.mp4"
+        for p in (x, a1, a2, b):
+            p.write_text("x")
+        members = [(a1, None), (a2, None)]
+        player = FakePlayer()
+        session = PlayerSession(
+            [(x, None), (a1, None), (b, None)], player=player, tcode=FakeTCode(),
+            version_index={a1: members, a2: members},
+        )
+        session.step(1)
+        assert session.current_video == a1
+
+        session.cycle_version()
+        assert session.current_video == a2
+        assert session.playlist == [(x, None), (a2, None), (b, None)]
+
+        session.step(-1)
+        assert session.current_video == x
+
 
 class TestLoadPlaylist:
     def test_load_playlist_jumps_to_first_of_new_list(self, tmp_path):
