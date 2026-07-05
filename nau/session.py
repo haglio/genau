@@ -36,6 +36,7 @@ class PlayerSession:
         self._tcode = tcode
         self._version_index = version_index or {}
         self._paused = start_paused
+        self._tcode_enabled = True
         self._index = 0
         self._funscript = None
         self._loop_ctrl: LoopController | None = None
@@ -135,6 +136,16 @@ class PlayerSession:
     def toggle_pause(self) -> None:
         self.set_paused(not self._paused)
 
+    def set_tcode_enabled(self, enabled: bool) -> None:
+        """Gate funscript T-Code output (the SET_TCODE_ENABLED command).
+
+        In Hybrid mode Genau drives the OSR2, so Nau must stop emitting its own
+        funscript-derived T-Code or the two fight over the broker's UDP inlet.
+        Muting just skips the per-tick update; re-enabling resumes from the live
+        position, since the driver re-sends a waypoint on its next tick.
+        """
+        self._tcode_enabled = enabled
+
     @property
     def playlist(self) -> list[tuple[Path, Path | None]]:
         return list(self._playlist)
@@ -232,7 +243,7 @@ class PlayerSession:
             self._tcode.reset()
         self._last_pos_ms = pos_ms
 
-        if self._funscript is not None:
+        if self._tcode_enabled and self._funscript is not None:
             self._tcode.update(int(pos_ms), self._funscript)
 
         if self._player.eof and (

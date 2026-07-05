@@ -63,6 +63,10 @@ def apply_command(
         if set_length_mode is None or not arg:
             return False
         set_length_mode(arg)
+    elif keyword == "SET_TCODE_ENABLED":
+        if not arg:
+            return False
+        session.set_tcode_enabled(arg != "0")
     elif keyword == "QUIT":
         if stop_event is None:
             return False

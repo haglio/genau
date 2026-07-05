@@ -32,6 +32,9 @@ class SpySession:
     def play_file(self, video: Path, funscript: Path | None) -> None:
         self.calls.append(("play_file", video, funscript))
 
+    def set_tcode_enabled(self, enabled: bool) -> None:
+        self.calls.append(("set_tcode_enabled", enabled))
+
 
 class TestApplyCommand:
     def test_next_and_prev_step(self):
@@ -108,6 +111,26 @@ class TestApplyCommand:
         assert apply_command("CYCLE_VERSION", session)
 
         assert session.calls == [("cycle_version",)]
+
+    def test_set_tcode_enabled_zero_disables(self):
+        session = SpySession()
+
+        assert apply_command("SET_TCODE_ENABLED 0", session)
+
+        assert session.calls == [("set_tcode_enabled", False)]
+
+    def test_set_tcode_enabled_one_enables(self):
+        session = SpySession()
+
+        assert apply_command("SET_TCODE_ENABLED 1", session)
+
+        assert session.calls == [("set_tcode_enabled", True)]
+
+    def test_set_tcode_enabled_without_argument_returns_false(self):
+        session = SpySession()
+
+        assert apply_command("SET_TCODE_ENABLED", session) is False
+        assert session.calls == []
 
     def test_reload_playlist_invokes_callback(self):
         session = SpySession()
