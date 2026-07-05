@@ -29,7 +29,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     p.add_argument("--videos-dir", type=Path, default=nau.get("videos_dir"))
     p.add_argument("--scripts-dir", type=Path, default=nau.get("scripts_dir"))
-    p.add_argument("--clips-dir", type=Path, default=nau.get("clips_dir"),
+    p.add_argument("--clips-dir", type=Path, default=nau.get("clips_dir") or config.get("clips_dir"),
                    help="Saved short clips, always included in shorts mode")
     p.add_argument("--state-dir", type=Path, default=config.get("state_dir"),
                    help="Where the duration cache is stored")
@@ -75,13 +75,14 @@ def library_source(
     rng: random.Random | None = None,
     durations: dict[Path, float] | None = None,
 ) -> LibrarySource | None:
-    """Build the standalone :class:`LibrarySource`, or None for Fun Time / no dirs.
+    """Build the :class:`LibrarySource`, or None when the library dirs are absent.
 
-    Fun Time supplies an explicit ``--playlist`` and owns its own selection, so
-    length-mode toggling (which this source powers) is standalone-only.
-    *durations* is a test seam; production probes via the cache.
+    Built whenever ``--videos-dir``/``--scripts-dir`` are known — including under
+    Fun Time, which passes its own ``--playlist`` for the *initial* selection but
+    still needs this source for version cycling and the shorts/full-length
+    toggle.  *durations* is a test seam; production probes via the cache.
     """
-    if args.playlist is not None or args.videos_dir is None or args.scripts_dir is None:
+    if args.videos_dir is None or args.scripts_dir is None:
         return None
     return build_library_source(
         Path(args.videos_dir),

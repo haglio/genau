@@ -25,8 +25,6 @@ from .overlay import (
     TIMELINE_HEIGHT,
     HeatmapStrip,
     LoopThumbCapture,
-    badge_bgra,
-    badge_xy,
     heatmap_bgra,
     indicator_bgra,
     indicator_for,
@@ -34,7 +32,6 @@ from .overlay import (
     label_xs,
     name_bgra,
     progress_bar_bgra,
-    record_available,
     time_to_x,
 )
 from .playlist import read_playlist
@@ -50,7 +47,6 @@ _APP_USER_MODEL_ID = "Nau.App"
 # Overlay ids (stable so each frame updates in place).
 _OV_HEATMAP = 0
 _OV_INDICATOR = 1
-_OV_BADGE = 2
 _OV_NAME = 3
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
@@ -80,7 +76,13 @@ def main(argv: list[str] | None = None) -> int:
         args = build_parser(config).parse_args(argv)
 
     source = library_source(args)
-    pairs = source.playlist_for(DEFAULT_MODE) if source is not None else resolve_playlist(args)
+    # Fun Time passes --playlist and owns its selection; standalone falls back to
+    # the source's full-length playlist. Either way the source (when present)
+    # powers version cycling and the shorts/full-length toggle.
+    if args.playlist is not None or source is None:
+        pairs = resolve_playlist(args)
+    else:
+        pairs = source.playlist_for(DEFAULT_MODE)
     if not pairs:
         logger.error("No videos found (need --playlist or --videos-dir/--scripts-dir)")
         return 1
@@ -262,13 +264,6 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         ind = indicator_bgra(indicator_for(session.loop_state, paused=session.is_paused))
         ix, iy = indicator_xy(win_w)
         player.overlay(_OV_INDICATOR, ix, iy, ind)
-
-        if not record_available(has_funscript=session.has_funscript):
-            badge = badge_bgra()
-            bx, by = badge_xy(win_w, badge.shape[1])
-            player.overlay(_OV_BADGE, bx, by, badge)
-        else:
-            player.remove_overlay(_OV_BADGE)
 
         _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h)
 

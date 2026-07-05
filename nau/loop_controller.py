@@ -12,7 +12,7 @@ class LoopState(Enum):
 
 
 class LoopController:
-    def __init__(self, funscript: Funscript) -> None:
+    def __init__(self, funscript: Funscript | None) -> None:
         self._funscript = funscript
         self._state = LoopState.NORMAL
         self._in_ms: int | None = None

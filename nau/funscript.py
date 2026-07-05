@@ -18,11 +18,16 @@ _MIN_LOOP_MS = 500
 
 
 def snap_loop(
-    fs: Funscript,
+    fs: Funscript | None,
     in_ms: int,
     out_ms: int,
     threshold: int = _BASE_THRESHOLD,
 ) -> tuple[int, int]:
+    if fs is None or not fs.actions:
+        # No funscript to snap to (a plain clip loop): use the raw marked range,
+        # ordered and widened to the minimum loop length.
+        lo, hi = min(in_ms, out_ms), max(in_ms, out_ms)
+        return lo, max(hi, lo + _MIN_LOOP_MS)
     bases = [t for t, p in fs.actions if p >= threshold]
     snapped_in = in_ms
     for t in reversed(bases):
