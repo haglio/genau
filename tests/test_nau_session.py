@@ -290,6 +290,32 @@ class TestAdvance:
 
         assert tcode.updates == []
 
+    def test_advance_skips_tcode_when_disabled(self, tmp_path):
+        # SET_TCODE_ENABLED 0 gates output so Genau can drive the OSR2 solo in
+        # Hybrid mode without Nau's funscript T-Code double-driving the broker.
+        session, player, tcode = _make_session(tmp_path)
+        session.set_tcode_enabled(False)
+        player.position_ms = 1500
+
+        session.advance()
+
+        assert tcode.updates == []
+
+    def test_advance_resumes_tcode_when_re_enabled(self, tmp_path):
+        # Leaving Hybrid (SET_TCODE_ENABLED 1) must let Nau drive its funscript
+        # again, so the mute is a round-trip, not a one-way switch.
+        session, player, tcode = _make_session(tmp_path)
+        session.set_tcode_enabled(False)
+        player.position_ms = 1500
+        session.advance()
+        assert tcode.updates == []
+
+        session.set_tcode_enabled(True)
+        player.position_ms = 1600
+        session.advance()
+
+        assert tcode.updates and tcode.updates[-1][0] == 1600
+
     def test_advance_while_paused_skips_tcode(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
         session.set_paused(True)
