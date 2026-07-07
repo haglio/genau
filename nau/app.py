@@ -25,6 +25,7 @@ from .overlay import (
     TIMELINE_HEIGHT,
     HeatmapStrip,
     LoopThumbCapture,
+    bar_track_x,
     heatmap_bgra,
     indicator_bgra,
     indicator_for,
@@ -194,7 +195,10 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
             start_ms, end_ms = heatmap.window
             if end_ms <= start_ms:
                 end_ms = start_ms + session.duration_ms
-            frac = min(1.0, max(0.0, mx / max(1, win_w)))
+            # The scripted heatmap spans the full width; the plain bar is inset,
+            # so map the click onto whichever track is actually showing.
+            x0, x1 = (0, win_w) if heatmap.colors else bar_track_x(win_w)
+            frac = min(1.0, max(0.0, (mx - x0) / max(1, x1 - x0)))
             session.seek_to(start_ms + frac * (end_ms - start_ms))
         else:
             session.toggle_pause()
@@ -254,8 +258,12 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         )
         hb = heatmap_bgra(heatmap, session.position_ms, session.loop_bounds, win_w)
         if hb is None:
-            # Unscripted video: a plain clickable progress bar instead.
-            hb = progress_bar_bgra(session.position_ms, session.duration_ms, win_w)
+            # Unscripted video: a plain clickable progress bar instead, still
+            # showing the playcursor and any loop in/out marks.
+            hb = progress_bar_bgra(
+                session.position_ms, session.duration_ms, session.loop_bounds,
+                win_w, record_in_ms=session.record_in_ms,
+            )
         player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
 
         name = name_bgra(session.current_video.stem)

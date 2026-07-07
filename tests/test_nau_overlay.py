@@ -186,24 +186,113 @@ class TestIndicatorFor:
         assert indicator_for("looping", paused=True) == "pause"
 
 
+class TestBarTrackX:
+    def test_insets_the_track_from_the_window_edges(self):
+        from nau.overlay import bar_track_x
+        # The timeline's start/end sit a fixed margin in from the edges.
+        assert bar_track_x(1000) == (40, 960)
+
+    def test_clamps_so_the_track_never_inverts_on_a_narrow_window(self):
+        from nau.overlay import bar_track_x
+        x0, x1 = bar_track_x(50)
+        assert 0 <= x0 < x1 <= 50
+
+
+def _rgba(bar, y, x):
+    px = bar[y, x]
+    return int(px[2]), int(px[1]), int(px[0]), int(px[3])
+
+
 class TestProgressBar:
-    def test_shape_and_cursor_at_position(self):
+    def test_track_is_inset_with_transparent_margins(self):
+        from nau.overlay import bar_track_x, progress_bar_bgra
+        bar = progress_bar_bgra(0, 10_000, None, 1000)
+        x0, x1 = bar_track_x(1000)
+        my = bar.shape[0] // 2
+        # Nothing is drawn out at the window's side edges...
+        assert bar[my, 5, 3] == 0
+        assert bar[my, 995, 3] == 0
+        # ...but the track interior is painted.
+        assert bar[my, (x0 + x1) // 2, 3] > 0
+
+    def test_has_a_light_border_around_the_track(self):
+        from nau.overlay import _BAR_INSET_Y, bar_track_x, progress_bar_bgra
+        bar = progress_bar_bgra(0, 10_000, None, 1000)
+        x0, x1 = bar_track_x(1000)
+        xc = (x0 + x1) // 2
+        fill = _rgba(bar, bar.shape[0] // 2, xc)      # interior fill
+        top = _rgba(bar, _BAR_INSET_Y, xc)            # top edge
+        left = _rgba(bar, bar.shape[0] // 2, x0)      # left edge
+        # The border is clearly lighter than the fill and effectively opaque.
+        assert min(top[:3]) > max(fill[:3]) and top[3] >= 200
+        assert min(left[:3]) > max(fill[:3]) and left[3] >= 200
+
+    def test_prominent_white_playcursor(self):
+        from nau.overlay import bar_track_x, progress_bar_bgra
+        bar = progress_bar_bgra(5_000, 10_000, None, 1000)  # 50%
+        x0, x1 = bar_track_x(1000)
+        my = bar.shape[0] // 2
+        # An opaque white cursor around the track midpoint...
+        assert _rgba(bar, my, x0 + (x1 - x0) // 2) == (255, 255, 255, 255)
+        # ...at least 3px wide — a prominent bar, not a 1px hairline.
+        white = [x for x in range(x0, x1) if _rgba(bar, my, x) == (255, 255, 255, 255)]
+        assert len(white) >= 3
+
+    def test_draws_prominent_amber_loop_marks(self):
+        from nau.overlay import bar_track_x, progress_bar_bgra
+        bar = progress_bar_bgra(0, 10_000, (2_500, 7_500), 1000)  # in 25%, out 75%
+        x0, x1 = bar_track_x(1000)
+        my = bar.shape[0] // 2
+        amber = [x for x in range(x0, x1) if _rgba(bar, my, x)[:3] == (235, 180, 60)]
+        # Two marks (in and out), each a few px wide → prominent.
+        assert len(amber) >= 6
+        xc = (x0 + x1) // 2
+        assert any(x < xc for x in amber) and any(x > xc for x in amber)
+
+    def test_no_loop_marks_without_a_loop(self):
         from nau.overlay import progress_bar_bgra
-        bar = progress_bar_bgra(position_ms=5000, duration_ms=10000, width=100, height=20)
-        assert bar.shape == (20, 100, 4)
-        # white cursor column near the middle (50%)
-        assert bar[10, 50, 0] == 255 and bar[10, 50, 3] == 255
+        bar = progress_bar_bgra(0, 10_000, None, 1000)
+        my = bar.shape[0] // 2
+        assert not any(_rgba(bar, my, x)[:3] == (235, 180, 60) for x in range(1000))
+
+    def test_record_in_point_shows_red(self):
+        from nau.overlay import bar_track_x, progress_bar_bgra
+        bar = progress_bar_bgra(0, 10_000, None, 1000, record_in_ms=5_000)
+        x0, x1 = bar_track_x(1000)
+        my = bar.shape[0] // 2
+        red = [x for x in range(x0, x1) if _rgba(bar, my, x)[:3] == (220, 40, 40)]
+        assert len(red) >= 3
+
+    def test_track_fill_is_uniform_either_side_of_the_cursor(self):
+        from nau.overlay import bar_track_x, progress_bar_bgra
+        bar = progress_bar_bgra(5_000, 10_000, None, 1000)  # cursor mid-track
+        x0, x1 = bar_track_x(1000)
+        my = bar.shape[0] // 2
+        # No elapsed-vs-remaining distinction: the fill reads the same on both sides.
+        assert _rgba(bar, my, x0 + 30) == _rgba(bar, my, x1 - 30)
 
     def test_zero_duration_is_safe(self):
         from nau.overlay import progress_bar_bgra
-        bar = progress_bar_bgra(position_ms=0, duration_ms=0, width=80, height=20)
-        assert bar.shape == (20, 80, 4)
+        bar = progress_bar_bgra(0, 0, None, 800, height=20)
+        assert bar.shape == (20, 800, 4)
 
-    def test_elapsed_region_is_not_grey_filled(self):
-        from nau.overlay import progress_bar_bgra
-        bar = progress_bar_bgra(position_ms=5000, duration_ms=10000, width=100, height=20)
-        # Left of the cursor stays the plain dark track — no grey elapsed fill.
-        assert tuple(int(c) for c in bar[10, 25]) == (0, 0, 0, 150)
+
+class TestHeatmapBgra:
+    def test_marks_cursor_and_loop_bounds_over_the_strip(self):
+        from nau.overlay import heatmap_bgra
+        strip = HeatmapStrip()
+        strip.update("v.mp4", _funscript(), 4000.0, width=100)  # window 0..4000
+        bgra = heatmap_bgra(strip, 2000, (1000, 3000), 100)
+        my = bgra.shape[0] // 2
+        assert _rgba(bgra, my, 50) == (230, 230, 230, 255)  # white playcursor at 50%
+        assert _rgba(bgra, my, 25)[:3] == (235, 180, 60)    # amber loop-in at 25%
+        assert _rgba(bgra, my, 75)[:3] == (235, 180, 60)    # amber loop-out at 75%
+
+    def test_unscripted_strip_is_none(self):
+        from nau.overlay import heatmap_bgra
+        strip = HeatmapStrip()
+        strip.update("plain.mp4", None, 4000.0, width=100)
+        assert heatmap_bgra(strip, 0, None, 100) is None
 
 
 class TestNameChip:
