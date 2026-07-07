@@ -75,6 +75,17 @@ class PlayerSession:
         return self._funscript
 
     @property
+    def funscript_resting(self) -> bool:
+        """Whether the current spot sits in the funscript's quiet lead-in or an
+        interior gap (a buffer past the nearest dense action), where the script
+        has nothing to say.  Hybrid hands these stretches to Genau.  False when
+        there is no funscript — there is then nothing to rest between.
+        """
+        if self._funscript is None:
+            return False
+        return self._funscript.is_resting_at(int(self.position_ms))
+
+    @property
     def current_video(self) -> Path:
         return self._playlist[self._index][0]
 

@@ -85,6 +85,26 @@ def _make_session(tmp_path, *, scripted=True, start_paused=False, duration_ms=60
     return session, player, tcode
 
 
+class TestFunscriptResting:
+    def test_on_the_cluster_is_not_resting(self, tmp_path):
+        session, player, _ = _make_session(tmp_path)  # dense action 0-4000ms
+        player.position_ms = 2000.0
+
+        assert session.funscript_resting is False
+
+    def test_deep_in_a_gap_is_resting(self, tmp_path):
+        session, player, _ = _make_session(tmp_path)
+        player.position_ms = 20000.0  # long past the cluster and its buffer
+
+        assert session.funscript_resting is True
+
+    def test_unscripted_video_is_not_resting(self, tmp_path):
+        session, player, _ = _make_session(tmp_path, scripted=False)
+        player.position_ms = 20000.0
+
+        assert session.funscript_resting is False
+
+
 class TestLoadAndPlay:
     def test_init_loads_first_entry_and_plays(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
