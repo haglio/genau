@@ -210,8 +210,25 @@ _AMBER = (235, 180, 60, 245)
 _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
 _BOUND_MARK_W = 3     # loop in/out and record in-point marks read as bars
 
+_BAR_INSET_X = 40     # side margin so the plain bar's start/end clear the edges
+_BAR_INSET_Y = 3      # top/bottom margin so the bar floats off the window edge
+_BAR_FILL = (34, 34, 38, 165)    # visible dark translucent track
+_BAR_BORDER = (215, 215, 220, 235)  # light border so the bar reads on any video
+_BORDER_W = 2
+_CURSOR = (255, 255, 255, 255)   # prominent white playcursor
+_CURSOR_W = 3
+_PLAIN_MARK_W = 4                # prominent loop in/out and record marks
+
 
 TIMELINE_HEIGHT = _IDLE_HEIGHT  # bottom strip height when not recording
+
+
+def bar_track_x(width: int) -> tuple[int, int]:
+    """Left/right pixel bounds of the inset plain-bar track, so the timeline's
+    start and end sit a margin in from the window's side edges.  Clamped so the
+    track never inverts on a very narrow window."""
+    inset = min(_BAR_INSET_X, max(0, width // 2 - 1))
+    return inset, width - inset
 
 
 def _rgba_to_bgra(rgba):
@@ -220,17 +237,67 @@ def _rgba_to_bgra(rgba):
     return np.ascontiguousarray(bgra, dtype=np.uint8)
 
 
-def progress_bar_bgra(position_ms, duration_ms, width, height=TIMELINE_HEIGHT):
-    """A plain clickable progress bar for videos with no funscript heatmap.
+def _paint_rect(bgra, x0, x1, y0, y1, color):
+    """Fill rows [y0:y1], cols [x0:x1] with an RGBA ``color``, clamped to the
+    array (stored BGRA for mpv)."""
+    h, w = bgra.shape[:2]
+    x0, x1 = max(0, x0), min(w, x1)
+    y0, y1 = max(0, y0), min(h, y1)
+    if x1 <= x0 or y1 <= y0:
+        return
+    bgra[y0:y1, x0:x1] = (color[2], color[1], color[0], color[3])
 
-    Just a dark translucent track with a white playcursor — no filled elapsed
-    portion — so every video (scripted or not) has a timeline to click.
+
+def _draw_border(bgra, x0, x1, y0, y1, bw, color):
+    """Draw a ``bw``-thick border just inside the rect [x0:x1] x [y0:y1]."""
+    _paint_rect(bgra, x0, x1, y0, y0 + bw, color)  # top
+    _paint_rect(bgra, x0, x1, y1 - bw, y1, color)  # bottom
+    _paint_rect(bgra, x0, x0 + bw, y0, y1, color)  # left
+    _paint_rect(bgra, x1 - bw, x1, y0, y1, color)  # right
+
+
+def _paint_mark(bgra, x_center, mark_w, y0, y1, color, *, x_lo, x_hi):
+    """Paint a ``mark_w``-wide vertical bar centred on ``x_center``, kept
+    within [x_lo, x_hi]."""
+    left = max(x_lo, x_center - mark_w // 2)
+    right = min(x_hi, left + mark_w)
+    _paint_rect(bgra, left, right, y0, y1, color)
+
+
+def _bar_x(ms, duration_ms, x0, x1):
+    """Track x for a timestamp: its fraction of the video, mapped into
+    [x0, x1] and kept on-track."""
+    frac = min(1.0, max(0.0, ms / max(1.0, duration_ms)))
+    return x0 + int(frac * (x1 - x0 - 1))
+
+
+def progress_bar_bgra(position_ms, duration_ms, loop_bounds, width,
+                      record_in_ms=None, height=TIMELINE_HEIGHT):
+    """A bordered, inset seek bar for videos with no funscript heatmap.
+
+    A dark translucent track floated in from the window edges with a light
+    border, a prominent white playcursor, and prominent loop in/out marks
+    (amber; the in point shows red while it is still being recorded) — so
+    every video, scripted or not, has a clear, clickable timeline.
     """
     bar = np.zeros((height, width, 4), dtype=np.uint8)
-    bar[:, :, 3] = 150  # dark track
-    frac = 0.0 if duration_ms <= 0 else min(1.0, max(0.0, position_ms / duration_ms))
-    cx = min(width - 1, int(frac * width))
-    bar[:, max(0, cx):cx + 1, :] = 255  # white cursor
+    x0, x1 = bar_track_x(width)
+    y0, y1 = _BAR_INSET_Y, height - _BAR_INSET_Y
+    _paint_rect(bar, x0, x1, y0, y1, _BAR_FILL)
+    _draw_border(bar, x0, x1, y0, y1, _BORDER_W, _BAR_BORDER)
+
+    # Marks are full-height ticks crossing the frame, so they stay prominent
+    # even where they land on the light border.
+    def mark(ms, mark_w, color):
+        _paint_mark(bar, _bar_x(ms, duration_ms, x0, x1), mark_w,
+                    y0, y1, color, x_lo=x0, x_hi=x1)
+
+    if record_in_ms is not None:
+        mark(record_in_ms, _PLAIN_MARK_W, _RED)
+    if loop_bounds is not None:
+        mark(loop_bounds[0], _PLAIN_MARK_W, _AMBER)
+        mark(loop_bounds[1], _PLAIN_MARK_W, _AMBER)
+    mark(position_ms, _CURSOR_W, _CURSOR)  # playcursor on top
     return bar
 
 
@@ -265,12 +332,8 @@ def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
     start_ms, end_ms = heatmap.window
 
     def mark(x, mark_w, color):
-        x0 = max(0, x - mark_w // 2)
-        x1 = min(w, x0 + mark_w)
-        bgra[:, x0:x1, 0] = color[2]
-        bgra[:, x0:x1, 1] = color[1]
-        bgra[:, x0:x1, 2] = color[0]
-        bgra[:, x0:x1, 3] = 255
+        # Marks read fully opaque against the translucent heatmap row.
+        _paint_mark(bgra, x, mark_w, 0, strip_h, (*color[:3], 255), x_lo=0, x_hi=w)
 
     if heatmap.record_in_ms is not None:
         mark(time_to_x(heatmap.record_in_ms, start_ms, end_ms, w), _BOUND_MARK_W, _RED)
