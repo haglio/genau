@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 _REWIND_MS = 50
 _EOF_WRAP_START_MS = 250
 
+# While marking a loop, close it once the playhead comes within this of the
+# file end — proactively, so mpv's A/B loop takes over before loop-file wraps
+# the whole video to the start and flashes the opening frames.  Wide enough that
+# a tick reliably lands inside it at 60 fps, small enough to still feel instant.
+_EOF_MARGIN_MS = 100
+
 # Playback-rate bounds for the speed control (mpv's ``speed`` multiplier, where
 # 1.0 is normal). The funscript follows a speed change automatically because it
 # is driven off mpv's clock, which advances at the playback rate.
@@ -294,18 +300,24 @@ class PlayerSession:
         prev_pos_ms = self._last_pos_ms
         self._last_pos_ms = pos_ms
 
-        if self._loop_ctrl is not None and rewound:
-            if (
-                self._loop_ctrl.state == LoopState.MARKING
-                and pos_ms < _EOF_WRAP_START_MS
-            ):
-                # The file ran off the end mid-record and mpv (loop-file=inf)
-                # rewound the clock to the start.  Close the loop at the end of
-                # the file rather than let record_up capture an out point back
-                # near zero, which would invert the loop so it replays nothing.
-                self._finalize_loop(int(prev_pos_ms))
-                return
-            if self._loop_ctrl.state == LoopState.LOOPING:
+        if self._loop_ctrl is not None:
+            if self._loop_ctrl.state == LoopState.MARKING:
+                duration_ms = self._player.duration_ms
+                near_end = (
+                    duration_ms > 0 and pos_ms >= duration_ms - _EOF_MARGIN_MS
+                )
+                wrapped = rewound and pos_ms < _EOF_WRAP_START_MS
+                if near_end or wrapped:
+                    # Recording ran to the end of the file: close the loop at the
+                    # end and start it now.  near_end fires just before loop-file
+                    # (inf) wraps the whole video to the start, so the A/B loop
+                    # takes over without the opening frames flashing; wrapped is
+                    # the fallback if a tick only lands after the wrap.  Either
+                    # way the out point stays just short of the file end, which
+                    # mpv loops cleanly.
+                    self._finalize_loop(int(pos_ms if near_end else prev_pos_ms))
+                    return
+            elif self._loop_ctrl.state == LoopState.LOOPING and rewound:
                 # mpv's A/B loop wraps B->A by rewinding the clock; resend the
                 # T-Code waypoint from the loop start so the OSR2 restarts cleanly.
                 self._tcode.reset()
