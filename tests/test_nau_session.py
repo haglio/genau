@@ -486,15 +486,18 @@ class TestReplacePlaylist:
 
         assert session.current_video == v1
 
-    def test_replace_without_current_video_steps_to_first(self, tmp_path):
+    def test_replace_without_current_video_jumps_to_first(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
         other = tmp_path / "other.mp4"
         other.write_text("x")
 
         session.replace_playlist([(other, None)])
 
-        session.step(1)
+        # A filtered-out current video must not linger on screen: playback jumps
+        # straight to the new list's first entry, mirroring how the satellites
+        # restart at item 0 when F-mode reloads them.
         assert session.current_video == other
+        assert player.opened[-1] == other
 
 
 class TestCycleVersion:
