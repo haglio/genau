@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 _REWIND_MS = 50
 _EOF_WRAP_START_MS = 250
 
+# Playback-rate bounds for the speed control (mpv's ``speed`` multiplier, where
+# 1.0 is normal). The funscript follows a speed change automatically because it
+# is driven off mpv's clock, which advances at the playback rate.
+MIN_SPEED_RATE = 0.25
+MAX_SPEED_RATE = 3.0
+
 
 class PlayerSession:
     def __init__(
@@ -44,6 +50,7 @@ class PlayerSession:
         self._version_index = version_index or {}
         self._paused = start_paused
         self._tcode_enabled = True
+        self._speed = 1.0
         self._index = 0
         self._funscript = None
         self._loop_ctrl: LoopController | None = None
@@ -146,6 +153,28 @@ class PlayerSession:
 
     def toggle_pause(self) -> None:
         self.set_paused(not self._paused)
+
+    @property
+    def speed(self) -> float:
+        """Playback rate multiplier (1.0 = normal)."""
+        return self._speed
+
+    def set_speed(self, speed: float) -> None:
+        """Change the playback rate, clamped to the supported range.
+
+        mpv retimes the video and its clock, so the funscript stays in sync on
+        its own; the T-Code driver is reset to re-time the in-flight move at the
+        new rate rather than wait out the current (now mistimed) one.
+        """
+        speed = max(MIN_SPEED_RATE, min(MAX_SPEED_RATE, speed))
+        if speed == self._speed:
+            return
+        self._speed = speed
+        self._player.set_speed(speed)
+        self._tcode.reset()
+
+    def adjust_speed(self, delta: float) -> None:
+        self.set_speed(self._speed + delta)
 
     def set_tcode_enabled(self, enabled: bool) -> None:
         """Gate funscript T-Code output (the SET_TCODE_ENABLED command).
@@ -265,7 +294,7 @@ class PlayerSession:
                 self._tcode.reset()
 
         if self._tcode_enabled and self._funscript is not None:
-            self._tcode.update(int(pos_ms), self._funscript)
+            self._tcode.update(int(pos_ms), self._funscript, speed=self._speed)
 
         if self._player.eof and (
             self._loop_ctrl is None or self._loop_ctrl.state == LoopState.NORMAL

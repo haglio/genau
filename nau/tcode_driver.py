@@ -20,7 +20,9 @@ class FunscriptTCodeDriver:
         self._last_send_time: float = -1.0
         self._last_segment: int = -1
 
-    def update(self, position_ms: int, fs: Funscript, *, now: float | None = None) -> None:
+    def update(
+        self, position_ms: int, fs: Funscript, *, now: float | None = None, speed: float = 1.0
+    ) -> None:
         if now is None:
             now = time.monotonic()
 
@@ -36,7 +38,7 @@ class FunscriptTCodeDriver:
 
         segment = max(0, bisect.bisect_right(fs._times, position_ms) - 1)
         if self._should_send(segment, now):
-            self._send_waypoint(fs, segment, position_ms)
+            self._send_waypoint(fs, segment, position_ms, speed)
             self._mark_sent(segment, now)
 
     def _should_send(self, segment: int, now: float) -> bool:
@@ -51,10 +53,15 @@ class FunscriptTCodeDriver:
         self._last_segment = segment
         self._last_send_time = now
 
-    def _send_waypoint(self, fs: Funscript, segment: int, position_ms: int) -> None:
+    def _send_waypoint(
+        self, fs: Funscript, segment: int, position_ms: int, speed: float
+    ) -> None:
         if segment + 1 < len(fs.actions):
             next_t, next_pos = fs.actions[segment + 1]
-            remaining = max(1, next_t - position_ms)
+            # ``next_t - position_ms`` is the gap to the waypoint in *media* time;
+            # the OSR2 executes its move in wall-clock time, so at playback rate
+            # ``speed`` the move must finish in that many wall-milliseconds.
+            remaining = max(1, round((next_t - position_ms) / speed))
             tcode_pos = round(next_pos * 9999 / 100)
             self._sink.send(format_tcode_command("L0", tcode_pos, remaining))
         else:
