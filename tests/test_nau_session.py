@@ -393,12 +393,27 @@ class TestAdvance:
 
         assert tcode.resets == resets_before + 1
 
-    def test_advance_finalizes_loop_at_eof_when_recording_wraps(self, tmp_path):
-        # Recording a loop that runs off the end of the file: mpv (loop-file=inf)
-        # rewinds the clock to the start.  Left alone, the next record_up would
-        # capture an out point back near zero, inverting the loop so it replays
-        # nothing.  Instead the session closes the loop at the end of the file
-        # and starts looping normally.
+    def test_advance_finalizes_loop_when_recording_reaches_the_end(self, tmp_path):
+        # Recording a loop to the end of the file: the loop closes at the end and
+        # starts the instant the playhead reaches it — before loop-file wraps the
+        # whole video back to the start, which would flash the opening frames.
+        session, player, tcode = _make_session(
+            tmp_path, scripted=False, duration_ms=10_000,
+        )
+        player.position_ms = 9_000
+        session.record_down()
+
+        player.position_ms = 9_950  # reached the end margin, still pre-wrap
+        session.advance()
+
+        assert session.loop_state == "looping"
+        assert player.ab_loop == (9_000, 9_950)  # in..(just short of the end)
+        assert player.seeks[-1] == 9_000  # jumped straight to the loop start
+
+    def test_advance_finalizes_loop_if_recording_wraps_past_the_end(self, tmp_path):
+        # Fallback: if a tick lands only after loop-file already rewound the clock
+        # to the start (the near-end window was missed), the loop still closes at
+        # the last position seen before the wrap rather than inverting to ~zero.
         session, player, tcode = _make_session(
             tmp_path, scripted=False, duration_ms=10_000,
         )
