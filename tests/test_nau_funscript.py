@@ -22,6 +22,40 @@ class TestLoad:
         assert fs.actions == [(500, 50), (1000, 0), (2000, 100)]
 
 
+class TestFirstRealEventMs:
+    def test_dense_from_start_has_no_lead_in(self):
+        fs = Funscript(actions=[(0, 0), (300, 100), (600, 0), (900, 100)])
+
+        assert fs.first_real_event_ms is None
+
+    def test_action_starting_late_reports_onset(self):
+        fs = Funscript(actions=[(60000, 0), (60300, 100), (60600, 0)])
+
+        assert fs.first_real_event_ms == 60000
+
+    def test_isolated_leading_blip_is_skipped(self):
+        # A stray blip at t=0, a long quiet gap, then dense action at 34s.
+        fs = Funscript(actions=[
+            (0, 50), (34000, 0), (34300, 100), (34600, 0), (34900, 100),
+        ])
+
+        assert fs.first_real_event_ms == 34000
+
+    def test_sparse_throughout_has_no_onset(self):
+        # Every action is isolated (10s apart): there is no dense onset to
+        # rest up to, so drive normally rather than park the whole video.
+        fs = Funscript(actions=[(0, 0), (10000, 100), (20000, 0), (30000, 100)])
+
+        assert fs.first_real_event_ms is None
+
+    def test_short_lead_in_is_not_worth_parking(self):
+        # Dense action begins at 4s — under the "a long time" threshold, so no
+        # parking (a momentary rest at the very start is not worth it).
+        fs = Funscript(actions=[(4000, 0), (4300, 100), (4600, 0), (4900, 100)])
+
+        assert fs.first_real_event_ms is None
+
+
 class TestSnapLoop:
     def _make_fs(self):
         return Funscript(actions=[

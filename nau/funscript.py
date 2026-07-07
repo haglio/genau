@@ -5,16 +5,43 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+_BASE_THRESHOLD = 95
+_MIN_LOOP_MS = 500
+
+# A funscript whose sustained action does not begin until at least this far in
+# has a long enough quiet lead-in that the OSR2 should rest at its parked
+# position rather than drift toward a still-distant action.  The same value
+# doubles as the gap that marks a leading action as an isolated stray blip:
+# real action is densely sampled, so the first action closely followed by
+# another (gap below this) is where it truly begins.
+_QUIET_LEAD_IN_MS = 5000
+
+
 @dataclass
 class Funscript:
     actions: list[tuple[int, int]]
 
     def __post_init__(self) -> None:
         self._times = [a[0] for a in self.actions]
+        self._first_real_event_ms = self._compute_first_real_event_ms()
 
+    @property
+    def first_real_event_ms(self) -> int | None:
+        """Onset of sustained action past a long quiet lead-in, else None.
 
-_BASE_THRESHOLD = 95
-_MIN_LOOP_MS = 500
+        Returns the time of the first action that is closely followed by
+        another (i.e. where dense action begins), skipping any isolated stray
+        blips at the very start.  Returns None when action begins promptly, so
+        callers drive from the top; otherwise the OSR2 rests at its parked
+        position until this time.
+        """
+        return self._first_real_event_ms
+
+    def _compute_first_real_event_ms(self) -> int | None:
+        for (t, _p), (next_t, _np) in zip(self.actions, self.actions[1:]):
+            if next_t - t < _QUIET_LEAD_IN_MS:
+                return t if t >= _QUIET_LEAD_IN_MS else None
+        return None
 
 
 def snap_loop(
