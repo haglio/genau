@@ -236,10 +236,13 @@ class PlayerSession:
         self.load(0)
 
     def replace_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:
-        """Swap in a new playlist without interrupting the current video.
+        """Swap in a new playlist, keeping the current video only if it survives.
 
-        If the current video is in the new list, the index follows it;
-        otherwise the next step(+1) lands on the new list's first entry.
+        If the current video is still in the new list, playback continues on it
+        uninterrupted (the index just follows it).  Otherwise it was filtered
+        out — e.g. an unscripted video when F-mode reloads the funscript-only
+        list — so jump straight to the new list's first entry rather than
+        stranding it on screen, mirroring how the satellites restart at item 0.
         """
         if not playlist:
             return
@@ -249,10 +252,8 @@ class PlayerSession:
             if vid == current_entry[0]:
                 self._index = i
                 return
-        # Current video was filtered out: keep it playing as a leading extra
-        # entry so step(+1) lands on the new list's first item.
-        self._playlist.insert(0, current_entry)
-        self._index = 0
+        # Current video was filtered out — jump to the new list's first entry.
+        self.load(0)
 
     def seek_by(self, delta_ms: float) -> None:
         self.seek_to(self._player.position_ms + delta_ms)
