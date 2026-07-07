@@ -40,15 +40,13 @@ class LoopController:
     def on_record_up(self, position_ms: int) -> None:
         if self._state != LoopState.MARKING:
             return
-        # The record-down point anchors the loop's start: the loop only extends
-        # forward from it. Releasing at or behind the start (after a backward
-        # seek) marks no forward span, so cancel back to normal playback rather
-        # than flipping the loop backwards or leaving a degenerate one.
-        if position_ms <= self._in_ms:
-            self.cancel()
-            return
+        # The record-down point is a hard floor: the loop only extends forward
+        # from it. Seeks are clamped to it while marking, so an out point behind
+        # the start only arises from the EOF-wrap race — floor it to the start
+        # rather than let snap_loop flip the loop backwards.
+        out_ms = max(position_ms, self._in_ms)
         self._in_ms, self._out_ms = snap_loop(
-            self._funscript, self._in_ms, position_ms,
+            self._funscript, self._in_ms, out_ms,
         )
         self._state = LoopState.LOOPING
 

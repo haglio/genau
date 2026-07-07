@@ -270,8 +270,13 @@ class PlayerSession:
         self.seek_to(self._player.position_ms + delta_ms)
 
     def seek_to(self, position_ms: float) -> None:
-        """Seek to an absolute position (click-to-seek / nudge)."""
-        target = max(0.0, min(self._player.duration_ms, position_ms))
+        """Seek to an absolute position (click-to-seek / nudge).
+
+        While marking a loop, the record-down point is a floor: a backward seek
+        can't rewind before where the loop started — it lands on the start.
+        """
+        floor = 0.0 if self.record_in_ms is None else float(self.record_in_ms)
+        target = max(floor, min(self._player.duration_ms, position_ms))
         self._player.seek_ms(target)
         self._tcode.reset()
 
