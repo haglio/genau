@@ -150,10 +150,10 @@ class TestRecording:
         assert session.loop_state == "looping"
         assert player.ab_loop == (2500, 3500)
 
-    def test_release_before_start_clamps_ab_loop_to_the_start(self, tmp_path):
+    def test_release_before_start_cancels_without_looping(self, tmp_path):
         # Anchored loop start: seeking back before the record point and
-        # releasing there must not hand mpv a flipped [release, start] loop.
-        # The A/B loop stays pinned at the start, widened to the minimum length.
+        # releasing there marks no forward span, so the loop cancels back to
+        # normal playback and mpv is never handed an A/B loop.
         session, player, tcode = _make_session(tmp_path, scripted=False)
         player.position_ms = 5000
         session.record_down()
@@ -161,9 +161,9 @@ class TestRecording:
         player.position_ms = 2000  # seeked back before the start, then released
         session.record_up()
 
-        assert session.loop_state == "looping"
-        assert player.ab_loop == (5000, 5500)
-        assert player.seeks[-1] == 5000  # jumps to the start, not back to 2000
+        assert session.loop_state == "normal"
+        assert player.ab_loop is None
+        assert player.seeks == []  # no jump-to-loop-start
 
     def test_record_gesture_sets_native_ab_loop_snapped_to_bases(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
