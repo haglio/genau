@@ -60,19 +60,18 @@ class TestLoopController:
         assert lc.in_ms == 2500
         assert lc.out_ms == 3500
 
-    def test_release_before_start_truncates_to_the_start(self):
+    def test_release_before_start_cancels_the_loop(self):
         # The record-down point anchors the loop's start; releasing behind it
-        # (after a backward seek) must not flip the loop into [release, start].
-        # It truncates to the start instead, so the start never moves earlier
-        # than where recording began.
+        # (after a backward seek) marks no forward span, so it cancels back to
+        # normal playback rather than flipping or truncating the loop.
         lc = LoopController(None)  # unscripted: exact, unsnapped bounds
         lc.on_record_down(5000)
 
         lc.on_record_up(2000)  # released 3s before the start
 
-        assert lc.state == LoopState.LOOPING
-        assert lc.in_ms == 5000  # start stays put, not dragged back to 2000
-        assert lc.out_ms == 5500  # clamped to the start, widened to the min loop
+        assert lc.state == LoopState.NORMAL
+        assert lc.in_ms is None
+        assert lc.out_ms is None
 
     def test_record_up_in_normal_is_noop(self):
         lc = LoopController(_make_fs())

@@ -41,11 +41,14 @@ class LoopController:
         if self._state != LoopState.MARKING:
             return
         # The record-down point anchors the loop's start: the loop only extends
-        # forward from it. A release behind the start (after a backward seek)
-        # truncates to the start rather than flipping the loop backwards.
-        out_ms = max(position_ms, self._in_ms)
+        # forward from it. Releasing at or behind the start (after a backward
+        # seek) marks no forward span, so cancel back to normal playback rather
+        # than flipping the loop backwards or leaving a degenerate one.
+        if position_ms <= self._in_ms:
+            self.cancel()
+            return
         self._in_ms, self._out_ms = snap_loop(
-            self._funscript, self._in_ms, out_ms,
+            self._funscript, self._in_ms, position_ms,
         )
         self._state = LoopState.LOOPING
 
