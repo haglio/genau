@@ -147,3 +147,28 @@ class TestLeadInPark:
         driver.update(12000, fs, now=0.15)   # past resend interval: resends
 
         assert sink.sent == ["L00000I500", "L00000I500"]
+
+
+class TestPark:
+    """park() rests the OSR2 at its closest position with no funscript in play —
+    an unscripted video.  It reuses the lead-in rest's waypoint and edge gating,
+    so callers can hold the device parked without a script to drive from."""
+
+    def test_sends_closest_position(self):
+        sink = FakeSink()
+        driver = FunscriptTCodeDriver(sink)
+
+        driver.park(now=0.0)
+
+        # Position 0 (closest), the same place the broker parks on pause.
+        assert sink.sent == ["L00000I500"]
+
+    def test_edge_gated_then_resends(self):
+        sink = FakeSink()
+        driver = FunscriptTCodeDriver(sink)
+
+        driver.park(now=0.0)   # first send
+        driver.park(now=0.05)  # within the resend interval: suppressed
+        driver.park(now=0.15)  # past the resend interval: resends
+
+        assert sink.sent == ["L00000I500", "L00000I500"]

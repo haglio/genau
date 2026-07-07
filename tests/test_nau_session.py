@@ -48,11 +48,15 @@ class FakePlayer:
 class FakeTCode:
     def __init__(self) -> None:
         self.updates: list[tuple[int, Funscript, float]] = []
+        self.parks = 0
         self.resets = 0
         self.closed = False
 
     def update(self, position_ms: int, fs: Funscript, *, speed: float = 1.0) -> None:
         self.updates.append((position_ms, fs, speed))
+
+    def park(self) -> None:
+        self.parks += 1
 
     def reset(self) -> None:
         self.resets += 1
@@ -334,13 +338,36 @@ class TestAdvance:
 
         assert tcode.updates and tcode.updates[-1][0] == 1500
 
-    def test_advance_without_funscript_skips_tcode(self, tmp_path):
+    def test_advance_without_funscript_parks_the_osr2(self, tmp_path):
+        # An unscripted video has no waypoints to drive from, so the OSR2 rests at
+        # its closest position rather than holding wherever the last video left it.
         session, player, tcode = _make_session(tmp_path, scripted=False)
         player.position_ms = 1500
 
         session.advance()
 
         assert tcode.updates == []
+        assert tcode.parks == 1
+
+    def test_advance_without_funscript_does_not_park_when_disabled(self, tmp_path):
+        # In Hybrid, SET_TCODE_ENABLED 0 hands an unscripted video to Genau; Nau
+        # must not fight it by also parking the OSR2.
+        session, player, tcode = _make_session(tmp_path, scripted=False)
+        session.set_tcode_enabled(False)
+        player.position_ms = 1500
+
+        session.advance()
+
+        assert tcode.parks == 0
+
+    def test_advance_without_funscript_does_not_park_while_paused(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path, scripted=False)
+        session.set_paused(True)
+        player.position_ms = 1500
+
+        session.advance()
+
+        assert tcode.parks == 0
 
     def test_advance_skips_tcode_when_disabled(self, tmp_path):
         # SET_TCODE_ENABLED 0 gates output so Genau can drive the OSR2 solo in
