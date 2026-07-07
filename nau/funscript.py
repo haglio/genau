@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import bisect
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,6 +25,7 @@ class Funscript:
     def __post_init__(self) -> None:
         self._times = [a[0] for a in self.actions]
         self._first_real_event_ms = self._compute_first_real_event_ms()
+        self._dense_times = self._compute_dense_times()
 
     @property
     def first_real_event_ms(self) -> int | None:
@@ -42,6 +44,40 @@ class Funscript:
             if next_t - t < _QUIET_LEAD_IN_MS:
                 return t if t >= _QUIET_LEAD_IN_MS else None
         return None
+
+    def _compute_dense_times(self) -> list[int]:
+        """Times of actions that belong to a dense cluster — those with a
+        neighbour within _QUIET_LEAD_IN_MS.  Isolated stray blips are excluded,
+        the same standard first_real_event_ms uses to find where action begins.
+        """
+        dense: list[int] = []
+        for k, (t, _p) in enumerate(self.actions):
+            prev_close = k > 0 and t - self.actions[k - 1][0] < _QUIET_LEAD_IN_MS
+            next_close = (
+                k + 1 < len(self.actions)
+                and self.actions[k + 1][0] - t < _QUIET_LEAD_IN_MS
+            )
+            if prev_close or next_close:
+                dense.append(t)
+        return dense
+
+    def is_resting_at(self, position_ms: int) -> bool:
+        """True when position_ms sits in a quiet stretch — no dense action
+        within _QUIET_LEAD_IN_MS on either side (a funscript's lead-in or an
+        interior gap).  In Hybrid the orchestrator hands these stretches to
+        Genau; scripted stretches (not resting) drive the OSR2 from the
+        funscript, and the buffer lets the script reclaim control before its
+        next action fires.
+        """
+        if not self._dense_times:
+            return True
+        i = bisect.bisect_left(self._dense_times, position_ms)
+        nearest = min(
+            abs(self._dense_times[j] - position_ms)
+            for j in (i - 1, i)
+            if 0 <= j < len(self._dense_times)
+        )
+        return nearest > _QUIET_LEAD_IN_MS
 
 
 def snap_loop(

@@ -56,6 +56,46 @@ class TestFirstRealEventMs:
         assert fs.first_real_event_ms is None
 
 
+class TestIsRestingAt:
+    def test_on_a_dense_cluster_is_not_resting(self):
+        fs = Funscript(actions=[(10000, 0), (10300, 100), (10600, 0), (10900, 100)])
+
+        assert fs.is_resting_at(10300) is False
+
+    def test_deep_gap_between_clusters_is_resting(self):
+        fs = Funscript(actions=[
+            (10000, 0), (10300, 100), (10600, 0),   # cluster A
+            (40000, 0), (40300, 100), (40600, 0),   # cluster B
+        ])
+
+        assert fs.is_resting_at(25000) is True  # midway in the 30s gap
+
+    def test_buffer_before_a_cluster_is_not_resting(self):
+        # The funscript reclaims a _QUIET_LEAD_IN_MS buffer ahead of its action,
+        # so the OSR2 settles onto the script before it fires.
+        fs = Funscript(actions=[(40000, 0), (40300, 100), (40600, 0)])
+
+        assert fs.is_resting_at(37000) is False  # 3s before -> inside the buffer
+        assert fs.is_resting_at(34000) is True   # 6s before -> still the gap
+
+    def test_quiet_lead_in_is_resting(self):
+        fs = Funscript(actions=[(60000, 0), (60300, 100), (60600, 0)])
+
+        assert fs.is_resting_at(0) is True
+
+    def test_isolated_blip_does_not_anchor_driving(self):
+        # A stray blip with no dense neighbour must not pull the OSR2 off Genau.
+        fs = Funscript(actions=[(20000, 50), (60000, 0), (60300, 100), (60600, 0)])
+
+        assert fs.is_resting_at(20000) is True
+
+    def test_sparse_funscript_is_all_resting(self):
+        # Every action isolated (10s apart): no dense scripting, Genau drives.
+        fs = Funscript(actions=[(0, 0), (10000, 100), (20000, 0), (30000, 100)])
+
+        assert fs.is_resting_at(15000) is True
+
+
 class TestSnapLoop:
     def _make_fs(self):
         return Funscript(actions=[

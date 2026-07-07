@@ -32,6 +32,7 @@ class StatusWriter:
             f"position_ms={int(session.position_ms)}\n"
             f"duration_ms={int(session.duration_ms)}\n"
             f"has_funscript={'1' if session.has_funscript else '0'}\n"
+            f"funscript_resting={'1' if session.funscript_resting else '0'}\n"
             f"state={session.loop_state}\n"
             f"paused={'1' if session.is_paused else '0'}\n"
         )

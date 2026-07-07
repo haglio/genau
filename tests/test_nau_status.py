@@ -11,6 +11,7 @@ class StubSession:
         self.position_ms = 12345.6
         self.duration_ms = 60000.0
         self.has_funscript = True
+        self.funscript_resting = False
         self.loop_state = "normal"
         self.is_paused = False
 
@@ -29,6 +30,7 @@ class TestStatusWriter:
         assert "position_ms=12345\n" in text
         assert "duration_ms=60000\n" in text
         assert "has_funscript=1\n" in text
+        assert "funscript_resting=0\n" in text
         assert "state=normal\n" in text
         assert "paused=0\n" in text
 
