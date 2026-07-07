@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 SEEK_STEP_MS = 10_000
+SPEED_STEP = 0.25
 
 
 def apply_command(
@@ -35,6 +36,10 @@ def apply_command(
         session.seek_by(SEEK_STEP_MS)
     elif keyword == "SEEK_BACK":
         session.seek_by(-SEEK_STEP_MS)
+    elif keyword == "SPEED_UP":
+        session.adjust_speed(SPEED_STEP)
+    elif keyword == "SPEED_DOWN":
+        session.adjust_speed(-SPEED_STEP)
     elif keyword == "RECORD_DOWN":
         session.record_down()
     elif keyword == "RECORD_UP":

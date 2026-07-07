@@ -38,6 +38,26 @@ class TestFunscriptTCodeDriver:
         # At t=500, next waypoint is (1000, 100). Remaining = 500ms.
         assert sink.sent[0] == "L09999I500"
 
+    def test_speed_up_shortens_move_duration(self):
+        sink = FakeSink()
+        driver = FunscriptTCodeDriver(sink)
+
+        # At t=0 the next waypoint (1000, 100) is 1000ms away in *media* time,
+        # but at 2x playback the video reaches it in 500ms of wall-clock, so the
+        # OSR2 must complete its move in 500ms to stay in sync.
+        driver.update(0, self._make_fs(), now=0.0, speed=2.0)
+
+        assert sink.sent[0] == "L09999I500"
+
+    def test_slow_down_lengthens_move_duration(self):
+        sink = FakeSink()
+        driver = FunscriptTCodeDriver(sink)
+
+        # At 0.5x the waypoint is 2000ms of wall-clock away, so the move stretches.
+        driver.update(0, self._make_fs(), now=0.0, speed=0.5)
+
+        assert sink.sent[0] == "L09999I2000"
+
     def test_no_duplicate_in_same_segment(self):
         sink = FakeSink()
         driver = FunscriptTCodeDriver(sink)
