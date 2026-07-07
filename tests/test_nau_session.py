@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from nau.funscript import Funscript
-from nau.session import PlayerSession
+from nau.session import MAX_SPEED_RATE, MIN_SPEED_RATE, PlayerSession
 
 
 class FakePlayer:
@@ -17,6 +17,7 @@ class FakePlayer:
         self.paused = False
         self.ab_loop: tuple[float, float] | None = None
         self.seeks: list[float] = []
+        self.speeds: list[float] = []
         self.closed = False
 
     def load(self, path: Path) -> None:
@@ -26,6 +27,9 @@ class FakePlayer:
 
     def set_paused(self, paused: bool) -> None:
         self.paused = paused
+
+    def set_speed(self, speed: float) -> None:
+        self.speeds.append(speed)
 
     def seek_ms(self, ms: float) -> None:
         self.position_ms = ms
@@ -43,12 +47,12 @@ class FakePlayer:
 
 class FakeTCode:
     def __init__(self) -> None:
-        self.updates: list[tuple[int, Funscript]] = []
+        self.updates: list[tuple[int, Funscript, float]] = []
         self.resets = 0
         self.closed = False
 
-    def update(self, position_ms: int, fs: Funscript) -> None:
-        self.updates.append((position_ms, fs))
+    def update(self, position_ms: int, fs: Funscript, *, speed: float = 1.0) -> None:
+        self.updates.append((position_ms, fs, speed))
 
     def reset(self) -> None:
         self.resets += 1
@@ -558,3 +562,55 @@ class TestLoadPlaylist:
         before = session.current_video
         session.load_playlist([])
         assert session.current_video == before
+
+
+class TestSpeed:
+    def test_speed_defaults_to_normal(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+        assert session.speed == 1.0
+
+    def test_set_speed_drives_player_and_resets_tcode(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+        resets_before = tcode.resets
+
+        session.set_speed(1.5)
+
+        assert session.speed == 1.5
+        assert player.speeds[-1] == 1.5
+        assert tcode.resets == resets_before + 1  # re-time the in-flight move
+
+    def test_set_speed_clamps_to_supported_range(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+
+        session.set_speed(99.0)
+        assert session.speed == MAX_SPEED_RATE
+
+        session.set_speed(0.001)
+        assert session.speed == MIN_SPEED_RATE
+
+    def test_adjust_speed_steps_relative_and_clamps(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+
+        session.adjust_speed(0.5)
+        assert session.speed == 1.5
+
+        session.adjust_speed(-1.0)
+        assert session.speed == 0.5
+
+    def test_set_speed_same_value_is_noop(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+        resets_before = tcode.resets
+
+        session.set_speed(1.0)  # already normal
+
+        assert player.speeds == []  # no redundant player call
+        assert tcode.resets == resets_before
+
+    def test_advance_passes_current_speed_to_tcode(self, tmp_path):
+        session, player, tcode = _make_session(tmp_path)
+        session.set_speed(2.0)
+        player.position_ms = 1500
+
+        session.advance()
+
+        assert tcode.updates[-1] == (1500, session.current_funscript, 2.0)

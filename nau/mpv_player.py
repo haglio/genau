@@ -41,7 +41,6 @@ class MpvPlayer:
             input_default_bindings=False,
             input_vo_keyboard=False,
         )
-        self._paused = False
 
     def load(self, path: Path) -> None:
         self._mpv.play(str(path))
@@ -56,8 +55,14 @@ class MpvPlayer:
 
 
     def set_paused(self, paused: bool) -> None:
-        self._paused = paused
         self._mpv.pause = paused
+
+    def set_speed(self, speed: float) -> None:
+        """Set the playback rate (1.0 = normal). mpv retimes video and audio,
+        and its ``time_pos`` clock advances at this rate — so the session's
+        funscript sync, which reads that clock, follows the new speed for free
+        (the T-Code driver only rescales its move durations)."""
+        self._mpv.speed = speed
 
     def seek_ms(self, ms: float) -> None:
         self._mpv.command("seek", max(0.0, ms) / 1000.0, "absolute", "exact")

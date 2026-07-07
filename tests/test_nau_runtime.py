@@ -3,7 +3,7 @@ from __future__ import annotations
 import threading
 from pathlib import Path
 
-from nau.runtime import SEEK_STEP_MS, apply_command
+from nau.runtime import SEEK_STEP_MS, SPEED_STEP, apply_command
 
 
 class SpySession:
@@ -35,6 +35,9 @@ class SpySession:
     def set_tcode_enabled(self, enabled: bool) -> None:
         self.calls.append(("set_tcode_enabled", enabled))
 
+    def adjust_speed(self, delta: float) -> None:
+        self.calls.append(("adjust_speed", delta))
+
 
 class TestApplyCommand:
     def test_next_and_prev_step(self):
@@ -60,6 +63,16 @@ class TestApplyCommand:
 
         assert session.calls == [
             ("seek_by", SEEK_STEP_MS), ("seek_by", -SEEK_STEP_MS),
+        ]
+
+    def test_speed_commands(self):
+        session = SpySession()
+
+        apply_command("SPEED_UP", session)
+        apply_command("SPEED_DOWN", session)
+
+        assert session.calls == [
+            ("adjust_speed", SPEED_STEP), ("adjust_speed", -SPEED_STEP),
         ]
 
     def test_record_commands(self):
