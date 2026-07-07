@@ -150,20 +150,20 @@ class TestRecording:
         assert session.loop_state == "looping"
         assert player.ab_loop == (2500, 3500)
 
-    def test_release_before_start_cancels_without_looping(self, tmp_path):
-        # Anchored loop start: seeking back before the record point and
-        # releasing there marks no forward span, so the loop cancels back to
-        # normal playback and mpv is never handed an A/B loop.
+    def test_release_before_start_floors_ab_loop_to_the_start(self, tmp_path):
+        # If the out point lands before the start (the EOF-wrap race — seeks are
+        # clamped to the start while marking), the loop floors to the start and
+        # is handed to mpv as a minimum loop there, never flipped to [out, start].
         session, player, tcode = _make_session(tmp_path, scripted=False)
         player.position_ms = 5000
         session.record_down()
 
-        player.position_ms = 2000  # seeked back before the start, then released
+        player.position_ms = 2000  # out landed before the start (EOF-wrap race)
         session.record_up()
 
-        assert session.loop_state == "normal"
-        assert player.ab_loop is None
-        assert player.seeks == []  # no jump-to-loop-start
+        assert session.loop_state == "looping"
+        assert player.ab_loop == (5000, 5500)
+        assert player.seeks[-1] == 5000  # jumps to the start, not back to 2000
 
     def test_record_gesture_sets_native_ab_loop_snapped_to_bases(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
@@ -284,6 +284,19 @@ class TestNavigation:
         assert player.position_ms == 30_000
         session.seek_to(-5)
         assert player.position_ms == 0
+
+    def test_seek_back_while_recording_stops_at_the_start(self, tmp_path):
+        # While marking a loop you can't rewind before where it started: a
+        # backward seek lands on the start point rather than before it.
+        session, player, tcode = _make_session(tmp_path, duration_ms=60_000)
+        player.position_ms = 5_000
+        session.record_down()  # loop start = 5000
+
+        session.seek_by(-3_000)  # would land at 2000
+        assert player.position_ms == 5_000  # clamped up to the start
+
+        session.seek_to(1_000)  # click-to-seek before the start
+        assert player.position_ms == 5_000
 
 
 class TestPause:
