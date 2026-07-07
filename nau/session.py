@@ -18,6 +18,13 @@ from .loop_controller import LoopController, LoopState
 
 logger = logging.getLogger(__name__)
 
+# A backward jump larger than this (ms) means the playback clock rewound rather
+# than merely ticking forward.  A rewind that also lands within
+# _EOF_WRAP_START_MS of zero is the file wrapping at EOF (mpv loop-file=inf
+# restarts at 0), as opposed to a user seeking backward to some interior point.
+_REWIND_MS = 50
+_EOF_WRAP_START_MS = 250
+
 
 class PlayerSession:
     def __init__(
@@ -108,7 +115,11 @@ class PlayerSession:
     def record_up(self) -> None:
         if self._loop_ctrl is None or self._loop_ctrl.state != LoopState.MARKING:
             return
-        self._loop_ctrl.on_record_up(int(self._player.position_ms))
+        self._finalize_loop(int(self._player.position_ms))
+
+    def _finalize_loop(self, out_ms: int) -> None:
+        """Close the marked loop at *out_ms* and start mpv's native A/B loop."""
+        self._loop_ctrl.on_record_up(out_ms)
         if self._loop_ctrl.state == LoopState.LOOPING:
             # mpv loops the A/B range natively (smooth, no seek stutter).
             self._player.set_ab_loop(self._loop_ctrl.in_ms, self._loop_ctrl.out_ms)
@@ -233,15 +244,25 @@ class PlayerSession:
             return
 
         pos_ms = self._player.position_ms
-        # mpv's A/B loop wraps B->A by jumping the clock backwards; resend the
-        # T-Code waypoint from the loop start so the OSR2 restarts cleanly.
-        if (
-            self._loop_ctrl is not None
-            and self._loop_ctrl.state == LoopState.LOOPING
-            and pos_ms + 50 < self._last_pos_ms
-        ):
-            self._tcode.reset()
+        rewound = pos_ms + _REWIND_MS < self._last_pos_ms
+        prev_pos_ms = self._last_pos_ms
         self._last_pos_ms = pos_ms
+
+        if self._loop_ctrl is not None and rewound:
+            if (
+                self._loop_ctrl.state == LoopState.MARKING
+                and pos_ms < _EOF_WRAP_START_MS
+            ):
+                # The file ran off the end mid-record and mpv (loop-file=inf)
+                # rewound the clock to the start.  Close the loop at the end of
+                # the file rather than let record_up capture an out point back
+                # near zero, which would invert the loop so it replays nothing.
+                self._finalize_loop(int(prev_pos_ms))
+                return
+            if self._loop_ctrl.state == LoopState.LOOPING:
+                # mpv's A/B loop wraps B->A by rewinding the clock; resend the
+                # T-Code waypoint from the loop start so the OSR2 restarts cleanly.
+                self._tcode.reset()
 
         if self._tcode_enabled and self._funscript is not None:
             self._tcode.update(int(pos_ms), self._funscript)
