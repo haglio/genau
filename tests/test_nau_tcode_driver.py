@@ -90,3 +90,40 @@ class TestFunscriptTCodeDriver:
         driver.update(500, fs, now=0.5)  # same segment, 500ms later
 
         assert len(sink.sent) == 2
+
+
+class TestLeadInPark:
+    def _lead_in_fs(self):
+        # Isolated blip at t=0, then dense action from 60s: onset = 60000.
+        return Funscript(actions=[(0, 50), (60000, 0), (60300, 100), (60600, 0)])
+
+    def test_parks_at_closest_position_during_lead_in(self):
+        sink = FakeSink()
+        driver = FunscriptTCodeDriver(sink)
+
+        driver.update(10000, self._lead_in_fs(), now=0.0)
+
+        # Rest at position 0 (closest), the same place the broker parks on pause.
+        assert sink.sent == ["L00000I500"]
+
+    def test_resumes_normal_driving_at_first_real_event(self):
+        sink = FakeSink()
+        driver = FunscriptTCodeDriver(sink)
+        fs = self._lead_in_fs()
+
+        driver.update(10000, fs, now=0.0)   # parked during lead-in
+        driver.update(60000, fs, now=1.0)   # onset reached: drive normally
+
+        # Park, then the next waypoint aims at (60300, 100). Remaining = 300ms.
+        assert sink.sent == ["L00000I500", "L09999I300"]
+
+    def test_park_is_rate_limited_but_resends(self):
+        sink = FakeSink()
+        driver = FunscriptTCodeDriver(sink)
+        fs = self._lead_in_fs()
+
+        driver.update(10000, fs, now=0.0)    # first park send
+        driver.update(11000, fs, now=0.05)   # within resend interval: suppressed
+        driver.update(12000, fs, now=0.15)   # past resend interval: resends
+
+        assert sink.sent == ["L00000I500", "L00000I500"]
