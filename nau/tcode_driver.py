@@ -29,17 +29,28 @@ class FunscriptTCodeDriver:
         park_until = fs.first_real_event_ms
         if park_until is not None and position_ms < park_until:
             # A long quiet lead-in with no real action yet: rest at the closest
-            # position (the same place the broker parks the OSR2 on pause)
-            # instead of drifting toward an action that is still seconds away.
-            if self._should_send(_PARK_SEGMENT, now):
-                self._sink.send(format_tcode_command("L0", 0, _PARK_INTERVAL_MS))
-                self._mark_sent(_PARK_SEGMENT, now)
+            # position instead of drifting toward an action still seconds away.
+            self.park(now=now)
             return
 
         segment = max(0, bisect.bisect_right(fs._times, position_ms) - 1)
         if self._should_send(segment, now):
             self._send_waypoint(fs, segment, position_ms, speed)
             self._mark_sent(segment, now)
+
+    def park(self, *, now: float | None = None) -> None:
+        """Rest the OSR2 at its closest position (the same place the broker parks
+        it on pause), holding there.
+
+        Drives the OSR2 when there is nothing to script from — an unscripted
+        video, or a funscript's quiet lead-in.  Edge-gated like a waypoint: sent
+        once on entry, then refreshed on the resend interval against packet loss.
+        """
+        if now is None:
+            now = time.monotonic()
+        if self._should_send(_PARK_SEGMENT, now):
+            self._sink.send(format_tcode_command("L0", 0, _PARK_INTERVAL_MS))
+            self._mark_sent(_PARK_SEGMENT, now)
 
     def _should_send(self, segment: int, now: float) -> bool:
         new_segment = segment != self._last_segment

@@ -6,7 +6,8 @@ both drive.  The actual video/audio/timeline is an mpv-backed *player*
 (:class:`nau.mpv_player.MpvPlayer`): mpv hardware-decodes, keeps A/V in sync,
 seeks precisely, and loops an A/B range natively, so the session just tells it
 what to do and reads its clock back.  Videos without a funscript play
-normally; recording and T-Code output are simply inert for them.
+normally: the OSR2 rests at its parked position with no script to follow, and
+loop recording falls back to raw clip ranges without funscript snapping.
 """
 from __future__ import annotations
 
@@ -322,8 +323,13 @@ class PlayerSession:
                 # T-Code waypoint from the loop start so the OSR2 restarts cleanly.
                 self._tcode.reset()
 
-        if self._tcode_enabled and self._funscript is not None:
-            self._tcode.update(int(pos_ms), self._funscript, speed=self._speed)
+        if self._tcode_enabled:
+            if self._funscript is not None:
+                self._tcode.update(int(pos_ms), self._funscript, speed=self._speed)
+            else:
+                # No funscript to drive from: rest the OSR2 at its closest
+                # position rather than leave it wherever the last video left it.
+                self._tcode.park()
 
         if self._player.eof and (
             self._loop_ctrl is None or self._loop_ctrl.state == LoopState.NORMAL
@@ -340,7 +346,8 @@ class PlayerSession:
         logger.info("Loading: %s", vid_path.name)
         self._funscript = load_funscript(fs_path) if fs_path is not None else None
         # A loop controller exists for every video so clips can be recorded even
-        # without a funscript; snapping and T-Code output stay funscript-gated.
+        # without a funscript; only its snapping is funscript-gated (raw ranges
+        # otherwise).
         self._loop_ctrl = LoopController(self._funscript)
         self._player.clear_ab_loop()
         self._player.load(vid_path)
