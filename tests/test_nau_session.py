@@ -341,6 +341,47 @@ class TestAdvance:
 
         assert tcode.resets == resets_before + 1
 
+    def test_advance_finalizes_loop_at_eof_when_recording_wraps(self, tmp_path):
+        # Recording a loop that runs off the end of the file: mpv (loop-file=inf)
+        # rewinds the clock to the start.  Left alone, the next record_up would
+        # capture an out point back near zero, inverting the loop so it replays
+        # nothing.  Instead the session closes the loop at the end of the file
+        # and starts looping normally.
+        session, player, tcode = _make_session(
+            tmp_path, scripted=False, duration_ms=10_000,
+        )
+        player.position_ms = 9_000
+        session.record_down()
+        assert session.loop_state == "recording"
+
+        player.position_ms = 9_800
+        session.advance()  # tracks last_pos near the end of the file
+
+        player.position_ms = 20  # EOF hit: clock rewound to the start
+        session.advance()
+
+        assert session.loop_state == "looping"
+        assert player.ab_loop == (9_000, 9_800)  # in..end, not in..~0
+        assert player.seeks[-1] == 9_000  # jumped back to the loop start
+
+    def test_advance_backward_seek_while_recording_keeps_marking(self, tmp_path):
+        # A backward seek mid-record also rewinds the clock, but it does not land
+        # at the start of the file, so it must not be mistaken for an EOF wrap:
+        # recording continues rather than snapping the loop shut early.
+        session, player, tcode = _make_session(
+            tmp_path, scripted=False, duration_ms=60_000,
+        )
+        player.position_ms = 30_000
+        session.record_down()
+        player.position_ms = 40_000
+        session.advance()
+
+        player.position_ms = 20_000  # user seeked back 20s, still marking
+        session.advance()
+
+        assert session.loop_state == "recording"
+        assert player.ab_loop is None
+
     def test_advance_at_end_auto_steps_in_normal(self, tmp_path):
         session, player, tcode = _make_session(tmp_path, entries=2)
         player.eof = True
