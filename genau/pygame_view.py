@@ -34,6 +34,21 @@ def get_window_chrome_height() -> int:
         return 0
 
 
+def hud_window_identity(
+    active: bool,
+    *,
+    base_title: str,
+    base_icon: Path | None,
+    hybrid_title: str | None,
+    hybrid_icon: Path | None,
+) -> tuple[str, Path | None]:
+    """The window title + icon for the HUD state: the Hybrid identity while the
+    HUD is on (Fun Time Hybrid mode) when one was supplied, else Genau's own."""
+    if active and hybrid_title is not None:
+        return hybrid_title, hybrid_icon if hybrid_icon is not None else base_icon
+    return base_title, base_icon
+
+
 def load_window_icon(window: Window, icon_path: Path | None) -> None:
     if icon_path is None or not icon_path.exists():
         return
@@ -57,6 +72,8 @@ class PygameView:
         y: int = 0,
         title: str = "Genau",
         icon_path: Path | None = None,
+        hybrid_title: str | None = None,
+        hybrid_icon_path: Path | None = None,
     ) -> None:
         pygame.init()
         chrome_height = get_window_chrome_height()
@@ -64,6 +81,12 @@ class PygameView:
         self.window = Window(title, size=(width, client_height))
         self.window.position = (x, y + chrome_height)
         load_window_icon(self.window, icon_path)
+        # Fun Time Hybrid mode shows this window as "Hybrid Nau+Genau" with its
+        # own icon; genau mode is plain "Genau".  Driven off the HUD toggle.
+        self._base_title = title
+        self._base_icon_path = icon_path
+        self._hybrid_title = hybrid_title
+        self._hybrid_icon_path = hybrid_icon_path
         self.renderer = Renderer(self.window, accelerated=True)
         self.clock = pygame.time.Clock()
         self._width = width
@@ -225,6 +248,17 @@ class PygameView:
         if active == self.hud_active:
             return
         self.hud_active = active
+        title, icon = hud_window_identity(
+            active,
+            base_title=self._base_title,
+            base_icon=self._base_icon_path,
+            hybrid_title=self._hybrid_title,
+            hybrid_icon=self._hybrid_icon_path,
+        )
+        # Set the title BEFORE _apply_layered_window: the HUD transparency finds
+        # this window by its live title, so it must already be the new one.
+        self.window.title = title
+        load_window_icon(self.window, icon)
         self._apply_layered_window(active)
 
     def _find_hwnd(self) -> int:

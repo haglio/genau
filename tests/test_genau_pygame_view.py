@@ -127,3 +127,38 @@ def test_set_hud_mode_noop_when_already_in_requested_state(mock_pygame):
     view.set_hud_mode(False)  # already False
 
     view._apply_layered_window.assert_not_called()
+
+
+def test_hud_window_identity_hybrid_when_active_else_base(mock_pygame):
+    from pathlib import Path
+
+    from genau.pygame_view import hud_window_identity
+
+    args = dict(base_title="Genau", base_icon=Path("g.ico"),
+                hybrid_title="Hybrid Nau+Genau", hybrid_icon=Path("h.ico"))
+    assert hud_window_identity(True, **args) == ("Hybrid Nau+Genau", Path("h.ico"))
+    assert hud_window_identity(False, **args) == ("Genau", Path("g.ico"))
+
+
+def test_hud_window_identity_stays_genau_without_a_hybrid_identity(mock_pygame):
+    from genau.pygame_view import hud_window_identity
+
+    assert hud_window_identity(
+        True, base_title="Genau", base_icon=None, hybrid_title=None, hybrid_icon=None
+    ) == ("Genau", None)
+
+
+def test_set_hud_mode_swaps_window_title_to_hybrid_and_back(mock_pygame, tmp_path):
+    from genau.pygame_view import PygameView
+
+    view = PygameView(
+        width=800, height=600, title="Genau",
+        hybrid_title="Hybrid Nau+Genau", hybrid_icon_path=tmp_path / "h.ico",
+    )
+    view._apply_layered_window = MagicMock()
+
+    view.set_hud_mode(True)
+    assert view.window.title == "Hybrid Nau+Genau"
+
+    view.set_hud_mode(False)
+    assert view.window.title == "Genau"
