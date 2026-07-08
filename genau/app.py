@@ -129,6 +129,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         x=args.x,
         y=args.y,
         icon_path=config.project_dir / "genau_icon.ico",
+        hybrid_title="Hybrid Nau+Genau",
+        hybrid_icon_path=config.project_dir / "hybrid_icon.ico",
     )
 
     state = SharedState()
