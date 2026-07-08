@@ -215,17 +215,16 @@ class TestProgressBar:
         # ...but the track interior is painted.
         assert bar[my, (x0 + x1) // 2, 3] > 0
 
-    def test_has_a_light_border_around_the_track(self):
+    def test_has_a_two_tone_border_around_the_track(self):
         from nau.overlay import _BAR_INSET_Y, bar_track_x, progress_bar_bgra
         bar = progress_bar_bgra(0, 10_000, None, 1000)
         x0, x1 = bar_track_x(1000)
         xc = (x0 + x1) // 2
         fill = _rgba(bar, bar.shape[0] // 2, xc)      # interior fill
-        top = _rgba(bar, _BAR_INSET_Y, xc)            # top edge
-        left = _rgba(bar, bar.shape[0] // 2, x0)      # left edge
-        # The border is clearly lighter than the fill and effectively opaque.
-        assert min(top[:3]) > max(fill[:3]) and top[3] >= 200
-        assert min(left[:3]) > max(fill[:3]) and left[3] >= 200
+        outer = _rgba(bar, _BAR_INSET_Y, xc)          # dark outer edge
+        inner = _rgba(bar, _BAR_INSET_Y + 1, xc)      # light inner border
+        assert max(outer[:3]) < min(fill[:3])                     # darker than fill
+        assert min(inner[:3]) > max(fill[:3]) and inner[3] >= 200  # lighter than fill
 
     def test_prominent_white_playcursor(self):
         from nau.overlay import bar_track_x, progress_bar_bgra
@@ -278,15 +277,38 @@ class TestProgressBar:
 
 
 class TestHeatmapBgra:
-    def test_marks_cursor_and_loop_bounds_over_the_strip(self):
-        from nau.overlay import heatmap_bgra
+    def _framed_strip(self, win_w=200):
+        # Production builds the colour row at the inset track width, then frames
+        # it to full window width.
+        from nau.overlay import bar_track_x, heatmap_bgra
+        x0, x1 = bar_track_x(win_w)
         strip = HeatmapStrip()
-        strip.update("v.mp4", _funscript(), 4000.0, width=100)  # window 0..4000
-        bgra = heatmap_bgra(strip, 2000, (1000, 3000), 100)
+        strip.update("v.mp4", _funscript(), 4000.0, width=x1 - x0)  # window 0..4000
+        return heatmap_bgra(strip, 2000, (1000, 3000), win_w), x0, x1
+
+    def test_strip_is_inset_from_the_window_edges(self):
+        bgra, x0, x1 = self._framed_strip()
         my = bgra.shape[0] // 2
-        assert _rgba(bgra, my, 50) == (230, 230, 230, 255)  # white playcursor at 50%
-        assert _rgba(bgra, my, 25)[:3] == (235, 180, 60)    # amber loop-in at 25%
-        assert _rgba(bgra, my, 75)[:3] == (235, 180, 60)    # amber loop-out at 75%
+        assert bgra[my, 5, 3] == 0 and bgra[my, 195, 3] == 0   # nothing at the edges
+        assert bgra[my, (x0 + x1) // 2, 3] > 0                 # painted in the track
+
+    def test_has_a_two_tone_border(self):
+        from nau.overlay import _BAR_INSET_Y
+        bgra, x0, x1 = self._framed_strip()
+        outer = _rgba(bgra, _BAR_INSET_Y, x0 + 10)      # dark outer edge (away from marks)
+        inner = _rgba(bgra, _BAR_INSET_Y + 1, x0 + 10)  # light inner border
+        assert max(outer[:3]) < 100
+        assert min(inner[:3]) >= 200 and inner[3] >= 200
+
+    def test_prominent_full_height_marks(self):
+        bgra, x0, x1 = self._framed_strip()
+        my = bgra.shape[0] // 2
+        cx = x0 + (x1 - x0) // 2
+        assert _rgba(bgra, my, cx) == (255, 255, 255, 255)     # white playcursor @50%
+        white = [x for x in range(x0, x1) if _rgba(bgra, my, x) == (255, 255, 255, 255)]
+        assert len(white) >= 3                                 # 3px, not a hairline
+        amber = [x for x in range(x0, x1) if _rgba(bgra, my, x)[:3] == (235, 180, 60)]
+        assert amber and any(x < cx for x in amber) and any(x > cx for x in amber)
 
     def test_unscripted_strip_is_none(self):
         from nau.overlay import heatmap_bgra
