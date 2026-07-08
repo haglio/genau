@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .session import MAX_SPEED_RATE, MIN_SPEED_RATE
+
 SEEK_STEP_MS = 10_000
 SPEED_STEP = 0.25
 
@@ -40,6 +42,8 @@ def apply_command(
         session.adjust_speed(SPEED_STEP)
     elif keyword == "SPEED_DOWN":
         session.adjust_speed(-SPEED_STEP)
+    elif keyword == "SET_SPEED":
+        return _set_speed(session, arg)
     elif keyword == "RECORD_DOWN":
         session.record_down()
     elif keyword == "RECORD_UP":
@@ -78,6 +82,24 @@ def apply_command(
         stop_event.set()
     else:
         return False
+    return True
+
+
+def _set_speed(session, arg: str) -> bool:
+    """SET_SPEED <min|max|multiplier> -> absolute playback rate. Returns False on
+    a missing or non-numeric argument so the caller reports it unhandled."""
+    if not arg:
+        return False
+    key = arg.lower()
+    if key == "min":
+        session.set_speed(MIN_SPEED_RATE)
+    elif key == "max":
+        session.set_speed(MAX_SPEED_RATE)
+    else:
+        try:
+            session.set_speed(float(arg))
+        except ValueError:
+            return False
     return True
 
 

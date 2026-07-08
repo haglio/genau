@@ -36,7 +36,7 @@ _EOF_MARGIN_MS = 100
 # 1.0 is normal). The funscript follows a speed change automatically because it
 # is driven off mpv's clock, which advances at the playback rate.
 MIN_SPEED_RATE = 0.25
-MAX_SPEED_RATE = 3.0
+MAX_SPEED_RATE = 2.0
 
 
 class PlayerSession:
