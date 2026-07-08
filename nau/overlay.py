@@ -328,8 +328,8 @@ def progress_bar_bgra(position_ms, duration_ms, loop_bounds, width,
     return bar
 
 
-def name_bgra(text: str):
-    """The current video's name as a translucent chip for the top-left."""
+def _text_chip(text: str, *, fg=(240, 240, 240)):
+    """A translucent dark chip sized to *text*, for a screen corner."""
     from PIL import Image, ImageDraw
 
     pad = 5
@@ -337,8 +337,23 @@ def name_bgra(text: str):
     box = tmp.textbbox((0, 0), text)
     tw, th = box[2] - box[0], box[3] - box[1]
     img = Image.new("RGBA", (tw + pad * 2, th + pad * 3), (0, 0, 0, 160))
-    ImageDraw.Draw(img).text((pad, pad), text, fill=(240, 240, 240))
+    ImageDraw.Draw(img).text((pad, pad), text, fill=fg)
     return _rgba_to_bgra(np.asarray(img))
+
+
+def name_bgra(text: str):
+    """The current video's name as a translucent chip for the top-left."""
+    return _text_chip(text)
+
+
+def _format_speed(speed: float) -> str:
+    """Playback rate as a compact label, e.g. 1.0 -> '1×', 1.5 -> '1.5×'."""
+    return f"{speed:g}×"
+
+
+def speed_bgra(speed: float):
+    """The current playback rate as an amber chip (shown only when off 1×)."""
+    return _text_chip(_format_speed(speed), fg=(255, 205, 90))
 
 
 def heatmap_bgra(heatmap, position_ms, loop_bounds, width):

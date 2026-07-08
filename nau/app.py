@@ -33,6 +33,7 @@ from .overlay import (
     label_xs,
     name_bgra,
     progress_bar_bgra,
+    speed_bgra,
     time_to_x,
 )
 from .playlist import read_playlist
@@ -48,6 +49,7 @@ _APP_USER_MODEL_ID = "Nau.App"
 # Overlay ids (stable so each frame updates in place).
 _OV_HEATMAP = 0
 _OV_INDICATOR = 1
+_OV_SPEED = 2
 _OV_NAME = 3
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
@@ -274,6 +276,13 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
 
         name = name_bgra(session.current_video.stem)
         player.overlay(_OV_NAME, 8, 8, name)
+
+        # Playback rate, just under the name — only when it is off normal.
+        if session.speed != 1.0:
+            spd = speed_bgra(session.speed)
+            player.overlay(_OV_SPEED, 8, 8 + name.shape[0] + 4, spd)
+        else:
+            player.remove_overlay(_OV_SPEED)
 
         ind = indicator_bgra(indicator_for(session.loop_state, paused=session.is_paused))
         ix, iy = indicator_xy(win_w)
