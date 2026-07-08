@@ -4,6 +4,7 @@ import threading
 from pathlib import Path
 
 from nau.runtime import SEEK_STEP_MS, SPEED_STEP, apply_command
+from nau.session import MAX_SPEED_RATE, MIN_SPEED_RATE
 
 
 class SpySession:
@@ -37,6 +38,9 @@ class SpySession:
 
     def adjust_speed(self, delta: float) -> None:
         self.calls.append(("adjust_speed", delta))
+
+    def set_speed(self, speed: float) -> None:
+        self.calls.append(("set_speed", speed))
 
 
 class TestApplyCommand:
@@ -74,6 +78,26 @@ class TestApplyCommand:
         assert session.calls == [
             ("adjust_speed", SPEED_STEP), ("adjust_speed", -SPEED_STEP),
         ]
+
+    def test_set_speed_absolute_and_extremes(self):
+        session = SpySession()
+
+        apply_command("SET_SPEED min", session)
+        apply_command("SET_SPEED max", session)
+        apply_command("SET_SPEED 1.5", session)
+
+        assert session.calls == [
+            ("set_speed", MIN_SPEED_RATE),
+            ("set_speed", MAX_SPEED_RATE),
+            ("set_speed", 1.5),
+        ]
+
+    def test_set_speed_without_or_invalid_argument_returns_false(self):
+        session = SpySession()
+
+        assert apply_command("SET_SPEED", session) is False
+        assert apply_command("SET_SPEED fast", session) is False
+        assert session.calls == []
 
     def test_record_commands(self):
         session = SpySession()

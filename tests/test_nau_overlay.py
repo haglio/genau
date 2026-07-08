@@ -325,6 +325,22 @@ class TestNameChip:
         assert chip.shape[0] > 0 and chip.shape[1] > 0
 
 
+class TestSpeedChip:
+    def test_format_trims_trailing_zeros_and_marks_multiplier(self):
+        from nau.overlay import _format_speed
+        assert _format_speed(1.0) == "1×"
+        assert _format_speed(2.0) == "2×"
+        assert _format_speed(1.5) == "1.5×"
+        assert _format_speed(0.25) == "0.25×"
+        assert _format_speed(0.5) == "0.5×"
+
+    def test_produces_bgra_with_height(self):
+        from nau.overlay import speed_bgra
+        chip = speed_bgra(1.5)
+        assert chip.ndim == 3 and chip.shape[2] == 4
+        assert chip.shape[0] > 0 and chip.shape[1] > 0
+
+
 class TestLoopThumbCapture:
     def test_asks_for_in_first_then_out_near_end(self):
         from nau.overlay import LoopThumbCapture
