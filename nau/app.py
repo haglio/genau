@@ -107,8 +107,10 @@ def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -
         player.remove_overlay(_OV_OUT_THUMB)
         return
     start_ms, end_ms = heatmap.window
-    in_x = time_to_x(bounds[0], start_ms, end_ms, win_w)
-    out_x = time_to_x(bounds[1], start_ms, end_ms, win_w)
+    tx0, tx1 = bar_track_x(win_w)  # thumbnails sit above their marks on the inset track
+    track_w = tx1 - tx0
+    in_x = tx0 + time_to_x(bounds[0], start_ms, end_ms, track_w)
+    out_x = tx0 + time_to_x(bounds[1], start_ms, end_ms, track_w)
     in_t, out_t = loop_thumbs.in_thumb, loop_thumbs.out_thumb
     iw = in_t.shape[1] if in_t is not None else 1
     ow = out_t.shape[1] if out_t is not None else 1
@@ -195,9 +197,9 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
             start_ms, end_ms = heatmap.window
             if end_ms <= start_ms:
                 end_ms = start_ms + session.duration_ms
-            # The scripted heatmap spans the full width; the plain bar is inset,
-            # so map the click onto whichever track is actually showing.
-            x0, x1 = (0, win_w) if heatmap.colors else bar_track_x(win_w)
+            # Both the heatmap strip and the plain bar are inset to the same
+            # track, so a click maps onto it the same way.
+            x0, x1 = bar_track_x(win_w)
             frac = min(1.0, max(0.0, (mx - x0) / max(1, x1 - x0)))
             session.seek_to(start_ms + frac * (end_ms - start_ms))
         else:
@@ -250,8 +252,12 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
             status_writer.write(session)
 
         # --- overlays on top of mpv's video ---
+        # The heatmap fills the inset track, so build its colour row at track
+        # width; heatmap_bgra frames it full-width to line up with the plain bar.
+        tx0, tx1 = bar_track_x(win_w)
         heatmap.update(
-            session.current_video, session.current_funscript, session.duration_ms, win_w,
+            session.current_video, session.current_funscript, session.duration_ms,
+            tx1 - tx0,
             loop_state=session.loop_state,
             record_in_ms=session.record_in_ms,
             position_ms=session.position_ms,
