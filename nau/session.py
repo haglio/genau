@@ -38,6 +38,11 @@ _EOF_MARGIN_MS = 100
 MIN_SPEED_RATE = 0.25
 MAX_SPEED_RATE = 2.0
 
+# Volume bounds for the audio control, on mpv's ``volume`` scale: a percentage
+# of the source's own level, where 100 is untouched and 0 is silent.
+MIN_VOLUME = 0
+MAX_VOLUME = 100
+
 
 class PlayerSession:
     def __init__(
@@ -58,6 +63,7 @@ class PlayerSession:
         self._paused = start_paused
         self._tcode_enabled = True
         self._speed = 1.0
+        self._volume = MAX_VOLUME
         self._index = 0
         self._funscript = None
         self._loop_ctrl: LoopController | None = None
@@ -193,6 +199,15 @@ class PlayerSession:
 
     def adjust_speed(self, delta: float) -> None:
         self.set_speed(self._speed + delta)
+
+    @property
+    def volume(self) -> int:
+        """Playback volume: a percentage of the source's own level."""
+        return self._volume
+
+    def set_volume(self, volume: int) -> None:
+        self._volume = max(MIN_VOLUME, min(MAX_VOLUME, volume))
+        self._player.set_volume(self._volume)
 
     def set_tcode_enabled(self, enabled: bool) -> None:
         """Gate funscript T-Code output (the SET_TCODE_ENABLED command).

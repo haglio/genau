@@ -44,6 +44,8 @@ def apply_command(
         session.adjust_speed(-SPEED_STEP)
     elif keyword == "SET_SPEED":
         return _set_speed(session, arg)
+    elif keyword == "SET_VOLUME":
+        return _set_volume(session, arg)
     elif keyword == "RECORD_DOWN":
         session.record_down()
     elif keyword == "RECORD_UP":
@@ -88,8 +90,6 @@ def apply_command(
 def _set_speed(session, arg: str) -> bool:
     """SET_SPEED <min|max|multiplier> -> absolute playback rate. Returns False on
     a missing or non-numeric argument so the caller reports it unhandled."""
-    if not arg:
-        return False
     key = arg.lower()
     if key == "min":
         session.set_speed(MIN_SPEED_RATE)
@@ -100,6 +100,16 @@ def _set_speed(session, arg: str) -> bool:
             session.set_speed(float(arg))
         except ValueError:
             return False
+    return True
+
+
+def _set_volume(session, arg: str) -> bool:
+    """SET_VOLUME <0-100> -> absolute playback volume. Returns False on a missing
+    or non-numeric argument so the caller reports it unhandled."""
+    try:
+        session.set_volume(int(arg))
+    except ValueError:
+        return False
     return True
 
 
