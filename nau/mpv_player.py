@@ -64,6 +64,15 @@ class MpvPlayer:
         (the T-Code driver only rescales its move durations)."""
         self._mpv.speed = speed
 
+    def set_volume(self, volume: int) -> None:
+        """Set the audio volume (0-100, a percentage of the source's own level).
+
+        ``volume`` and ``mute`` are independent mpv properties, so a player
+        constructed muted (``--no-audio`` / ``FUN_TIME_MUTE_AUDIO``, which the
+        hidden-desktop integration runs rely on) stays silent whatever is set here.
+        """
+        self._mpv.volume = volume
+
     def seek_ms(self, ms: float) -> None:
         self._mpv.command("seek", max(0.0, ms) / 1000.0, "absolute", "exact")
 

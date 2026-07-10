@@ -42,6 +42,9 @@ class SpySession:
     def set_speed(self, speed: float) -> None:
         self.calls.append(("set_speed", speed))
 
+    def set_volume(self, volume: int) -> None:
+        self.calls.append(("set_volume", volume))
+
 
 class TestApplyCommand:
     def test_next_and_prev_step(self):
@@ -97,6 +100,20 @@ class TestApplyCommand:
 
         assert apply_command("SET_SPEED", session) is False
         assert apply_command("SET_SPEED fast", session) is False
+        assert session.calls == []
+
+    def test_set_volume_absolute(self):
+        session = SpySession()
+
+        assert apply_command("SET_VOLUME 40", session)
+
+        assert session.calls == [("set_volume", 40)]
+
+    def test_set_volume_without_or_invalid_argument_returns_false(self):
+        session = SpySession()
+
+        assert apply_command("SET_VOLUME", session) is False
+        assert apply_command("SET_VOLUME loud", session) is False
         assert session.calls == []
 
     def test_record_commands(self):

@@ -3,7 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from nau.funscript import Funscript
-from nau.session import MAX_SPEED_RATE, MIN_SPEED_RATE, PlayerSession
+from nau.session import (
+    MAX_SPEED_RATE,
+    MAX_VOLUME,
+    MIN_SPEED_RATE,
+    MIN_VOLUME,
+    PlayerSession,
+)
 
 
 class FakePlayer:
@@ -18,6 +24,7 @@ class FakePlayer:
         self.ab_loop: tuple[float, float] | None = None
         self.seeks: list[float] = []
         self.speeds: list[float] = []
+        self.volumes: list[int] = []
         self.closed = False
 
     def load(self, path: Path) -> None:
@@ -30,6 +37,9 @@ class FakePlayer:
 
     def set_speed(self, speed: float) -> None:
         self.speeds.append(speed)
+
+    def set_volume(self, volume: int) -> None:
+        self.volumes.append(volume)
 
     def seek_ms(self, ms: float) -> None:
         self.position_ms = ms
@@ -655,6 +665,29 @@ class TestLoadPlaylist:
         before = session.current_video
         session.load_playlist([])
         assert session.current_video == before
+
+
+class TestVolume:
+    def test_volume_defaults_to_full(self, tmp_path):
+        session, _player, _tcode = _make_session(tmp_path)
+        assert session.volume == MAX_VOLUME
+
+    def test_set_volume_drives_the_player(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path)
+
+        session.set_volume(40)
+
+        assert session.volume == 40
+        assert player.volumes == [40]
+
+    def test_set_volume_clamps_to_the_supported_range(self, tmp_path):
+        session, _player, _tcode = _make_session(tmp_path)
+
+        session.set_volume(400)
+        assert session.volume == MAX_VOLUME
+
+        session.set_volume(-10)
+        assert session.volume == MIN_VOLUME
 
 
 class TestSpeed:
