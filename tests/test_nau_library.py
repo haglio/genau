@@ -412,3 +412,30 @@ class TestCollapsePlaylistVersions:
         result = collapse_playlist_versions([(Path("mystery.mp4"), None)], {})
 
         assert result == [(Path("mystery.mp4"), None)]
+
+
+class TestGroupVersionsByRecordedId:
+    def test_recorded_id_folds_clips_names_never_would(self):
+        a = _entry("Totally-Different-A.mp4", 100)
+        b = _entry("unrelated_name_b.mp4", 900)
+        ids = {a.video: "fam1", b.video: "fam1"}
+
+        groups = group_versions([a, b], lambda v: ids.get(v))
+
+        assert len(groups) == 1
+        assert groups[0].canonical is b  # larger
+        assert groups[0].alternates == [a]
+
+    def test_clips_without_a_recorded_id_fall_back_to_name_grouping(self):
+        rec_a = _entry("scene.mp4", 100)
+        rec_b = _entry("other.mp4", 100)
+        mya = _entry("Mya.mp4", 50)
+        mya_up = _entry("Mya_topaz.mp4", 800)
+        ids = {rec_a.video: "f", rec_b.video: "f"}  # the Myas have no sidecar
+
+        groups = group_versions([rec_a, rec_b, mya, mya_up], lambda v: ids.get(v))
+
+        member_sets = [sorted(str(m.video) for m in g.members) for g in groups]
+        assert sorted([str(rec_a.video), str(rec_b.video)]) in member_sets
+        assert sorted([str(mya.video), str(mya_up.video)]) in member_sets
+        assert len(groups) == 2
