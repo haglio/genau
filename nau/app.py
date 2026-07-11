@@ -36,7 +36,6 @@ from .overlay import (
     speed_bgra,
     time_to_x,
 )
-from .playlist import read_playlist
 from .runtime import SEEK_STEP_MS, apply_command
 from .session import PlayerSession
 from .status import StatusWriter
@@ -81,11 +80,9 @@ def main(argv: list[str] | None = None) -> int:
     source = library_source(args)
     # Fun Time passes --playlist and owns its selection; standalone falls back to
     # the source's full-length playlist. Either way the source (when present)
-    # powers version cycling and the shorts/full-length toggle.
-    if args.playlist is not None or source is None:
-        pairs = resolve_playlist(args)
-    else:
-        pairs = source.playlist_for(DEFAULT_MODE)
+    # powers version cycling, the shorts/full-length toggle, and folding each
+    # video's versions to a single rotation slot.
+    pairs = resolve_playlist(args, source=source)
     if not pairs:
         logger.error("No videos found (need --playlist or --videos-dir/--scripts-dir)")
         return 1
@@ -171,7 +168,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
 
     def _reload_playlist() -> None:
         if args.playlist is not None:
-            session.replace_playlist(read_playlist(Path(args.playlist)))
+            session.replace_playlist(resolve_playlist(args, source=source))
 
     def _set_length_mode(mode: str) -> None:
         nonlocal length_mode
