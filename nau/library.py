@@ -3,9 +3,10 @@ length-mode filtering — all pure logic, no pygame or I/O.
 
 Many files in the wild are the same content at different quality or upscale
 (``...-1080p_60fps.mp4``, ``...-old_iris2.mp4``, ``..._topaz.mp4``). This
-module normalizes titles to fold those variants into a single *version
-group*, picks the largest file as the canonical one, and offers a
-canonical-only shuffle plus a full-length/shorts filter.
+module folds those variants into a single *version group* keyed on the name —
+an upscale is almost always the original's name plus an appended tag — picks
+the largest file as the canonical one, and offers a canonical-only shuffle, a
+Fun-Time playlist collapse, and a full-length/shorts filter.
 """
 from __future__ import annotations
 
@@ -77,9 +78,10 @@ class LibraryEntry:
 
 @dataclass(frozen=True)
 class VersionGroup:
-    """Entries that normalize to the same title, ordered largest-first.
+    """Entries that are versions of one video, ordered largest-first.
 
-    The first (largest) entry is the canonical version to shuffle into a
+    Members share a title prefix — an upscale is the original's name plus a
+    tag. The first (largest) entry is the canonical version to shuffle into a
     playlist; the rest are alternates reachable via "cycle version".
     """
 
@@ -94,104 +96,108 @@ class VersionGroup:
         return list(self.members[1:])
 
 
-_VERSION_DUR_TOL_FRAC = 0.02  # 2%
-_VERSION_DUR_TOL_MIN_S = 3.0
+def _title_tokens(stem: str) -> tuple[str, ...]:
+    return tuple(normalize_title(stem).split())
 
 
-def _coarse_key(stem: str) -> str:
-    """The first two normalized tokens (usually the performer) — the coarse
-    bucket within which duration decides same-content versions."""
-    tokens = normalize_title(stem).split()
-    return " ".join(tokens[:2]) if tokens else normalize_title(stem)
+def _is_prefix(shorter: tuple[str, ...], longer: tuple[str, ...]) -> bool:
+    """Whether *shorter*'s tokens begin *longer*'s (equal counts as a prefix)."""
+    return len(shorter) <= len(longer) and longer[: len(shorter)] == shorter
 
 
-def group_versions(
-    entries: list[LibraryEntry],
-    durations: dict[Path, float] | None = None,
-) -> list[VersionGroup]:
-    """Fold entries into same-content version groups.
+def _matching_group(
+    groups: list[list[LibraryEntry]],
+    group_tokens: list[tuple[str, ...]],
+    toks: tuple[str, ...],
+) -> list[LibraryEntry] | None:
+    """The existing group whose title begins *toks*, or None.
 
-    Without *durations* (e.g. Fun Time playlists), groups are keyed by the
-    full :func:`normalize_title` — only works when the versions share a name.
-
-    With *durations*, grouping is duration-aware, which is what actually
-    catches real libraries: files of the same scene at different quality
-    (e.g. ``Vanessa-Leon-<hash>.mkv`` vs
-    ``vanessa-leon-redacted-it-dry-1080p.mp4``) share almost the same runtime but
-    almost nothing in their names.  Entries are first coarse-bucketed by
-    performer (first two tokens), then clustered within a bucket by runtime
-    proximity (within max(3s, 2%)).  Unprobed entries fall back to a title key.
-
-    Within each group members are ordered largest-file first, so the largest
-    is canonical.  Group order follows first appearance.
+    An empty *toks* (a name of only quality/hash tokens) matches nothing, so
+    such a file stands alone rather than swallowing every other singleton.
     """
-    if durations is None:
-        return _group_by_title(entries)
-
-    order: list[str] = []
-    coarse: dict[str, list[LibraryEntry]] = {}
-    for entry in entries:
-        d = durations.get(entry.video, 0.0)
-        # Unprobed entries cannot be duration-clustered — key them by full
-        # title so they still fold with same-named siblings, not everything.
-        key = _coarse_key(entry.video.stem) if d > 0 else "\x00" + normalize_title(entry.video.stem)
-        if key not in coarse:
-            coarse[key] = []
-            order.append(key)
-        coarse[key].append(entry)
-
-    groups: list[VersionGroup] = []
-    for key in order:
-        for cluster in _cluster_by_duration(coarse[key], durations):
-            members = sorted(cluster, key=lambda e: (-e.size, str(e.video)))
-            groups.append(VersionGroup(members=tuple(members)))
-    return groups
+    if not toks:
+        return None
+    for members, gtoks in zip(groups, group_tokens):
+        if gtoks and _is_prefix(gtoks, toks):
+            return members
+    return None
 
 
-def _cluster_by_duration(
-    members: list[LibraryEntry], durations: dict[Path, float],
-) -> list[list[LibraryEntry]]:
-    """Split a coarse bucket into runtime-proximity clusters (sorted input)."""
-    with_dur = sorted(members, key=lambda e: durations.get(e.video, 0.0))
-    clusters: list[list[LibraryEntry]] = []
-    prev: float | None = None
-    for entry in with_dur:
-        d = durations.get(entry.video, 0.0)
-        tol = max(_VERSION_DUR_TOL_MIN_S, _VERSION_DUR_TOL_FRAC * d)
-        if prev is not None and d > 0 and prev > 0 and d - prev <= tol:
-            clusters[-1].append(entry)
+def group_versions(entries: list[LibraryEntry]) -> list[VersionGroup]:
+    """Fold entries into same-content version groups, by name alone.
+
+    Two files are the same video when one's normalized title is a token-wise
+    *prefix* of the other's — the overwhelmingly common case of upscaling a
+    video and appending a tag to its name (``scene`` vs ``scene_topaz_v2``).
+    Duration is deliberately not consulted: real re-encodes and re-trims drift
+    a handful of seconds, and a shared name prefix is the reliable signal,
+    where a shared runtime would fold genuinely different scenes of like length.
+
+    Entries are matched shortest-title-first, so an original anchors the group
+    its longer-named upscales join. Within a group members are ordered
+    largest-file first (canonical first); group order follows first appearance.
+    """
+    order = {entry: i for i, entry in enumerate(entries)}
+    tokens = {entry: _title_tokens(entry.video.stem) for entry in entries}
+    groups: list[list[LibraryEntry]] = []
+    group_tokens: list[tuple[str, ...]] = []
+    for entry in sorted(entries, key=lambda e: (len(tokens[e]), order[e])):
+        toks = tokens[entry]
+        anchor = _matching_group(groups, group_tokens, toks)
+        if anchor is None:
+            groups.append([entry])
+            group_tokens.append(toks)
         else:
-            clusters.append([entry])
-        prev = d
-    return clusters
+            anchor.append(entry)
+    groups.sort(key=lambda members: min(order[m] for m in members))
+    return [
+        VersionGroup(members=tuple(sorted(members, key=lambda e: (-e.size, str(e.video)))))
+        for members in groups
+    ]
 
 
-def _group_by_title(entries: list[LibraryEntry]) -> list[VersionGroup]:
-    order: list[str] = []
-    buckets: dict[str, list[LibraryEntry]] = {}
-    for entry in entries:
-        key = normalize_title(entry.video.stem)
-        if key not in buckets:
-            buckets[key] = []
-            order.append(key)
-        buckets[key].append(entry)
-    groups: list[VersionGroup] = []
-    for key in order:
-        members = sorted(buckets[key], key=lambda e: (-e.size, str(e.video)))
-        groups.append(VersionGroup(members=tuple(members)))
-    return groups
+def collapse_playlist_versions(
+    pairs: list[tuple[Path, Path | None]],
+    version_index: dict[Path, list[tuple[Path, Path | None]]],
+) -> list[tuple[Path, Path | None]]:
+    """Dedupe a playlist to one entry per version group, order preserved.
+
+    *version_index* (from :func:`version_index_from_groups`) maps each known
+    video to its group's pairs, largest-first. Each group is emitted once, at
+    its first-seen position, keeping the largest member actually present in
+    *pairs* (with that member's funscript from *pairs*). Videos absent from the
+    index pass through unchanged. This turns Fun Time's raw per-file playlist
+    into the one-slot-per-video rotation the primary player shows, matching the
+    set :meth:`PlayerSession.cycle_version` walks.
+    """
+    funscript_by_video = {video: funscript for video, funscript in pairs}
+    present = set(funscript_by_video)
+    collapsed: list[tuple[Path, Path | None]] = []
+    seen: set[Path] = set()
+    for video, _funscript in pairs:
+        members = version_index.get(video)
+        if members:
+            group_id = members[0][0]
+            keep = next((v for v, _ in members if v in present), video)
+        else:
+            group_id = video
+            keep = video
+        if group_id in seen:
+            continue
+        seen.add(group_id)
+        collapsed.append((keep, funscript_by_video.get(keep)))
+    return collapsed
 
 
 def canonical_playlist(
     entries: list[LibraryEntry], rng: random.Random,
-    durations: dict[Path, float] | None = None,
 ) -> list[LibraryEntry]:
     """One canonical entry per version group, shuffled with *rng*.
 
     Deterministic for a given seeded ``random.Random`` so a session (and its
     tests) can reproduce the order.
     """
-    canonicals = [group.canonical for group in group_versions(entries, durations)]
+    canonicals = [group.canonical for group in group_versions(entries)]
     rng.shuffle(canonicals)
     return canonicals
 
@@ -234,7 +240,7 @@ def select_library(
         kept += clips
     else:
         kept = [e for e in entries if durations.get(e.video, 0.0) > SHORT_MAX_S]
-    return [group.canonical for group in group_versions(kept, durations)]
+    return [group.canonical for group in group_versions(kept)]
 
 
 def entries_to_pairs(entries: list[LibraryEntry]) -> list[tuple[Path, Path | None]]:
@@ -278,4 +284,4 @@ def library_playlist(
     selected = select_library(
         entries, mode=mode, durations=durations, clips=clips, scripted_only=scripted_only,
     )
-    return entries_to_pairs(canonical_playlist(selected, rng, durations))
+    return entries_to_pairs(canonical_playlist(selected, rng))

@@ -11,6 +11,7 @@ import random
 from pathlib import Path
 
 from .duration_cache import DurationCache
+from .library import collapse_playlist_versions
 from .library_source import DEFAULT_MODE, LibrarySource, build_library_source
 from .playlist import read_playlist
 
@@ -97,17 +98,26 @@ def library_source(
 def resolve_playlist(
     args,
     *,
+    source: LibrarySource | None = None,
     durations: dict[Path, float] | None = None,
     rng: random.Random | None = None,
 ) -> list[tuple[Path, Path | None]]:
-    """Initial playlist: explicit file verbatim, else deduped full-length discovery.
+    """Initial playlist: an explicit file collapsed to one entry per version
+    group, else deduped full-length discovery.
 
-    *durations* and *rng* are injectable seams for tests; production leaves them
-    None to probe (cached) and shuffle nondeterministically.
+    Fun Time passes ``--playlist`` with every version of every video; a library
+    *source*, when present, folds those into one slot each (matching the set
+    "cycle version" walks). Without a source — no library dirs — the file is
+    returned verbatim, since Nau then has no grouping to apply. *durations* and
+    *rng* are injectable seams for tests; production probes (cached) and
+    shuffles nondeterministically.
     """
     if args.playlist is not None:
-        return read_playlist(Path(args.playlist))
-    source = library_source(args, rng=rng, durations=durations)
+        pairs = read_playlist(Path(args.playlist))
+        if source is not None:
+            pairs = collapse_playlist_versions(pairs, source.version_index)
+        return pairs
+    source = source or library_source(args, rng=rng, durations=durations)
     if source is None:
         return []
     return source.playlist_for(DEFAULT_MODE)

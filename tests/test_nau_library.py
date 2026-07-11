@@ -7,6 +7,7 @@ from nau.library import (
     LibraryEntry,
     VersionGroup,
     canonical_playlist,
+    collapse_playlist_versions,
     group_versions,
     library_playlist,
     normalize_title,
@@ -83,6 +84,45 @@ class TestGroupVersions:
         assert groups[0].canonical is unscripted  # larger
         assert groups[0].alternates == [scripted]
         assert groups[0].alternates[0].funscript == Path("Riley-Reid.funscript")
+
+    def test_upscale_with_appended_tag_folds_into_original(self):
+        # The real-world miss: the upscale is the original's name plus an
+        # appended tag, and the original's trailing hash is stripped while the
+        # upscale keeps it mid-name — so exact-title matching split them. A
+        # token-wise prefix match ("mya luanna" begins the upscale) folds them.
+        original = _entry("Mya-Luanna-lA0JUsAd.mp4", size=166)
+        upscale = _entry("Mya-Luanna-lA0JUsAd_3_apf2_iris2.mp4", size=6035)
+
+        groups = group_versions([original, upscale])
+
+        assert len(groups) == 1
+        assert groups[0].canonical is upscale  # larger
+        assert groups[0].alternates == [original]
+
+    def test_numbered_scenes_with_shared_prefix_stay_separate(self):
+        # Same performer, different scene index — NOT versions of each other,
+        # even though they share the first two tokens.
+        one = _entry("Juelz-Ventura-1_1080-rzGPIJrZ.mp4", size=1043)
+        two = _entry("Juelz-Ventura-2_720-ZByXAJ6K.mp4", size=347)
+
+        groups = group_versions([one, two])
+
+        assert len(groups) == 2
+
+    def test_upscales_of_different_numbered_scenes_form_separate_pairs(self):
+        # Several short scenes, each with an appended-tag upscale, must fold
+        # into one pair per scene — not a single over-grouped blob (which the
+        # old first-two-tokens + duration heuristic produced for same-length
+        # clips of one performer).
+        entries = []
+        for n in (1, 2, 3):
+            entries.append(_entry(f"clip-{n}.mp4", size=10))
+            entries.append(_entry(f"clip-{n}_apo8_iris2.mp4", size=400))
+
+        groups = group_versions(entries)
+
+        assert len(groups) == 3
+        assert all(len(g.members) == 2 for g in groups)
 
 
 
@@ -307,33 +347,68 @@ class TestScriptedOnly:
         assert [e.video for e in kept] == [unscripted.video]
 
 
-class TestDurationVersionGrouping:
-    def test_groups_same_scene_different_quality_by_duration(self):
-        from nau.library import group_versions
-        # Real case: names share only the performer; runtimes ~2.6s apart.
-        mkv = _entry("Vanessa-Leon-NAqbHTyB.mkv", size=534_715_901)
-        mp4 = _entry("vanessa-leon-redacted-it-dry-upscale-mp4-1080p_60fps.mp4", size=680_910_371)
-        durations = {mkv.video: 1174.207, mp4.video: 1171.6}
+class TestRealWorldNameGrouping:
+    def test_original_with_hash_and_appended_upscale_fold(self):
+        # The upscale is the original's name — trailing hash and all — plus an
+        # appended pipeline tag, so the original's normalized title is a clean
+        # token prefix of the upscale's. This is the dominant real-world shape.
+        original = _entry("redacted_560-XmbgwUF4.mp4", size=289_000_000)
+        upscale = _entry("redacted_560-XmbgwUF4_apo8_iris2.mp4", size=31_822_000_000)
 
-        groups = group_versions([mkv, mp4], durations)
+        groups = group_versions([original, upscale])
 
         assert len(groups) == 1
-        assert groups[0].canonical is mp4  # larger file
-        assert set(groups[0].alternates) == {mkv}
+        assert groups[0].canonical is upscale  # larger file
+        assert groups[0].alternates == [original]
 
-    def test_same_performer_far_apart_durations_stay_separate(self):
-        from nau.library import group_versions
+    def test_different_scene_names_stay_separate(self):
         a = _entry("Vanessa-Leon-scene-a.mp4", size=100)
         b = _entry("vanessa-leon-scene-b-1080p.mp4", size=100)
-        durations = {a.video: 600.0, b.video: 1200.0}  # different scenes
 
-        groups = group_versions([a, b], durations)
+        groups = group_versions([a, b])
 
         assert len(groups) == 2
 
-    def test_without_durations_falls_back_to_title(self):
-        from nau.library import group_versions
-        a = _entry("Asa-1080p.mp4", size=200, funscript="Asa.funscript")
-        b = _entry("Asa-540.mp4", size=100)
-        groups = group_versions([a, b])  # no durations
-        assert len(groups) == 1  # same normalized title "asa"
+
+class TestCollapsePlaylistVersions:
+    def _index(self, entries):
+        return version_index_from_groups(group_versions(entries))
+
+    def test_keeps_one_slot_per_group_at_first_seen_position(self):
+        # A rotation listing both original and upscale collapses to the larger,
+        # at the first-seen position, dropping the later duplicate.
+        index = self._index([_entry("Mya.mp4", 166), _entry("Mya_topaz.mp4", 6035)])
+        pairs = [
+            (Path("Mya.mp4"), None),
+            (Path("Other.mp4"), None),
+            (Path("Mya_topaz.mp4"), None),
+        ]
+
+        result = collapse_playlist_versions(pairs, index)
+
+        assert result == [(Path("Mya_topaz.mp4"), None), (Path("Other.mp4"), None)]
+
+    def test_keeps_the_kept_members_funscript(self):
+        index = self._index([_entry("Mya.mp4", 166), _entry("Mya_topaz.mp4", 6035)])
+        pairs = [
+            (Path("Mya_topaz.mp4"), Path("Mya_topaz.funscript")),
+            (Path("Mya.mp4"), Path("Mya.funscript")),
+        ]
+
+        result = collapse_playlist_versions(pairs, index)
+
+        assert result == [(Path("Mya_topaz.mp4"), Path("Mya_topaz.funscript"))]
+
+    def test_keeps_only_present_member_when_larger_absent(self):
+        # F-mode may have filtered the upscale out; keep whatever version is here.
+        index = self._index([_entry("Mya.mp4", 166), _entry("Mya_topaz.mp4", 6035)])
+        pairs = [(Path("Mya.mp4"), Path("Mya.funscript"))]
+
+        result = collapse_playlist_versions(pairs, index)
+
+        assert result == [(Path("Mya.mp4"), Path("Mya.funscript"))]
+
+    def test_video_absent_from_index_passes_through(self):
+        result = collapse_playlist_versions([(Path("mystery.mp4"), None)], {})
+
+        assert result == [(Path("mystery.mp4"), None)]

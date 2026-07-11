@@ -18,8 +18,9 @@ class TestResolvePlaylist:
 
         assert pairs == [(vid, None)]
 
-    def test_playlist_file_skips_dedup(self, tmp_path):
-        # Explicit Fun Time playlists are returned verbatim — no version folding.
+    def test_playlist_file_verbatim_without_a_source(self, tmp_path):
+        # With no library dirs there is no version grouping to apply, so the
+        # explicit playlist is returned as-is.
         playlist = tmp_path / "nau_playlist.tsv"
         a = tmp_path / "Asa-540.mp4"
         b = tmp_path / "Asa-1080p.mp4"
@@ -31,6 +32,30 @@ class TestResolvePlaylist:
         pairs = resolve_playlist(args)
 
         assert pairs == [(a, None), (b, None)]
+
+    def test_playlist_file_collapses_versions_with_a_source(self, tmp_path):
+        # Fun Time lists both an original and its upscale; the source's version
+        # groups fold them to one slot — the larger — matching the rotation the
+        # primary player shows and the set "cycle version" walks.
+        vids = tmp_path / "videos"
+        scripts = tmp_path / "scripts"
+        vids.mkdir()
+        scripts.mkdir()
+        original = vids / "Asa-540.mp4"
+        upscale = vids / "Asa-540_topaz.mp4"
+        original.write_text("sm")
+        upscale.write_text("a much larger body")  # canonical (bigger)
+        playlist = tmp_path / "nau_playlist.tsv"
+        playlist.write_text(f"{original}\n{upscale}\n", encoding="utf-8")
+        args = build_parser({}).parse_args([
+            "--playlist", str(playlist),
+            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+        ])
+        source = library_source(args, durations={original: 300.0, upscale: 300.0})
+
+        pairs = resolve_playlist(args, source=source)
+
+        assert pairs == [(upscale, None)]
 
     def test_discovery_dedups_and_keeps_full_length(self, tmp_path):
         vids = tmp_path / "videos"
