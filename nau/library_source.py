@@ -54,7 +54,7 @@ class LibrarySource:
         cycling versions works no matter which length mode is showing.
         """
         return version_index_from_groups(
-            group_versions(self.entries + self.clips, self.durations)
+            group_versions(self.entries + self.clips)
         )
 
 
