@@ -34,6 +34,9 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Saved short clips, always included in shorts mode")
     p.add_argument("--state-dir", type=Path, default=config.get("state_dir"),
                    help="Where the duration cache is stored")
+    p.add_argument("--metadata-dir", type=Path, default=nau.get("metadata_dir"),
+                   help="Metadata sidecar root; when set, version families come "
+                        "from Evolver's sidecars instead of clip names")
     p.add_argument("--playlist", type=Path, default=None,
                    help="Video/funscript pair file (overrides directory discovery)")
     p.add_argument("--width", type=int, default=1200)
@@ -92,6 +95,7 @@ def library_source(
         rng=rng or random.Random(),
         duration_cache=None if durations is not None else DurationCache(_duration_cache_path(args)),
         durations=durations,
+        metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
     )
 
 

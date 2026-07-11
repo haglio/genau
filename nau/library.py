@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import random
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -123,7 +124,48 @@ def _matching_group(
     return None
 
 
-def group_versions(entries: list[LibraryEntry]) -> list[VersionGroup]:
+def group_versions(
+    entries: list[LibraryEntry],
+    group_id_of: Callable[[Path], str | None] | None = None,
+) -> list[VersionGroup]:
+    """Fold entries into same-content version groups.
+
+    With *group_id_of* — a resolver for a clip's recorded version-family id
+    (Evolver's metadata sidecar) — an entry that has an id is grouped by it,
+    the authoritative source, and entries without one fall back to the name
+    heuristic below. Without the resolver, everything groups by name.
+    """
+    if group_id_of is not None:
+        return _group_by_recorded_id(entries, group_id_of)
+    return _group_by_name(entries)
+
+
+def _group_by_recorded_id(
+    entries: list[LibraryEntry],
+    group_id_of: Callable[[Path], str | None],
+) -> list[VersionGroup]:
+    """Group clips by their recorded family id; unrecorded clips fall back to name."""
+    by_id: dict[str, list[LibraryEntry]] = {}
+    order: list[str] = []
+    unrecorded: list[LibraryEntry] = []
+    for entry in entries:
+        gid = group_id_of(entry.video)
+        if gid is None:
+            unrecorded.append(entry)
+            continue
+        if gid not in by_id:
+            by_id[gid] = []
+            order.append(gid)
+        by_id[gid].append(entry)
+    groups = [
+        VersionGroup(members=tuple(sorted(by_id[gid], key=lambda e: (-e.size, str(e.video)))))
+        for gid in order
+    ]
+    groups.extend(_group_by_name(unrecorded))
+    return groups
+
+
+def _group_by_name(entries: list[LibraryEntry]) -> list[VersionGroup]:
     """Fold entries into same-content version groups, by name alone.
 
     Two files are the same video when one's normalized title is a token-wise
