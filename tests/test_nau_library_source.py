@@ -124,3 +124,51 @@ def test_standalone_source_serves_all_videos_by_default():
 
     assert scripted.video in vids and unscripted.video in vids
     assert src.scripted_only is False
+
+
+def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):
+    import json
+    import random
+    from nau.library import LibraryEntry
+    from nau.library_source import LibrarySource, read_version_group
+
+    lib = tmp_path / "videos" / "videos"
+    meta = tmp_path / "videos" / "metadata"
+    original = lib / "larkin" / "2_orig" / "Scene-One-abc.mkv"
+    upscale = lib / "larkin" / "3_done" / "wholly-different-name_apo8_iris2.mp4"
+    for clip, size in ((original, 100), (upscale, 900)):
+        clip.parent.mkdir(parents=True, exist_ok=True)
+        clip.write_bytes(b"x")
+        side = (meta / clip.relative_to(lib)).with_suffix(".json")
+        side.parent.mkdir(parents=True, exist_ok=True)
+        side.write_text(
+            json.dumps({"version": {"group": "larkin/Scene-One-abc", "processed": clip is upscale}}),
+            encoding="utf-8",
+        )
+    ea = LibraryEntry(video=original, funscript=None, size=100)
+    eb = LibraryEntry(video=upscale, funscript=None, size=900)
+    source = LibrarySource(
+        entries=[ea, eb], clips=[], durations={original: 300.0, upscale: 300.0},
+        rng=random.Random(0), metadata_root=meta,
+    )
+
+    index = source.version_index
+
+    assert index[original] == index[upscale]  # folded despite unrelated names
+    assert index[original][0][0] == upscale  # canonical is the larger clip
+    assert read_version_group(original, meta) == "larkin/Scene-One-abc"
+
+
+def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
+    import random
+    from nau.library import LibraryEntry
+    from nau.library_source import LibrarySource
+
+    a = LibraryEntry(video=Path("Richard.mp4"), funscript=None, size=50)
+    b = LibraryEntry(video=Path("Richard_topaz.mp4"), funscript=None, size=800)
+    source = LibrarySource(
+        entries=[a, b], clips=[], durations={a.video: 300.0, b.video: 300.0},
+        rng=random.Random(0),
+    )
+
+    assert source.version_index[a.video] == source.version_index[b.video]
