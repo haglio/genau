@@ -272,3 +272,12 @@ class TestPlaybackClock:
 
         assert session.position_ms == 3_200.0
         assert session.duration_ms == 8_000.0
+
+
+class TestClose:
+    def test_close_tears_down_the_player(self, tmp_path):
+        session, player = _make_session(tmp_path)
+
+        session.close()
+
+        assert player.closed is True
