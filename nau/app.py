@@ -19,6 +19,7 @@ from .cli import (
     load_config,
     resolve_playlist,
 )
+from .clip_nav import ClipNav
 from .library_source import DEFAULT_MODE, OTHER_MODE
 from .mpv_player import MpvPlayer
 from .overlay import (
@@ -184,6 +185,48 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
     def _toggle_length_mode() -> None:
         _set_length_mode(OTHER_MODE if length_mode == DEFAULT_MODE else DEFAULT_MODE)
 
+    # Clip navigation: a clip carved from a compilation records its siblings,
+    # order, and source scene in its sidecar (see nau.clip_nav). Built once over
+    # the whole discovered library so "compilation"/"full vid"/"money shot" can
+    # jump from whatever is on screen.
+    clip_nav = (
+        ClipNav.build(
+            [e.video for e in source.entries] + [c.video for c in source.clips],
+            source.metadata_root,
+        )
+        if source is not None
+        else None
+    )
+    fs_by_video = {e.video: e.funscript for e in source.entries} if source is not None else {}
+
+    def _play_compilation() -> None:
+        """Reorder the playlist to just the current clip's compilation, in order."""
+        if clip_nav is None:
+            return
+        siblings = clip_nav.compilation_playlist(session.current_video)
+        if siblings:
+            session.replace_playlist([(v, fs_by_video.get(v)) for v in siblings])
+
+    def _play_full_vid() -> None:
+        """Jump from the current clip to the library scene it was taken from."""
+        if clip_nav is None:
+            return
+        target = clip_nav.full_vid_of(session.current_video)
+        if target is not None:
+            session.play_file(target, fs_by_video.get(target))
+        else:
+            logger.info("full vid: no library match for %s", session.current_video.name)
+
+    def _play_money_shot() -> None:
+        """Jump from the current full scene to its clip (the reverse of full vid)."""
+        if clip_nav is None:
+            return
+        target = clip_nav.clip_of(session.current_video)
+        if target is not None:
+            session.play_file(target, fs_by_video.get(target))
+        else:
+            logger.info("money shot: no clip matches %s", session.current_video.name)
+
     def _timeline_h() -> int:
         # The heatmap strip when scripted (may be taller while recording),
         # else the plain progress bar — always present so every video has a
@@ -244,6 +287,9 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
                     reload_playlist=_reload_playlist,
                     toggle_length_mode=_toggle_length_mode,
                     set_length_mode=_set_length_mode,
+                    play_compilation=_play_compilation,
+                    play_full_vid=_play_full_vid,
+                    play_money_shot=_play_money_shot,
                 )
 
         session.advance()

@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .clip_nav import read_clip
 from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
@@ -75,6 +76,7 @@ class LibrarySource:
             clips=self.clips,
             rng=self.rng,
             scripted_only=self.scripted_only,
+            is_clip=self._is_clip(),
         )
 
     def _group_id_of(self) -> Callable[[Path], str | None] | None:
@@ -82,6 +84,13 @@ class LibrarySource:
             return None
         metadata_root = self.metadata_root
         return lambda video: read_version_group(video, metadata_root)
+
+    def _is_clip(self) -> Callable[[Path], bool] | None:
+        """Predicate marking a video as a compilation clip (sidecar ``clip``)."""
+        if self.metadata_root is None:
+            return None
+        metadata_root = self.metadata_root
+        return lambda video: read_clip(video, metadata_root) is not None
 
     @property
     def version_index(self) -> dict[Path, list[tuple[Path, Path | None]]]:
