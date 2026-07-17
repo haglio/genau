@@ -219,3 +219,45 @@ class TestPlayFile:
         assert session.index == 1
         assert [p.name for p in session.playlist] == ["v0.mp4", "brought_back.mp4", "v1.mp4"]
         assert player.opened[-1] == newcomer
+
+
+class TestPlaylistReplacement:
+    def test_load_playlist_swaps_and_restarts_at_the_top(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=3)
+        session.step(1)  # on v1
+        a = tmp_path / "a.mp4"; a.write_text("fake")
+        b = tmp_path / "b.mp4"; b.write_text("fake")
+
+        session.load_playlist([a, b])
+
+        assert session.index == 0
+        assert session.current_video == a
+        assert player.opened[-1] == a
+        assert [p.name for p in session.playlist] == ["a.mp4", "b.mp4"]
+
+    def test_replace_playlist_keeps_the_current_clip_when_it_survives(self, tmp_path):
+        # Reloading a rebuilt playlist (e.g. an F-mode toggle) should not
+        # interrupt the clip you are watching if it is still in the new list.
+        session, player = _make_session(tmp_path, entries=3)
+        session.step(1)  # on v1
+        opened_before = list(player.opened)
+        x = tmp_path / "x.mp4"; x.write_text("fake")
+        y = tmp_path / "y.mp4"; y.write_text("fake")
+
+        session.replace_playlist([x, tmp_path / "v1.mp4", y])
+
+        assert session.current_video == tmp_path / "v1.mp4"
+        assert session.index == 1
+        assert player.opened == opened_before  # keeps playing, no reload flicker
+
+    def test_replace_playlist_restarts_when_the_current_clip_is_gone(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=3)
+        session.step(1)  # on v1
+        x = tmp_path / "x.mp4"; x.write_text("fake")
+        y = tmp_path / "y.mp4"; y.write_text("fake")
+
+        session.replace_playlist([x, y])
+
+        assert session.index == 0
+        assert session.current_video == x
+        assert player.opened[-1] == x

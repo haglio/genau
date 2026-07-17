@@ -122,6 +122,35 @@ class SatelliteSession:
         self._playlist.insert(self._index + 1, video)
         self.load(self._index + 1)
 
+    def load_playlist(self, playlist: list[Path]) -> None:
+        """Swap in a whole new playlist and restart at the top.
+
+        A fresh browse — a filter or a group loop — that should begin from the
+        start of the new set.
+        """
+        if not playlist:
+            raise ValueError("playlist must not be empty")
+        self._playlist = list(playlist)
+        self.load(0)
+
+    def replace_playlist(self, playlist: list[Path]) -> None:
+        """Swap in a rebuilt playlist but keep playing the current clip if it
+        survives, else restart at the top.
+
+        A reload where continuity matters — an F-mode toggle rebuilds the list,
+        and the clip on screen should keep playing uninterrupted when it is still
+        present rather than flicker back to a reload.
+        """
+        if not playlist:
+            raise ValueError("playlist must not be empty")
+        current = self.current_video
+        self._playlist = list(playlist)
+        for i, path in enumerate(self._playlist):
+            if path == current:
+                self._index = i
+                return
+        self.load(0)
+
     def load(self, index: int) -> None:
         self._index = index % len(self._playlist)
         video = self._playlist[self._index]
