@@ -13,8 +13,8 @@ from genau_vr.clip import cache_dir_for_clips_folder, load_clip
 
 class TestCacheDirForClipsFolder:
     def test_returns_sibling_frames_dir(self):
-        clips = Path("C:/videos/robot_hand/clips")
-        assert cache_dir_for_clips_folder(clips) == Path("C:/videos/robot_hand/frames")
+        clips = Path("C:/videos/sample/clips")
+        assert cache_dir_for_clips_folder(clips) == Path("C:/videos/sample/frames")
 
 
 class TestLoadClip:
