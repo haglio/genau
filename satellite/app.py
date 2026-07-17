@@ -20,7 +20,6 @@ from pathlib import Path
 
 import pygame
 
-from genau.pygame_view import get_window_chrome_height
 from genau.runtime_support import consume_command_file, read_paused_state
 from nau.mpv_player import MpvPlayer
 
@@ -45,13 +44,14 @@ def main(argv: list[str] | None = None) -> int:
 
 def _run(args, playlist: list[Path]) -> int:
     pygame.init()
-    chrome = get_window_chrome_height()
-    client_h = max(1, args.height - chrome)
     if args.x is not None and args.y is not None:
-        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y + chrome}"
-    # mpv paints into this window via its HWND; we never blit to the surface, so
-    # the return value is intentionally unused.
-    pygame.display.set_mode((args.width, client_h))
+        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
+    # Borderless: the satellites replace VLC, which filled its whole slot with no
+    # title bar, so the video has to fill the rect too.  mpv paints into this
+    # window via its HWND (we never blit the surface); the sequencer then sizes
+    # the window to the portrait/landscape rect, and with no chrome the client
+    # area IS the rect.
+    pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
     pygame.display.set_caption("Satellite")
     clock = pygame.time.Clock()
     # mpv renders the video directly into this window; the lock HUD overlays it
