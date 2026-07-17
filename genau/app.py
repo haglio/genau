@@ -236,6 +236,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         stop_event=stop_event,
         hud_state=hud_state,
         set_hud_mode=view.set_hud_mode,
+        set_blank=view.set_blank,
     )
     from .cruise_control import toggle_cruise_control
     from .direct_control import (

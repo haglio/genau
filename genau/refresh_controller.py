@@ -57,6 +57,7 @@ class GenauRefreshController:
         stop_event=None,
         hud_state=None,
         set_hud_mode=None,
+        set_blank=None,
     ):
         self.state = state
         self.loader = loader
@@ -87,6 +88,7 @@ class GenauRefreshController:
         self.stop_event = stop_event
         self.hud_state = hud_state
         self.set_hud_mode = set_hud_mode or (lambda _active: None)
+        self.set_blank = set_blank or (lambda _blank: None)
         self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
         self.window_visible = False
         self._prev_playing: bool | None = None
@@ -175,6 +177,13 @@ class GenauRefreshController:
             if hud_active != self._prev_hud_active:
                 self.set_hud_mode(hud_active)
                 self._prev_hud_active = hud_active
+
+        # Paint solid black whenever the hand isn't stroking and no HUD is up:
+        # this is Nau mode (Genau paused, display owned by Nau), where a frozen
+        # last frame would otherwise sit on screen for an alt-tab to land on.
+        # A live HUD stays transparent so Nau shows through — never black.
+        hud_on = self.hud_state["active"] if self.hud_state is not None else False
+        self.set_blank(not auto_active and not hud_on)
 
         if self.direct_state is not None and self.broker_cmd_file is not None:
             now_playing = self.direct_state.playing
