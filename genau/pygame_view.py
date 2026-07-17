@@ -98,6 +98,11 @@ class PygameView:
         self._direct_overlay: DirectOverlayData | None = None
         self._overlay_font: pygame.font.Font | None = None
         self.hud_active: bool = False
+        # When blank, the window paints solid black and draws no clip or overlay.
+        # Genau uses this while it isn't the active display (e.g. Nau mode), so an
+        # alt-tab never lands on a frozen last frame.  HUD mode overrides it: a
+        # transparent HUD must keep letting the window beneath show through.
+        self._blank: bool = False
 
     @property
     def width(self) -> int:
@@ -116,6 +121,9 @@ class PygameView:
     def set_direct_overlay(self, data: DirectOverlayData | None) -> None:
         self._direct_overlay = data
 
+    def set_blank(self, blank: bool) -> None:
+        self._blank = blank
+
     def display_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
         self._video_size = (w, h)
@@ -128,10 +136,16 @@ class PygameView:
         self._present_scene()
 
     def _present_scene(self) -> None:
+        # HUD wins over blank: a transparent HUD must keep the color key so the
+        # window beneath shows through, never a black fill over it.
         if self.hud_active:
             self.renderer.draw_color = HUD_COLOR_KEY + (255,)
+        else:
+            self.renderer.draw_color = (0, 0, 0, 255)
         self.renderer.clear()
-        if not self.hud_active and self._current_texture is not None:
+
+        show_clip = not self.hud_active and not self._blank
+        if show_clip and self._current_texture is not None:
             if self._video_size is not None:
                 win_w, win_h = self.window.size
                 rects = compute_video_rects(*self._video_size, win_w, win_h)
@@ -139,9 +153,9 @@ class PygameView:
                     self._current_texture.draw(dstrect=pygame.Rect(x, y, w, h))
             else:
                 self._current_texture.draw()
-        if self._loading_text:
+        if show_clip and self._loading_text:
             self._draw_loading_overlay()
-        if self._direct_overlay is not None:
+        if not self._blank and self._direct_overlay is not None:
             self._draw_direct_overlay()
         self.renderer.present()
 

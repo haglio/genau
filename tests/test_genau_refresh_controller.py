@@ -115,6 +115,7 @@ def _build_controller(
     overlay_data_list: list = []
     present_calls: list[int] = []
     hud_mode_calls: list[bool] = []
+    blank_calls: list[bool] = []
 
     loader = FakeLoader(loading=loading)
     notifier = FakeNotifier()
@@ -157,6 +158,7 @@ def _build_controller(
         present_scene=lambda: present_calls.append(1),
         hud_state=hud_state,
         set_hud_mode=set_hud_mode or hud_mode_calls.append,
+        set_blank=blank_calls.append,
     )
     return {
         "controller": controller,
@@ -172,6 +174,7 @@ def _build_controller(
         "overlay_data_list": overlay_data_list,
         "present_calls": present_calls,
         "hud_mode_calls": hud_mode_calls,
+        "blank_calls": blank_calls,
     }
 
 
@@ -651,6 +654,45 @@ def test_multiline_commands_all_applied():
 
     assert dc.playing is True
     assert hud["active"] is True
+
+
+def test_direct_mode_paused_blanks_the_display():
+    """Paused with the HUD off (Nau mode): Genau paints black, not a frozen frame."""
+    dc = DirectControlState(playing=False, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert built["blank_calls"] == [True]
+
+
+def test_direct_mode_playing_does_not_blank():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert built["blank_calls"] == [False]
+
+
+def test_hud_active_never_blanks_even_when_paused():
+    """Hybrid mid-pause: Genau is paused but its HUD is up, so the window must
+    stay transparent for Nau to show through — blanking it to black would hide Nau."""
+    dc = DirectControlState(playing=False, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    hud = {"active": True}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode, hud_state=hud,
+    )
+
+    built["controller"].refresh()
+
+    assert built["blank_calls"] == [False]
 
 
 def test_hud_on_command_calls_set_hud_mode():

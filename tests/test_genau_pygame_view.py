@@ -46,6 +46,74 @@ def test_present_scene_skips_texture_in_hud_mode(mock_pygame):
     texture.draw.assert_not_called()
 
 
+def test_blank_defaults_to_false(mock_pygame):
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+
+    assert view._blank is False
+
+
+def test_present_scene_skips_texture_when_blank(mock_pygame):
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+    view.window.size = (800, 600)
+    texture = MagicMock()
+    view._current_texture = texture
+    view._video_size = (1920, 1080)
+    view.hud_active = False
+    view.set_blank(True)
+
+    view._present_scene()
+
+    texture.draw.assert_not_called()
+
+
+def test_present_scene_skips_direct_overlay_when_blank(mock_pygame):
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+    view.hud_active = False
+    view._direct_overlay = MagicMock()  # non-None would normally trigger overlay
+    view._draw_direct_overlay = MagicMock()
+    view.set_blank(True)
+
+    view._present_scene()
+
+    view._draw_direct_overlay.assert_not_called()
+
+
+def test_present_scene_clears_to_black_when_blank(mock_pygame):
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+    view.hud_active = False
+    view.set_blank(True)
+
+    view._present_scene()
+
+    assert view.renderer.draw_color == (0, 0, 0, 255)
+    view.renderer.clear.assert_called()
+    view.renderer.present.assert_called()
+
+
+def test_present_scene_draws_texture_when_not_blank(mock_pygame):
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+    view.window.size = (800, 600)
+    texture = MagicMock()
+    view._current_texture = texture
+    view._video_size = (1920, 1080)
+    view.hud_active = False
+    view.set_blank(False)
+
+    view._present_scene()
+
+    texture.draw.assert_called()
+
+
 def test_present_scene_draws_texture_with_dstrect(mock_pygame):
     from genau.pygame_view import PygameView
 
