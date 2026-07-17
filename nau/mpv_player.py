@@ -26,7 +26,7 @@ def _import_mpv():
 
 
 class MpvPlayer:
-    def __init__(self, wid: int, *, muted: bool = False) -> None:
+    def __init__(self, wid: int, *, muted: bool = False, loop_file: bool = True) -> None:
         mpv = _import_mpv()
         self._mpv = mpv.MPV(
             wid=str(int(wid)),
@@ -34,7 +34,10 @@ class MpvPlayer:
             hwdec="auto-safe",
             # loop-1: the current file repeats (like the old primary VLC's
             # --repeat), so a video never ends on its own; [ ] navigates.
-            loop_file="inf",
+            # Nau defaults to this; a satellite constructs with loop_file=False
+            # ("no") so end-of-file advances its playlist, and toggles it on to
+            # lock a clip in place (see set_loop_file).
+            loop_file="inf" if loop_file else "no",
             keep_open="yes",
             mute="yes" if muted else "no",
             osc=False,
@@ -56,6 +59,16 @@ class MpvPlayer:
 
     def set_paused(self, paused: bool) -> None:
         self._mpv.pause = paused
+
+    def set_loop_file(self, loop: bool) -> None:
+        """Toggle infinite single-file looping at runtime.
+
+        A satellite unlocked plays through and lets end-of-file advance its
+        playlist (``no``); locked, it repeats its clip seamlessly in place
+        (``inf``).  Nau stays on ``inf`` and navigates explicitly, so it never
+        calls this.
+        """
+        self._mpv.loop_file = "inf" if loop else "no"
 
     def set_speed(self, speed: float) -> None:
         """Set the playback rate (1.0 = normal). mpv retimes video and audio,
