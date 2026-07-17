@@ -50,6 +50,11 @@ class SatelliteSession:
     def current_video(self) -> Path:
         return self._playlist[self._index]
 
+    @property
+    def playlist(self) -> list[Path]:
+        """A copy of the current playlist, so callers cannot mutate it in place."""
+        return list(self._playlist)
+
     def step(self, delta: int) -> None:
         """Navigate *delta* items (next = +1, prev = -1), wrapping the playlist."""
         self.load(self._index + delta)
@@ -87,6 +92,20 @@ class SatelliteSession:
             return
         if self._player.eof:
             self.load(self._index + 1)
+
+    def discard(self) -> None:
+        """Drop the current clip from the playlist and play the next one — the
+        satellite's "trash" gesture.
+
+        The next clip shifts into the current index, so re-loading that index
+        lands on it; discarding the last entry wraps to the first.  A satellite
+        must always have something to play, so the final remaining clip cannot be
+        discarded — that is a no-op, never an empty playlist.
+        """
+        if len(self._playlist) <= 1:
+            return
+        del self._playlist[self._index]
+        self.load(self._index)
 
     def load(self, index: int) -> None:
         self._index = index % len(self._playlist)

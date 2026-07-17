@@ -164,3 +164,34 @@ class TestLock:
         session.advance()
 
         assert session.index == 1
+
+
+class TestDiscard:
+    def test_discard_removes_current_and_plays_next(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=3)  # on v0
+
+        session.discard()
+
+        assert session.current_video == tmp_path / "v1.mp4"
+        assert [p.name for p in session.playlist] == ["v1.mp4", "v2.mp4"]
+        assert player.opened[-1] == tmp_path / "v1.mp4"
+
+    def test_discard_on_the_last_entry_wraps_to_the_first(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=3)
+        session.step(2)  # on v2, the last
+
+        session.discard()
+
+        assert session.current_video == tmp_path / "v0.mp4"
+        assert [p.name for p in session.playlist] == ["v0.mp4", "v1.mp4"]
+
+    def test_discard_of_the_only_clip_is_a_noop(self, tmp_path):
+        # A satellite must never be left with an empty playlist; the last clip
+        # cannot be discarded.
+        session, player = _make_session(tmp_path, entries=1)
+        opened_before = list(player.opened)
+
+        session.discard()
+
+        assert len(session.playlist) == 1
+        assert player.opened == opened_before
