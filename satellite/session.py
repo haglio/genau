@@ -165,3 +165,7 @@ class SatelliteSession:
         logger.info("Loading: %s", video.name)
         self._player.load(video)
         self._player.set_paused(self._paused)
+
+    def close(self) -> None:
+        """Tear down the underlying player (mpv terminate) on shutdown."""
+        self._player.close()
