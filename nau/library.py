@@ -259,6 +259,7 @@ def select_library(
     durations: dict[Path, float],
     clips: list[LibraryEntry],
     scripted_only: bool = False,
+    is_clip: Callable[[Path], bool] | None = None,
 ) -> list[LibraryEntry]:
     """Filter *entries* by length *mode*, then version-dedup the survivors.
 
@@ -267,6 +268,11 @@ def select_library(
     includes *clips* (saved clip videos, treated as shorts regardless of
     length). Entries with no probed duration cannot be classified and are
     dropped. When *clips* is empty, shorts mode is purely duration-driven.
+
+    *is_clip* marks a main entry as a clip (a scene Evolver carved out of a
+    compilation, recorded in its sidecar): it is a short regardless of runtime,
+    so it joins shorts and is held out of full-length even when it runs long.
+    Without the predicate the split stays duration-only.
 
     *scripted_only* (the standalone default — Nau standalone is the funscript
     loop tool) drops main entries with no funscript so the R gesture always
@@ -277,11 +283,21 @@ def select_library(
     """
     if scripted_only:
         entries = [e for e in entries if e.funscript is not None]
+
+    def marked(entry: LibraryEntry) -> bool:
+        return is_clip is not None and is_clip(entry.video)
+
     if mode == SHORTS:
-        kept = [e for e in entries if durations.get(e.video, float("inf")) <= SHORT_MAX_S]
+        kept = [
+            e for e in entries
+            if durations.get(e.video, float("inf")) <= SHORT_MAX_S or marked(e)
+        ]
         kept += clips
     else:
-        kept = [e for e in entries if durations.get(e.video, 0.0) > SHORT_MAX_S]
+        kept = [
+            e for e in entries
+            if durations.get(e.video, 0.0) > SHORT_MAX_S and not marked(e)
+        ]
     return [group.canonical for group in group_versions(kept)]
 
 
@@ -316,6 +332,7 @@ def library_playlist(
     clips: list[LibraryEntry],
     rng: random.Random,
     scripted_only: bool = False,
+    is_clip: Callable[[Path], bool] | None = None,
 ) -> list[tuple[Path, Path | None]]:
     """Full standalone build: filter by *mode*, version-dedup, shuffle, pair.
 
@@ -324,6 +341,7 @@ def library_playlist(
     consistent.
     """
     selected = select_library(
-        entries, mode=mode, durations=durations, clips=clips, scripted_only=scripted_only,
+        entries, mode=mode, durations=durations, clips=clips,
+        scripted_only=scripted_only, is_clip=is_clip,
     )
     return entries_to_pairs(canonical_playlist(selected, rng))

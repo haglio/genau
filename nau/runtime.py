@@ -23,6 +23,9 @@ def apply_command(
     reload_playlist=None,
     toggle_length_mode=None,
     set_length_mode=None,
+    play_compilation=None,
+    play_full_vid=None,
+    play_money_shot=None,
 ) -> bool:
     parts = command.strip().split(None, 1)
     if not parts:
@@ -74,6 +77,18 @@ def apply_command(
         if set_length_mode is None or not arg:
             return False
         set_length_mode(arg)
+    elif keyword == "PLAY_COMPILATION":
+        if play_compilation is None:
+            return False
+        play_compilation()
+    elif keyword == "PLAY_FULL_VID":
+        if play_full_vid is None:
+            return False
+        play_full_vid()
+    elif keyword == "PLAY_MONEY_SHOT":
+        if play_money_shot is None:
+            return False
+        play_money_shot()
     elif keyword == "SET_TCODE_ENABLED":
         if not arg:
             return False
