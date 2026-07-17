@@ -55,6 +55,14 @@ class SatelliteSession:
         """A copy of the current playlist, so callers cannot mutate it in place."""
         return list(self._playlist)
 
+    @property
+    def position_ms(self) -> float:
+        return self._player.position_ms
+
+    @property
+    def duration_ms(self) -> float:
+        return self._player.duration_ms
+
     def step(self, delta: int) -> None:
         """Navigate *delta* items (next = +1, prev = -1), wrapping the playlist."""
         self.load(self._index + delta)

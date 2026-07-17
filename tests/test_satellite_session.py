@@ -261,3 +261,14 @@ class TestPlaylistReplacement:
         assert session.index == 0
         assert session.current_video == x
         assert player.opened[-1] == x
+
+
+class TestPlaybackClock:
+    def test_position_and_duration_delegate_to_the_player(self, tmp_path):
+        # The status the HUD and watch-sampler read comes off the session, which
+        # forwards the live clock from the player.
+        session, player = _make_session(tmp_path, duration_ms=8_000.0)
+        player.position_ms = 3_200.0
+
+        assert session.position_ms == 3_200.0
+        assert session.duration_ms == 8_000.0
