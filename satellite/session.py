@@ -107,6 +107,21 @@ class SatelliteSession:
         del self._playlist[self._index]
         self.load(self._index)
 
+    def play_file(self, video: Path) -> None:
+        """Jump to *video* if it is already in the playlist, else splice it in
+        after the current clip and play it.
+
+        Powers "play this exact clip": a lock's back-dating (bring back the clip
+        the speaker actually saw) and a HUD switch both target a member, so those
+        just jump; a newcomer from outside the list is inserted next and played.
+        """
+        for i, path in enumerate(self._playlist):
+            if path == video:
+                self.load(i)
+                return
+        self._playlist.insert(self._index + 1, video)
+        self.load(self._index + 1)
+
     def load(self, index: int) -> None:
         self._index = index % len(self._playlist)
         video = self._playlist[self._index]

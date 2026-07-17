@@ -195,3 +195,27 @@ class TestDiscard:
 
         assert len(session.playlist) == 1
         assert player.opened == opened_before
+
+
+class TestPlayFile:
+    def test_play_file_jumps_to_a_playlist_member(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=3)  # on v0
+
+        session.play_file(tmp_path / "v2.mp4")
+
+        assert session.index == 2
+        assert session.current_video == tmp_path / "v2.mp4"
+        assert player.opened[-1] == tmp_path / "v2.mp4"
+        assert len(session.playlist) == 3  # a member jump does not grow the list
+
+    def test_play_file_inserts_a_newcomer_after_current_and_plays_it(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)  # [v0, v1] on v0
+        newcomer = tmp_path / "brought_back.mp4"
+        newcomer.write_text("fake")
+
+        session.play_file(newcomer)
+
+        assert session.current_video == newcomer
+        assert session.index == 1
+        assert [p.name for p in session.playlist] == ["v0.mp4", "brought_back.mp4", "v1.mp4"]
+        assert player.opened[-1] == newcomer
