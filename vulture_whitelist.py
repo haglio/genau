@@ -26,3 +26,8 @@ _.draw_color  # type: ignore[name-defined]
 _.pause  # type: ignore[name-defined]
 _.ab_loop_a  # type: ignore[name-defined]
 _.ab_loop_b  # type: ignore[name-defined]
+
+# MpvPlayer.set_loop_file is driven by the satellite player's lock
+# (satellite/session.py), a package vulture does not scan yet — drop this line
+# when satellite/ joins the dead-code scan.
+_.set_loop_file  # type: ignore[name-defined]
