@@ -13,7 +13,7 @@ import logging
 import subprocess
 from pathlib import Path
 
-from genau.runtime_support import hidden_subprocess_kwargs
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 logger = logging.getLogger(__name__)
 

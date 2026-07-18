@@ -1,13 +1,14 @@
-"""Tests for genau.runtime_support.
+"""Tests for genau.broker_handoff.
 
-The command/paused file channel these used to sit beside is now
-player_core.file_channel, and is covered by that repo's suite.
+What this module used to sit beside now lives in the shared repos: the file
+channel in player_core, the logging/threading/CLI/subprocess scaffolding in
+app_support, each covered by that repo's own suite.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-from genau.runtime_support import broker_cmd_file_for_mode
+from genau.broker_handoff import broker_cmd_file_for_mode
 
 
 def test_broker_cmd_file_for_mode_standalone_returns_path(tmp_path: Path):
