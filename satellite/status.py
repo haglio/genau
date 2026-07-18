@@ -2,7 +2,8 @@
 
 Publishes what the satellite is showing (key=value lines) so fun_time can read
 its current clip, playhead and pause/lock state directly — the watch-sampler and
-the lock HUD read this file instead of polling VLC's status.xml over HTTP.  Writes
+the lock HUD's own model read this file, which is what the VLC satellites needed
+an HTTP status.xml poll for.  Writes
 are throttled, since the position changes every tick.  Deliberately shaped like
 :class:`nau.status.StatusWriter`; the two are a candidate to fold into one shared
 writer when the player core is extracted.

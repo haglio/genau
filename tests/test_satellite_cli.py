@@ -54,3 +54,22 @@ def test_title_is_taken_from_the_flag():
     them, which is the visual swap this prevents."""
     args = build_parser().parse_args(["--title", "Satellite Portrait"])
     assert args.title == "Satellite Portrait"
+
+
+def test_parser_takes_the_hud_panel_and_command_files():
+    """The lock HUD is drawn inside the player, so fun_time hands it the panel to
+    render and the command file its clicks post back to."""
+    args = build_parser().parse_args(
+        ["--hud-file", "state/portrait_hud.json",
+         "--dashboard-cmd-file", "state/dashboard_cmd.txt"]
+    )
+
+    assert args.hud_file == Path("state/portrait_hud.json")
+    assert args.dashboard_cmd_file == Path("state/dashboard_cmd.txt")
+
+
+def test_the_hud_files_are_optional():
+    args = build_parser().parse_args([])
+
+    assert args.hud_file is None
+    assert args.dashboard_cmd_file is None

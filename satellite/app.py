@@ -1,15 +1,15 @@
 """Run loop for a native satellite player: a silent mpv window fun_time drives.
 
 The satellite half of Nau's app shell, stripped to essentials — no funscript,
-tcode, heatmap, in-window overlays, record or version cycling.  mpv renders the
-video into a pygame/SDL window; fun_time positions that window by HWND after
-launch and drives playback through the command + paused files, reading back the
-status file.  The lock HUD is a separate overlay window (fun_time's lock_hud), so
-the satellite draws nothing on top of the video itself.
+tcode, heatmap, record or version cycling.  mpv renders the video into a
+pygame/SDL window; fun_time positions that window by HWND after launch and drives
+playback through the command + paused files, reading back the status file.  The
+one thing drawn on top is the lock HUD, composited into the video from the panel
+fun_time publishes (see satellite.hud_overlay).
 
 Not unit-tested: it needs the libmpv DLL and a real window.  The pure control
-logic it drives lives in satellite.session / satellite.runtime, tested against a
-fake player.
+logic it drives lives in satellite.session / satellite.runtime / satellite.hud*,
+tested against a fake player.
 """
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ from genau.runtime_support import consume_command_file, read_paused_state
 from nau.mpv_player import MpvPlayer
 
 from .cli import audio_muted, build_parser, resolve_playlist
+from .hud_overlay import HudOverlay
 from .runtime import apply_command
 from .session import SatelliteSession
 from .status import StatusWriter
@@ -57,8 +58,8 @@ def _run(args, playlist: list[Path]) -> int:
     # by title when the pid lookup fails; a shared caption crosses the two.
     pygame.display.set_caption(args.title)
     clock = pygame.time.Clock()
-    # mpv renders the video directly into this window; the lock HUD overlays it
-    # from a separate window, so nothing is drawn here.
+    # mpv renders the video directly into this window; the lock HUD is composited
+    # on top of it through mpv, so the pygame surface itself is never blitted.
     wid = pygame.display.get_wm_info()["window"]
 
     paused_file: Path | None = args.paused_file
@@ -71,6 +72,15 @@ def _run(args, playlist: list[Path]) -> int:
     player = MpvPlayer(wid, muted=audio_muted(args), loop_file=False, prefetch=True)
     session = SatelliteSession(playlist, player=player, start_paused=start_paused)
     status_writer = StatusWriter(args.status_file) if args.status_file else None
+    # The lock HUD is composited into this window's video, so it needs no window
+    # of its own and takes its clicks from this loop's own mouse events.
+    hud = (
+        HudOverlay(
+            hud_file=args.hud_file, command_file=args.dashboard_cmd_file, player=player,
+        )
+        if args.hud_file and args.dashboard_cmd_file
+        else None
+    )
     stop_event = threading.Event()
 
     def _reload_playlist() -> None:
@@ -85,6 +95,10 @@ def _run(args, playlist: list[Path]) -> int:
             elif (ev.type == pygame.KEYDOWN and ev.key == pygame.K_q
                   and ev.mod & pygame.KMOD_CTRL):
                 stop_event.set()
+            elif hud is not None and ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                hud.press(*ev.pos)
+            elif hud is not None and ev.type == pygame.MOUSEMOTION:
+                hud.motion(*ev.pos)
 
         if paused_file is not None:
             session.set_paused(read_paused_state(paused_file, logger=logger))
@@ -95,6 +109,8 @@ def _run(args, playlist: list[Path]) -> int:
         session.advance()
         if status_writer is not None:
             status_writer.write(session)
+        if hud is not None:
+            hud.tick()
 
         clock.tick(60)
 
