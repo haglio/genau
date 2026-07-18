@@ -25,6 +25,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Flag file that owns the paused state when present")
     p.add_argument("--status-file", type=Path, default=None,
                    help="Publish playback status to this file")
+    p.add_argument("--hud-file", type=Path, default=None,
+                   help="Lock-HUD panel fun_time publishes; drawn into the video")
+    p.add_argument("--dashboard-cmd-file", type=Path, default=None,
+                   help="Where a click on the lock HUD posts its fun_time command")
     p.add_argument("--width", type=int, default=1200)
     p.add_argument("--height", type=int, default=900)
     p.add_argument("--x", type=int, default=None)
