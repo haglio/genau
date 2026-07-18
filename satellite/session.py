@@ -3,11 +3,19 @@ window.
 
 A satellite is the simple half of Nau: an unscripted, silent looper of short
 clips.  It owns its playlist position and drives an mpv-backed *player*
-(:class:`nau.mpv_player.MpvPlayer`) to load/pause/seek — but there is no
+(:class:`nau.mpv_player.MpvPlayer`) to load/pause/lock — but there is no
 funscript, no OSR2/T-Code, no loop recording and no audio, so this session is a
 fraction of :class:`nau.session.PlayerSession`.  Navigation is fully in-process
 (a Python list + index), which is the whole point of leaving VLC behind: no HTTP
 playlist to resolve ids against, and pausing is a flag the player obeys.
+
+Auto-advance is the one thing mpv drives itself: the session hands mpv the *next*
+clip as a staged playlist entry (``stage_next``), and with prefetch on mpv opens
+and decodes it before the current clip ends, then rolls onto it at end-of-file
+seamlessly.  Each tick :meth:`advance` notices that roll, re-syncs the index, and
+stages the clip after it — so a let-it-play satellite never cold-loads a clip on
+screen.  Explicit navigation (next/prev/discard/jump) still cold-loads, which is
+fine: those are deliberate gestures, not the every-few-seconds cadence.
 """
 from __future__ import annotations
 
@@ -79,27 +87,35 @@ class SatelliteSession:
     def set_locked(self, locked: bool) -> None:
         """Lock the satellite onto its current clip (repeat-one) or release it.
 
-        Locking hands the repeat to mpv's own ``loop_file`` so a short clip
-        loops seamlessly in place; :meth:`advance` then never walks off it.
-        Unlocking restores playlist auto-advance at end-of-file.
+        Locking hands the repeat to mpv's own ``loop_file`` so a short clip loops
+        seamlessly in place, and drops the staged next so :meth:`advance` can
+        never walk off it.  Unlocking restores playlist auto-advance and
+        re-stages the upcoming clip for prefetch.
         """
         self._locked = locked
         self._player.set_loop_file(locked)
+        if locked:
+            self._player.clear_next()
+        else:
+            self._stage_next()
 
     def advance(self) -> None:
-        """Per-tick update: auto-advance to the next clip when the current one
-        ends.
+        """Per-tick update: keep the prefetch window rolling as mpv auto-advances.
 
-        mpv renders the video itself, so nothing is returned — the caller reads
-        the session's position/state for the overlays.  A paused satellite never
-        advances, which is what makes OmniPause a settled state: freeze the flag
-        and the playlist cannot walk on its own (the whole reason VLC needed a
-        re-pause watchdog).  A locked satellite holds its clip too (repeat-one).
+        mpv opens the staged next clip ahead of time and cuts to it itself at
+        end-of-file, so there is nothing to load here — the session just notices
+        the roll, moves its index onto the clip now playing, discards the spent
+        head, and stages the following clip.  A paused satellite never advances,
+        which is what makes OmniPause a settled state: freeze the flag and the
+        playlist cannot walk on its own.  A locked satellite holds its clip too
+        (repeat-one), with no staged next to roll onto.
         """
         if self._paused or self._locked:
             return
-        if self._player.eof:
-            self.load(self._index + 1)
+        if self._player.advanced_to_next:
+            self._index = (self._index + 1) % len(self._playlist)
+            self._player.drop_consumed()
+            self._stage_next()
 
     def discard(self) -> None:
         """Drop the current clip from the playlist and play the next one — the
@@ -147,7 +163,8 @@ class SatelliteSession:
 
         A reload where continuity matters — an F-mode toggle rebuilds the list,
         and the clip on screen should keep playing uninterrupted when it is still
-        present rather than flicker back to a reload.
+        present rather than flicker back to a reload.  The prefetched next is
+        re-staged from the new list without disturbing the playing clip.
         """
         if not playlist:
             raise ValueError("playlist must not be empty")
@@ -156,6 +173,7 @@ class SatelliteSession:
         for i, path in enumerate(self._playlist):
             if path == current:
                 self._index = i
+                self._stage_next()
                 return
         self.load(0)
 
@@ -165,6 +183,18 @@ class SatelliteSession:
         logger.info("Loading: %s", video.name)
         self._player.load(video)
         self._player.set_paused(self._paused)
+        self._stage_next()
+
+    def _stage_next(self) -> None:
+        """Hand mpv the upcoming clip so prefetch can open it before it is needed.
+
+        Skipped while locked: a locked satellite repeats its clip in place and
+        must never roll onto a neighbour.
+        """
+        if self._locked:
+            return
+        nxt = self._playlist[(self._index + 1) % len(self._playlist)]
+        self._player.stage_next(nxt)
 
     def close(self) -> None:
         """Tear down the underlying player (mpv terminate) on shutdown."""

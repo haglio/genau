@@ -1,30 +1,10 @@
 from __future__ import annotations
 
 import threading
-from pathlib import Path
 
 from satellite.runtime import apply_command
 from satellite.session import SatelliteSession
-
-
-class FakePlayer:
-    def __init__(self) -> None:
-        self.opened: list[Path] = []
-        self.duration_ms = 5_000.0
-        self.position_ms = 0.0
-        self.eof = False
-        self.paused = False
-        self.loop_file = False
-
-    def load(self, path: Path) -> None:
-        self.opened.append(path)
-        self.position_ms = 0.0
-
-    def set_paused(self, paused: bool) -> None:
-        self.paused = paused
-
-    def set_loop_file(self, loop: bool) -> None:
-        self.loop_file = loop
+from satellite_fakes import FakeSatellitePlayer
 
 
 def _make_session(tmp_path, *, entries=3):
@@ -33,7 +13,7 @@ def _make_session(tmp_path, *, entries=3):
         vid = tmp_path / f"v{i}.mp4"
         vid.write_text("fake")
         playlist.append(vid)
-    return SatelliteSession(playlist, player=FakePlayer())
+    return SatelliteSession(playlist, player=FakeSatellitePlayer())
 
 
 class TestApplyCommand:

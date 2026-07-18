@@ -27,7 +27,12 @@ _.pause  # type: ignore[name-defined]
 _.ab_loop_a  # type: ignore[name-defined]
 _.ab_loop_b  # type: ignore[name-defined]
 
-# MpvPlayer.set_loop_file is driven by the satellite player's lock
-# (satellite/session.py), a package vulture does not scan yet — drop this line
-# when satellite/ joins the dead-code scan.
+# MpvPlayer members driven only by the satellite player (satellite/session.py):
+# the lock's loop toggle and the prefetch window it rolls as clips auto-advance.
+# satellite/ is a package vulture does not scan yet — drop these when it joins
+# the dead-code scan.
 _.set_loop_file  # type: ignore[name-defined]
+_.stage_next  # type: ignore[name-defined]
+_.clear_next  # type: ignore[name-defined]
+_.advanced_to_next  # type: ignore[name-defined]
+_.drop_consumed  # type: ignore[name-defined]
