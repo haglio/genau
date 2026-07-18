@@ -23,6 +23,7 @@ class FakeSatellitePlayer:
         self.paused = False
         self.loop_file = False
         self.closed = False
+        self.overlays: dict[int, tuple[int, int, object]] = {}
 
     # --- the interface SatelliteSession drives -------------------------------
     def load(self, path: Path) -> None:
@@ -55,6 +56,13 @@ class FakeSatellitePlayer:
 
     def close(self) -> None:
         self.closed = True
+
+    # --- the overlay interface the lock HUD composites through ---------------
+    def overlay(self, ident: int, x: int, y: int, bgra) -> None:
+        self.overlays[ident] = (x, y, bgra)
+
+    def remove_overlay(self, ident: int) -> None:
+        self.overlays.pop(ident, None)
 
     # --- test conveniences ---------------------------------------------------
     def simulate_eof_advance(self) -> None:
