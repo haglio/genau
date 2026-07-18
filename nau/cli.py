@@ -37,6 +37,8 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--metadata-dir", type=Path, default=nau.get("metadata_dir"),
                    help="Metadata sidecar root; when set, version families come "
                         "from Evolver's sidecars instead of clip names")
+    p.add_argument("--notice-file", type=Path, default=nau.get("notice_file"),
+                   help="Where to publish one-shot notices for the Fun Time overlay")
     p.add_argument("--playlist", type=Path, default=None,
                    help="Video/funscript pair file (overrides directory discovery)")
     p.add_argument("--width", type=int, default=1200)
