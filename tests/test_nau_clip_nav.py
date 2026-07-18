@@ -95,6 +95,31 @@ class TestClipNav:
         nav, clips, full = self._nav(tmp_path)
         assert nav.clip_of(full) == clips[0]
 
+    def test_clip_of_ignores_a_file_sharing_only_the_performer(self, tmp_path):
+        """A title like "Jane Doe To the Limit" must not claim every Jane Doe
+        file in the library: the match needs a distinctive source word too."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/Jane Doe - Jane Doe To the Limit.mp4", "Vol1", 11,
+                     "Jane Doe To the Limit", "Jane Doe")
+        stranger = _sidecar(lib, meta, "other/Jane Doe - 9934197-720p.mp4", {})
+        nav = ClipNav.build([clip, stranger], meta)
+        assert nav.clip_of(stranger) is None
+        assert nav.full_vid_of(clip) is None
+
+    def test_compilation_playlist_keeps_one_slot_per_scene(self, tmp_path):
+        """An upscaled variant carries the same clip object; the playlist keeps the
+        larger file once, not both versions of the scene."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        original = _clip(lib, meta, "w/Jane Doe - Pound Region A 2.mp4", "Vol6", 1, "Pound Region A 2", "Jane Doe")
+        upscaled = _clip(lib, meta, "w/Jane Doe - Pound Region A 2_apo8_iris2.mp4", "Vol6", 1, "Pound Region A 2", "Jane Doe")
+        upscaled.write_bytes(b"x" * 500)  # the enhanced file is the bigger one
+        other = _clip(lib, meta, "w/Alexis Silver - POV 1.mp4", "Vol6", 2, "POV Scene 1", "Alexis Silver")
+        nav = ClipNav.build([original, upscaled, other], meta)
+
+        playlist = nav.compilation_playlist(original)
+
+        assert playlist == [upscaled, other]
+
     def test_clip_of_none_for_unrelated(self, tmp_path):
         nav, clips, full = self._nav(tmp_path)
         lib = tmp_path / "videos" / "videos"
