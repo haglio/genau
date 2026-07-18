@@ -40,3 +40,17 @@ def test_parser_accepts_the_file_quartet_and_geometry(tmp_path):
     assert args.paused_file == tmp_path / "paused.txt"
     assert args.status_file == tmp_path / "status.txt"
     assert (args.x, args.y, args.width, args.height) == (2560, 0, 1440, 2500)
+
+
+def test_title_defaults_to_satellite():
+    """Standalone (no --title) keeps the plain caption used before fun_time
+    needed to tell the two apart."""
+    assert build_parser().parse_args([]).title == "Satellite"
+
+
+def test_title_is_taken_from_the_flag():
+    """fun_time gives each satellite a distinct caption so the sequencer can
+    resolve each window to its portrait/landscape slot; a shared title crosses
+    them, which is the visual swap this prevents."""
+    args = build_parser().parse_args(["--title", "Satellite Portrait"])
+    assert args.title == "Satellite Portrait"
