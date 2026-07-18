@@ -63,7 +63,9 @@ def _run(args, playlist: list[Path]) -> int:
     start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)
 
     # loop_file=False so end-of-file advances the playlist; the lock toggles it on.
-    player = MpvPlayer(wid, muted=audio_muted(args), loop_file=False)
+    # prefetch=True so mpv opens the next clip before the current ends and the
+    # auto-advance is seamless instead of a cold on-screen reload.
+    player = MpvPlayer(wid, muted=audio_muted(args), loop_file=False, prefetch=True)
     session = SatelliteSession(playlist, player=player, start_paused=start_paused)
     status_writer = StatusWriter(args.status_file) if args.status_file else None
     stop_event = threading.Event()

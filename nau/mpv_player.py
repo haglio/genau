@@ -26,9 +26,11 @@ def _import_mpv():
 
 
 class MpvPlayer:
-    def __init__(self, wid: int, *, muted: bool = False, loop_file: bool = True) -> None:
+    def __init__(
+        self, wid: int, *, muted: bool = False, loop_file: bool = True, prefetch: bool = False
+    ) -> None:
         mpv = _import_mpv()
-        self._mpv = mpv.MPV(
+        options = dict(
             wid=str(int(wid)),
             vo="gpu",
             hwdec="auto-safe",
@@ -44,9 +46,56 @@ class MpvPlayer:
             input_default_bindings=False,
             input_vo_keyboard=False,
         )
+        if prefetch:
+            # Open and demux the *next* playlist entry during the tail of the
+            # current one, so a satellite's end-of-file auto-advance cuts to an
+            # already-loaded clip instead of cold-opening it on screen.  Only
+            # satellites pass this; Nau plays one file at a time (loop_file=inf,
+            # explicit [ ] nav) and has no next entry to prefetch.
+            options["prefetch_playlist"] = "yes"
+        self._mpv = mpv.MPV(**options)
 
     def load(self, path: Path) -> None:
         self._mpv.play(str(path))
+        # Reset to just this file: drop any entry the previous clip had staged as
+        # its prefetched next, so the caller stages a fresh one from a clean base.
+        # A no-op for Nau (single-file playlist); the reset is what a satellite's
+        # jump/discard/filter navigation needs.
+        self._mpv.playlist_clear()
+
+    def stage_next(self, path: Path) -> None:
+        """Make *path* the single entry queued after the current clip.
+
+        With ``prefetch-playlist`` on, mpv opens and demuxes this entry before the
+        current clip ends, so the end-of-file auto-advance onto it is seamless.
+        Any previously-staged entry is replaced.
+        """
+        pos = self._mpv.playlist_pos or 0
+        while (self._mpv.playlist_count or 0) > pos + 1:
+            self._mpv.playlist_remove(pos + 1)
+        self._mpv.loadfile(str(path), "append")
+
+    def clear_next(self) -> None:
+        """Drop the staged next entry (used when a lock pins the current clip)."""
+        pos = self._mpv.playlist_pos or 0
+        while (self._mpv.playlist_count or 0) > pos + 1:
+            self._mpv.playlist_remove(pos + 1)
+
+    @property
+    def advanced_to_next(self) -> bool:
+        """True once mpv has reached end-of-file and auto-advanced off the current
+        clip onto the staged next one (its playlist position moved past the head)."""
+        return (self._mpv.playlist_pos or 0) >= 1
+
+    def drop_consumed(self) -> None:
+        """Remove the played-out head sitting ahead of the clip now playing.
+
+        After an auto-advance the spent clip still occupies index 0; removing it
+        shifts the now-playing entry back to the head (mpv keeps playing it
+        uninterrupted), restoring the [current, next] window.
+        """
+        while (self._mpv.playlist_pos or 0) > 0:
+            self._mpv.playlist_remove(0)
 
     @property
     def position_ms(self) -> float:

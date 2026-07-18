@@ -4,26 +4,7 @@ from pathlib import Path
 
 from satellite.session import SatelliteSession
 from satellite.status import StatusWriter
-
-
-class FakePlayer:
-    def __init__(self, duration_ms: float = 5_000.0) -> None:
-        self.opened: list[Path] = []
-        self.duration_ms = duration_ms
-        self.position_ms = 0.0
-        self.eof = False
-        self.paused = False
-        self.loop_file = False
-
-    def load(self, path: Path) -> None:
-        self.opened.append(path)
-        self.position_ms = 0.0
-
-    def set_paused(self, paused: bool) -> None:
-        self.paused = paused
-
-    def set_loop_file(self, loop: bool) -> None:
-        self.loop_file = loop
+from satellite_fakes import FakeSatellitePlayer
 
 
 class _Clock:
@@ -37,7 +18,7 @@ class _Clock:
 def _make_session(tmp_path):
     vid = tmp_path / "clip.mp4"
     vid.write_text("fake")
-    return SatelliteSession([vid], player=FakePlayer())
+    return SatelliteSession([vid], player=FakeSatellitePlayer())
 
 
 def _read(path: Path) -> dict[str, str]:
