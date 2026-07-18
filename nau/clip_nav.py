@@ -52,17 +52,42 @@ def _tokens(text: str) -> set[str]:
     return set(_TOKEN.findall(text.lower()))
 
 
+def _size(video: Path) -> int:
+    try:
+        return video.stat().st_size
+    except OSError:
+        return 0
+
+
+# Words too common to identify a movie ("Best of Head", "F for Francesca").
+_STOPWORDS = frozenset({"the", "and", "for", "of", "a", "an", "in", "to", "my", "it", "on"})
+
+
+def _distinctive(source: str, performer: str) -> set[str]:
+    """Source-title words that actually identify the movie.
+
+    The performer's own name is stripped out: a title like *Asa Akira To the
+    Limit* would otherwise match every Asa Akira file in the library on her name
+    alone. Stopwords and one/two-letter fragments go too.
+    """
+    perf = _tokens(performer)
+    return {t for t in _tokens(source) - perf if len(t) > 2 and t not in _STOPWORDS}
+
+
 def _matches(meta: dict, text: set[str]) -> bool:
     """Whether *text* (a filename's tokens) names this clip's scene.
 
-    Requires every performer token to be present and at least one source-movie
-    token to overlap — enough to pair ``Kim Lee - POV Scene 2`` with
-    a ``POV Scene 2 - Kim Lee 1080p`` scene while rejecting a
-    same-source scene starring someone else.
+    Requires every performer token to be present *and* at least one distinctive
+    source-title word — enough to pair ``Kim Lee - POV Scene 2``
+    with a ``Charley-Chase---POV-Jugg-Fuckers-2-(2009)`` scene, while rejecting
+    both a same-source scene starring someone else and an unrelated file that
+    merely shares the performer.
     """
     perf = _tokens(str(meta.get("performer", "")))
-    src = _tokens(str(meta.get("source", "")))
-    return bool(perf) and perf <= text and bool(src & text)
+    if not perf or not perf <= text:
+        return False
+    distinctive = _distinctive(str(meta.get("source", "")), str(meta.get("performer", "")))
+    return bool(distinctive) and bool(distinctive & text)
 
 
 @dataclass(frozen=True)
@@ -94,12 +119,18 @@ class ClipNav:
         if meta is None:
             return []
         comp = meta.get("compilation")
-        siblings = [
-            (m.get("index", 0), v)
-            for v, m in self._clips.items()
-            if m.get("compilation") == comp
-        ]
-        return [v for _, v in sorted(siblings, key=lambda iv: (iv[0], str(iv[1])))]
+        # One slot per scene: an upscaled variant carries the same clip object as
+        # its original, so keep only the largest file for each running index —
+        # the same "canonical is biggest" rule the version grouping uses.
+        best: dict[int, Path] = {}
+        for video, m in self._clips.items():
+            if m.get("compilation") != comp:
+                continue
+            index = m.get("index", 0)
+            current = best.get(index)
+            if current is None or _size(video) > _size(current):
+                best[index] = video
+        return [best[i] for i in sorted(best)]
 
     def full_vid_of(self, video: Path) -> Path | None:
         """The non-clip library video this clip's scene was taken from, or None."""
