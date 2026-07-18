@@ -8,8 +8,10 @@ from pathlib import Path
 import pygame
 
 from genau.pygame_view import get_window_chrome_height
-from genau.runtime_support import consume_command_file, read_paused_state
 from genau.tcode import UdpTCodeSink
+from player_core.file_channel import consume_command_file, read_paused_state
+from player_core.mpv_player import MpvPlayer
+from player_core.status import StatusWriter
 
 from .cli import (
     DEFAULT_CONFIG,
@@ -22,7 +24,6 @@ from .cli import (
 from .clip_nav import ClipNav
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, OTHER_MODE
-from .mpv_player import MpvPlayer
 from .overlay import (
     TIMELINE_HEIGHT,
     HeatmapStrip,
@@ -40,7 +41,7 @@ from .overlay import (
 )
 from .runtime import SEEK_STEP_MS, apply_command
 from .session import PlayerSession
-from .status import StatusWriter
+from .status import status_fields
 from .tcode_driver import FunscriptTCodeDriver
 
 logger = logging.getLogger(__name__)
@@ -165,7 +166,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
     length_mode = DEFAULT_MODE
     heatmap = HeatmapStrip()
     loop_thumbs = LoopThumbCapture()
-    status_writer = StatusWriter(args.status_file) if args.status_file else None
+    status_writer = StatusWriter(args.status_file, status_fields) if args.status_file else None
     stop_event = threading.Event()
 
     def _reload_playlist() -> None:

@@ -1,7 +1,12 @@
+"""Odds and ends the apps in this repo share.
+
+The command/paused file channel that used to live here is now
+:mod:`player_core.file_channel` — Fun Time drives its satellites through the
+same protocol, so it belongs to the player core rather than to Genau.
+"""
 from __future__ import annotations
 
 import argparse
-import logging
 import os
 import subprocess
 import sys
@@ -27,36 +32,6 @@ def broker_cmd_file_for_mode(broker_cmd_file: Path, *, fun_time: bool) -> Path |
     away from MFP, so under Fun Time Genau writes nothing to the broker.
     """
     return None if fun_time else broker_cmd_file
-
-
-def consume_command_file(
-    path: Path, *, logger: logging.Logger | None = None, uppercase: bool = True
-) -> list[str]:
-    try:
-        if not path.exists():
-            return []
-        text = path.read_text(encoding="utf-8").replace("\ufeff", "").strip()
-        if uppercase:
-            text = text.upper()
-        if not text:
-            return []
-        path.write_text("", encoding="utf-8")
-        return [line.strip() for line in text.splitlines() if line.strip()]
-    except Exception:
-        if logger is not None:
-            logger.exception("Failed to consume command file %s", path)
-        return []
-
-
-def read_paused_state(path: Path, *, logger: logging.Logger | None = None) -> bool:
-    try:
-        if not path.exists():
-            return False
-        return path.read_text(encoding="utf-8").replace("\ufeff", "").strip() == "1"
-    except Exception:
-        if logger is not None:
-            logger.exception("Failed to read paused state file %s", path)
-        return False
 
 
 def hidden_subprocess_kwargs() -> dict[str, Any]:

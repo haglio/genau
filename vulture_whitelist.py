@@ -20,19 +20,3 @@ _.stop  # type: ignore[name-defined]
 # SDL2 Renderer.draw_color is a property set dynamically for HUD mode
 # (pygame_view.py: _present_scene)
 _.draw_color  # type: ignore[name-defined]
-
-# libmpv properties set via python-mpv's dynamic attribute API
-# (mpv_player.py: MpvPlayer drives pause / A-B loop on the MPV object)
-_.pause  # type: ignore[name-defined]
-_.ab_loop_a  # type: ignore[name-defined]
-_.ab_loop_b  # type: ignore[name-defined]
-
-# MpvPlayer members driven only by the satellite player (satellite/session.py):
-# the lock's loop toggle and the prefetch window it rolls as clips auto-advance.
-# satellite/ is a package vulture does not scan yet — drop these when it joins
-# the dead-code scan.
-_.set_loop_file  # type: ignore[name-defined]
-_.stage_next  # type: ignore[name-defined]
-_.clear_next  # type: ignore[name-defined]
-_.advanced_to_next  # type: ignore[name-defined]
-_.drop_consumed  # type: ignore[name-defined]

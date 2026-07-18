@@ -1,7 +1,7 @@
 """Fun Time command channel: command strings -> PlayerSession actions.
 
 Commands arrive one per line in the nau command file (consumed with
-``genau.runtime_support.consume_command_file(uppercase=False)`` because
+``player_core.file_channel.consume_command_file(uppercase=False)`` because
 PLAY_FILE carries case-sensitive paths). The keyword is case-insensitive;
 the argument, when present, is TAB-separated into video and funscript.
 """

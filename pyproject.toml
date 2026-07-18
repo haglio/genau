@@ -6,13 +6,16 @@ build-backend = "setuptools.build_meta"
 name = "genau"
 version = "0.1.0"
 requires-python = ">=3.10"
+# player_core is NOT listed here: it is installed editable from ../player_core
+# (see its README) and is not published, so pip would go looking for it on PyPI.
+# It brings python-mpv and the libmpv DLL with it — nothing in this repo imports
+# mpv directly any more.
 dependencies = [
     "numpy",
     "opencv-python",
     "pillow",
     "pygame-ce",
     "pyserial",
-    "python-mpv",
 ]
 
 [project.optional-dependencies]
@@ -35,7 +38,7 @@ vr = [
 # launches `python -m genau` / `python -m nau` from this venv without a
 # working directory, so all of them must ship in the (editable) install.
 [tool.setuptools.packages.find]
-include = ["genau*", "nau*", "genau_vr*", "satellite*"]
+include = ["genau*", "nau*", "genau_vr*"]
 
 [tool.pytest.ini_options]
 addopts = "-p no:cacheprovider"
