@@ -52,7 +52,10 @@ def _run(args, playlist: list[Path]) -> int:
     # the window to the portrait/landscape rect, and with no chrome the client
     # area IS the rect.
     pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
-    pygame.display.set_caption("Satellite")
+    # fun_time passes a distinct --title per satellite ("Satellite Portrait" /
+    # "Satellite Landscape") so the sequencer can resolve each window to its slot
+    # by title when the pid lookup fails; a shared caption crosses the two.
+    pygame.display.set_caption(args.title)
     clock = pygame.time.Clock()
     # mpv renders the video directly into this window; the lock HUD overlays it
     # from a separate window, so nothing is drawn here.
