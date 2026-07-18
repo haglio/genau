@@ -4,7 +4,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .runtime_support import consume_command_file
+from player_core.file_channel import consume_command_file
+
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command

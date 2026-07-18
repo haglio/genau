@@ -6,6 +6,8 @@ import threading
 import time
 from pathlib import Path
 
+from player_core.file_channel import read_paused_state
+
 from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
@@ -17,7 +19,7 @@ from .pygame_view import PygameView
 from .refresh_controller import GenauRefreshController
 from .config import load_config
 from .logging_utils import configure_logging, enable_faulthandler, install_exception_logging
-from .runtime_support import broker_cmd_file_for_mode, preparse_config_path, read_paused_state
+from .runtime_support import broker_cmd_file_for_mode, preparse_config_path
 from .threading_utils import start_daemon_thread
 from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
