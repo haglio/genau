@@ -10,10 +10,11 @@ import json
 import random
 from pathlib import Path
 
+from player_core.playlist import read_playlist
+
 from .duration_cache import DurationCache
 from .library import collapse_playlist_versions
 from .library_source import DEFAULT_MODE, LibrarySource, build_library_source
-from .playlist import read_playlist
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
 

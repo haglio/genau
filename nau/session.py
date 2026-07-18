@@ -3,7 +3,7 @@
 Owns the playlist position, loop recording, seek/step actions, and OSR2
 output gating — everything the UI shell and the Fun Time command channel
 both drive.  The actual video/audio/timeline is an mpv-backed *player*
-(:class:`nau.mpv_player.MpvPlayer`): mpv hardware-decodes, keeps A/V in sync,
+(:class:`player_core.mpv_player.MpvPlayer`): mpv hardware-decodes, keeps A/V in sync,
 seeks precisely, and loops an A/B range natively, so the session just tells it
 what to do and reads its clock back.  Videos without a funscript play
 normally: the OSR2 rests at its parked position with no script to follow, and
