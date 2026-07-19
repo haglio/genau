@@ -112,6 +112,13 @@ class ClipNav:
     def is_clip(self, video: Path) -> bool:
         return video in self._clips
 
+    def compilation_of(self, video: Path) -> str:
+        """The title of the compilation *video* was carved from, or "" for a
+        non-clip.  Nau's HUD names it, so the player can say what is holding the
+        playlist rather than leaving it to be inferred from the clips."""
+        meta = self._clips.get(video)
+        return str(meta.get("compilation", "") or "") if meta is not None else ""
+
     def compilation_playlist(self, video: Path) -> list[Path]:
         """The clips of *video*'s compilation in original order, self included.
 
