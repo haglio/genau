@@ -9,7 +9,10 @@ default.
 
 The compilation rides along for a stronger reason: entering one swaps Nau's
 playlist *in memory only* — the file Fun Time resumes never sees it — so being
-inside a compilation is remembered here or not at all.
+inside a compilation is remembered here or not at all.  The clip that was on
+screen comes too, because it is the anchor the volume is rebuilt around: Fun
+Time rotates the resumed playlist onto the video its player last showed, but
+only when that video is *in* the file, and a compilation's clips often are not.
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ class RememberedMode:
 
     length_mode: str = ""
     compilation: str = ""
+    video: str = ""
 
 
 class ModeMemory:
@@ -45,13 +49,15 @@ class ModeMemory:
         return RememberedMode(
             length_mode=length_mode if length_mode in LENGTH_MODES else "",
             compilation=fields.get("compilation", ""),
+            video=fields.get("video", ""),
         )
 
     def write(self, mode: RememberedMode) -> None:
         """Remember *mode*; a write that cannot land is simply not remembered."""
         if self._path is None:
             return
-        text = f"length_mode={mode.length_mode}\ncompilation={mode.compilation}\n"
+        text = (f"length_mode={mode.length_mode}\ncompilation={mode.compilation}\n"
+                f"video={mode.video}\n")
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             self._path.write_text(text, encoding="utf-8")

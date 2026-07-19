@@ -33,20 +33,23 @@ class ClipJumps:
         """The compilation whose clips are the playlist, or "" while browsing."""
         return self._compilation
 
-    def resume(self, compilation: str) -> None:
-        """Rebuild *compilation* around the clip Nau opened on, when it is one.
+    def resume(self, compilation: str, video: Path | None) -> None:
+        """Come back to *video* inside *compilation*, when the two still agree.
 
-        Entering a compilation swaps the playlist in memory only — the file Fun
-        Time resumes never sees it — so reopening lands on the ordinary browse
-        rotated to the clip that was on screen, and the volume has to be built
-        again for "next" to walk it.  The clip has to belong to the remembered
-        volume: Fun Time can rebuild rather than resume, and then that volume
-        belongs to a session that is over.
+        Entering a compilation swaps the playlist in memory only, so the file Fun
+        Time resumes never learns of it.  Fun Time rotates that file onto the
+        video its player last showed — but only when the video is *in* the file,
+        and a compilation's clips often are not, so the list comes back leading
+        with something else entirely.  The remembered clip is therefore the
+        anchor: play it, and build the volume around it.  A clip that does not
+        belong to the remembered volume is from a session that is over.
         """
-        current = self._session.current_video
-        if not compilation or self._nav.compilation_of(current) != compilation:
+        if not compilation or video is None:
             return
-        self._enter(current)
+        if self._nav.compilation_of(video) != compilation:
+            return
+        self._session.play_file(video, self._funscripts.get(video))
+        self._enter(video)
 
     def leave_compilation(self) -> None:
         """Note that the playlist was rebuilt from somewhere else — the library's
@@ -65,6 +68,13 @@ class ClipJumps:
         if not self._compilation:
             return
         self._compilation = ""
+        current = self._session.current_video
+        if current not in {video for video, _fs in playlist}:
+            # A quarter of a volume's clips are non-canonical versions of their
+            # group, so the mode's own playlist does not carry them.  Letting one
+            # of those fall out would make leaving yank the video away, which is
+            # the one thing leaving must not do.
+            playlist = [(current, self._funscripts.get(current)), *playlist]
         self._session.replace_playlist(playlist)
 
     def play_compilation(self) -> None:
