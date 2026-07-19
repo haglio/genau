@@ -46,6 +46,11 @@ SAMPLE_FPS = 8.0
 # not quite intact, so "the same picture" is a small Hamming distance, not zero.
 TOLERANCE = 8
 
+# How far either side of an offset its own frames can land, in samples. The two
+# videos are sampled off different source frame rates, so one excerpt's frames
+# answer to a small spread of offsets rather than to exactly one.
+JITTER = 1
+
 # How much of a clip has to turn up at one offset before that offset is the
 # answer. A real excerpt places nearly all of itself; scattered lookalikes place
 # a frame or two each, so anything in between is a wide, safe gap.
@@ -58,7 +63,9 @@ def sample_frames(video: Path, fps: float) -> np.ndarray:
     """*video* decoded to gray thumbnails, *fps* of them a second.
 
     Empty when ffmpeg cannot read the file, which leaves that video matching
-    nothing rather than stopping the batch.
+    nothing rather than stopping the batch. Files with damaged frames do decode,
+    complaining on stderr the whole way — held back unless the run really fails,
+    since a batch over hundreds of videos is unreadable otherwise.
     """
     command = [
         "ffmpeg", "-v", "error", "-i", str(video), "-an",
@@ -69,9 +76,13 @@ def sample_frames(video: Path, fps: float) -> np.ndarray:
     ]
     try:
         raw = subprocess.run(
-            command, stdout=subprocess.PIPE, check=True, **hidden_subprocess_kwargs()
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
+            **hidden_subprocess_kwargs(),
         ).stdout
-    except (subprocess.CalledProcessError, OSError) as exc:
+    except subprocess.CalledProcessError as exc:
+        logger.warning("could not sample %s: %s", video.name, exc.stderr.decode(errors="replace"))
+        raw = b""
+    except OSError as exc:
         logger.warning("could not sample %s: %s", video.name, exc)
         raw = b""
     pixels = SAMPLE_HEIGHT * SAMPLE_WIDTH
@@ -116,17 +127,31 @@ def align(clip: np.ndarray, scene: np.ndarray, *, fps: float) -> Alignment | Non
     Both are frame-hash runs sampled at *fps*. Every near-equal pair of frames
     votes for the offset that would explain it; the offset the most clip frames
     agree on wins, and has to carry :data:`MIN_SCORE` of the clip to count.
+
+    Neighbouring offsets count together. Sampling 8 frames a second off a 24fps
+    scene lands on exact source frames and off a 30fps clip does not, so one
+    excerpt's frames answer to offsets a bucket either side of the true one; the
+    single best bucket holds only a fraction of a real match.
     """
     close = _distances(clip, scene) <= TOLERANCE
     if not close.any():
         return None
     clip_frame, scene_frame = np.nonzero(close)
-    # One clip frame can only back an offset once (the offset *is* the scene
-    # frame it matched), so counting pairs counts frames.
-    shifts, votes = np.unique(scene_frame - clip_frame, return_counts=True)
-    best = int(votes.argmax())
-    score = float(votes[best]) / len(clip)
-    return Alignment(offset=int(shifts[best]) / fps, score=score) if score >= MIN_SCORE else None
+    shift = scene_frame - clip_frame
+    best = _peak(shift)
+    # Distinct frames, since one clip frame can answer to every offset in the
+    # window; without that a still moment could score above a whole excerpt.
+    backers = np.unique(clip_frame[np.abs(shift - best) <= JITTER])
+    score = len(backers) / len(clip)
+    return Alignment(offset=best / fps, score=score) if score >= MIN_SCORE else None
+
+
+def _peak(shift: np.ndarray) -> int:
+    """The offset whose window of neighbours carries the most votes."""
+    low = int(shift.min())
+    counts = np.bincount(shift - low)
+    window = np.convolve(counts, np.ones(2 * JITTER + 1, dtype=int), mode="same")
+    return int(window.argmax()) + low
 
 
 def _distances(clip: np.ndarray, scene: np.ndarray) -> np.ndarray:
