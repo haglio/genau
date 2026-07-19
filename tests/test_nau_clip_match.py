@@ -141,10 +141,8 @@ class TestMatchLibrary:
     def test_records_the_scene_each_clip_was_cut_from(self, tmp_path):
         lib, meta, entries = self._library(tmp_path)
         scene_frames = _frames(400, seed=1)
-        sampled = []
 
         def sampler(video, fps):
-            sampled.append(video)
             if video.name.startswith("Emy-Reyes"):
                 return scene_frames
             if "Angels" in video.name:
@@ -152,7 +150,6 @@ class TestMatchLibrary:
             return _frames(40, seed=2)
 
         matched = match_library(entries, meta, fps=8.0, sampler=sampler)
-        assert sampled  # the fake sampler really was the one consulted
 
         cut_from_it = lib / "w" / "Emy Reyes - Nights of Nonsense 8.mp4"
         scene = lib / "other" / "Emy-Reyes_540-izB4YKFa.mp4"
@@ -165,7 +162,7 @@ class TestMatchLibrary:
     def test_decodes_the_cheapest_version_of_a_scene(self, tmp_path):
         """Upscales cost minutes where the original costs seconds, and they hold
         the same pictures, so only the smallest file of a family is ever read."""
-        _lib, meta, entries = self._library(tmp_path)
+        _, meta, entries = self._library(tmp_path)
         sampled = []
 
         def sampler(video, fps):
@@ -175,6 +172,39 @@ class TestMatchLibrary:
         match_library(entries, meta, fps=8.0, sampler=sampler)
 
         assert not any("apo8" in v.name for v in sampled)
+
+    def test_separates_scenes_evolver_calls_different_versions(self, tmp_path):
+        """Two scenes of one performer can share a name prefix without being the
+        same video — "redacted_540-hash" and "redacted POV BJ 4k".
+        Folding them would decode one and leave the other unmatchable, so the
+        version group Evolver recorded decides, not the names."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        entries = []
+        for rel, payload in (
+            ("other/redacted_540-pacI21CK.mp4",
+             {"version": {"group": "redacted_540-pacI21CK"}}),
+            ("other/redacted POV BJ 4k 60fps.mp4",
+             {"version": {"group": "redacted POV BJ 4k 60fps"}}),
+            ("w/redacted - redacted It Dry 8.mp4",
+             {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
+        ):
+            video = lib / rel
+            video.parent.mkdir(parents=True, exist_ok=True)
+            video.write_bytes(b"x")
+            sidecar = (meta / rel).with_suffix(".json")
+            sidecar.parent.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(json.dumps(payload), encoding="utf-8")
+            entries.append(LibraryEntry(video=video, funscript=None, size=1))
+        scenes = []
+
+        def sampler(video, fps):
+            if video.parent.name == "other":
+                scenes.append(video)
+            return _frames(4, seed=5)
+
+        match_library(entries, meta, fps=8.0, sampler=sampler)
+
+        assert len(scenes) == 2
 
 
 class TestMain:

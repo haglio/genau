@@ -19,6 +19,7 @@ import logging
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +29,7 @@ from .cli import DEFAULT_CONFIG, load_config
 from .clip_nav import could_be_cut_from, read_clip, read_sidecar, sidecar_for
 from .discovery import discover_entries
 from .library import LibraryEntry, VersionGroup, group_versions
+from .library_source import read_version_group
 
 logger = logging.getLogger(__name__)
 
@@ -195,8 +197,12 @@ def match_library(
     run reads every candidate video end to end and takes minutes.
     """
     metas = {entry.video: read_clip(entry.video, metadata_root) for entry in entries}
-    clips = group_versions([e for e in entries if metas[e.video] is not None])
-    scenes = group_versions([e for e in entries if metas[e.video] is None])
+    # Evolver's recorded version family, not the name prefix Nau falls back to:
+    # two scenes of one performer can share a prefix without being one video, and
+    # folding them would decode the one and leave the other unmatchable.
+    versions = partial(read_version_group, metadata_root=metadata_root)
+    clips = group_versions([e for e in entries if metas[e.video] is not None], versions)
+    scenes = group_versions([e for e in entries if metas[e.video] is None], versions)
     families = {_cheapest(family): family for family in clips}
     hashes: dict[Path, np.ndarray] = {}
 
