@@ -4,6 +4,7 @@ import random
 from pathlib import Path
 
 from nau.cli import audio_muted, build_parser, library_source, resolve_playlist
+from nau.library import SHORTS
 from nau.library_source import PHASE_DISCOVER
 
 
@@ -84,6 +85,27 @@ class TestResolvePlaylist:
         # because the mode the player opens in applies no length filter.
         assert sorted(video for video, _fs in pairs) == sorted([big, short])
         assert (big, big_fs) in pairs
+
+    def test_discovery_builds_for_the_mode_it_is_given(self, tmp_path):
+        """Startup resumes the mode the last session closed in, so the playlist
+        it builds has to be that mode's, not always the default."""
+        vids = tmp_path / "videos"
+        scripts = tmp_path / "scripts"
+        vids.mkdir()
+        scripts.mkdir()
+        long_vid = vids / "feature-1080p.mp4"
+        short = vids / "teaser-1080p.mp4"
+        long_vid.write_text("x")
+        short.write_text("x")
+        args = build_parser({}).parse_args([
+            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+        ])
+        durations = {long_vid: 300.0, short: 10.0}
+
+        pairs = resolve_playlist(
+            args, durations=dict(durations), rng=random.Random(0), mode=SHORTS)
+
+        assert [video for video, _fs in pairs] == [short]
 
     def test_discovery_deterministic_with_seed(self, tmp_path):
         vids = tmp_path / "videos"

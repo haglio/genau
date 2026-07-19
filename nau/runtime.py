@@ -26,6 +26,7 @@ def apply_command(
     play_compilation=None,
     play_full_vid=None,
     play_money_shot=None,
+    end_compilation=None,
     set_hybrid=None,
 ) -> bool:
     parts = command.strip().split(None, 1)
@@ -90,6 +91,12 @@ def apply_command(
         if play_money_shot is None:
             return False
         play_money_shot()
+    elif keyword == "END_COMPILATION":
+        # Out of a compilation without naming a length: back to the mode that was
+        # feeding the playlist when it was entered.
+        if end_compilation is None:
+            return False
+        end_compilation()
     elif keyword == "SET_TCODE_ENABLED":
         if not arg:
             return False
