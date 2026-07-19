@@ -28,6 +28,7 @@ def apply_command(
     play_money_shot=None,
     end_compilation=None,
     set_hybrid=None,
+    set_f_mode=None,
 ) -> bool:
     parts = command.strip().split(None, 1)
     if not parts:
@@ -108,6 +109,13 @@ def apply_command(
         if set_hybrid is None or not arg:
             return False
         set_hybrid(arg != "0")
+    elif keyword == "SET_F_MODE":
+        # F-mode narrows the playlist Fun Time writes to the scripted videos.
+        # Nau receives the result and cannot tell it from any other playlist, so
+        # the flag has to be said outright for the HUD to be able to show it.
+        if set_f_mode is None or not arg:
+            return False
+        set_f_mode(arg != "0")
     elif keyword == "QUIT":
         if stop_event is None:
             return False

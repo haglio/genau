@@ -203,6 +203,11 @@ def _run(args) -> int:
     length_mode = (remembered.length_mode or DEFAULT_MODE) if source is not None else ""
     # Genau's HUD holds the top-left corner in Hybrid; Fun Time says when.
     hybrid = False
+    # Fun Time's F-mode narrows the playlist it writes to the scripted videos.
+    # The result is indistinguishable from any other playlist here, so this only
+    # ever comes from Fun Time saying so — and defaults off, because a session
+    # that is never told is a session where nothing narrowed it.
+    f_mode = False
     heatmap = HeatmapStrip()
     mode_hud = ModeHudPainter()
     loop_thumbs = LoopThumbCapture()
@@ -267,6 +272,10 @@ def _run(args) -> int:
     def _set_hybrid(active: bool) -> None:
         nonlocal hybrid
         hybrid = active
+
+    def _set_f_mode(active: bool) -> None:
+        nonlocal f_mode
+        f_mode = active
 
     def _timeline_h() -> int:
         # The heatmap strip when scripted (may be taller while recording),
@@ -333,6 +342,7 @@ def _run(args) -> int:
                     play_money_shot=jumps.play_money_shot,
                     end_compilation=_end_compilation,
                     set_hybrid=_set_hybrid,
+                    set_f_mode=_set_f_mode,
                 )
 
         session.advance()
@@ -374,12 +384,14 @@ def _run(args) -> int:
             memory.write(mode_now)
 
         # The top-left column, stacked: which mode is selecting what plays (the
-        # length filter, or the compilation holding the playlist), then the
-        # video's name, then its playback rate when that is off normal.
+        # length filter, or the compilation holding the playlist) and whether
+        # F-mode is narrowing it, then the video's name, then its playback rate
+        # when that is off normal.
         left, top = hud_xy(hybrid=hybrid)
         modes = mode_hud.bgra(ModeHud(
             length_mode=length_mode, compilation=jumps.compilation,
             position=session.index + 1, total=len(session.playlist),
+            f_mode=f_mode,
         ))
         if modes is None:
             player.remove_overlay(_OV_MODE)
