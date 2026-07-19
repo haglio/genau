@@ -11,57 +11,24 @@ the three navigations Fun Time exposes:
 
 ``full vid``/``money shot`` answer from a ``full_video`` the sidecar records when
 one is there: :mod:`nau.clip_match` found the clip's own frames inside that scene,
-so it beats any reading of the names. Without one they fall back to matching the
-source/performer against the filename — deliberately loose (token containment)
-because a library file names its scene however the user happened to save it, and
-often enough carries no movie title at all. Most sources are not in the library,
-so a miss (``None``) is the common, expected case either way.
+so it beats any reading of the names. The answer is held against the scene's
+*version family* rather than the one file matched, so it survives whichever
+version is on screen and hands back the same best-of-family the playlist shows.
+Without a recording they fall back to matching the source/performer against the
+filename — deliberately loose (token containment) because a library file names
+its scene however the user happened to save it, and often enough carries no movie
+title at all. Most sources are not in the library, so a miss (``None``) is the
+common, expected case either way.
 """
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 from .library import normalize_title
-
-
-def sidecar_for(video: Path, metadata_root: Path) -> Path | None:
-    """Where Evolver's metadata for *video* lives, or None if *video* is outside.
-
-    The metadata tree mirrors the video library one-to-one (``…/videos/metadata``
-    pairs with ``…/videos/videos``), so the sidecar sits at the same path under
-    *metadata_root* as the video sits under the library root.
-    """
-    try:
-        rel = video.relative_to(metadata_root.parent / "videos")
-    except ValueError:
-        return None
-    return (metadata_root / rel).with_suffix(".json")
-
-
-def read_sidecar(video: Path, metadata_root: Path) -> dict:
-    """Everything Evolver recorded for *video*; empty when there is nothing."""
-    sidecar = sidecar_for(video, metadata_root)
-    if sidecar is None:
-        return {}
-    try:
-        payload = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return payload if isinstance(payload, dict) else {}
-
-
-def read_clip(video: Path, metadata_root: Path) -> dict | None:
-    """The ``clip`` object Evolver recorded for *video*, or None.
-
-    A missing or malformed sidecar, or one with no ``clip`` object, returns None.
-    """
-    clip = read_sidecar(video, metadata_root).get("clip")
-    return clip if isinstance(clip, dict) else None
-
+from .sidecar import read_clip, read_version_group
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -111,18 +78,32 @@ def _matches(meta: dict, text: set[str]) -> bool:
 class ClipNav:
     _clips: dict[Path, dict]
     _non_clips: tuple[Path, ...]
+    # Each scene's version family, so a match recorded against one version
+    # resolves from any of them. Keyed by path because the family is Evolver's
+    # to declare, not something either name can be read for.
+    _families: dict[Path, str]
 
     @classmethod
     def build(cls, videos: Iterable[Path], metadata_root: Path | None) -> ClipNav:
         clips: dict[Path, dict] = {}
         non_clips: list[Path] = []
+        families: dict[Path, str] = {}
         for video in videos:
             meta = read_clip(video, metadata_root) if metadata_root is not None else None
             if meta is not None:
                 clips[video] = meta
             else:
                 non_clips.append(video)
-        return cls(clips, tuple(non_clips))
+                families[video] = _family_of(video, metadata_root)
+        return cls(clips, tuple(non_clips), families)
+
+    def _family(self, scene: Path) -> str:
+        """*scene*'s version family, for a scene the library may not hold.
+
+        A recorded ``full_video`` can name a file since renamed or moved out;
+        reading its name is then all that is left of it.
+        """
+        return self._families.get(scene) or _scene_key(scene)
 
     def is_clip(self, video: Path) -> bool:
         return video in self._clips
@@ -159,16 +140,23 @@ class ClipNav:
     def full_vid_of(self, video: Path) -> Path | None:
         """The non-clip library video this clip's scene was taken from, or None.
 
-        A recorded ``full_video`` answers outright; otherwise the names decide.
+        A recorded ``full_video`` answers outright, and answers with the best
+        version of that scene rather than the one the match was made against —
+        the same file the playlist would be showing. Otherwise the names decide.
         """
         meta = self._clips.get(video)
         if meta is None:
             return None
-        key = _recorded_key(meta)
-        recorded = _largest([s for s in self._non_clips if _scene_key(s) == key])
+        family = self._recorded_family(meta)
+        recorded = _largest([s for s in self._non_clips if self._family(s) == family])
         if recorded is not None:
             return recorded
         return _resolve(meta, [c for c in self._non_clips if c != video])
+
+    def _recorded_family(self, meta: dict) -> str | None:
+        """The version family of the scene :mod:`nau.clip_match` recorded, if any."""
+        recorded = meta.get("full_video")
+        return self._family(Path(str(recorded))) if recorded else None
 
     def clip_of(self, video: Path) -> Path | None:
         """The clip carved from *video*'s scene, or None.
@@ -183,8 +171,10 @@ class ClipNav:
         """
         if video in self._clips:
             return None
-        key = _scene_key(video)
-        recorded = _largest([v for v, m in self._clips.items() if _recorded_key(m) == key])
+        family = self._family(video)
+        recorded = _largest([
+            v for v, m in self._clips.items() if self._recorded_family(m) == family
+        ])
         if recorded is not None:
             return recorded
         text = _tokens(video.stem)
@@ -231,20 +221,21 @@ def _largest(candidates: list[Path]) -> Path | None:
     return max(candidates, key=_size) if candidates else None
 
 
-def _scene_key(scene: Path) -> str:
-    """A scene's identity, indifferent to which version of it is on disk.
+def _family_of(scene: Path, metadata_root: Path | None) -> str:
+    """*scene*'s version family: Evolver's record, or its name where there is none.
 
-    ``X.mp4`` and ``X_apo8_iris2.mp4`` are the same scene, so a match recorded
-    against one resolves from the other — which is what makes the recorded
-    answer survive both "cycle version" and Evolver reprocessing the file.
+    The record is the authority — it is what "cycle version" walks, and it knows
+    pairs no name betrays, like a 4K upscale of the best eight minutes saved
+    under a title of its own. The name is the fallback for a video Evolver has
+    never seen, where ``X.mp4`` and ``X_apo8_iris2.mp4`` still read as one.
     """
+    recorded = read_version_group(scene, metadata_root) if metadata_root is not None else None
+    return recorded or _scene_key(scene)
+
+
+def _scene_key(scene: Path) -> str:
+    """A scene's name, reduced to what stays the same across its versions."""
     return normalize_title(_strip_processing(scene.stem))
-
-
-def _recorded_key(meta: dict) -> str | None:
-    """The :func:`_scene_key` of the scene :mod:`nau.clip_match` recorded, if any."""
-    recorded = meta.get("full_video")
-    return _scene_key(Path(str(recorded))) if recorded else None
 
 
 def _only_candidate(candidates: list[Path]) -> Path | None:
