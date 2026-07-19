@@ -5,9 +5,11 @@ library mode and a compilation playlist were both invisible — you could be hel
 inside one volume's clips with nothing on screen saying so, and no way to guess
 which words got you out.  This is the panel that says it.
 
-It says one thing at a time, because at any moment there is one answer: the
-volume holding the playlist if you are inside one, otherwise the length mode the
-library is feeding it through.
+One thing is *selecting* the playlist at any moment — the volume holding it if
+you are inside one, otherwise the length mode the library is feeding it through —
+and that is the first thing it says.  Fun Time's F-mode then sits over whichever
+of those is running, narrowing it to the scripted videos, so it rides alongside
+rather than replacing.
 
 The wording and the shape are pure functions here; the drawing goes onto the
 slab :mod:`player_core.hud_panel` owns, which is the same slab the satellites'
@@ -30,6 +32,14 @@ from .library import FULL, MIXED, SHORTS
 # What the length modes are called on screen.  The library names them for what
 # it filters on; the HUD names them for what the user asked for.
 _LENGTH_LABELS = {MIXED: "Mixed", FULL: "Full length", SHORTS: "Shorts"}
+
+# What F-mode is called on screen.  One Fun Time key toggles it for every player
+# at once, so it has to read the same here as it does on the satellites' HUD —
+# ``fun_time.lock_hud.F_MODE_LABEL`` is the other half of that pair, and the one
+# place the wording could drift.
+F_MODE_LABEL = "F-Mode"
+
+_SEPARATOR = " · "
 
 # A compilation is titled for a shelf: "various - Ultimate Example Studio
 # Alpha Collection - Volume 6 (v1)".  Everything up to the last dash is the
@@ -54,24 +64,39 @@ class ModeHud:
     one), in which case there is no length mode to claim.  *compilation* is the
     volume whose clips are the playlist, empty while the library is feeding it
     normally; *position* and *total* place the current video in that playlist.
+    *f_mode* is Fun Time's, not Nau's: only the orchestrator knows it, and it
+    arrives over the command channel like the hybrid flag does.
     """
 
     length_mode: str = ""
     compilation: str = ""
     position: int = 0
     total: int = 0
+    f_mode: bool = False
 
     @property
     def line(self) -> str:
         """The panel's text — empty when there is nothing to say.
 
-        A compilation answers on its own: the volume and the place in it are what
-        you are inside, and the length filter running behind them is not, so
-        naming it too would only be noise.
+        A compilation answers the "what is selecting this?" question on its own:
+        the volume and the place in it are what you are inside, and the length
+        filter running behind them is not, so naming it too would only be noise.
+
+        F-mode is not an answer to that question but a filter over whatever the
+        answer is, so it goes on the end of either — and stands alone when Nau is
+        playing a handed-over playlist with no library and no volume behind it,
+        which is the one case where it is the only thing true of the playlist.
         """
+        parts = []
         if self.compilation:
-            return f"{compilation_label(self.compilation)} · {self.position}/{self.total}"
-        return _LENGTH_LABELS.get(self.length_mode, "")
+            parts.append(
+                f"{compilation_label(self.compilation)}{_SEPARATOR}{self.position}/{self.total}"
+            )
+        elif self.length_mode in _LENGTH_LABELS:
+            parts.append(_LENGTH_LABELS[self.length_mode])
+        if self.f_mode:
+            parts.append(F_MODE_LABEL)
+        return _SEPARATOR.join(parts)
 
 
 # --- the panel ---------------------------------------------------------------
