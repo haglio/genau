@@ -16,6 +16,7 @@ from player_core.playlist import read_playlist
 from .duration_cache import DurationCache
 from .library import collapse_playlist_versions
 from .library_source import DEFAULT_MODE, LibrarySource, build_library_source
+from .mode_memory import ModeMemory
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
 
@@ -72,9 +73,20 @@ def audio_muted(args) -> bool:
     return bool(args.no_audio) or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
 
 
-def _duration_cache_path(args) -> Path:
+def _state_path(args, name: str) -> Path:
+    """A file in Nau's state dir, or beside its config when none is configured."""
     base = Path(args.state_dir) if args.state_dir else Path(args.config).resolve().parent
-    return base / "nau_durations.json"
+    return base / name
+
+
+def _duration_cache_path(args) -> Path:
+    return _state_path(args, "nau_durations.json")
+
+
+def mode_memory(args) -> ModeMemory:
+    """Where Nau writes down the length mode it is in, so the next session — which
+    Fun Time opens on this one's resumed playlist — can name it."""
+    return ModeMemory(_state_path(args, "nau_length_mode.txt"))
 
 
 def library_source(
@@ -112,6 +124,7 @@ def resolve_playlist(
     source: LibrarySource | None = None,
     durations: dict[Path, float] | None = None,
     rng: random.Random | None = None,
+    mode: str = DEFAULT_MODE,
 ) -> list[tuple[Path, Path | None]]:
     """Initial playlist: an explicit file collapsed to one entry per version
     group, else deduped full-length discovery.
@@ -119,9 +132,10 @@ def resolve_playlist(
     Fun Time passes ``--playlist`` with every version of every video; a library
     *source*, when present, folds those into one slot each (matching the set
     "cycle version" walks). Without a source — no library dirs — the file is
-    returned verbatim, since Nau then has no grouping to apply. *durations* and
-    *rng* are injectable seams for tests; production probes (cached) and
-    shuffles nondeterministically.
+    returned verbatim, since Nau then has no grouping to apply. *mode* is the
+    length mode to build for, which startup resumes from the last session rather
+    than always assuming the default. *durations* and *rng* are injectable seams
+    for tests; production probes (cached) and shuffles nondeterministically.
     """
     if args.playlist is not None:
         pairs = read_playlist(Path(args.playlist))
@@ -131,4 +145,4 @@ def resolve_playlist(
     source = source or library_source(args, rng=rng, durations=durations)
     if source is None:
         return []
-    return source.playlist_for(DEFAULT_MODE)
+    return source.playlist_for(mode)

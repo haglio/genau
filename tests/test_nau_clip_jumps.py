@@ -25,13 +25,15 @@ def _clip(lib: Path, meta: Path, rel: str, comp: str, index: int,
 class FakeSession:
     """Records the playlist moves the jumps drive."""
 
-    def __init__(self, current: Path) -> None:
+    def __init__(self, current: Path, playlist=None) -> None:
         self.current_video = current
+        self.playlist = list(playlist or [(current, None)])
         self.replaced: list[list[tuple[Path, Path | None]]] = []
         self.played: list[tuple[Path, Path | None]] = []
 
     def replace_playlist(self, playlist) -> None:
         self.replaced.append(list(playlist))
+        self.playlist = list(playlist)
 
     def play_file(self, video: Path, funscript: Path | None) -> None:
         self.played.append((video, funscript))
@@ -60,10 +62,53 @@ def _world(tmp_path: Path):
     return nav, first, second, scene
 
 
-def _jumps(nav, current: Path, funscripts=None):
-    session = FakeSession(current)
+def _jumps(nav, current: Path, funscripts=None, playlist=None):
+    session = FakeSession(current, playlist)
     notices = FakeNotices()
     return ClipJumps(nav, session, funscripts or {}, notices), session, notices
+
+
+class TestResume:
+    """Fun Time resumes the playlist a session closed on, so Nau can reopen
+    inside a compilation without ever having been told it entered one."""
+
+    def test_a_resumed_compilation_playlist_is_recognised(self, tmp_path):
+        nav, first, second, _scene = _world(tmp_path)
+        # Resume rotates the list to the video that was on screen, so the order
+        # differs from the one PLAY_COMPILATION installed.
+        jumps, _session, _notices = _jumps(
+            nav, second, playlist=[(second, None), (first, None)])
+
+        jumps.resume()
+
+        assert jumps.compilation == "Vol6"
+
+    def test_an_ordinary_playlist_is_not_mistaken_for_one(self, tmp_path):
+        """A clip can turn up in a normal browse; being on one is not being
+        inside its compilation."""
+        nav, first, second, scene = _world(tmp_path)
+        jumps, _session, _notices = _jumps(
+            nav, second, playlist=[(second, None), (scene, None)])
+
+        jumps.resume()
+
+        assert jumps.compilation == ""
+
+    def test_a_playlist_holding_only_part_of_one_is_not_it(self, tmp_path):
+        nav, _first, second, _scene = _world(tmp_path)
+        jumps, _session, _notices = _jumps(nav, second, playlist=[(second, None)])
+
+        jumps.resume()
+
+        assert jumps.compilation == ""
+
+    def test_a_non_clip_resumes_to_nothing(self, tmp_path):
+        nav, _first, _second, scene = _world(tmp_path)
+        jumps, _session, _notices = _jumps(nav, scene)
+
+        jumps.resume()
+
+        assert jumps.compilation == ""
 
 
 class TestPlayCompilation:
