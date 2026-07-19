@@ -21,11 +21,14 @@ from .cli import (
     load_config,
     resolve_playlist,
 )
+from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
+from .hud import ModeHud, ModeHudPainter, hud_xy
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, OTHER_MODE
 from .loading import LoadingCancelled, LoadingScreen
 from .overlay import (
+    CORNER_MARGIN,
     TIMELINE_HEIGHT,
     HeatmapStrip,
     LoopThumbCapture,
@@ -56,6 +59,7 @@ _OV_SPEED = 2
 _OV_NAME = 3
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
+_OV_MODE = 6
 
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 
@@ -185,15 +189,35 @@ def _run(args) -> int:
         start_paused=start_paused,
         version_index=source.version_index if source is not None else None,
     )
-    length_mode = DEFAULT_MODE
+    # Empty when there is no library behind the playlist (Fun Time can hand Nau
+    # one without library dirs): no length filter is running, so the HUD has no
+    # mode to name and the toggle has nothing to rebuild.
+    length_mode = DEFAULT_MODE if source is not None else ""
     heatmap = HeatmapStrip()
+    mode_hud = ModeHudPainter()
     loop_thumbs = LoopThumbCapture()
     status_writer = StatusWriter(args.status_file, status_fields) if args.status_file else None
     stop_event = threading.Event()
 
+    # Clip navigation: a clip carved from a compilation records its siblings,
+    # order, and source scene in its sidecar (see nau.clip_nav). Built once over
+    # the whole discovered library so "compilation"/"full video"/"money shot" can
+    # jump from whatever is on screen.  With no library there is nothing to jump
+    # to, and an empty index answers that without a special case.
+    entries = source.entries if source is not None else []
+    clip_nav = ClipNav.build(
+        [e.video for e in entries] + [c.video for c in (source.clips if source else [])],
+        source.metadata_root if source is not None else None,
+    )
+    jumps = ClipJumps(
+        clip_nav, session, {e.video: e.funscript for e in entries},
+        NoticeWriter(getattr(args, "notice_file", None)),
+    )
+
     def _reload_playlist() -> None:
         if args.playlist is not None:
             session.replace_playlist(resolve_playlist(args, source=source))
+            jumps.leave_compilation()
 
     def _set_length_mode(mode: str) -> None:
         nonlocal length_mode
@@ -206,61 +230,12 @@ def _run(args) -> int:
         # playlist for one volume's clips, and saying "shorts" again is how you
         # get back out of it.
         length_mode = mode
+        jumps.leave_compilation()
         logger.info("Length mode: %s", length_mode)
         session.load_playlist(source.playlist_for(length_mode))
 
     def _toggle_length_mode() -> None:
         _set_length_mode(OTHER_MODE if length_mode == DEFAULT_MODE else DEFAULT_MODE)
-
-    # Clip navigation: a clip carved from a compilation records its siblings,
-    # order, and source scene in its sidecar (see nau.clip_nav). Built once over
-    # the whole discovered library so "compilation"/"full vid"/"money shot" can
-    # jump from whatever is on screen.
-    clip_nav = (
-        ClipNav.build(
-            [e.video for e in source.entries] + [c.video for c in source.clips],
-            source.metadata_root,
-        )
-        if source is not None
-        else None
-    )
-    fs_by_video = {e.video: e.funscript for e in source.entries} if source is not None else {}
-    notices = NoticeWriter(getattr(args, "notice_file", None))
-
-    def _play_compilation() -> None:
-        """Reorder the playlist to just the current clip's compilation, in order."""
-        if clip_nav is None:
-            return
-        siblings = clip_nav.compilation_playlist(session.current_video)
-        if not siblings:
-            notices.say("not a compilation clip")
-            return
-        session.replace_playlist([(v, fs_by_video.get(v)) for v in siblings])
-        notices.say(f"compilation: {len(siblings)} clips", level="notice")
-
-    def _play_full_vid() -> None:
-        """Jump from the current clip to the library scene it was taken from."""
-        if clip_nav is None:
-            return
-        target = clip_nav.full_vid_of(session.current_video)
-        if target is not None:
-            session.play_file(target, fs_by_video.get(target))
-            notices.say("full video", level="notice")
-            return
-        logger.info("full vid: no library match for %s", session.current_video.name)
-        notices.say("full video not available")
-
-    def _play_money_shot() -> None:
-        """Jump from the current full scene to its clip (the reverse of full vid)."""
-        if clip_nav is None:
-            return
-        target = clip_nav.clip_of(session.current_video)
-        if target is not None:
-            session.play_file(target, fs_by_video.get(target))
-            notices.say("money shot", level="notice")
-            return
-        logger.info("money shot: no clip matches %s", session.current_video.name)
-        notices.say("money shot not available")
 
     def _timeline_h() -> int:
         # The heatmap strip when scripted (may be taller while recording),
@@ -322,9 +297,9 @@ def _run(args) -> int:
                     reload_playlist=_reload_playlist,
                     toggle_length_mode=_toggle_length_mode,
                     set_length_mode=_set_length_mode,
-                    play_compilation=_play_compilation,
-                    play_full_vid=_play_full_vid,
-                    play_money_shot=_play_money_shot,
+                    play_compilation=jumps.play_compilation,
+                    play_full_vid=jumps.play_full_vid,
+                    play_money_shot=jumps.play_money_shot,
                 )
 
         session.advance()
@@ -353,18 +328,29 @@ def _run(args) -> int:
         player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
 
         name = name_bgra(session.current_video.stem)
-        player.overlay(_OV_NAME, 8, 8, name)
+        player.overlay(_OV_NAME, CORNER_MARGIN, CORNER_MARGIN, name)
 
         # Playback rate, just under the name — only when it is off normal.
         if session.speed != 1.0:
             spd = speed_bgra(session.speed)
-            player.overlay(_OV_SPEED, 8, 8 + name.shape[0] + 4, spd)
+            player.overlay(_OV_SPEED, CORNER_MARGIN, CORNER_MARGIN + name.shape[0] + 4, spd)
         else:
             player.remove_overlay(_OV_SPEED)
 
         ind = indicator_bgra(indicator_for(session.loop_state, paused=session.is_paused))
         ix, iy = indicator_xy(win_w)
         player.overlay(_OV_INDICATOR, ix, iy, ind)
+
+        # Which modes are selecting what plays — the length filter, and the
+        # compilation holding the playlist when one is.
+        modes = mode_hud.bgra(ModeHud(
+            length_mode=length_mode, compilation=jumps.compilation,
+            position=session.index + 1, total=len(session.playlist),
+        ))
+        if modes is None:
+            player.remove_overlay(_OV_MODE)
+        else:
+            player.overlay(_OV_MODE, *hud_xy(win_w, modes.shape[1]), modes)
 
         _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h)
 
