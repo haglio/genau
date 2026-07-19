@@ -178,8 +178,11 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         if source is None:
             return
         mode = mode.strip().lower()
-        if mode not in (DEFAULT_MODE, OTHER_MODE) or mode == length_mode:
+        if mode not in (DEFAULT_MODE, OTHER_MODE):
             return
+        # Rebuild even when the mode is unchanged: PLAY_COMPILATION swaps the
+        # playlist for one volume's clips, and saying "shorts" again is how you
+        # get back out of it.
         length_mode = mode
         logger.info("Length mode: %s", length_mode)
         session.load_playlist(source.playlist_for(length_mode))
@@ -211,6 +214,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
             notices.say("not a compilation clip")
             return
         session.replace_playlist([(v, fs_by_video.get(v)) for v in siblings])
+        notices.say(f"compilation: {len(siblings)} clips", level="notice")
 
     def _play_full_vid() -> None:
         """Jump from the current clip to the library scene it was taken from."""
@@ -219,6 +223,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         target = clip_nav.full_vid_of(session.current_video)
         if target is not None:
             session.play_file(target, fs_by_video.get(target))
+            notices.say("full video", level="notice")
             return
         logger.info("full vid: no library match for %s", session.current_video.name)
         notices.say("full video not available")
@@ -230,6 +235,7 @@ def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
         target = clip_nav.clip_of(session.current_video)
         if target is not None:
             session.play_file(target, fs_by_video.get(target))
+            notices.say("money shot", level="notice")
             return
         logger.info("money shot: no clip matches %s", session.current_video.name)
         notices.say("money shot not available")
