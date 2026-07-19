@@ -33,22 +33,20 @@ class ClipJumps:
         """The compilation whose clips are the playlist, or "" while browsing."""
         return self._compilation
 
-    def resume(self) -> None:
-        """Notice that the playlist Nau opened with *is* a compilation's clips.
+    def resume(self, compilation: str) -> None:
+        """Rebuild *compilation* around the clip Nau opened on, when it is one.
 
-        Fun Time resumes the playlist a session closed on rather than rebuilding
-        it, so Nau can start inside a compilation having never been told it
-        entered one.  This checks rather than assumes: the playlist has to hold
-        exactly the current clip's siblings, compared as a set because resume
-        rotates the list to the video that was on screen.  Anything else — a clip
-        that merely turned up in an ordinary browse, part of a compilation, a
-        non-clip — leaves the state alone.
+        Entering a compilation swaps the playlist in memory only — the file Fun
+        Time resumes never sees it — so reopening lands on the ordinary browse
+        rotated to the clip that was on screen, and the volume has to be built
+        again for "next" to walk it.  The clip has to belong to the remembered
+        volume: Fun Time can rebuild rather than resume, and then that volume
+        belongs to a session that is over.
         """
-        siblings = self._nav.compilation_playlist(self._session.current_video)
-        if not siblings:
+        current = self._session.current_video
+        if not compilation or self._nav.compilation_of(current) != compilation:
             return
-        if set(siblings) == {video for video, _fs in self._session.playlist}:
-            self._compilation = self._nav.compilation_of(self._session.current_video)
+        self._enter(current)
 
     def leave_compilation(self) -> None:
         """Note that the playlist was rebuilt from somewhere else — the library's
@@ -56,18 +54,42 @@ class ClipJumps:
         is no longer what is on screen."""
         self._compilation = ""
 
+    def end_compilation(self, playlist: list[tuple[Path, Path | None]]) -> None:
+        """Leave the volume for *playlist*, without interrupting the video.
+
+        Leaving is about what "next" will reach, not about what is playing, so
+        the clip on screen carries on — it is simply no longer surrounded by its
+        siblings.  (Naming a length mode is the other way out, and that one does
+        land on the new mode's content, which is the point of asking for it.)
+        """
+        if not self._compilation:
+            return
+        self._compilation = ""
+        self._session.replace_playlist(playlist)
+
     def play_compilation(self) -> None:
         """Reorder the playlist to just the current clip's compilation, in order."""
         current = self._session.current_video
-        siblings = self._nav.compilation_playlist(current)
-        if not siblings:
+        if not self._enter(current):
             self._notices.say("not a compilation clip")
             return
+        self._notices.say(
+            f"compilation: {len(self._session.playlist)} clips", level="notice")
+
+    def _enter(self, current: Path) -> bool:
+        """Put *current*'s compilation in the playlist around it, if it has one.
+
+        The clip on screen keeps playing: it survives into the new list, so the
+        session follows it rather than restarting at the volume's first clip.
+        """
+        siblings = self._nav.compilation_playlist(current)
+        if not siblings:
+            return False
         self._session.replace_playlist(
             [(video, self._funscripts.get(video)) for video in siblings]
         )
         self._compilation = self._nav.compilation_of(current)
-        self._notices.say(f"compilation: {len(siblings)} clips", level="notice")
+        return True
 
     def play_full_vid(self) -> None:
         """Jump from the current clip to the library scene it was taken from."""
