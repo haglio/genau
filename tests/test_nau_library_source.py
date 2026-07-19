@@ -3,7 +3,15 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from nau.library_source import build_library_source, discover_clips
+import pytest
+
+from nau.duration_cache import DurationCache
+from nau.library_source import (
+    PHASE_DISCOVER,
+    PHASE_DURATIONS,
+    build_library_source,
+    discover_clips,
+)
 
 
 def _make_video(path: Path, body: str = "x") -> Path:
@@ -81,6 +89,59 @@ class TestBuildLibrarySource:
         )
 
         assert clip in source.version_index
+
+
+class TestBuildProgress:
+    """Startup's only long wait is probing durations, so the build reports it."""
+
+    def test_reports_each_probed_entry_against_the_total(self, tmp_path):
+        vids = tmp_path / "videos"
+        scripts = tmp_path / "scripts"
+        vids.mkdir()
+        scripts.mkdir()
+        for name in ("a.mp4", "b.mp4", "c.mp4"):
+            _make_video(vids / name)
+        seen: list[tuple[str, int, int]] = []
+
+        build_library_source(
+            vids, scripts, None, rng=random.Random(0),
+            duration_cache=DurationCache(tmp_path / "cache.json", prober=lambda p: 300.0),
+            on_progress=lambda phase, done, total: seen.append((phase, done, total)),
+        )
+
+        assert (PHASE_DISCOVER, 0, 0) in seen
+        assert [s for s in seen if s[0] == PHASE_DURATIONS] == [
+            (PHASE_DURATIONS, 0, 3), (PHASE_DURATIONS, 1, 3), (PHASE_DURATIONS, 2, 3),
+        ]
+
+    def test_a_raising_callback_stops_the_probing(self, tmp_path):
+        """Closing the window mid-probe has to end the wait, not be noticed once
+        it is over — so the callback aborts the build by raising."""
+        vids = tmp_path / "videos"
+        scripts = tmp_path / "scripts"
+        vids.mkdir()
+        scripts.mkdir()
+        for name in ("a.mp4", "b.mp4", "c.mp4"):
+            _make_video(vids / name)
+        probed: list[Path] = []
+
+        class GaveUp(Exception):
+            """Whatever the caller raises — the build has no opinion on it."""
+
+        def give_up(phase, done, total):
+            if phase == PHASE_DURATIONS and done == 1:
+                raise GaveUp
+
+        with pytest.raises(GaveUp):
+            build_library_source(
+                vids, scripts, None, rng=random.Random(0),
+                duration_cache=DurationCache(
+                    tmp_path / "cache.json", prober=lambda p: probed.append(p) or 300.0,
+                ),
+                on_progress=give_up,
+            )
+
+        assert len(probed) == 1  # stopped at the raise, not after all three
 
 
 class TestDiscoverClips:

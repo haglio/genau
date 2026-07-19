@@ -4,6 +4,7 @@ import random
 from pathlib import Path
 
 from nau.cli import audio_muted, build_parser, library_source, resolve_playlist
+from nau.library_source import PHASE_DISCOVER
 
 
 class TestResolvePlaylist:
@@ -139,6 +140,27 @@ class TestLibrarySource:
             "--videos-dir", str(vids), "--scripts-dir", str(scripts),
         ])
         assert library_source(args, durations={vid: 300.0}) is not None
+
+    def test_forwards_progress_to_the_build(self, tmp_path):
+        """The loading screen hangs off this callback, so a source built without
+        forwarding it leaves the window frozen for the whole wait."""
+        vids = tmp_path / "videos"
+        scripts = tmp_path / "scripts"
+        vids.mkdir()
+        scripts.mkdir()
+        vid = vids / "a-1080p.mp4"
+        vid.write_text("x")
+        args = build_parser({}).parse_args([
+            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
+        ])
+        seen = []
+
+        library_source(
+            args, durations={vid: 300.0},
+            on_progress=lambda phase, done, total: seen.append(phase),
+        )
+
+        assert PHASE_DISCOVER in seen
 
     def test_clips_dir_falls_back_to_top_level_config(self, tmp_path):
         """Fun Time's config has no nau.clips_dir; shorts should still pick up
