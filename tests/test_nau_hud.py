@@ -2,29 +2,37 @@
 from __future__ import annotations
 
 import numpy as np
-from player_core.hud_panel import GREEN, load_font, text_width
+from player_core.hud_panel import load_font, text_width
 
-from nau.hud import ModeHud, ModeHudPainter, compilation_label, hud_xy
-from nau.library import FULL, SHORTS
-from nau.overlay import indicator_xy
+from nau.hud import GENAU_PANEL_W, ModeHud, ModeHudPainter, compilation_label, hud_xy
+from nau.library import FULL, MIXED, SHORTS
 
 
-class TestLines:
+class TestLine:
     def test_says_which_length_mode_the_library_is_in(self):
-        assert ModeHud(length_mode=FULL).lines == ("Full length",)
-        assert ModeHud(length_mode=SHORTS).lines == ("Shorts",)
+        assert ModeHud(length_mode=MIXED).line == "Mixed"
+        assert ModeHud(length_mode=FULL).line == "Full length"
+        assert ModeHud(length_mode=SHORTS).line == "Shorts"
 
     def test_claims_no_length_mode_without_a_library_behind_the_playlist(self):
         """Fun Time can hand Nau a playlist and no library dirs; there is then no
         length filter running, so the HUD must not name one."""
-        assert ModeHud(length_mode="").lines == ()
+        assert ModeHud(length_mode="").line == ""
 
     def test_names_the_compilation_holding_the_playlist_and_where_you_are_in_it(self):
         """The reported hole: inside a compilation nothing on screen said which one
         or how far through, so there was no way to tell you were held at all."""
         hud = ModeHud(length_mode=SHORTS, compilation="Vol6", position=9, total=20)
 
-        assert hud.lines == ("Shorts", "Vol6 · 9/20")
+        assert hud.line == "Vol6 · 9/20"
+
+    def test_a_compilation_does_not_repeat_the_length_mode(self):
+        """The volume and the place in it are the whole answer; the length filter
+        behind them is not what you are inside, and saying it too is noise."""
+        for mode in (MIXED, SHORTS, FULL):
+            hud = ModeHud(length_mode=mode, compilation="Vol6", position=9, total=20)
+
+            assert hud.line == "Vol6 · 9/20"
 
 
 class TestCompilationLabel:
@@ -40,37 +48,22 @@ class TestCompilationLabel:
 
 
 class TestPainter:
-    def test_the_panel_is_wide_enough_for_the_longest_line(self):
-        """Sized to what it says, so a long volume title is never clipped and a
-        bare "Shorts" does not sit in a mostly-empty slab."""
-        long_line = ModeHud(length_mode=SHORTS, compilation="Nights of Nonsense 8",
-                            position=9, total=20)
+    def test_the_panel_is_sized_to_what_it_says(self):
+        """Sized to its line, so a long volume title is never clipped and a bare
+        "Shorts" does not sit in a mostly-empty slab."""
+        long_hud = ModeHud(compilation="Nights of Nonsense 8", position=9, total=20)
 
         short = ModeHudPainter().bgra(ModeHud(length_mode=SHORTS))
-        long = ModeHudPainter().bgra(long_line)
+        long = ModeHudPainter().bgra(long_hud)
 
-        widest = max(text_width(load_font(11), line) for line in long_line.lines)
         assert long.shape[1] > short.shape[1]
-        assert long.shape[1] > widest
-        assert long.shape[0] > short.shape[0]  # two lines are taller than one
+        assert long.shape[1] > text_width(load_font(11), long_hud.line)
+        assert long.shape[0] == short.shape[0]  # one line either way
 
     def test_nothing_to_say_paints_nothing(self):
         """No library behind the playlist and no compilation: the corner stays
         clear rather than carrying an empty slab."""
         assert ModeHudPainter().bgra(ModeHud()) is None
-
-    def test_the_dot_goes_green_only_while_a_compilation_holds_the_playlist(self):
-        """The dot is the glance-level answer to "am I held?" — the same idiom the
-        satellites' lock band uses."""
-        def green_pixels(hud: ModeHud) -> int:
-            bgra = ModeHudPainter().bgra(hud)
-            rgb = bgra[:, :, [2, 1, 0]]
-            return int((rgb == np.array(GREEN, dtype=np.uint8)).all(axis=2).sum())
-
-        assert green_pixels(ModeHud(length_mode=SHORTS)) == 0
-        assert green_pixels(
-            ModeHud(length_mode=SHORTS, compilation="Vol6", position=9, total=20)
-        ) > 0
 
     def test_an_unchanged_hud_is_not_repainted(self):
         """It is asked for every frame at 60 fps; Pillow is far too slow to run
@@ -90,13 +83,19 @@ class TestPainter:
 
 
 class TestPlacement:
-    def test_the_panel_hangs_below_the_state_indicator(self):
-        """Right-aligned with it and clear of it, so the two read as one corner and
-        neither lands on the video's middle."""
-        panel_w = 140
-        ix, iy = indicator_xy(1200)
+    def test_the_panel_sits_in_the_top_left_corner(self):
+        """Where the satellites put theirs, so every player in the family answers
+        "what am I inside?" from the same place."""
+        x, y = hud_xy(hybrid=False)
 
-        x, y = hud_xy(1200, panel_w)
+        assert (x, y) == (8, 8)
 
-        assert x + panel_w == ix + 26  # flush right with the indicator
-        assert y > iy
+    def test_hybrid_shifts_it_clear_of_genau(self):
+        """In Hybrid, Genau's window is a transparent layer over Nau's and its own
+        panel holds that same corner, so Nau's starts past it instead of under it."""
+        plain_x, plain_y = hud_xy(hybrid=False)
+
+        x, y = hud_xy(hybrid=True)
+
+        assert x >= plain_x + GENAU_PANEL_W
+        assert y == plain_y

@@ -236,6 +236,24 @@ class TestApplyCommand:
             "SET_LENGTH_MODE", session, set_length_mode=lambda _m: None,
         ) is False
 
+    def test_set_hybrid_invokes_callback(self):
+        """Nau's own corner furniture has to move aside for Genau's panel in
+        Hybrid, and only Fun Time knows which mode the primary slot is in."""
+        session = SpySession()
+        states = []
+
+        assert apply_command("SET_HYBRID 1", session, set_hybrid=states.append)
+        assert apply_command("SET_HYBRID 0", session, set_hybrid=states.append)
+
+        assert states == [True, False]
+        assert session.calls == []
+
+    def test_set_hybrid_without_callback_or_argument_returns_false(self):
+        session = SpySession()
+
+        assert apply_command("SET_HYBRID 1", session) is False
+        assert apply_command("SET_HYBRID", session, set_hybrid=lambda _h: None) is False
+
     def test_quit_sets_stop_event(self):
         session = SpySession()
         stop = threading.Event()
