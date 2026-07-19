@@ -155,6 +155,11 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     rh_paused = {"value": False}
     hud_state = {"active": False}
+    # Genau paints its clips unless something tells it otherwise: standalone it
+    # owns its window outright, and an orchestrator that hides Genau in some of
+    # its modes asserts DISPLAY_OFF/DISPLAY_ON as those modes change.  Defaulting
+    # dark instead would make a bare `python -m genau` come up black.
+    display_state = {"active": True}
 
     from .cruise_control import CruiseControlState
     from .direct_control import DirectControlState, bpm_for_speed
@@ -244,6 +249,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         hud_state=hud_state,
         set_hud_mode=view.set_hud_mode,
         set_blank=view.set_blank,
+        display_state=display_state,
     )
     from .cruise_control import toggle_cruise_control
     from .direct_control import (
