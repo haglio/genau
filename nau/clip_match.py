@@ -26,10 +26,10 @@ import numpy as np
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from .cli import DEFAULT_CONFIG, load_config
-from .clip_nav import could_be_cut_from, read_clip, read_sidecar, sidecar_for
+from .clip_nav import could_be_cut_from
 from .discovery import discover_entries
 from .library import LibraryEntry, VersionGroup, group_versions
-from .library_source import read_version_group
+from .sidecar import read_clip, read_sidecar, read_version_group, sidecar_for
 
 logger = logging.getLogger(__name__)
 
