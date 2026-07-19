@@ -175,3 +175,18 @@ class TestClipNav:
         stranger = _sidecar(lib, tmp_path / "videos" / "metadata", "other/Some Random Movie.mp4", {})
         nav2 = ClipNav.build([*clips, full, stranger], tmp_path / "videos" / "metadata")
         assert nav2.clip_of(stranger) is None
+
+
+def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
+    """Evolver's own output suffix was not in the quality-token list, so a scene
+    and its upscale counted as two candidates and the match declined."""
+    lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    clip = _clip(lib, meta, "w/Emy Reyes - Angels of Debauchery 8.mp4", "Vol1", 9,
+                 "Angels of Debauchery 8", "Emy Reyes")
+    plain = _sidecar(lib, meta, "other/Emy-Reyes_540-izB4YKFa.mp4", {})
+    upscale = _sidecar(lib, meta, "other/Emy-Reyes_540-izB4YKFa_apo8_iris2.mp4", {})
+    upscale.write_bytes(b"x" * 400)
+    nav = ClipNav.build([clip, plain, upscale], meta)
+
+    assert nav.full_vid_of(clip) == upscale
+    assert nav.clip_of(plain) == clip
