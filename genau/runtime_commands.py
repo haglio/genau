@@ -31,6 +31,7 @@ def apply_runtime_command(
     cruise_control_state=None,
     stop_event=None,
     hud_state=None,
+    display_state=None,
 ) -> bool:
     if not command:
         return False
@@ -81,6 +82,13 @@ def apply_runtime_command(
         hud_state["active"] = True
     elif normalized == "HUD_OFF" and hud_state is not None:
         hud_state["active"] = False
+    # Whether Genau owns the screen right now, which is not the same as whether
+    # the hand is stroking: an orchestrator switching to a mode Genau doesn't
+    # display sends DISPLAY_OFF, and Genau goes dark without touching playback.
+    elif normalized == "DISPLAY_ON" and display_state is not None:
+        display_state["active"] = True
+    elif normalized == "DISPLAY_OFF" and display_state is not None:
+        display_state["active"] = False
     else:
         return _try_numeric_command(normalized, direct_state)
     return True
