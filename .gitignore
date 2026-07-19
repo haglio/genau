@@ -15,3 +15,8 @@ state/
 
 # libmpv binary (fetched locally, not committed — see README)
 vendor/
+
+# Private overlays — real values live here and never get published; each has
+# a committed *.example.* template documenting its shape.
+/genau_config.json
+/sanitize/blocklist.local.txt
