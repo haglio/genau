@@ -1,6 +1,7 @@
 """Shared pytest fixtures for Genau tests."""
 from __future__ import annotations
 
+import importlib
 import json
 import os
 import shutil
@@ -10,16 +11,44 @@ from pathlib import Path
 
 import pytest
 
-# Ensure the genau *package* (with __init__.py) is found before any
-# namespace-package resolution.  When the CWD is an ancestor directory
-# (e.g. C:/.../projects), Python may treat the project root
-# "genau/" as a namespace package — shadowing the real genau/
-# package and making submodule imports (genau.state, etc.) fail.
-# Inserting the project root at the front of sys.path guarantees
-# that `import genau` resolves to genau/__init__.py correctly.
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
-if _PROJECT_ROOT not in sys.path:
+
+
+def _pin_this_tree() -> None:
+    """Make this suite import the tree it lives in, whatever the cwd.
+
+    Two different shadows want the front of ``sys.path``:
+
+    * Run from an ancestor directory (``C:/.../projects``), Python can read the
+      repo folder ``genau/`` as a namespace package and never reach the real
+      one, so ``genau.state`` and friends stop importing.
+    * Run from a *sibling tree* — every agent works in a
+      ``.claude/worktrees/<name>/`` copy, so several trees with these package
+      names coexist — the cwd goes on the path ahead of the editable install's
+      entry for the checkout, and that tree's ``nau``/``genau`` win.  Loud when
+      the trees have drifted enough to break an import; silent when they have
+      not, which is worse: a green suite proving nothing about the code you have.
+
+    Both are beaten by putting this tree first, and *moving* it there rather
+    than inserting only when absent — the editable install already lists the
+    real checkout further down, which is precisely why the old
+    ``if not in sys.path`` guard never fired for the second case.
+    """
+    while _PROJECT_ROOT in sys.path:
+        sys.path.remove(_PROJECT_ROOT)
     sys.path.insert(0, _PROJECT_ROOT)
+    for name in ("nau", "genau"):
+        module = importlib.import_module(name)
+        home = Path(module.__file__).resolve().parent.parent
+        if home != Path(_PROJECT_ROOT):
+            raise RuntimeError(
+                f"tests in {_PROJECT_ROOT} imported {name} from {home}. "
+                "Two trees of this repo are on sys.path and the wrong one won; "
+                "the suite would be testing code you are not running."
+            )
+
+
+_pin_this_tree()
 
 
 TMP_ROOT = Path(
