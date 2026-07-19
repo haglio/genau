@@ -84,9 +84,10 @@ def _duration_cache_path(args) -> Path:
 
 
 def mode_memory(args) -> ModeMemory:
-    """Where Nau writes down the length mode it is in, so the next session — which
-    Fun Time opens on this one's resumed playlist — can name it."""
-    return ModeMemory(_state_path(args, "nau_length_mode.txt"))
+    """Where Nau writes down the mode it is in — the length filter and any
+    compilation — so the next session, which Fun Time opens on this one's resumed
+    playlist, can name it and re-enter the volume."""
+    return ModeMemory(_state_path(args, "nau_mode.txt"))
 
 
 def library_source(
