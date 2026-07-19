@@ -24,6 +24,7 @@ from .cli import (
 from .clip_nav import ClipNav
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, OTHER_MODE
+from .loading import LoadingCancelled, LoadingScreen
 from .overlay import (
     TIMELINE_HEIGHT,
     HeatmapStrip,
@@ -80,19 +81,7 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config(args.config)
         args = build_parser(config).parse_args(argv)
 
-    source = library_source(args)
-    # Fun Time passes --playlist and owns its selection; standalone falls back to
-    # the source's full-length playlist. Either way the source (when present)
-    # powers version cycling, the shorts/full-length toggle, and folding each
-    # video's versions to a single rotation slot.
-    pairs = resolve_playlist(args, source=source)
-    if not pairs:
-        logger.error("No videos found (need --playlist or --videos-dir/--scripts-dir)")
-        return 1
-    scripted = sum(1 for _, fs in pairs if fs is not None)
-    logger.info("Found %d video(s), %d with funscripts", len(pairs), scripted)
-
-    return _run(args, pairs, source)
+    return _run(args)
 
 
 def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -> None:
@@ -135,22 +124,55 @@ def _set_aumid() -> None:
         pass
 
 
-def _run(args, pairs: list[tuple[Path, Path | None]], source=None) -> int:
-    _set_aumid()
+def _open_window(args):
+    """Create Nau's window and return its surface.
+
+    Comes before any library work: reading the library is the long part of
+    startup, and until the window exists there is nowhere to say so — which is
+    also why Fun Time, which waits on this window by caption, now finds it
+    within its budget however cold the duration cache is.
+    """
     pygame.init()
     chrome = get_window_chrome_height()
     client_h = max(1, args.height - chrome)
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y + chrome}"
-    _icon = _load_icon_surface()
-    if _icon is not None:
-        pygame.display.set_icon(_icon)  # must precede set_mode to take effect
+    icon = _load_icon_surface()
+    if icon is not None:
+        pygame.display.set_icon(icon)  # must precede set_mode to take effect
     screen = pygame.display.set_mode((args.width, client_h))
     pygame.display.set_caption("Nau")
-    clock = pygame.time.Clock()
-    # mpv renders the video directly into this window; overlays go on top.
+    return screen
+
+
+def _run(args) -> int:
+    _set_aumid()
+    screen = _open_window(args)
+    # mpv renders the video directly into this window; overlays go on top.  Until
+    # it does, the window is the loading screen's to paint.
     wid = pygame.display.get_wm_info()["window"]
 
+    loading = LoadingScreen(screen)
+    try:
+        # The long part of startup, and so the part the loading screen reports.
+        # Fun Time passes --playlist and owns its selection; standalone falls back
+        # to the source's full-length playlist. Either way the source (when
+        # present) powers version cycling, the shorts/full-length toggle, and
+        # folding each video's versions to a single rotation slot.
+        source = library_source(args, on_progress=loading.update)
+        pairs = resolve_playlist(args, source=source)
+    except LoadingCancelled:
+        logger.info("Closed while loading; never started playback")
+        pygame.quit()
+        return 0
+    if not pairs:
+        logger.error("No videos found (need --playlist or --videos-dir/--scripts-dir)")
+        pygame.quit()
+        return 1
+    scripted = sum(1 for _, fs in pairs if fs is not None)
+    logger.info("Found %d video(s), %d with funscripts", len(pairs), scripted)
+
+    clock = pygame.time.Clock()
     paused_file: Path | None = args.paused_file
     command_file: Path | None = args.command_file
     start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)

@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+from collections.abc import Callable
 from pathlib import Path
 
 from player_core.playlist import read_playlist
@@ -81,6 +82,7 @@ def library_source(
     *,
     rng: random.Random | None = None,
     durations: dict[Path, float] | None = None,
+    on_progress: Callable[[str, int, int], None] | None = None,
 ) -> LibrarySource | None:
     """Build the :class:`LibrarySource`, or None when the library dirs are absent.
 
@@ -88,6 +90,7 @@ def library_source(
     Fun Time, which passes its own ``--playlist`` for the *initial* selection but
     still needs this source for version cycling and the shorts/full-length
     toggle.  *durations* is a test seam; production probes via the cache.
+    *on_progress* goes straight through to the build, where the wait is.
     """
     if args.videos_dir is None or args.scripts_dir is None:
         return None
@@ -99,6 +102,7 @@ def library_source(
         duration_cache=None if durations is not None else DurationCache(_duration_cache_path(args)),
         durations=durations,
         metadata_root=Path(args.metadata_dir) if args.metadata_dir else None,
+        on_progress=on_progress,
     )
 
 
