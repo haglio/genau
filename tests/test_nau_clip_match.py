@@ -35,6 +35,14 @@ class TestFrameHashes:
 
         assert list(frame_hashes(frames - 20)) == list(frame_hashes(frames))
 
+    def test_a_video_ffmpeg_could_not_read_hashes_to_nothing(self):
+        """One unreadable file among hundreds must cost that file its match, not
+        the whole batch."""
+        nothing = np.empty((0, SAMPLE_HEIGHT, SAMPLE_WIDTH), dtype=np.uint8)
+
+        assert len(frame_hashes(nothing)) == 0
+        assert align(frame_hashes(nothing), _hashes(400), fps=8.0) is None
+
     def test_different_frames_hash_differently(self):
         rng = np.random.default_rng(4)
         frames = rng.integers(0, 256, size=(20, SAMPLE_HEIGHT, SAMPLE_WIDTH), dtype=np.uint8)
