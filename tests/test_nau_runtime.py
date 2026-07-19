@@ -268,6 +268,25 @@ class TestApplyCommand:
         assert apply_command("SET_HYBRID 1", session) is False
         assert apply_command("SET_HYBRID", session, set_hybrid=lambda _h: None) is False
 
+    def test_set_f_mode_invokes_callback(self):
+        """F-mode is Fun Time's flag; all Nau ever sees of it is a pre-narrowed
+        playlist, which looks like any other.  So the orchestrator has to say it
+        outright for the HUD to be able to."""
+        session = SpySession()
+        states = []
+
+        assert apply_command("SET_F_MODE 1", session, set_f_mode=states.append)
+        assert apply_command("SET_F_MODE 0", session, set_f_mode=states.append)
+
+        assert states == [True, False]
+        assert session.calls == []
+
+    def test_set_f_mode_without_callback_or_argument_returns_false(self):
+        session = SpySession()
+
+        assert apply_command("SET_F_MODE 1", session) is False
+        assert apply_command("SET_F_MODE", session, set_f_mode=lambda _f: None) is False
+
     def test_quit_sets_stop_event(self):
         session = SpySession()
         stop = threading.Event()

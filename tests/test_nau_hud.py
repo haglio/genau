@@ -34,6 +34,22 @@ class TestLine:
 
             assert hud.line == "Vol6 · 9/20"
 
+    def test_says_when_fun_time_has_narrowed_the_playlist_to_f_mode(self):
+        """F-mode keeps only the scripted videos.  Nau cannot see that in the
+        playlist it is handed — a list of scripted videos looks like any other —
+        so unless Fun Time says so, a library cut to a fraction of itself is
+        indistinguishable from the whole thing."""
+        assert ModeHud(length_mode=MIXED, f_mode=True).line == "Mixed · F-Mode"
+
+    def test_f_mode_is_orthogonal_to_everything_else_the_line_says(self):
+        """It is a filter over whatever is selecting the playlist, not one of the
+        answers to it — so it rides alongside a compilation as readily as a length,
+        and stands alone when neither is running."""
+        inside = ModeHud(compilation="Vol6", position=9, total=20, f_mode=True)
+
+        assert inside.line == "Vol6 · 9/20 · F-Mode"
+        assert ModeHud(f_mode=True).line == "F-Mode"
+
 
 class TestCompilationLabel:
     """Compilations are titled for a shelf, not for the corner of a video."""
