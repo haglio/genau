@@ -59,8 +59,8 @@ class FakeNotices:
 def _world(tmp_path: Path):
     """A Vol6 compilation of two clips, plus the scene one was taken from."""
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    first = _clip(lib, meta, "w/Jane Doe - Pound Region A 2.mp4", "Vol6", 1,
-                  "Pound Region A 2", "Jane Doe")
+    first = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1,
+                  "Scene Two", "Jane Doe")
     second = _clip(lib, meta, "w/Kim Lee - POV Scene 2.mp4", "Vol6", 9,
                    "POV Scene 2", "Kim Lee")
     scene = lib / "other" / "POV Scene 2 - Kim Lee 1080p.mp4"
