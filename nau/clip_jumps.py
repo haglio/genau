@@ -33,6 +33,23 @@ class ClipJumps:
         """The compilation whose clips are the playlist, or "" while browsing."""
         return self._compilation
 
+    def resume(self) -> None:
+        """Notice that the playlist Nau opened with *is* a compilation's clips.
+
+        Fun Time resumes the playlist a session closed on rather than rebuilding
+        it, so Nau can start inside a compilation having never been told it
+        entered one.  This checks rather than assumes: the playlist has to hold
+        exactly the current clip's siblings, compared as a set because resume
+        rotates the list to the video that was on screen.  Anything else — a clip
+        that merely turned up in an ordinary browse, part of a compilation, a
+        non-clip — leaves the state alone.
+        """
+        siblings = self._nav.compilation_playlist(self._session.current_video)
+        if not siblings:
+            return
+        if set(siblings) == {video for video, _fs in self._session.playlist}:
+            self._compilation = self._nav.compilation_of(self._session.current_video)
+
     def leave_compilation(self) -> None:
         """Note that the playlist was rebuilt from somewhere else — the library's
         length modes and Fun Time's reload both do that, and either way the volume

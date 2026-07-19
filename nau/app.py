@@ -19,6 +19,7 @@ from .cli import (
     build_parser,
     library_source,
     load_config,
+    mode_memory,
     resolve_playlist,
 )
 from .clip_jumps import ClipJumps
@@ -155,15 +156,21 @@ def _run(args) -> int:
     # it does, the window is the loading screen's to paint.
     wid = pygame.display.get_wm_info()["window"]
 
+    # The length mode this player was last in.  Fun Time resumes the playlist a
+    # session closed on rather than rebuilding it, so the mode that chose those
+    # videos is last session's too — and a list of files cannot say which.
+    memory = mode_memory(args)
+    remembered = memory.read()
+
     loading = LoadingScreen(screen)
     try:
         # The long part of startup, and so the part the loading screen reports.
-        # Fun Time passes --playlist and owns its selection; standalone falls back
-        # to the source's full-length playlist. Either way the source (when
-        # present) powers version cycling, the shorts/full-length toggle, and
-        # folding each video's versions to a single rotation slot.
+        # Fun Time passes --playlist and owns its selection; standalone builds the
+        # remembered mode's playlist itself. Either way the source (when present)
+        # powers version cycling, the length modes, and folding each video's
+        # versions to a single rotation slot.
         source = library_source(args, on_progress=loading.update)
-        pairs = resolve_playlist(args, source=source)
+        pairs = resolve_playlist(args, source=source, mode=remembered or DEFAULT_MODE)
     except LoadingCancelled:
         logger.info("Closed while loading; never started playback")
         pygame.quit()
@@ -191,7 +198,7 @@ def _run(args) -> int:
     # Empty when there is no library behind the playlist (Fun Time can hand Nau
     # one without library dirs): no length filter is running, so the HUD has no
     # mode to name and the toggle has nothing to rebuild.
-    length_mode = DEFAULT_MODE if source is not None else ""
+    length_mode = (remembered or DEFAULT_MODE) if source is not None else ""
     # Genau's HUD holds the top-left corner in Hybrid; Fun Time says when.
     hybrid = False
     heatmap = HeatmapStrip()
@@ -214,6 +221,9 @@ def _run(args) -> int:
         clip_nav, session, {e.video: e.funscript for e in entries},
         NoticeWriter(getattr(args, "notice_file", None)),
     )
+    # A resumed playlist can *be* a compilation's clips, so Nau can open inside
+    # one having never been told it entered.
+    jumps.resume()
 
     def _reload_playlist() -> None:
         if args.playlist is not None:
@@ -231,12 +241,19 @@ def _run(args) -> int:
         # playlist for one volume's clips, and asking for a length again is how
         # you get back out of it.
         length_mode = mode
+        memory.write(length_mode)
         jumps.leave_compilation()
         logger.info("Length mode: %s", length_mode)
         session.load_playlist(source.playlist_for(length_mode))
 
     def _toggle_length_mode() -> None:
         _set_length_mode(next_length_mode(length_mode))
+
+    def _end_compilation() -> None:
+        """Out of a compilation without naming a length: back to whichever mode
+        was feeding the playlist when it was entered, which is the one still
+        held here — PLAY_COMPILATION replaces the playlist but not the mode."""
+        _set_length_mode(length_mode)
 
     def _set_hybrid(active: bool) -> None:
         nonlocal hybrid
@@ -305,6 +322,7 @@ def _run(args) -> int:
                     play_compilation=jumps.play_compilation,
                     play_full_vid=jumps.play_full_vid,
                     play_money_shot=jumps.play_money_shot,
+                    end_compilation=_end_compilation,
                     set_hybrid=_set_hybrid,
                 )
 

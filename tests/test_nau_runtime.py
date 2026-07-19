@@ -236,6 +236,20 @@ class TestApplyCommand:
             "SET_LENGTH_MODE", session, set_length_mode=lambda _m: None,
         ) is False
 
+    def test_end_compilation_invokes_callback(self):
+        """Leaving a compilation without having to name a length: the mode you
+        were in before you entered is the one you go back to."""
+        session = SpySession()
+        calls = []
+
+        assert apply_command("END_COMPILATION", session, end_compilation=lambda: calls.append(1))
+
+        assert calls == [1]
+        assert session.calls == []
+
+    def test_end_compilation_without_callback_returns_false(self):
+        assert apply_command("END_COMPILATION", SpySession()) is False
+
     def test_set_hybrid_invokes_callback(self):
         """Nau's own corner furniture has to move aside for Genau's panel in
         Hybrid, and only Fun Time knows which mode the primary slot is in."""
