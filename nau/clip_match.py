@@ -215,11 +215,13 @@ def match_library(
 
     Works from the scenes, which are the complete set: every compilation clip
     came from one of them, while most scenes were never in a compilation and
-    correctly end up with no match. The answer is written to the sidecar of
-    every version of the winning clip, so it holds whichever one is played.
+    correctly end up with no match. Recording waits for the whole sweep, since
+    two scenes can turn out to hold one clip; the answer then goes to the
+    sidecar of every version of the winning clip, so it holds whichever one is
+    played.
 
-    *on_scene* is called with each scene and its result as they come, since the
-    run reads every candidate video end to end and takes minutes.
+    *on_scene* is called with each scene and what aligned to it as the sweep
+    goes, since it reads every candidate video end to end and takes minutes.
     """
     metas = {entry.video: read_clip(entry.video, metadata_root) for entry in entries}
     # Evolver's recorded version family, not the name prefix Nau falls back to:
@@ -250,11 +252,30 @@ def match_library(
         )
         if found is not None:
             matched[scene] = found
-            for member in candidates[found.clip].members:
-                record(member.video, scene, offset=found.offset, metadata_root=metadata_root)
         if on_scene is not None:
             on_scene(scene, found)
+
+    matched = _best_scene_per_clip(matched)
+    for scene, match in matched.items():
+        for member in families[match.clip].members:
+            record(member.video, scene, offset=match.offset, metadata_root=metadata_root)
     return matched
+
+
+def _best_scene_per_clip(matched: dict[Path, Match]) -> dict[Path, Match]:
+    """*matched* with each clip left to the one scene that holds it best.
+
+    The library keeps both a 540p release and a 4k re-release of the odd scene,
+    trimmed differently, and a clip really does sit inside each — but only one of
+    them can be its ``full_video``, so the closer alignment takes it rather than
+    whichever scene the sweep happened to reach last.
+    """
+    winner: dict[Path, Path] = {}
+    for scene, match in matched.items():
+        held = winner.get(match.clip)
+        if held is None or matched[held].score < match.score:
+            winner[match.clip] = scene
+    return {scene: matched[scene] for scene in matched if scene in set(winner.values())}
 
 
 def _cheapest(family: VersionGroup) -> Path:
