@@ -27,6 +27,7 @@ from .clip_nav import ClipNav
 from .hud import ModeHud, ModeHudPainter, hud_xy
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, LENGTH_MODES, next_length_mode
+from .mode_memory import RememberedMode
 from .loading import LoadingCancelled, LoadingScreen
 from .overlay import (
     TIMELINE_HEIGHT,
@@ -156,9 +157,9 @@ def _run(args) -> int:
     # it does, the window is the loading screen's to paint.
     wid = pygame.display.get_wm_info()["window"]
 
-    # The length mode this player was last in.  Fun Time resumes the playlist a
-    # session closed on rather than rebuilding it, so the mode that chose those
-    # videos is last session's too — and a list of files cannot say which.
+    # The mode this player was last in.  Fun Time resumes the playlist a session
+    # closed on rather than rebuilding it, so the mode that chose those videos is
+    # last session's too — and a list of files cannot say which.
     memory = mode_memory(args)
     remembered = memory.read()
 
@@ -170,7 +171,8 @@ def _run(args) -> int:
         # powers version cycling, the length modes, and folding each video's
         # versions to a single rotation slot.
         source = library_source(args, on_progress=loading.update)
-        pairs = resolve_playlist(args, source=source, mode=remembered or DEFAULT_MODE)
+        pairs = resolve_playlist(
+            args, source=source, mode=remembered.length_mode or DEFAULT_MODE)
     except LoadingCancelled:
         logger.info("Closed while loading; never started playback")
         pygame.quit()
@@ -198,7 +200,7 @@ def _run(args) -> int:
     # Empty when there is no library behind the playlist (Fun Time can hand Nau
     # one without library dirs): no length filter is running, so the HUD has no
     # mode to name and the toggle has nothing to rebuild.
-    length_mode = (remembered or DEFAULT_MODE) if source is not None else ""
+    length_mode = (remembered.length_mode or DEFAULT_MODE) if source is not None else ""
     # Genau's HUD holds the top-left corner in Hybrid; Fun Time says when.
     hybrid = False
     heatmap = HeatmapStrip()
@@ -221,9 +223,10 @@ def _run(args) -> int:
         clip_nav, session, {e.video: e.funscript for e in entries},
         NoticeWriter(getattr(args, "notice_file", None)),
     )
-    # A resumed playlist can *be* a compilation's clips, so Nau can open inside
-    # one having never been told it entered.
-    jumps.resume()
+    # Entering a compilation swaps the playlist in memory only, so a reopened
+    # session lands on the ordinary browse rotated to the clip that was on
+    # screen; the volume is rebuilt around it here.
+    jumps.resume(remembered.compilation)
 
     def _reload_playlist() -> None:
         if args.playlist is not None:
@@ -241,7 +244,6 @@ def _run(args) -> int:
         # playlist for one volume's clips, and asking for a length again is how
         # you get back out of it.
         length_mode = mode
-        memory.write(length_mode)
         jumps.leave_compilation()
         logger.info("Length mode: %s", length_mode)
         session.load_playlist(source.playlist_for(length_mode))
@@ -250,10 +252,13 @@ def _run(args) -> int:
         _set_length_mode(next_length_mode(length_mode))
 
     def _end_compilation() -> None:
-        """Out of a compilation without naming a length: back to whichever mode
-        was feeding the playlist when it was entered, which is the one still
-        held here — PLAY_COMPILATION replaces the playlist but not the mode."""
-        _set_length_mode(length_mode)
+        """Out of a compilation without naming a length: the mode that was
+        feeding the playlist when it was entered is the one still held here,
+        since PLAY_COMPILATION replaces the playlist but not the mode.  The clip
+        on screen keeps playing — leaving is about what "next" reaches."""
+        if source is None:
+            return
+        jumps.end_compilation(source.playlist_for(length_mode))
 
     def _set_hybrid(active: bool) -> None:
         nonlocal hybrid
@@ -350,6 +355,14 @@ def _run(args) -> int:
                 win_w, record_in_ms=session.record_in_ms,
             )
         player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
+
+        # Write the mode down whenever it moves, whichever path moved it, so the
+        # next session — which opens on this one's resumed playlist — can name it
+        # and re-enter the volume it was in.
+        mode_now = RememberedMode(length_mode=length_mode, compilation=jumps.compilation)
+        if mode_now != remembered:
+            remembered = mode_now
+            memory.write(mode_now)
 
         # The top-left column, stacked: which mode is selecting what plays (the
         # length filter, or the compilation holding the playlist), then the
