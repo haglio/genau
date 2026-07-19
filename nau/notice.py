@@ -8,22 +8,29 @@ the message once. A missed read just means a missed flash, never a stuck one.
 """
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 
 class NoticeWriter:
     """Publishes Nau's latest one-shot notice to *path* (key=value lines)."""
 
-    def __init__(self, path: Path | None) -> None:
+    def __init__(self, path: Path | None, *, clock=time.time) -> None:
         self._path = path
-        self._seq = 0
+        self._clock = clock
 
     def say(self, message: str, *, level: str = "error") -> bool:
-        """Raise *message*; ``level`` "error" flashes red, "notice" green."""
+        """Raise *message*; ``level`` "error" flashes red, "notice" green.
+
+        The sequence is a wall-clock stamp rather than a counter. A counter
+        restarts at 1 whenever Nau does, while the reader is still holding the
+        high number from the previous session — so every notice of the new
+        session read as older than what had already been shown, and none of
+        them ever flashed.
+        """
         if self._path is None:
             return False
-        self._seq += 1
-        text = f"seq={self._seq}\nlevel={level}\nmessage={message}\n"
+        text = f"seq={self._clock():.3f}\nlevel={level}\nmessage={message}\n"
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             self._path.write_text(text, encoding="utf-8")
