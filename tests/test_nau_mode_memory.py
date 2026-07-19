@@ -44,15 +44,17 @@ class TestLengthMode:
 
 
 class TestCompilation:
-    def test_the_compilation_reads_back_with_the_mode(self, tmp_path):
+    def test_the_compilation_and_its_clip_read_back_with_the_mode(self, tmp_path):
         """Nau's playlist swap for a compilation is in memory only — the file
         Fun Time resumes never sees it — so being inside one is remembered here
-        or not at all."""
+        or not at all, and so is which of its clips was on screen: the resumed
+        playlist cannot be rotated onto a clip it does not contain."""
         path = tmp_path / "nau_mode.txt"
+        mode = RememberedMode(length_mode=SHORTS, compilation="Vol6", video="C:/v/clip.mp4")
 
-        ModeMemory(path).write(RememberedMode(length_mode=SHORTS, compilation="Vol6"))
+        ModeMemory(path).write(mode)
 
-        assert ModeMemory(path).read() == RememberedMode(length_mode=SHORTS, compilation="Vol6")
+        assert ModeMemory(path).read() == mode
 
     def test_a_title_with_separators_in_it_survives(self, tmp_path):
         """Compilation titles carry dashes, spaces and parentheses; only the

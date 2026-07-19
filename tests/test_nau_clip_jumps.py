@@ -77,55 +77,50 @@ def _jumps(nav, current: Path, funscripts=None, playlist=None):
 
 
 class TestResume:
-    """Entering a compilation swaps Nau's playlist in memory only — the file
-    Fun Time resumes never sees it — so reopening lands on the ordinary browse
-    rotated to the clip that was on screen, and the volume has to be rebuilt."""
+    """Reopening cannot be read off the playlist.  Fun Time rotates the resumed
+    file onto the video its player last showed, but only when that video is in
+    the file — and a compilation's clips often are not, so the list comes back
+    leading with something else entirely.  The remembered clip is the anchor."""
 
-    def test_the_remembered_compilation_is_rebuilt_around_the_clip(self, tmp_path):
+    def test_the_remembered_volume_is_rebuilt_around_the_remembered_clip(self, tmp_path):
         nav, first, second, scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(
-            nav, second, playlist=[(second, None), (scene, None)])
+        # The resumed playlist leads with a video from the ordinary browse, and
+        # does not contain the clip that was on screen at all.
+        jumps, session, _notices = _jumps(nav, scene, playlist=[(scene, None)])
 
-        jumps.resume("Vol6")
+        jumps.resume("Vol6", second)
 
         assert jumps.compilation == "Vol6"
-        assert [video for video, _fs in session.replaced[0]] == [first, second]
+        assert session.played == [(second, None)]
+        assert [video for video, _fs in session.replaced[-1]] == [first, second]
 
-    def test_resuming_does_not_restart_the_video_on_screen(self, tmp_path):
-        """Reopening should carry on where the session closed, not jump to the
-        volume's first clip."""
-        nav, _first, second, _scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, second)
+    def test_a_volume_the_remembered_clip_is_not_in_is_dropped(self, tmp_path):
+        """Something rebuilt rather than resumed, and the remembered pair belongs
+        to a session that is over."""
+        nav, _first, second, scene = _world(tmp_path)
+        jumps, session, _notices = _jumps(nav, scene)
 
-        jumps.resume("Vol6")
-
-        assert session.loaded_first == 0
-
-    def test_a_volume_the_current_clip_is_not_in_is_dropped(self, tmp_path):
-        """Fun Time can rebuild rather than resume, and then the remembered
-        volume belongs to a session that is over."""
-        nav, _first, second, _scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, second)
-
-        jumps.resume("Vol10")
+        jumps.resume("Vol10", second)
 
         assert jumps.compilation == ""
         assert session.replaced == []
+        assert session.played == []
 
     def test_nothing_remembered_resumes_to_nothing(self, tmp_path):
-        nav, _first, second, _scene = _world(tmp_path)
-        jumps, session, _notices = _jumps(nav, second)
+        nav, _first, second, scene = _world(tmp_path)
+        jumps, session, _notices = _jumps(nav, scene)
 
-        jumps.resume("")
+        jumps.resume("", second)
+        jumps.resume("Vol6", None)
 
         assert jumps.compilation == ""
         assert session.replaced == []
 
-    def test_a_non_clip_resumes_to_nothing(self, tmp_path):
+    def test_a_remembered_non_clip_resumes_to_nothing(self, tmp_path):
         nav, _first, _second, scene = _world(tmp_path)
         jumps, session, _notices = _jumps(nav, scene)
 
-        jumps.resume("Vol6")
+        jumps.resume("Vol6", scene)
 
         assert jumps.compilation == ""
         assert session.replaced == []
@@ -145,6 +140,21 @@ class TestEndCompilation:
         assert jumps.compilation == ""
         assert session.replaced[-1] == browse
         assert session.loaded_first == 0  # nothing reloaded, so nothing restarted
+
+    def test_a_clip_the_length_mode_filtered_out_is_kept_anyway(self, tmp_path):
+        """A quarter of a volume's clips are non-canonical versions and so are
+        absent from the mode's own playlist.  Dropping them would mean leaving a
+        compilation yanked the video away — which is exactly what leaving must
+        not do."""
+        nav, _first, second, scene = _world(tmp_path)
+        jumps, session, _notices = _jumps(nav, second)
+        jumps.play_compilation()
+        without_it = [(scene, None)]
+
+        jumps.end_compilation(without_it)
+
+        assert session.replaced[-1] == [(second, None), (scene, None)]
+        assert session.loaded_first == 0
 
     def test_outside_a_compilation_it_does_nothing(self, tmp_path):
         nav, _first, _second, scene = _world(tmp_path)

@@ -223,10 +223,14 @@ def _run(args) -> int:
         clip_nav, session, {e.video: e.funscript for e in entries},
         NoticeWriter(getattr(args, "notice_file", None)),
     )
-    # Entering a compilation swaps the playlist in memory only, so a reopened
-    # session lands on the ordinary browse rotated to the clip that was on
-    # screen; the volume is rebuilt around it here.
-    jumps.resume(remembered.compilation)
+    # Entering a compilation swaps the playlist in memory only, and Fun Time can
+    # only rotate its resumed file onto a video the file contains — which a
+    # compilation's clips often are not.  So the clip is remembered too, and the
+    # volume comes back around it rather than around whatever the list leads with.
+    jumps.resume(
+        remembered.compilation,
+        Path(remembered.video) if remembered.video else None,
+    )
 
     def _reload_playlist() -> None:
         if args.playlist is not None:
@@ -359,7 +363,12 @@ def _run(args) -> int:
         # Write the mode down whenever it moves, whichever path moved it, so the
         # next session — which opens on this one's resumed playlist — can name it
         # and re-enter the volume it was in.
-        mode_now = RememberedMode(length_mode=length_mode, compilation=jumps.compilation)
+        mode_now = RememberedMode(
+            length_mode=length_mode, compilation=jumps.compilation,
+            # Only while inside one: the clip is remembered as the volume's
+            # anchor, and outside a compilation there is no volume to anchor.
+            video=str(session.current_video) if jumps.compilation else "",
+        )
         if mode_now != remembered:
             remembered = mode_now
             memory.write(mode_now)
