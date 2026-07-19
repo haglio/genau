@@ -16,10 +16,11 @@ def _sidecar(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
     return v
 
 
-def _clip(lib, meta, rel, comp, index, source, performer):
+def _clip(lib, meta, rel, comp, index, source, performer, **recorded):
     return _sidecar(lib, meta, rel, {
         "video": {"action": "Alpha"},
-        "clip": {"compilation": comp, "index": index, "source": source, "performer": performer},
+        "clip": {"compilation": comp, "index": index, "source": source,
+                 "performer": performer, **recorded},
     })
 
 
@@ -183,6 +184,54 @@ class TestClipNav:
         stranger = _sidecar(lib, tmp_path / "videos" / "metadata", "other/Some Random Movie.mp4", {})
         nav2 = ClipNav.build([*clips, full, stranger], tmp_path / "videos" / "metadata")
         assert nav2.clip_of(stranger) is None
+
+
+class TestRecordedMatch:
+    """``full_video`` in the sidecar is a content-verified answer (nau.clip_match
+    found the clip's frames inside that scene), so it outranks every guess the
+    filename heuristic could make."""
+
+    def test_full_vid_uses_the_recorded_scene(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        scene = _sidecar(lib, meta, "other/redacted_1080-jx3sHGzf.mp4", {})
+        _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
+        clip = _clip(lib, meta, "w/Jane Doe - To the Brink.mp4", "Vol1", 11,
+                     "Jane Doe To the Brink", "Jane Doe",
+                     full_video=str(scene), scene_offset=808.2)
+        nav = ClipNav.build([clip, scene, lib / "other" / "redacted_540-EhWGJW62.mp4"], meta)
+
+        assert nav.full_vid_of(clip) == scene
+
+    def test_money_shot_uses_the_recorded_scene(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        scene = _sidecar(lib, meta, "other/redacted_1080-jx3sHGzf.mp4", {})
+        mine = _clip(lib, meta, "w/Jane Doe - To the Brink.mp4", "Vol1", 11,
+                     "Jane Doe To the Brink", "Jane Doe",
+                     full_video=str(scene), scene_offset=808.2)
+        other = _clip(lib, meta, "w/Jane Doe - Cockeyed.mp4", "Vol2", 3,
+                      "Cockeyed", "Jane Doe",
+                      full_video=str(lib / "other" / "redacted_540-EhWGJW62.mp4"),
+                      scene_offset=12.0)
+        nav = ClipNav.build([mine, other, scene], meta)
+
+        assert nav.clip_of(scene) == mine
+
+    def test_the_match_holds_across_versions_of_the_scene(self, tmp_path):
+        """The batch aligns against whichever version is cheapest to decode, and
+        "cycle version" can put any of them on screen — so a match recorded on
+        the original has to resolve from the upscale too, in both directions."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        plain = _sidecar(lib, meta, "other/Emy-Reyes-1_540-izB4YKFa.mp4", {})
+        upscale = _sidecar(lib, meta, "other/Emy-Reyes-1_540-izB4YKFa_apo8_iris2.mp4", {})
+        upscale.write_bytes(b"x" * 400)
+        decoy = _sidecar(lib, meta, "other/Emy-Reyes-2_1080-QQ7mnbEt.mp4", {})
+        clip = _clip(lib, meta, "w/Emy Reyes - Nights of Nonsense 8.mp4", "Vol1", 9,
+                     "Nights of Nonsense 8", "Emy Reyes",
+                     full_video=str(plain), scene_offset=808.2)
+        nav = ClipNav.build([clip, plain, upscale, decoy], meta)
+
+        assert nav.clip_of(upscale) == clip
+        assert nav.full_vid_of(clip) == upscale
 
 
 def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
