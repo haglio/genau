@@ -195,6 +195,46 @@ class TestMatchLibrary:
 
         assert not any("apo8" in v.name for v in sampled)
 
+    def test_the_better_alignment_takes_a_clip_two_scenes_both_hold(self, tmp_path):
+        """The library keeps a 540p release and a 4k re-release of one scene, cut
+        to different lengths, and the clip is genuinely inside both. Only one can
+        be its full_video, so the closer alignment gets it rather than whichever
+        scene the sweep reached last."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        entries = []
+        for rel, payload in (
+            ("other/redacted_540-pacI21CK.mp4",
+             {"version": {"group": "redacted_540-pacI21CK"}}),
+            ("other/redacted POV BJ 4k 60fps.mp4",
+             {"version": {"group": "redacted POV BJ 4k 60fps"}}),
+            ("w/redacted - redacted It Dry 8.mp4",
+             {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
+        ):
+            video = lib / rel
+            video.parent.mkdir(parents=True, exist_ok=True)
+            video.write_bytes(b"x")
+            sidecar = (meta / rel).with_suffix(".json")
+            sidecar.parent.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(json.dumps(payload), encoding="utf-8")
+            entries.append(LibraryEntry(video=video, funscript=None, size=1))
+        release_540 = _frames(400, seed=6)
+        clip_frames = release_540[80:120]
+
+        def sampler(video, fps):
+            if video.name.startswith("redacted_540"):
+                return release_540
+            if video.name.endswith("60fps.mp4"):  # same scene, trimmed, half of it
+                return np.concatenate([_frames(24, seed=9), clip_frames[:20]])
+            return clip_frames
+
+        matched = match_library(entries, meta, fps=8.0, sampler=sampler)
+
+        scene = lib / "other" / "redacted_540-pacI21CK.mp4"
+        assert list(matched) == [scene]
+        clip = lib / "w" / "redacted - redacted It Dry 8.mp4"
+        assert read_clip(clip, meta)["full_video"] == str(scene)
+        assert read_clip(clip, meta)["scene_offset"] == 10.0
+
     def test_separates_scenes_evolver_calls_different_versions(self, tmp_path):
         """Two scenes of one performer can share a name prefix without being the
         same video — "redacted_540-hash" and "redacted POV BJ 4k".
