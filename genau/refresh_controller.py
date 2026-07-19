@@ -59,6 +59,7 @@ class GenauRefreshController:
         hud_state=None,
         set_hud_mode=None,
         set_blank=None,
+        display_state=None,
     ):
         self.state = state
         self.loader = loader
@@ -90,6 +91,7 @@ class GenauRefreshController:
         self.hud_state = hud_state
         self.set_hud_mode = set_hud_mode or (lambda _active: None)
         self.set_blank = set_blank or (lambda _blank: None)
+        self.display_state = display_state
         self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
         self.window_visible = False
         self._prev_playing: bool | None = None
@@ -171,6 +173,7 @@ class GenauRefreshController:
                 cruise_control_state=self.cruise_control,
                 stop_event=self.stop_event,
                 hud_state=self.hud_state,
+                display_state=self.display_state,
             )
 
         if self.hud_state is not None:
@@ -179,12 +182,12 @@ class GenauRefreshController:
                 self.set_hud_mode(hud_active)
                 self._prev_hud_active = hud_active
 
-        # Paint solid black whenever the hand isn't stroking and no HUD is up:
-        # this is Nau mode (Genau paused, display owned by Nau), where a frozen
-        # last frame would otherwise sit on screen for an alt-tab to land on.
-        # A live HUD stays transparent so Nau shows through — never black.
-        hud_on = self.hud_state["active"] if self.hud_state is not None else False
-        self.set_blank(not auto_active and not hud_on)
+        # Paint black only while an orchestrator has told us we aren't the active
+        # display.  Deliberately NOT keyed off playback: a paused hand is normal
+        # (standalone boots paused, and OmniPause freezes it mid-session), and
+        # blanking on that hides the clip the user is looking at.
+        display_active = self.display_state["active"] if self.display_state is not None else True
+        self.set_blank(not display_active)
 
         if self.direct_state is not None and self.broker_cmd_file is not None:
             now_playing = self.direct_state.playing

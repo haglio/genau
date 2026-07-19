@@ -108,6 +108,7 @@ def _build_controller(
     broker_cmd_file: Path | None = None,
     hud_state: dict | None = None,
     set_hud_mode=None,
+    display_state: dict | None = None,
 ):
     loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
@@ -159,6 +160,7 @@ def _build_controller(
         hud_state=hud_state,
         set_hud_mode=set_hud_mode or hud_mode_calls.append,
         set_blank=blank_calls.append,
+        display_state=display_state,
     )
     return {
         "controller": controller,
@@ -656,8 +658,10 @@ def test_multiline_commands_all_applied():
     assert hud["active"] is True
 
 
-def test_direct_mode_paused_blanks_the_display():
-    """Paused with the HUD off (Nau mode): Genau paints black, not a frozen frame."""
+def test_paused_alone_does_not_blank():
+    """Standalone Genau boots paused and is driven from the keyboard — a paused
+    hand still shows its clip. Only an orchestrator saying "you aren't the
+    display" (DISPLAY_OFF) blanks it."""
     dc = DirectControlState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
@@ -665,10 +669,10 @@ def test_direct_mode_paused_blanks_the_display():
 
     built["controller"].refresh()
 
-    assert built["blank_calls"] == [True]
+    assert built["blank_calls"] == [False]
 
 
-def test_direct_mode_playing_does_not_blank():
+def test_playing_does_not_blank():
     dc = DirectControlState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
@@ -679,20 +683,34 @@ def test_direct_mode_playing_does_not_blank():
     assert built["blank_calls"] == [False]
 
 
-def test_hud_active_never_blanks_even_when_paused():
-    """Hybrid mid-pause: Genau is paused but its HUD is up, so the window must
-    stay transparent for Nau to show through — blanking it to black would hide Nau."""
+def test_inactive_display_blanks():
     dc = DirectControlState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    hud = {"active": True}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode, hud_state=hud,
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        display_state={"active": False},
     )
 
     built["controller"].refresh()
 
-    assert built["blank_calls"] == [False]
+    assert built["blank_calls"] == [True]
+
+
+def test_display_off_command_blanks_within_the_same_refresh():
+    dc = DirectControlState(playing=False, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    display = {"active": True}
+    built = _build_controller(
+        entry=entry, direct_state=dc, tcode_sender=tcode,
+        command="DISPLAY_OFF", display_state=display,
+    )
+
+    built["controller"].refresh()
+
+    assert display["active"] is False
+    assert built["blank_calls"] == [True]
 
 
 def test_hud_on_command_calls_set_hud_mode():

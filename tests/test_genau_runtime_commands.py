@@ -546,3 +546,68 @@ class TestApplyRuntimeCommand:
                 step_clip=lambda _step: None,
             )
             assert handled is False, f"{cmd} should be ignored without hud_state"
+
+    def test_display_off_marks_genau_not_the_active_display(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        display = {"active": True}
+
+        handled = apply_runtime_command(
+            "DISPLAY_OFF",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            display_state=display,
+        )
+
+        assert handled is True
+        assert display["active"] is False
+
+    def test_display_on_marks_genau_the_active_display(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+        display = {"active": False}
+
+        handled = apply_runtime_command(
+            "DISPLAY_ON",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            display_state=display,
+        )
+
+        assert handled is True
+        assert display["active"] is True
+
+    def test_display_commands_do_not_touch_playback(self):
+        """DISPLAY_* is about what's painted, not whether the hand strokes:
+        a paused hand stays paused and a running one keeps running."""
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": True}
+        direct = DirectControlState(playing=False)
+        display = {"active": True}
+
+        apply_runtime_command(
+            "DISPLAY_OFF",
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=lambda _step: None,
+            direct_state=direct,
+            display_state=display,
+        )
+
+        assert rh_paused["value"] is True
+        assert direct.playing is False
+
+    def test_display_commands_ignored_without_display_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        rh_paused = {"value": False}
+
+        for cmd in ("DISPLAY_ON", "DISPLAY_OFF"):
+            handled = apply_runtime_command(
+                cmd,
+                engine=engine,
+                rh_paused=rh_paused,
+                step_clip=lambda _step: None,
+            )
+            assert handled is False, f"{cmd} should be ignored without display_state"
