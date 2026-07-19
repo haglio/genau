@@ -9,13 +9,20 @@ import ctypes
 import json
 import logging
 import math
-import sys
 import threading
 import time
 from pathlib import Path
+from typing import IO
 
 import numpy as np
 
+from app_support.logging_utils import (
+    configure_logging,
+    enable_faulthandler,
+    install_exception_logging,
+)
+
+from . import vr_runtime
 from .clip import load_clip, scan_clips
 from .cruise_control import CruiseControlState, tick_cruise_control
 from .playback import (
@@ -37,10 +44,46 @@ DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
 
 
 def _show_error_popup(message: str) -> None:
-    """Show a Win32 MessageBox error dialog."""
+    """Show a Win32 MessageBox error dialog.
+
+    GenauVR is launched hidden from a shortcut, so it has no claim on the
+    foreground: without these two flags the dialog opens *behind* whatever the
+    user is looking at, which reads as having crashed with no explanation.
+    """
     MB_OK = 0x0
     MB_ICONERROR = 0x10
-    ctypes.windll.user32.MessageBoxW(None, message, "GenauVR", MB_OK | MB_ICONERROR)
+    MB_SETFOREGROUND = 0x00010000
+    MB_TOPMOST = 0x00040000
+    ctypes.windll.user32.MessageBoxW(
+        None, message, "GenauVR",
+        MB_OK | MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST,
+    )
+
+
+def _state_dir(cfg: dict) -> Path:
+    """The directory this install keeps its logs and command files in."""
+    state_dir = Path(cfg.get("state_dir", "state"))
+    if not state_dir.is_absolute():
+        state_dir = DEFAULT_CONFIG.parent / state_dir
+    state_dir.mkdir(parents=True, exist_ok=True)
+    return state_dir
+
+
+def _configure_logging() -> tuple[logging.Logger, IO[str]]:
+    """Send this run's log to a file, and return the crash log to hold open.
+
+    Under ``pythonw`` — how the shortcut always starts us — ``sys.stderr`` is
+    ``None``, so anything logged to a stream is discarded and a failed startup
+    leaves no trace at all. The file is the only record there is.
+
+    It goes to the default state directory rather than the configured one, so
+    that a config which cannot be read still gets its failure written down.
+    """
+    state_dir = DEFAULT_CONFIG.parent / "state"
+    log = configure_logging("genau_vr", state_dir / "genau_vr.log")
+    install_exception_logging(log)
+    fault_fp = enable_faulthandler(state_dir / "genau_vr_crash.log")
+    return log, fault_fp
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -64,8 +107,7 @@ def _resolve_clip_list(args: argparse.Namespace, cfg: dict) -> list[Path]:
     if args.clip:
         p = Path(args.clip)
         if not p.exists():
-            print(f"Error: clip not found: {p}", file=sys.stderr)
-            sys.exit(1)
+            raise FileNotFoundError(f"Clip not found: {p}")
         return [p]
 
     vr_clips_dir = cfg.get("vr_clips_dir")
@@ -78,8 +120,7 @@ def _resolve_clip_list(args: argparse.Namespace, cfg: dict) -> list[Path]:
     if clips_dir:
         return scan_clips(Path(clips_dir))
 
-    print("Error: no clip specified and no clips_dir in config", file=sys.stderr)
-    sys.exit(1)
+    raise RuntimeError("No clip specified and no clips_dir in config")
 
 
 def _resolve_tcode_endpoint(cfg: dict) -> tuple[str, int]:
@@ -128,7 +169,6 @@ class AudioPlayer:
     """Manages looping audio playback. Audio plays continuously, not synced to phase."""
 
     def __init__(self) -> None:
-        self._audio_path: Path | None = None
         self._initialized = False
         self._volume = 0.25
         try:
@@ -157,7 +197,6 @@ class AudioPlayer:
         if audio_path is None:
             logger.info("No audio found for clip: %s", clip_path.name)
             return
-        self._audio_path = audio_path
         try:
             pygame.mixer.music.load(str(audio_path))
             pygame.mixer.music.play(loops=-1)
@@ -165,7 +204,6 @@ class AudioPlayer:
             logger.info("Audio playing: %s", audio_path.name)
         except Exception:
             logger.warning("Failed to load audio", exc_info=True)
-            self._audio_path = None
 
     @staticmethod
     def _find_audio(clip_path: Path) -> Path | None:
@@ -183,22 +221,11 @@ class AudioPlayer:
         import pygame
         pygame.mixer.music.set_volume(self._volume)
 
-    def set_paused(self, paused: bool) -> None:
-        if not self._initialized:
-            return
-        import pygame
-        if paused:
-            pygame.mixer.music.pause()
-        else:
-            pygame.mixer.music.unpause()
-
     def stop(self) -> None:
         if not self._initialized:
             return
         import pygame
         pygame.mixer.music.stop()
-        self._audio_path = None
-        self._duration = 0.0
 
     def close(self) -> None:
         self.stop()
@@ -211,8 +238,22 @@ VR_APP_USER_MODEL_ID = "GenauVR.App"
 
 
 def main(argv: list[str] | None = None) -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    """Start GenauVR, or say on screen why it could not start.
 
+    Every path out of startup ends either in the VR loop or in a dialog: a
+    hidden-launched process that just exits is indistinguishable from a crash.
+    """
+    log, fault_fp = _configure_logging()
+    try:
+        _start(argv)
+    except Exception as exc:
+        log.exception("GenauVR failed to start")
+        _show_error_popup(f"GenauVR could not start.\n\nDetail: {exc}")
+    finally:
+        fault_fp.close()
+
+
+def _start(argv: list[str] | None) -> None:
     # Set AppUserModelID before any window creation so GenauVR gets its
     # own taskbar identity instead of inheriting python.exe's.
     from genau.win32 import set_app_user_model_id, stamp_pinned_shortcuts
@@ -224,6 +265,16 @@ def main(argv: list[str] | None = None) -> None:
 
     args = _parse_args(argv)
     cfg = _load_config(args)
+
+    # Ask for VR before decoding anything: a clip takes seconds to load, and
+    # spending them only to discover there is no headset delays the dialog
+    # that explains it — and flashes a window on the way there.
+    vr = vr_runtime.ensure_ready()
+    if vr.readiness is not vr_runtime.Readiness.READY:
+        logger.error("VR not available: %s", vr.readiness.value)
+        _show_error_popup(vr_runtime.explain(vr))
+        return
+
     clip_list = _resolve_clip_list(args, cfg)
     tcode_host, tcode_port = _resolve_tcode_endpoint(cfg)
 
@@ -243,8 +294,7 @@ def main(argv: list[str] | None = None) -> None:
         logger.error("VR initialization failed: %s", exc)
         _show_error_popup(
             f"Could not start VR session.\n\n"
-            f"Make sure your VR headset and runtime (e.g. PimaxXR, SteamVR) "
-            f"are running before launching GenauVR.\n\n"
+            f"The headset answered, but GenauVR could not open a session on it.\n\n"
             f"Error: {exc}"
         )
         return
@@ -258,12 +308,7 @@ def main(argv: list[str] | None = None) -> None:
     tcode_sink = UdpTCodeSink(tcode_host, tcode_port)
     tcode_sender = RateLimitedTCodeSender(tcode_sink, direct_state=state)
 
-    # Command file for voice commands
-    state_dir = Path(cfg.get("state_dir", "state"))
-    if not state_dir.is_absolute():
-        state_dir = DEFAULT_CONFIG.parent / state_dir
-    state_dir.mkdir(parents=True, exist_ok=True)
-    cmd_file = state_dir / "genau_vr_cmd.txt"
+    cmd_file = _state_dir(cfg) / "genau_vr_cmd.txt"
 
     if not args.no_voice:
         _start_voice(cfg, cmd_file)
