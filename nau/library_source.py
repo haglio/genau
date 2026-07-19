@@ -12,7 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from .clip_nav import read_clip
+from .clip_nav import read_clip, read_sidecar
 from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
@@ -28,23 +28,10 @@ from .library import (
 def read_version_group(video: Path, metadata_root: Path) -> str | None:
     """The version-family id Evolver recorded for *video*, or None.
 
-    The metadata tree mirrors the video library one-to-one, so the sidecar sits
-    at the same path under *metadata_root* as the clip sits under the library
-    root — the ``videos`` sibling of *metadata_root* (``…/videos/metadata`` pairs
-    with ``…/videos/videos``). A missing or malformed sidecar returns None, so
-    the clip falls back to name-based grouping.
+    A missing or malformed sidecar returns None, so the clip falls back to
+    name-based grouping.
     """
-    library_root = metadata_root.parent / "videos"
-    try:
-        rel = video.relative_to(library_root)
-    except ValueError:
-        return None
-    sidecar = (metadata_root / rel).with_suffix(".json")
-    try:
-        payload = json.loads(sidecar.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    version = payload.get("version") if isinstance(payload, dict) else None
+    version = read_sidecar(video, metadata_root).get("version")
     if not isinstance(version, dict):
         return None
     group = version.get("group")

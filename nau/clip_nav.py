@@ -29,25 +29,38 @@ from pathlib import Path
 from .library import normalize_title
 
 
-def read_clip(video: Path, metadata_root: Path) -> dict | None:
-    """The ``clip`` object Evolver recorded for *video*, or None.
+def sidecar_for(video: Path, metadata_root: Path) -> Path | None:
+    """Where Evolver's metadata for *video* lives, or None if *video* is outside.
 
     The metadata tree mirrors the video library one-to-one (``…/videos/metadata``
     pairs with ``…/videos/videos``), so the sidecar sits at the same path under
-    *metadata_root* as the clip sits under the library root. A missing or
-    malformed sidecar, or one with no ``clip`` object, returns None.
+    *metadata_root* as the video sits under the library root.
     """
-    library_root = metadata_root.parent / "videos"
     try:
-        rel = video.relative_to(library_root)
+        rel = video.relative_to(metadata_root.parent / "videos")
     except ValueError:
         return None
-    sidecar = (metadata_root / rel).with_suffix(".json")
+    return (metadata_root / rel).with_suffix(".json")
+
+
+def read_sidecar(video: Path, metadata_root: Path) -> dict:
+    """Everything Evolver recorded for *video*; empty when there is nothing."""
+    sidecar = sidecar_for(video, metadata_root)
+    if sidecar is None:
+        return {}
     try:
         payload = json.loads(sidecar.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return None
-    clip = payload.get("clip") if isinstance(payload, dict) else None
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def read_clip(video: Path, metadata_root: Path) -> dict | None:
+    """The ``clip`` object Evolver recorded for *video*, or None.
+
+    A missing or malformed sidecar, or one with no ``clip`` object, returns None.
+    """
+    clip = read_sidecar(video, metadata_root).get("clip")
     return clip if isinstance(clip, dict) else None
 
 
@@ -185,7 +198,7 @@ class ClipNav:
         # pairing there would be a guess dressed as an answer.
         candidates = [
             v for v, m in self._clips.items()
-            if v != video and _performer_of(m) and _performer_of(m) <= text
+            if v != video and could_be_cut_from(m, video)
         ]
         only_clip = _only_candidate(candidates)
         if only_clip is None:
@@ -193,6 +206,17 @@ class ClipNav:
         performer = _performer_of(self._clips[only_clip])
         scenes = [s for s in self._non_clips if performer <= _tokens(s.stem)]
         return only_clip if _only_candidate(scenes) is not None else None
+
+
+def could_be_cut_from(meta: dict, scene: Path) -> bool:
+    """Whether *meta*'s clip might have been cut from *scene*, on the names alone.
+
+    The performer is the one thing a library filename reliably carries, so this
+    is the widest net worth casting — and the set :mod:`nau.clip_match` then
+    narrows by looking at the pictures.
+    """
+    performer = _performer_of(meta)
+    return bool(performer) and performer <= _tokens(scene.stem)
 
 
 def _performer_of(meta: dict) -> set[str]:
@@ -253,10 +277,7 @@ def _resolve(meta: dict, candidates: list[Path]) -> Path | None:
     named = _largest([c for c in candidates if _matches(meta, _tokens(c.stem))])
     if named is not None:
         return named
-    performer = _performer_of(meta)
-    if not performer:
-        return None
-    return _only_candidate([c for c in candidates if performer <= _tokens(c.stem)])
+    return _only_candidate([c for c in candidates if could_be_cut_from(meta, c)])
 
 
 # Evolver names an enhanced file by appending the models that made it, so
