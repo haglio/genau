@@ -54,6 +54,14 @@ def read_version_group(video: Path, metadata_root: Path) -> str | None:
 DEFAULT_MODE = FULL
 OTHER_MODE = SHORTS
 
+# The two waits a caller can put a loading screen behind.  Walking the library
+# tree has no count to report until it finishes, so it reports (0, 0); probing
+# durations counts entries, and is the phase that can run to tens of seconds on
+# a cold cache — one ffprobe per unprobed video.  Naming the phases (rather than
+# passing display text) keeps the wording where the screen is.
+PHASE_DISCOVER = "discover"
+PHASE_DURATIONS = "durations"
+
 
 @dataclass(frozen=True)
 class LibrarySource:
@@ -128,6 +136,7 @@ def build_library_source(
     durations: dict[Path, float] | None = None,
     scripted_only: bool = False,
     metadata_root: Path | None = None,
+    on_progress: Callable[[str, int, int], None] | None = None,
 ) -> LibrarySource:
     """Discover videos + clips and obtain the durations mode-filtering needs.
 
@@ -136,13 +145,24 @@ def build_library_source(
     defaults False (Nau plays everything standalone); pass False to serve
     every video regardless of funscript.  *metadata_root*, when given, makes
     version grouping read Evolver's sidecars instead of guessing from names.
+
+    *on_progress* is called ``(phase, done, total)`` as the work the user waits
+    through proceeds — before each phase and before each duration probe, so the
+    count reported is the work already behind it.  It may raise to abort the
+    build; nothing here catches that, which is how the loading screen turns a
+    closed window into an immediate exit rather than one deferred to the end.
     """
+    report = on_progress if on_progress is not None else lambda *_: None
+    report(PHASE_DISCOVER, 0, 0)
     entries = discover_entries(videos_dir, scripts_dir)
     clips = discover_clips(clips_dir)
     if durations is None:
         if duration_cache is None:
             raise ValueError("either durations or duration_cache must be given")
-        durations = {e.video: duration_cache.duration_for(e.video) for e in entries}
+        durations = {}
+        for done, entry in enumerate(entries):
+            report(PHASE_DURATIONS, done, len(entries))
+            durations[entry.video] = duration_cache.duration_for(entry.video)
         duration_cache.save()
     return LibrarySource(
         entries=entries, clips=clips, durations=durations, rng=rng,
