@@ -76,7 +76,6 @@ class VRSession:
             # Load .ico via Win32 — gives both small (16x16) and large (32x32) icons
             IMAGE_ICON = 1
             LR_LOADFROMFILE = 0x10
-            LR_DEFAULTSIZE = 0x40
             for wparam, cx, cy in [(0, 16, 16), (1, 32, 32)]:  # ICON_SMALL, ICON_BIG
                 hicon = ctypes.windll.user32.LoadImageW(
                     None, str(ico_path), IMAGE_ICON, cx, cy, LR_LOADFROMFILE,
@@ -305,7 +304,18 @@ class VRSession:
                     space=self._space,
                 ),
             )
-            views = list(views_raw)
+            # A view's pose and FOV mean nothing until the runtime says it has
+            # located them. For the first frames after the session turns visible
+            # it has not: the FOV comes back all zeroes, which is a zero-width
+            # frustum and a division by zero in the projection matrix.
+            valid = (
+                xr.ViewStateFlags.ORIENTATION_VALID_BIT
+                | xr.ViewStateFlags.POSITION_VALID_BIT
+            )
+            if view_state.view_state_flags & valid == valid:
+                views = list(views_raw)
+            else:
+                should_render = False
 
         return should_render, frame_state.predicted_display_time, views
 
