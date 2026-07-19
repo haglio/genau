@@ -95,14 +95,17 @@ class TestClipNav:
         nav, clips, full = self._nav(tmp_path)
         assert nav.clip_of(full) == clips[0]
 
-    def test_clip_of_ignores_a_file_sharing_only_the_performer(self, tmp_path):
+    def test_clip_of_ignores_a_performer_with_several_scenes(self, tmp_path):
         """A title like "Asa Akira To the Limit" must not claim every Asa Akira
-        file in the library: the match needs a distinctive source word too."""
+        file: with several of her scenes present, which one it came from is
+        unknowable, so neither direction may guess. (With exactly one it is not
+        a guess — see the redacted case.)"""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = _clip(lib, meta, "w/Asa Akira - Asa Akira To the Limit.mp4", "Vol1", 11,
                      "Asa Akira To the Limit", "Asa Akira")
         stranger = _sidecar(lib, meta, "other/Asa Akira - 9934197-720p.mp4", {})
-        nav = ClipNav.build([clip, stranger], meta)
+        other = _sidecar(lib, meta, "other/redacted_1080-jx3sHGzf.mp4", {})
+        nav = ClipNav.build([clip, stranger, other], meta)
         assert nav.clip_of(stranger) is None
         assert nav.full_vid_of(clip) is None
 
@@ -119,6 +122,52 @@ class TestClipNav:
         playlist = nav.compilation_playlist(original)
 
         assert playlist == [upscaled, other]
+
+    def test_full_vid_resolves_on_performer_when_they_have_one_scene(self, tmp_path):
+        """Most library files are named performer + resolution + hash, with no
+        movie title at all — so a source-word match can never fire. One scene for
+        that performer is unambiguous, so it resolves."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/redacted - redacted Overload 3.mp4", "Vol4", 4,
+                     "redacted Overload 3", "redacted")
+        scene = _sidecar(lib, meta, "other/redacted_540-fDn1L7uT.mp4", {})
+        nav = ClipNav.build([clip, scene], meta)
+
+        assert nav.full_vid_of(clip) == scene
+
+    def test_full_vid_stays_ambiguous_with_several_scenes_for_the_performer(self, tmp_path):
+        """With several scenes by that performer there is no way to tell which one
+        the clip came from, so it must not guess."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/Asa Akira - Asa Akira To the Limit.mp4", "Vol1", 11,
+                     "Asa Akira To the Limit", "Asa Akira")
+        _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
+        _sidecar(lib, meta, "other/redacted_1080-jx3sHGzf.mp4", {})
+        nav = ClipNav.build([clip, *[lib / "other" / n for n in
+                                     ("redacted_540-EhWGJW62.mp4", "redacted_1080-jx3sHGzf.mp4")]], meta)
+
+        assert nav.full_vid_of(clip) is None
+
+    def test_re_encodes_of_one_scene_are_not_ambiguous(self, tmp_path):
+        """X.mp4 and X_iris2.mp4 are the same scene; the bigger one wins."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/redacted - redacted Overload 3.mp4", "Vol4", 4,
+                     "redacted Overload 3", "redacted")
+        plain = _sidecar(lib, meta, "other/redacted_540-fDn1L7uT.mp4", {})
+        upscaled = _sidecar(lib, meta, "other/redacted_540-fDn1L7uT_iris2.mp4", {})
+        upscaled.write_bytes(b"x" * 400)
+        nav = ClipNav.build([clip, plain, upscaled], meta)
+
+        assert nav.full_vid_of(clip) == upscaled
+
+    def test_money_shot_never_returns_the_file_you_are_on(self, tmp_path):
+        """A clip matches its own name; returning it just replayed the video."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/Kim Lee - POV Scene 2.mp4", "Vol6", 9,
+                     "POV Scene 2", "Kim Lee")
+        nav = ClipNav.build([clip], meta)
+
+        assert nav.clip_of(clip) is None
 
     def test_clip_of_none_for_unrelated(self, tmp_path):
         nav, clips, full = self._nav(tmp_path)

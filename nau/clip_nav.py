@@ -22,6 +22,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .library import normalize_title
+
 
 def read_clip(video: Path, metadata_root: Path) -> dict | None:
     """The ``clip`` object Evolver recorded for *video*, or None.
@@ -137,9 +139,71 @@ class ClipNav:
         meta = self._clips.get(video)
         if meta is None:
             return None
-        return next((c for c in self._non_clips if _matches(meta, _tokens(c.stem))), None)
+        return _resolve(meta, [c for c in self._non_clips if c != video])
 
     def clip_of(self, video: Path) -> Path | None:
-        """A clip whose source + performer names *video*'s scene, or None."""
+        """The clip carved from *video*'s scene, or None.
+
+        Never the file you are already on: a clip matches its own name, which
+        would just replay it. Being on a clip already means there is nothing to
+        jump to — its siblings are a different scene, not this one's money shot.
+        """
+        if video in self._clips:
+            return None
         text = _tokens(video.stem)
-        return next((v for v, m in self._clips.items() if _matches(m, text)), None)
+        named = [(v, m) for v, m in self._clips.items() if v != video and _matches(m, text)]
+        if named:
+            return max((v for v, _ in named), key=_size)
+        # Falling back to the performer alone has to hold in *both* directions:
+        # one clip for them, and this scene their only one. One clip against
+        # several scenes still leaves which scene it came from unknowable, so a
+        # pairing there would be a guess dressed as an answer.
+        candidates = [
+            v for v, m in self._clips.items()
+            if v != video and _performer_of(m) and _performer_of(m) <= text
+        ]
+        only_clip = _only_candidate(candidates)
+        if only_clip is None:
+            return None
+        performer = _performer_of(self._clips[only_clip])
+        scenes = [s for s in self._non_clips if performer <= _tokens(s.stem)]
+        return only_clip if _only_candidate(scenes) is not None else None
+
+
+def _performer_of(meta: dict) -> set[str]:
+    return _tokens(str(meta.get("performer", "")))
+
+
+def _only_candidate(candidates: list[Path]) -> Path | None:
+    """The one scene among *candidates*, or None when they are several.
+
+    Re-encodes of one video are not "several": ``X.mp4`` and ``X_iris2.mp4`` are
+    the same scene, so they collapse under :func:`normalize_title` first. The
+    largest survivor wins, the canonical-is-biggest rule used elsewhere.
+    """
+    if not candidates:
+        return None
+    by_title: dict[str, list[Path]] = {}
+    for candidate in candidates:
+        by_title.setdefault(normalize_title(candidate.stem), []).append(candidate)
+    if len(by_title) != 1:
+        return None
+    return max(next(iter(by_title.values())), key=_size)
+
+
+def _resolve(meta: dict, candidates: list[Path]) -> Path | None:
+    """The library file *meta*'s scene was taken from, or None.
+
+    Two tiers, because filenames in the wild carry wildly different detail. A
+    name that repeats the movie ("...POV-Jugg-Fuckers-2-(2009)...") is matched
+    outright. A name that carries only the performer ("redacted_540-hash")
+    can still be resolved — but only when that performer has exactly one scene
+    here, since with several there is no way to tell which one it was.
+    """
+    named = [c for c in candidates if _matches(meta, _tokens(c.stem))]
+    if named:
+        return max(named, key=_size)
+    performer = _performer_of(meta)
+    if not performer:
+        return None
+    return _only_candidate([c for c in candidates if performer <= _tokens(c.stem)])
