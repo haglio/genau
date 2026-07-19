@@ -12,7 +12,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from .clip_nav import read_clip, read_sidecar
 from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
@@ -24,19 +23,7 @@ from .library import (
     library_playlist,
     version_index_from_groups,
 )
-
-
-def read_version_group(video: Path, metadata_root: Path) -> str | None:
-    """The version-family id Evolver recorded for *video*, or None.
-
-    A missing or malformed sidecar returns None, so the clip falls back to
-    name-based grouping.
-    """
-    version = read_sidecar(video, metadata_root).get("version")
-    if not isinstance(version, dict):
-        return None
-    group = version.get("group")
-    return str(group) if group else None
+from .sidecar import read_clip, read_version_group
 
 # The app starts unfiltered — which is what Fun Time's own playlist has always
 # been, so a player that opened claiming "full length" was claiming a filter it

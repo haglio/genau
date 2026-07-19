@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from nau.clip_nav import ClipNav, read_clip
+from nau.clip_nav import ClipNav
 
 
 def _sidecar(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
@@ -22,29 +22,6 @@ def _clip(lib, meta, rel, comp, index, source, performer, **recorded):
         "clip": {"compilation": comp, "index": index, "source": source,
                  "performer": performer, **recorded},
     })
-
-
-class TestReadClip:
-    def test_reads_clip_field(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        v = _clip(lib, meta, "w/Kim Lee - POV Scene 2.mp4", "Vol6", 9,
-                  "POV Scene 2", "Kim Lee")
-        c = read_clip(v, meta)
-        assert c["compilation"] == "Vol6"
-        assert c["index"] == 9
-        assert c["performer"] == "Kim Lee"
-
-    def test_missing_sidecar_is_none(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        (lib / "w").mkdir(parents=True)
-        v = lib / "w" / "x.mp4"
-        v.write_bytes(b"x")
-        assert read_clip(v, meta) is None
-
-    def test_version_only_sidecar_is_none(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        v = _sidecar(lib, meta, "w/y.mp4", {"version": {"group": "w/y"}})
-        assert read_clip(v, meta) is None
 
 
 class TestClipNav:
@@ -232,6 +209,24 @@ class TestRecordedMatch:
 
         assert nav.clip_of(upscale) == clip
         assert nav.full_vid_of(clip) == upscale
+
+    def test_full_vid_goes_to_the_best_version_evolver_families_together(self, tmp_path):
+        """A version saved under a name of its own — a 4K upscale of the best
+        eight minutes — shares nothing with the original's name, so only the
+        recorded version family reunites them. "full vid" owes the same file the
+        playlist would show, which is the biggest of that family."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        family = {"version": {"group": "redacted_540-pacI21CK"}}
+        original = _sidecar(lib, meta, "other/redacted_540-pacI21CK.mp4", family)
+        upscale = _sidecar(lib, meta, "other/redacted POV BJ 4k 60fps.mp4", family)
+        upscale.write_bytes(b"x" * 600)
+        clip = _clip(lib, meta, "w/redacted - redacted It Dry 8.mp4", "Vol7", 4,
+                     "redacted It Dry 8", "redacted",
+                     full_video=str(original), scene_offset=1109.6)
+        nav = ClipNav.build([clip, original, upscale], meta)
+
+        assert nav.full_vid_of(clip) == upscale
+        assert nav.clip_of(upscale) == clip
 
 
 def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):

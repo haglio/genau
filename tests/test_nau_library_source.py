@@ -211,7 +211,7 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
     import json
     import random
     from nau.library import LibraryEntry
-    from nau.library_source import LibrarySource, read_version_group
+    from nau.library_source import LibrarySource
 
     lib = tmp_path / "videos" / "videos"
     meta = tmp_path / "videos" / "metadata"
@@ -237,7 +237,6 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
 
     assert index[original] == index[upscale]  # folded despite unrelated names
     assert index[original][0][0] == upscale  # canonical is the larger clip
-    assert read_version_group(original, meta) == "winston/Scene-One-abc"
 
 
 def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
