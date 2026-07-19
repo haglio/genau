@@ -7,7 +7,6 @@ from nau.heatmap import build_heatmap
 from nau.overlay import (
     HeatmapStrip,
     ZoomWindow,
-    indicator_for,
     time_to_x,
 )
 
@@ -166,24 +165,6 @@ class TestZoomWindow:
 
         assert zoom.bounds == (18_000, 370_000)  # span doubled 20s -> 320s
 
-
-
-class TestIndicatorFor:
-    def test_playing_shows_play(self):
-        assert indicator_for("normal", paused=False) == "play"
-
-    def test_paused_shows_pause(self):
-        assert indicator_for("normal", paused=True) == "pause"
-
-    def test_recording_shows_record_even_when_paused(self):
-        assert indicator_for("recording", paused=False) == "record"
-        assert indicator_for("recording", paused=True) == "record"
-
-    def test_looping_shows_loop(self):
-        assert indicator_for("looping", paused=False) == "loop"
-
-    def test_paused_trumps_looping(self):
-        assert indicator_for("looping", paused=True) == "pause"
 
 
 class TestBarTrackX:

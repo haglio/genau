@@ -58,7 +58,7 @@ class TestResolvePlaylist:
 
         assert pairs == [(upscale, None)]
 
-    def test_discovery_dedups_and_keeps_full_length(self, tmp_path):
+    def test_discovery_dedups_versions_and_applies_no_length_filter(self, tmp_path):
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
         vids.mkdir()
@@ -69,8 +69,6 @@ class TestResolvePlaylist:
         big.write_text("a much bigger body")  # canonical
         small.write_text("sm")
         short.write_text("teaser")
-        # Standalone defaults to scripted-only (the loop-tool default), so the
-        # videos need funscripts to survive; dedup + length still apply.
         big_fs = scripts / "Jane-1080p.funscript"
         big_fs.write_text("{}")
         (scripts / "Jane-540.funscript").write_text("{}")
@@ -82,8 +80,10 @@ class TestResolvePlaylist:
 
         pairs = resolve_playlist(args, durations=durations, rng=random.Random(0))
 
-        # Short teaser filtered out (full-length default); Jane folded to canonical.
-        assert pairs == [(big, big_fs)]
+        # Jane folded to its canonical (largest) version; the teaser survives,
+        # because the mode the player opens in applies no length filter.
+        assert sorted(video for video, _fs in pairs) == sorted([big, short])
+        assert (big, big_fs) in pairs
 
     def test_discovery_deterministic_with_seed(self, tmp_path):
         vids = tmp_path / "videos"

@@ -4,6 +4,7 @@ import random
 from pathlib import Path
 
 from nau.library import (
+    MIXED,
     LibraryEntry,
     VersionGroup,
     canonical_playlist,
@@ -179,6 +180,28 @@ class TestSelectLibrary:
         result = select_library(entries, mode="shorts", durations=durations, clips=[])
 
         assert [e.video for e in result] == [Path("clip-1080p.mp4")]
+
+    def test_mixed_mode_keeps_everything(self):
+        """The mode the player opens in: no length filter at all, which is what
+        Fun Time's own playlist has always been."""
+        entries = [_entry("long-1080p.mp4", 100), _entry("clip-1080p.mp4", 100)]
+        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 12.0})
+        saved = [_entry("saved-clip.mp4", 100)]
+
+        result = select_library(entries, mode=MIXED, durations=durations, clips=saved)
+
+        assert [e.video for e in result] == [
+            Path("long-1080p.mp4"), Path("clip-1080p.mp4"), Path("saved-clip.mp4"),
+        ]
+
+    def test_mixed_mode_keeps_a_video_whose_duration_never_probed(self):
+        """Length modes drop what they cannot classify; mixed classifies nothing,
+        so an unprobed video is still playable."""
+        entries = [_entry("unprobed-1080p.mp4", 100)]
+
+        assert select_library(entries, mode=MIXED, durations={}, clips=[])
+        assert not select_library(entries, mode="shorts", durations={}, clips=[])
+        assert not select_library(entries, mode="full", durations={}, clips=[])
 
     def test_boundary_60s_is_short(self):
         entries = [_entry("exactly-60-1080p.mp4", 100)]
