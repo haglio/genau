@@ -29,7 +29,7 @@ class TestClipNav:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clips = [
             _clip(lib, meta, "w/Ann Bly - POV Scene 2.mp4", "Vol6", 9, "POV Scene 2", "Ann Bly"),
-            _clip(lib, meta, "w/Jane Doe - Pound Region A 2.mp4", "Vol6", 1, "Pound Region A 2", "Jane Doe"),
+            _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1, "Scene Two", "Jane Doe"),
             _clip(lib, meta, "w/Ada Roe - POV Scene 2.mp4", "Vol6", 7, "POV Scene 2", "Ada Roe"),
             _clip(lib, meta, "w/Bryn Vance - Taylor Rain.mp4", "Vol10", 1, "Taylor Rain's Offroad Adventure", "Bryn Vance"),
         ]
@@ -52,14 +52,14 @@ class TestClipNav:
 
     def test_compilation_playlist_orders_by_index(self, tmp_path):
         nav, clips, _ = self._nav(tmp_path)
-        # from Ann Bly (Vol6 #9): siblings Amia(#1), Avy(#7), Charley(#9)
+        # from Ann Bly (Vol6 #9): siblings Jane(#1), Ada(#7), Kim(#9)
         order = nav.compilation_playlist(clips[0])
         names = [p.stem.split(" - ")[0] for p in order]
         assert names == ["Jane Doe", "Ada Roe", "Ann Bly"]
 
     def test_compilation_playlist_excludes_other_volumes(self, tmp_path):
         nav, clips, _ = self._nav(tmp_path)
-        order = nav.compilation_playlist(clips[1])  # Amia, Vol6
+        order = nav.compilation_playlist(clips[1])  # Jane, Vol6
         assert all("Vol10" not in str(p) for p in order)
         assert len(order) == 3
 
@@ -74,7 +74,7 @@ class TestClipNav:
 
     def test_full_vid_of_none_when_absent(self, tmp_path):
         nav, clips, _ = self._nav(tmp_path)
-        # Jane Doe / Pound Region A 2 has no matching full scene in the library
+        # Jane Doe / Scene Two has no matching full scene in the library
         assert nav.full_vid_of(clips[1]) is None
 
     def test_clip_of_reverse_matches(self, tmp_path):
@@ -99,8 +99,8 @@ class TestClipNav:
         """An upscaled variant carries the same clip object; the playlist keeps the
         larger file once, not both versions of the scene."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        original = _clip(lib, meta, "w/Jane Doe - Pound Region A 2.mp4", "Vol6", 1, "Pound Region A 2", "Jane Doe")
-        upscaled = _clip(lib, meta, "w/Jane Doe - Pound Region A 2_apo8_iris2.mp4", "Vol6", 1, "Pound Region A 2", "Jane Doe")
+        original = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1, "Scene Two", "Jane Doe")
+        upscaled = _clip(lib, meta, "w/Jane Doe - Scene Two_apo8_iris2.mp4", "Vol6", 1, "Scene Two", "Jane Doe")
         upscaled.write_bytes(b"x" * 500)  # the enhanced file is the bigger one
         other = _clip(lib, meta, "w/Marlow Sterne - POV 1.mp4", "Vol6", 2, "POV Scene 1", "Marlow Sterne")
         nav = ClipNav.build([original, upscaled, other], meta)

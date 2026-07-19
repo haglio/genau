@@ -63,7 +63,7 @@ def _matches(meta: dict, text: set[str]) -> bool:
 
     Requires every performer token to be present *and* at least one distinctive
     source-title word — enough to pair ``Ann Bly - POV Scene 2``
-    with a ``redacted---POV-redacted-2-(2009)`` scene, while rejecting
+    with a ``Kim-Chase---POV-redacted-2-(2009)`` scene, while rejecting
     both a same-source scene starring someone else and an unrelated file that
     merely shares the performer.
     """
