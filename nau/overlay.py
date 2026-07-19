@@ -202,8 +202,11 @@ def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
 # mpv owns the window and hardware-decodes the video; Nau's overlays go on top
 # as BGRA bitmaps.  No pygame — these produce plain numpy arrays.
 
-_ICON_BOX = 26
-_ICON_MARGIN = 8
+# The corner furniture: the state icon's box, and the inset every overlay pinned
+# to a corner shares — the name chip, the speed chip and the mode HUD included, so
+# they line up with each other rather than each picking its own margin.
+INDICATOR_BOX = 26
+CORNER_MARGIN = 8
 _WHITE = (230, 230, 230, 235)
 _RED = (220, 40, 40, 245)
 _AMBER = (235, 180, 60, 245)
@@ -388,10 +391,10 @@ def indicator_bgra(kind: str):
     """The corner state icon (play/pause/record/loop) as a BGRA array."""
     from PIL import Image, ImageDraw
 
-    img = Image.new("RGBA", (_ICON_BOX, _ICON_BOX), (0, 0, 0, 0))
+    img = Image.new("RGBA", (INDICATOR_BOX, INDICATOR_BOX), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    cx = cy = _ICON_BOX // 2
-    d.ellipse([0, 0, _ICON_BOX - 1, _ICON_BOX - 1], fill=(0, 0, 0, 120))
+    cx = cy = INDICATOR_BOX // 2
+    d.ellipse([0, 0, INDICATOR_BOX - 1, INDICATOR_BOX - 1], fill=(0, 0, 0, 120))
     if kind == "play":
         d.polygon([(10, 7), (10, 19), (20, 13)], fill=_WHITE)
     elif kind == "pause":
@@ -408,4 +411,4 @@ def indicator_bgra(kind: str):
 
 def indicator_xy(win_w: int) -> tuple[int, int]:
     """Top-right anchor for the corner indicator."""
-    return win_w - _ICON_BOX - _ICON_MARGIN, _ICON_MARGIN
+    return win_w - INDICATOR_BOX - CORNER_MARGIN, CORNER_MARGIN

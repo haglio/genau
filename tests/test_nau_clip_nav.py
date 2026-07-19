@@ -64,6 +64,14 @@ class TestClipNav:
         assert nav.is_clip(clips[0]) is True
         assert nav.is_clip(full) is False
 
+    def test_compilation_of_names_the_volume_a_clip_came_from(self, tmp_path):
+        """Nau's HUD says which compilation is holding the playlist, so the title
+        has to be reachable from the clip that put it there."""
+        nav, clips, full = self._nav(tmp_path)
+
+        assert nav.compilation_of(clips[0]) == "Vol6"
+        assert nav.compilation_of(full) == ""
+
     def test_compilation_playlist_orders_by_index(self, tmp_path):
         nav, clips, _ = self._nav(tmp_path)
         # from Ann Bly (Vol6 #9): siblings Amia(#1), Avy(#7), Charley(#9)
