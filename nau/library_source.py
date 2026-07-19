@@ -16,8 +16,9 @@ from .clip_nav import read_clip, read_sidecar
 from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
-    FULL,
+    MIXED,
     SHORTS,
+    FULL,
     LibraryEntry,
     group_versions,
     library_playlist,
@@ -37,9 +38,19 @@ def read_version_group(video: Path, metadata_root: Path) -> str | None:
     group = version.get("group")
     return str(group) if group else None
 
-# The app starts in full-length mode; the toggle flips to shorts and back.
-DEFAULT_MODE = FULL
-OTHER_MODE = SHORTS
+# The app starts unfiltered — which is what Fun Time's own playlist has always
+# been, so a player that opened claiming "full length" was claiming a filter it
+# was not running.  The toggle walks all three in this order and wraps.
+LENGTH_MODES = (MIXED, SHORTS, FULL)
+DEFAULT_MODE = MIXED
+
+
+def next_length_mode(mode: str) -> str:
+    """The mode after *mode* in the cycle, wrapping; the default from anywhere
+    outside it, so the toggle always lands on a real mode."""
+    if mode not in LENGTH_MODES:
+        return DEFAULT_MODE
+    return LENGTH_MODES[(LENGTH_MODES.index(mode) + 1) % len(LENGTH_MODES)]
 
 # The two waits a caller can put a loading screen behind.  Walking the library
 # tree has no count to report until it finishes, so it reports (0, 0); probing

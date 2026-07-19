@@ -248,6 +248,10 @@ def canonical_playlist(
 # Compilations are long, so they are never shorts — the split is duration-only.
 SHORT_MAX_S = 60.0
 
+# The three length modes.  MIXED applies no length filter at all — it is what a
+# playlist looks like before anyone asks for a length, and so what the player
+# opens in; FULL and SHORTS are the two halves it splits into.
+MIXED = "mixed"
 FULL = "full"
 SHORTS = "shorts"
 
@@ -263,11 +267,14 @@ def select_library(
 ) -> list[LibraryEntry]:
     """Filter *entries* by length *mode*, then version-dedup the survivors.
 
-    Full-length mode keeps entries whose probed duration exceeds
+    Mixed mode applies no length filter: every entry and every clip survives,
+    including entries whose duration was never probed, since nothing here has to
+    classify them. Full-length mode keeps entries whose probed duration exceeds
     :data:`SHORT_MAX_S`; shorts mode keeps entries at or under it *and* always
     includes *clips* (saved clip videos, treated as shorts regardless of
     length). Entries with no probed duration cannot be classified and are
-    dropped. When *clips* is empty, shorts mode is purely duration-driven.
+    dropped by both of those. When *clips* is empty, shorts mode is purely
+    duration-driven.
 
     *is_clip* marks a main entry as a clip (a scene Evolver carved out of a
     compilation, recorded in its sidecar): it is a short regardless of runtime,
@@ -287,7 +294,9 @@ def select_library(
     def marked(entry: LibraryEntry) -> bool:
         return is_clip is not None and is_clip(entry.video)
 
-    if mode == SHORTS:
+    if mode == MIXED:
+        kept = [*entries, *clips]
+    elif mode == SHORTS:
         kept = [
             e for e in entries
             if durations.get(e.video, float("inf")) <= SHORT_MAX_S or marked(e)

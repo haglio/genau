@@ -25,18 +25,14 @@ from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
 from .hud import ModeHud, ModeHudPainter, hud_xy
 from .notice import NoticeWriter
-from .library_source import DEFAULT_MODE, OTHER_MODE
+from .library_source import DEFAULT_MODE, LENGTH_MODES, next_length_mode
 from .loading import LoadingCancelled, LoadingScreen
 from .overlay import (
-    CORNER_MARGIN,
     TIMELINE_HEIGHT,
     HeatmapStrip,
     LoopThumbCapture,
     bar_track_x,
     heatmap_bgra,
-    indicator_bgra,
-    indicator_for,
-    indicator_xy,
     label_xs,
     name_bgra,
     progress_bar_bgra,
@@ -54,12 +50,15 @@ _APP_USER_MODEL_ID = "Nau.App"
 
 # Overlay ids (stable so each frame updates in place).
 _OV_HEATMAP = 0
-_OV_INDICATOR = 1
 _OV_SPEED = 2
 _OV_NAME = 3
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
 _OV_MODE = 6
+
+# Between the stacked overlays in the top-left column: the mode HUD, the video's
+# name, and the playback rate when it is off normal.
+_STACK_GAP = 4
 
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 
@@ -193,6 +192,8 @@ def _run(args) -> int:
     # one without library dirs): no length filter is running, so the HUD has no
     # mode to name and the toggle has nothing to rebuild.
     length_mode = DEFAULT_MODE if source is not None else ""
+    # Genau's HUD holds the top-left corner in Hybrid; Fun Time says when.
+    hybrid = False
     heatmap = HeatmapStrip()
     mode_hud = ModeHudPainter()
     loop_thumbs = LoopThumbCapture()
@@ -224,18 +225,22 @@ def _run(args) -> int:
         if source is None:
             return
         mode = mode.strip().lower()
-        if mode not in (DEFAULT_MODE, OTHER_MODE):
+        if mode not in LENGTH_MODES:
             return
         # Rebuild even when the mode is unchanged: PLAY_COMPILATION swaps the
-        # playlist for one volume's clips, and saying "shorts" again is how you
-        # get back out of it.
+        # playlist for one volume's clips, and asking for a length again is how
+        # you get back out of it.
         length_mode = mode
         jumps.leave_compilation()
         logger.info("Length mode: %s", length_mode)
         session.load_playlist(source.playlist_for(length_mode))
 
     def _toggle_length_mode() -> None:
-        _set_length_mode(OTHER_MODE if length_mode == DEFAULT_MODE else DEFAULT_MODE)
+        _set_length_mode(next_length_mode(length_mode))
+
+    def _set_hybrid(active: bool) -> None:
+        nonlocal hybrid
+        hybrid = active
 
     def _timeline_h() -> int:
         # The heatmap strip when scripted (may be taller while recording),
@@ -300,6 +305,7 @@ def _run(args) -> int:
                     play_compilation=jumps.play_compilation,
                     play_full_vid=jumps.play_full_vid,
                     play_money_shot=jumps.play_money_shot,
+                    set_hybrid=_set_hybrid,
                 )
 
         session.advance()
@@ -327,22 +333,10 @@ def _run(args) -> int:
             )
         player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
 
-        name = name_bgra(session.current_video.stem)
-        player.overlay(_OV_NAME, CORNER_MARGIN, CORNER_MARGIN, name)
-
-        # Playback rate, just under the name — only when it is off normal.
-        if session.speed != 1.0:
-            spd = speed_bgra(session.speed)
-            player.overlay(_OV_SPEED, CORNER_MARGIN, CORNER_MARGIN + name.shape[0] + 4, spd)
-        else:
-            player.remove_overlay(_OV_SPEED)
-
-        ind = indicator_bgra(indicator_for(session.loop_state, paused=session.is_paused))
-        ix, iy = indicator_xy(win_w)
-        player.overlay(_OV_INDICATOR, ix, iy, ind)
-
-        # Which modes are selecting what plays — the length filter, and the
-        # compilation holding the playlist when one is.
+        # The top-left column, stacked: which mode is selecting what plays (the
+        # length filter, or the compilation holding the playlist), then the
+        # video's name, then its playback rate when that is off normal.
+        left, top = hud_xy(hybrid=hybrid)
         modes = mode_hud.bgra(ModeHud(
             length_mode=length_mode, compilation=jumps.compilation,
             position=session.index + 1, total=len(session.playlist),
@@ -350,7 +344,17 @@ def _run(args) -> int:
         if modes is None:
             player.remove_overlay(_OV_MODE)
         else:
-            player.overlay(_OV_MODE, *hud_xy(win_w, modes.shape[1]), modes)
+            player.overlay(_OV_MODE, left, top, modes)
+            top += modes.shape[0] + _STACK_GAP
+
+        name = name_bgra(session.current_video.stem)
+        player.overlay(_OV_NAME, left, top, name)
+        top += name.shape[0] + _STACK_GAP
+
+        if session.speed != 1.0:
+            player.overlay(_OV_SPEED, left, top, speed_bgra(session.speed))
+        else:
+            player.remove_overlay(_OV_SPEED)
 
         _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h)
 

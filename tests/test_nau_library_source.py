@@ -6,12 +6,32 @@ from pathlib import Path
 import pytest
 
 from nau.duration_cache import DurationCache
+from nau.library import FULL, MIXED, SHORTS
 from nau.library_source import (
+    DEFAULT_MODE,
     PHASE_DISCOVER,
     PHASE_DURATIONS,
     build_library_source,
     discover_clips,
+    next_length_mode,
 )
+
+
+class TestLengthModeCycle:
+    def test_the_player_opens_unfiltered(self):
+        """Fun Time's own playlist has always been every video shuffled, so a
+        player that opened claiming a length was claiming one it did not have."""
+        assert DEFAULT_MODE == MIXED
+
+    def test_the_toggle_walks_all_three_and_comes_back(self):
+        assert next_length_mode(MIXED) == SHORTS
+        assert next_length_mode(SHORTS) == FULL
+        assert next_length_mode(FULL) == MIXED
+
+    def test_an_unknown_mode_lands_on_the_default(self):
+        """Nothing sets one, but the toggle must land somewhere real rather than
+        raise into the run loop."""
+        assert next_length_mode("") == DEFAULT_MODE
 
 
 def _make_video(path: Path, body: str = "x") -> Path:

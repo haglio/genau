@@ -1,30 +1,14 @@
-"""On-screen state feedback for Nau: indicator and funscript heatmap strip.
+"""On-screen state feedback for Nau: the funscript heatmap strip and timeline.
 
-The pure decision logic (which icon, the visible time window, strip
-geometry) lives here untied to pygame so it is unit-testable; the drawing
-helpers at the bottom turn those decisions into textures.
+The pure decision logic (the visible time window, strip geometry) lives here
+untied to pygame so it is unit-testable; the drawing helpers at the bottom turn
+those decisions into textures.
 """
 from __future__ import annotations
 
 import numpy as np
 
 from .heatmap import build_heatmap
-
-
-def indicator_for(loop_state: str, *, paused: bool) -> str:
-    """Icon kind for the corner indicator: record/pause/loop/play.
-
-    Recording trumps paused (the gesture is in progress); paused trumps
-    looping (explains why nothing is moving).
-    """
-    if loop_state == "recording":
-        return "record"
-    if paused:
-        return "pause"
-    if loop_state == "looping":
-        return "loop"
-    return "play"
-
 
 _ZOOM_SPAN_START_MS = 20_000.0
 _ZOOM_LEAD_FRAC = 0.10
@@ -202,12 +186,6 @@ def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
 # mpv owns the window and hardware-decodes the video; Nau's overlays go on top
 # as BGRA bitmaps.  No pygame — these produce plain numpy arrays.
 
-# The corner furniture: the state icon's box, and the inset every overlay pinned
-# to a corner shares — the name chip, the speed chip and the mode HUD included, so
-# they line up with each other rather than each picking its own margin.
-INDICATOR_BOX = 26
-CORNER_MARGIN = 8
-_WHITE = (230, 230, 230, 235)
 _RED = (220, 40, 40, 245)
 _AMBER = (235, 180, 60, 245)
 _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
@@ -387,28 +365,3 @@ def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
     return bar
 
 
-def indicator_bgra(kind: str):
-    """The corner state icon (play/pause/record/loop) as a BGRA array."""
-    from PIL import Image, ImageDraw
-
-    img = Image.new("RGBA", (INDICATOR_BOX, INDICATOR_BOX), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    cx = cy = INDICATOR_BOX // 2
-    d.ellipse([0, 0, INDICATOR_BOX - 1, INDICATOR_BOX - 1], fill=(0, 0, 0, 120))
-    if kind == "play":
-        d.polygon([(10, 7), (10, 19), (20, 13)], fill=_WHITE)
-    elif kind == "pause":
-        d.rectangle([8, 7, 11, 18], fill=_WHITE)
-        d.rectangle([15, 7, 18, 18], fill=_WHITE)
-    elif kind == "record":
-        d.ellipse([cx - 7, cy - 7, cx + 7, cy + 7], fill=_RED)
-    elif kind == "loop":
-        r = 8
-        d.arc([cx - r, cy - r, cx + r, cy + r], start=200, end=110, fill=_AMBER, width=2)
-        d.polygon([(cx + r - 4, cy + 2), (cx + r + 3, cy + 2), (cx + r - 1, cy + 8)], fill=_AMBER)
-    return _rgba_to_bgra(np.asarray(img))
-
-
-def indicator_xy(win_w: int) -> tuple[int, int]:
-    """Top-right anchor for the corner indicator."""
-    return win_w - INDICATOR_BOX - CORNER_MARGIN, CORNER_MARGIN
