@@ -62,6 +62,20 @@ class TestAlign:
 
         assert align(clip, scene, fps=8.0) is None
 
+    def test_counts_an_excerpt_that_jitters_by_a_frame(self):
+        """Sampling 8 a second off a 24fps scene lands on exact source frames; off
+        a 30fps clip it does not, so consecutive frames of one excerpt answer to
+        offsets a bucket apart. Scoring only the single best bucket read a real
+        match — a 4:3 scene against its 16:9 clip — as 31% of itself."""
+        scene = _hashes(400)
+        clip = np.array([scene[200 + i + (i % 2)] for i in range(40)], dtype=np.uint64)
+
+        found = align(clip, scene, fps=8.0)
+
+        assert found is not None
+        assert found.score == 1.0
+        assert abs(found.offset - 25.0) <= 1 / 8
+
 
 class TestLocate:
     def test_picks_the_candidate_whose_frames_are_in_the_scene(self):

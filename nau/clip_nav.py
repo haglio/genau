@@ -2,9 +2,8 @@
 
 A clip carved out of a compilation gets a sidecar ``clip`` object recording its
 parent compilation, its running order within it, and the source movie + performer
-it was taken from (see Evolver). This module reads that field — mirroring
-:func:`nau.library_source.read_version_group` — and turns it into the three
-navigations Fun Time exposes:
+it was taken from (see Evolver). This module reads that field and turns it into
+the three navigations Fun Time exposes:
 
 * ``compilation`` — the clip's siblings, in original order (for a playlist);
 * ``full vid``    — the library video the clip's scene was taken from;
