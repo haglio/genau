@@ -1,37 +1,33 @@
-"""Nau's mode HUD: a standing answer to "what am I inside?".
+"""The primary console — the HUD the player on the primary slot draws.
 
-Nau's window says what is playing but never what is *selecting* it, so the
-library mode and a compilation playlist were both invisible — you could be held
-inside one volume's clips with nothing on screen saying so, and no way to guess
-which words got you out.  This is the panel that says it.
+Fun Time's dashboard used to draw a schematic of the two monitors and hang the
+primary's controls off it.  The primary player draws them itself now, and the
+same console is drawn whichever player holds the slot: Nau over its video in nau
+and hybrid, Genau into its own window in genau.  So the mode switch and the drive
+controls keep their places as you flip between modes — only the transport changes,
+because it steps Nau's video in one and Genau's clips in the other.
 
-One thing is *selecting* the playlist at any moment — the volume holding it if
-you are inside one, otherwise the length mode the library is feeding it through —
-and that is the first thing it says.  Fun Time's F-mode then sits over whichever
-of those is running, narrowing it to the scripted videos, so it rides alongside
-rather than replacing.
+Its top line is Nau's own answer to "what am I inside?" — the length mode or the
+compilation, with the active-player dot at its head — and it is empty in genau
+mode, where there is no Nau playlist behind the screen.  Everything else is the
+console the orchestrator publishes (:mod:`nau.console`) plus, while Genau is
+driving, the drive readout (:mod:`genau.drive_hud`) with its own arrows.
 
-The dot at its head answers a different question — whether a bare, player-less
-command lands here or on a satellite — and so it is drawn even when there is no
-mode to name: an absent dot cannot be told from an idle one, and the whole point
-of it is being readable on the player that does *not* have the floor.
-
-The wording and the shape are pure functions here; the drawing goes onto the
-slab :mod:`player_core.hud_panel` owns, which is the same slab the satellites'
-HUD is drawn on, so the two players say things the same way — and from the same
-corner.
-
-The transient counterpart is :mod:`nau.notice` — a message Fun Time flashes
-once.  This one persists, because a mode you are in is not news, it is a state.
+The wording and shape are pure functions; the drawing goes onto the slab
+:mod:`player_core.hud_panel` owns, the same slab the satellites' HUD is drawn on,
+so every player says things the same way and from the same corner.
 """
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
+from PIL import Image
 from genau.drive_hud import DriveHud, DriveSection
+from genau.drive_hud import controls as drive_controls
 from player_core.hud_panel import (
+    AMBER,
     BG_PRIMARY,
     BLUE,
     BORDER_PANEL,
@@ -43,6 +39,7 @@ from player_core.hud_panel import (
     HudPanel,
     load_font,
     text_width,
+    to_bgra,
 )
 
 from .console import (
@@ -62,24 +59,41 @@ from .library import FULL, MIXED, SHORTS
 # Segoe UI Bold has none of them and Pillow draws tofu rather than falling back.
 SYMBOL_FONT = "seguisym.ttf"
 
-# What the length modes are called on screen.  The library names them for what
-# it filters on; the HUD names them for what the user asked for.
+# What the length modes are called on screen.  The library names them for what it
+# filters on; the HUD names them for what the user asked for.
 _LENGTH_LABELS = {MIXED: "Mixed", FULL: "Full length", SHORTS: "Shorts"}
 
 # What F-mode is called on screen.  One Fun Time key toggles it for every player
-# at once, so it has to read the same here as it does on the satellites' HUD —
-# ``fun_time.lock_hud.F_MODE_LABEL`` is the other half of that pair, and the one
-# place the wording could drift.
+# at once, so it reads the same here as on the satellites' HUD.
 F_MODE_LABEL = "F-Mode"
 
 _SEPARATOR = " · "
 
-# A compilation is titled for a shelf: "various - Ultimate Example Studio
-# Alpha Collection - Volume 6 (v1)".  Everything up to the last dash is the
-# series — identical across every volume, so it tells the viewer nothing — and
-# the trailing "(v1)" is the archivist's revision, leaving the volume as the only
-# part that says which one you are inside.
+# A compilation is titled for a shelf: "various - Ultimate Example Studio Alpha
+# Collection - Volume 6 (v1)".  Everything up to the last dash is the series and
+# the trailing "(v1)" the archivist's revision, leaving the volume as the part
+# that says which one you are inside.
 _REVISION = re.compile(r"\s*\(v\d+\)$")
+
+# What the OSR2 line says by what is driving the device, and the colour it says
+# it in — green when a funscript is driving, blue when Genau is, muted when
+# nothing is, amber for the broker's own auto mode.
+_OSR2_LABELS = {
+    "off": "Off", "auto": "Auto", "funscript": "FunScript",
+    "genau": "Genau", "idle": "Idle",
+}
+_OSR2_COLORS = {
+    "funscript": GREEN, "genau": BLUE, "auto": AMBER,
+    "off": TEXT_MUTED, "idle": TEXT_MUTED,
+}
+
+# The drive readout's own arrows are drawn by the readout, but the console still
+# has to know what each posts and name it on hover.
+_DRIVE_TIPS = {
+    "genau_speed_down": "Stroke slower", "genau_speed_up": "Stroke faster",
+    "genau_amplitude_up": "Amplitude up", "genau_amplitude_down": "Amplitude down",
+    "genau_center_up": "Center up", "genau_center_down": "Center down",
+}
 
 
 def compilation_label(title: str) -> str:
@@ -90,17 +104,13 @@ def compilation_label(title: str) -> str:
 
 @dataclass(frozen=True)
 class ModeHud:
-    """The mode the player is in, ready to be drawn.
+    """Nau's own answer to "what is selecting this playlist?" — the top line.
 
-    *length_mode* is the library's own filter and is empty when there is no
-    library behind the playlist at all (Fun Time can hand Nau a playlist without
-    one), in which case there is no length mode to claim.  *compilation* is the
-    volume whose clips are the playlist, empty while the library is feeding it
-    normally; *position* and *total* place the current video in that playlist.
-    *f_mode* and *active* are Fun Time's, not Nau's: only the orchestrator knows
-    them, and they arrive published.  *active* is whether a bare, player-less
-    command lands here rather than on a satellite — drawn as the dot, never as a
-    word.
+    *length_mode* is the library's filter, empty when there is no library behind
+    the playlist; *compilation* is the volume holding the playlist, with
+    *position*/*total* placing the current video in it.  *f_mode* is Fun Time's
+    filter over whichever of those runs.  All empty in genau mode, where there is
+    no Nau playlist to describe.
     """
 
     length_mode: str = ""
@@ -108,21 +118,10 @@ class ModeHud:
     position: int = 0
     total: int = 0
     f_mode: bool = False
-    active: bool = False
 
     @property
     def line(self) -> str:
-        """The panel's text — empty when there is nothing to say.
-
-        A compilation answers the "what is selecting this?" question on its own:
-        the volume and the place in it are what you are inside, and the length
-        filter running behind them is not, so naming it too would only be noise.
-
-        F-mode is not an answer to that question but a filter over whatever the
-        answer is, so it goes on the end of either — and stands alone when Nau is
-        playing a handed-over playlist with no library and no volume behind it,
-        which is the one case where it is the only thing true of the playlist.
-        """
+        """The top line's text — empty when there is nothing to say."""
         parts = []
         if self.compilation:
             parts.append(
@@ -140,34 +139,26 @@ class ModeHud:
 _SIZE_BODY = 11
 _SIZE_TINY = 8
 _PAD = 10
-DOT = 10      # the active-player dot at the head of the panel
-DOT_GAP = 8   # …and the room between it and the words
-_MARGIN = 8   # inset from the window's top-left corner
-_LINE_GAP = 4
-_SECTION_GAP = 8
+DOT = 10       # the active-player dot at the head of the top line
+DOT_GAP = 8    # …and the room between it and the words
+_MARGIN = 8    # inset from the window's top-left corner
+_ROW_GAP = 4   # between the top line, the buttons, the OSR2 row, the readout
+_OSR2_H = 16   # the OSR2 read-out row's height
 
 
 def hud_xy() -> tuple[int, int]:
     """Where the panel goes: the window's top-left corner, the same place the
-    satellites put theirs.
-
-    It used to shift right in Hybrid to clear a panel Genau drew in its own
-    transparent layer over this window — with Genau's width hand-copied into a
-    constant here, which silently broke Nau's layout whenever that panel was
-    resized.  Genau's readout is drawn inside this panel now, so there is nothing
-    to clear and nothing to keep in step.
-    """
+    satellites put theirs."""
     return _MARGIN, _MARGIN
 
 
 @dataclass(frozen=True)
-class NauHud:
-    """Everything on Nau's HUD: what it is playing inside, and the room's controls.
+class ConsoleHud:
+    """Everything on the primary console: the top line, the room's controls, and
+    — while Genau is driving — the drive readout.
 
-    *modes* is Nau's own answer to "what is selecting this playlist?".  The rest
-    arrives from Fun Time — only the orchestrator knows which mode the primary slot
-    is in, what is driving the device, or where Genau's controls have hit their
-    limits — and *drive* is Genau's live readout, present only while a waveform is
+    *modes* is drawn only where it applies (nau/hybrid); *console* is what Fun
+    Time published; *drive* is the live readout, present only while a waveform is
     driving the device.
     """
 
@@ -176,13 +167,14 @@ class NauHud:
     drive: DriveHud | None = None
 
 
-class NauHudPainter:
-    """Paints Nau's HUD, and only when something on it has moved.
+class ConsolePainter:
+    """Paints the primary console, and only when something on it has moved.
 
-    Nau redraws its overlays every frame at 60 fps and Pillow is nowhere near
-    cheap enough for that, so the bitmap is kept until the panel's contents
-    change.  The button rects from the last painting are kept beside it, so what
-    is clickable is exactly what was drawn.
+    A player redraws its overlays every frame at 60 fps and Pillow is nowhere
+    near cheap enough for that, so the bitmap is kept until the panel's contents
+    change.  The button rects from the last painting are kept beside it — the
+    console's own and the drive readout's arrows — so what is clickable is exactly
+    what was drawn.
     """
 
     def __init__(self) -> None:
@@ -190,38 +182,41 @@ class NauHudPainter:
         self._tiny = load_font(_SIZE_TINY)
         self._glyph = load_font(_SIZE_BODY, SYMBOL_FONT)
         self._drive = DriveSection()
-        self._painted: tuple[NauHud, tuple[int, int] | None] | None = None
+        self._painted: tuple[ConsoleHud, tuple[int, int] | None] | None = None
+        self._image: Image.Image | None = None
         self._bgra: np.ndarray | None = None
         self.buttons: list[tuple[Rect, Button]] = []
 
-    def bgra(self, hud: NauHud, *, hover: tuple[int, int] | None = None) -> np.ndarray:
-        """*hud* as an mpv overlay bitmap, with the button under *hover* named.
-
-        The cursor is part of what is drawn, so it is part of what the cache is
-        keyed on — otherwise a tooltip would only appear when something else about
-        the panel happened to move.
-        """
-        if (hud, hover) != self._painted or self._bgra is None:
-            self._painted, self._bgra = (hud, hover), self._paint(hud, hover)
+    def bgra(self, hud: ConsoleHud, *, hover: tuple[int, int] | None = None) -> np.ndarray:
+        """*hud* as an mpv overlay bitmap — what Nau composites into its video."""
+        if self._ensure(hud, hover) or self._bgra is None:
+            self._bgra = to_bgra(self._image)
         return self._bgra
 
-    def command_at(self, mx: int, my: int) -> str:
-        """The command a press at *window* point ``(mx, my)`` posts, "" over none.
+    def rgba(self, hud: ConsoleHud, *, hover: tuple[int, int] | None = None,
+             ) -> tuple[bytes, tuple[int, int]]:
+        """*hud* as ``(rgba_bytes, size)`` — what pygame takes, for Genau to blit
+        into its own window in genau mode.  The size varies with the contents, so
+        the caller sizes its blit from what comes back."""
+        self._ensure(hud, hover)
+        return self._image.tobytes(), self._image.size
 
-        The rects were placed from the panel's own corner and presses arrive from
-        the window's, so the inset between the two comes off first.  It comes off
-        here because this is the only object that knows both numbers: a caller
-        undoing `hud_xy` itself is a second copy of where the panel went, free to
-        drift from the real one and slide every hit target off what was drawn.
-        """
+    def _ensure(self, hud: ConsoleHud, hover: tuple[int, int] | None) -> bool:
+        """Repaint if *hud*/*hover* moved; report whether it did (so a cached
+        bitmap can be reused).  The panel is redrawn a few times a minute at most
+        — Pillow is too slow to run every frame — so the image is kept until it
+        changes."""
+        if (hud, hover) == self._painted and self._image is not None:
+            return False
+        self._painted, self._image = (hud, hover), self._paint(hud, hover)
+        return True
+
+    def command_at(self, mx: int, my: int) -> str:
+        """The command a press at *window* point ``(mx, my)`` posts, "" over none."""
         return hit_test(self.buttons, *self._local(mx, my))
 
     def hover_at(self, mx: int, my: int) -> tuple[int, int] | None:
-        """Where to name the button under *window* point ``(mx, my)``, else None.
-
-        Panel-local, because the tooltip is drawn inside the panel — the HUD lives
-        in the video and there is no native tooltip out there to fall back on.
-        """
+        """Where to name the button under *window* point ``(mx, my)``, else None."""
         local = self._local(mx, my)
         return local if tooltip_at(self.buttons, *local) else None
 
@@ -231,59 +226,94 @@ class NauHudPainter:
         left, top = hud_xy()
         return mx - left, my - top
 
-    def _paint(self, hud: NauHud, hover: tuple[int, int] | None = None) -> np.ndarray:
+    def _paint(self, hud: ConsoleHud, hover: tuple[int, int] | None = None) -> "Image.Image":
         rows = console_rows(hud.console)
-        lines = [line for line in (hud.modes.line, hud.console.osr2) if line]
-        line_h = sum(self._body.getmetrics())
+        line = hud.modes.line
         drive_w, drive_h = DriveSection.SIZE if hud.drive is not None else (0, 0)
+        body_ascent, body_descent = self._body.getmetrics()
+        top_h = body_ascent + body_descent
 
-        dotted = DOT + DOT_GAP
         width = 2 * _PAD + max(
-            [row_width(rows), drive_w]
-            + [dotted + text_width(self._body, line) for line in lines])
-        # The dot's own line is there even with nothing to say beside it.
-        height = 2 * _PAD + rows_height(rows) + _SECTION_GAP
-        height += max(1, len(lines)) * (line_h + _LINE_GAP) - _LINE_GAP
+            row_width(rows), drive_w, self._osr2_width(hud.console),
+            DOT + DOT_GAP + text_width(self._body, line),
+        )
+        height = (
+            2 * _PAD + top_h + _ROW_GAP + rows_height(rows)
+            + _ROW_GAP + _OSR2_H
+        )
         if hud.drive is not None:
-            height += drive_h + _SECTION_GAP
+            height += _ROW_GAP + drive_h
 
         panel = HudPanel(width, height)
         draw = panel.draw
+
+        # Top line: the dot, then Nau's mode line — one line, tight to the top so
+        # the corner does not carry the empty band it used to.
         y = _PAD
         # White while a bare, player-less command lands here, the palette's grey
-        # otherwise — the same dot, in the same corner, as each satellite's.  It
-        # leads the first line and is drawn whether or not there is a line: a dot
-        # that vanished when the player had nothing else to say could not be told
-        # from one saying the floor is elsewhere.
-        draw.ellipse([_PAD, y + 2, _PAD + DOT, y + 2 + DOT],
-                     fill=(*(WHITE if hud.modes.active else TEXT_MUTED), 255))
-        text_x = _PAD + DOT + DOT_GAP
-        for line in lines:
-            draw.text((text_x, y + line_h), line, font=self._body, anchor="ls",
-                      fill=(*TEXT_PRIMARY, 255))
-            y += line_h + _LINE_GAP
-        y += (_SECTION_GAP - _LINE_GAP) if lines else line_h + _SECTION_GAP - _LINE_GAP
+        # otherwise — the same dot, in the same corner and colour, as each
+        # satellite's, so the primary reads as one of the family.
+        dot_cy = y + top_h // 2
+        draw.ellipse([_PAD, dot_cy - DOT // 2, _PAD + DOT, dot_cy - DOT // 2 + DOT],
+                     fill=(*(WHITE if hud.console.active else TEXT_MUTED), 255))
+        if line:
+            draw.text((_PAD + DOT + DOT_GAP, y + body_ascent), line, font=self._body,
+                      anchor="ls", fill=(*TEXT_PRIMARY, 255))
+        y += top_h + _ROW_GAP
 
         self.buttons = place_rows(rows, x=_PAD, y=y)
         for rect, button in self.buttons:
             self._button(draw, rect, button)
-        y += rows_height(rows)
+        y += rows_height(rows) + _ROW_GAP
+
+        self._osr2(draw, _PAD, y, hud.console)
+        y += _OSR2_H
 
         if hud.drive is not None:
-            # Drawn into this panel rather than beside it: the controls above are
-            # what move these numbers, and a reading that lived on its own slab
-            # would be a second HUD to find rather than the answer to the row you
-            # just pressed.
-            self._drive.draw(draw, _PAD, y + _SECTION_GAP, hud.drive)
+            y += _ROW_GAP
+            self._drive.draw(draw, _PAD, y, hud.drive)
+            # The readout draws its own arrows; the console only needs them as hit
+            # targets, so they answer a press and name themselves on hover.
+            for control in drive_controls(_PAD, y, hud.drive):
+                self.buttons.append((
+                    control.rect,
+                    Button(control.action, "", _DRIVE_TIPS.get(control.action, ""),
+                           dim=control.dim),
+                ))
 
         if hover is not None:
             self._tooltip(draw, width, height, tooltip_at(self.buttons, *hover), hover)
-        return panel.to_bgra()
+        return panel.image
+
+    def _osr2_width(self, model: ConsoleModel) -> int:
+        state = _OSR2_LABELS.get(model.osr2, model.osr2)
+        return (text_width(self._tiny, "OSR2") + 8
+                + text_width(self._tiny, state) + 10
+                + text_width(self._tiny, "Broker"))
+
+    def _osr2(self, draw, x: int, y: int, model: ConsoleModel) -> None:
+        """The OSR2 read-out: a muted label, a boxed state word, and the broker.
+
+        A read-out, not a control — it says what has the device and whether the
+        broker that talks to it is up.  Both are the primary's alone, which is why
+        the broker light moved off the dashboard and onto this HUD.
+        """
+        draw.text((x, y + _OSR2_H / 2), "OSR2", font=self._tiny, anchor="lm",
+                  fill=(*TEXT_MUTED, 255))
+        state = _OSR2_LABELS.get(model.osr2, model.osr2)
+        color = _OSR2_COLORS.get(model.osr2, TEXT_PRIMARY)
+        box_x = x + text_width(self._tiny, "OSR2") + 8
+        box_w = text_width(self._tiny, state) + 10
+        draw.rounded_rectangle([box_x, y, box_x + box_w - 1, y + _OSR2_H - 1],
+                               radius=3, outline=(*color, 255), width=1)
+        draw.text((box_x + box_w / 2, y + _OSR2_H / 2), state, font=self._tiny,
+                  anchor="mm", fill=(*color, 255))
+        draw.text((box_x + box_w + 10, y + _OSR2_H / 2), "Broker", font=self._tiny,
+                  anchor="lm", fill=(*(BLUE if model.broker else RED), 255))
 
     def _tooltip(self, draw, width: int, height: int, text: str, pos: tuple[int, int]) -> None:
         """A tooltip drawn inside the panel near the cursor — the HUD lives in the
-        video, so there is no native one to fall back on, and every glyph up here
-        is cryptic on purpose."""
+        video, so there is no native one, and every glyph up here is cryptic."""
         if not text:
             return
         pad = 5
@@ -298,16 +328,14 @@ class NauHudPainter:
                   fill=(*TEXT_PRIMARY, 255))
 
     def _button(self, draw, rect: Rect, button: Button) -> None:
-        """One control, in the one button shape this family's HUDs are drawn with:
-        an outline when off, filled when on, faded when it has run out of range.
+        """One control, in the one button shape this family's HUDs use: an outline
+        when off, filled when on, faded when it cannot be pressed.
 
-        A label — an item with nothing to post — is drawn as a bare word instead,
-        because a box around it would invite a press that does nothing.
-        """
+        A read-out — an item with nothing to post — is a bare value with no box."""
         x, y, w, h = rect
         if not button.action:
-            draw.text((x + w, y + h / 2), button.glyph, font=self._tiny, anchor="rm",
-                      fill=(*TEXT_MUTED, 255))
+            draw.text((x + w / 2, y + h / 2), button.glyph, font=self._tiny, anchor="mm",
+                      fill=(*TEXT_PRIMARY, 255))
             return
         fill = GREEN if button.lit else RED if button.warn else BLUE if button.hold else None
         edge = TEXT_MUTED if button.dim else (fill or TEXT_MUTED)
@@ -319,3 +347,9 @@ class NauHudPainter:
         ink = BG_PRIMARY if fill else TEXT_MUTED if button.dim else TEXT_PRIMARY
         draw.text((x + w / 2, y + h / 2), button.glyph, font=font, anchor="mm",
                   fill=(*ink, 255))
+
+
+def with_playback_speed(console: ConsoleModel, speed: float) -> ConsoleModel:
+    """*console* with the drawing player's own video rate folded in — Nau knows
+    its rate, Fun Time does not publish it, so it is added at draw time."""
+    return replace(console, playback_speed=speed)

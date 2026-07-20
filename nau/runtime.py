@@ -28,7 +28,6 @@ def apply_command(
     play_money_shot=None,
     end_compilation=None,
     set_f_mode=None,
-    set_active=None,
     set_volume_hud=None,
 ) -> bool:
     parts = command.strip().split(None, 1)
@@ -110,13 +109,6 @@ def apply_command(
         if set_f_mode is None or not arg:
             return False
         set_f_mode(arg != "0")
-    elif keyword == "SET_ACTIVE":
-        # Whether a bare, player-less command lands here rather than on a
-        # satellite.  Only the orchestrator tracks which player was addressed
-        # last, so this is the whole of what Nau knows about it.
-        if set_active is None or not arg:
-            return False
-        set_active(arg != "0")
     elif keyword == "QUIT":
         if stop_event is None:
             return False

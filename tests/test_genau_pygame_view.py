@@ -98,18 +98,18 @@ def test_present_scene_skips_texture_when_blank(mock_pygame):
     texture.draw.assert_not_called()
 
 
-def test_present_scene_skips_the_drive_hud_when_blank(mock_pygame):
+def test_present_scene_skips_the_console_when_blank(mock_pygame):
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
     view.hud_active = False
-    view._drive_hud = MagicMock()  # non-None would normally trigger overlay
-    view._draw_drive_hud = MagicMock()
+    view._console = MagicMock()  # non-None would normally trigger a draw
+    view._draw_console = MagicMock()
     view.set_blank(True)
 
     view._present_scene()
 
-    view._draw_drive_hud.assert_not_called()
+    view._draw_console.assert_not_called()
 
 
 def test_present_scene_clears_to_black_when_blank(mock_pygame):
@@ -174,7 +174,7 @@ def test_present_scene_tiles_portrait_texture(mock_pygame):
     assert texture.draw.call_count == 2
 
 
-def test_hud_mode_leaves_the_drive_readout_to_nau(mock_pygame):
+def test_hud_mode_leaves_the_console_to_nau(mock_pygame):
     """HUD mode is Hybrid: this window is a transparent layer over Nau's, and the
     readout is drawn inside Nau's console beneath the controls that move it.
     Drawing it here as well would put the same panel on screen twice."""
@@ -182,25 +182,25 @@ def test_hud_mode_leaves_the_drive_readout_to_nau(mock_pygame):
 
     view = PygameView(width=800, height=600)
     view.hud_active = True
-    view._drive_hud = MagicMock()
-    view._draw_drive_hud = MagicMock()
+    view._console = MagicMock()
+    view._draw_console = MagicMock()
 
     view._present_scene()
 
-    view._draw_drive_hud.assert_not_called()
+    view._draw_console.assert_not_called()
 
 
-def test_genau_draws_the_readout_itself_when_it_owns_the_screen(mock_pygame):
+def test_genau_draws_the_console_itself_when_it_owns_the_screen(mock_pygame):
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
     view.hud_active = False
-    view._drive_hud = MagicMock()
-    view._draw_drive_hud = MagicMock()
+    view._console = MagicMock()
+    view._draw_console = MagicMock()
 
     view._present_scene()
 
-    view._draw_drive_hud.assert_called_once()
+    view._draw_console.assert_called_once()
 
 
 def test_set_hud_mode_true_enables_layered_window(mock_pygame):
