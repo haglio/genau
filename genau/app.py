@@ -156,6 +156,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         icon_path=config.project_dir / "genau_icon.ico",
         hybrid_title="Hybrid Nau+Genau",
         hybrid_icon_path=config.project_dir / "hybrid_icon.ico",
+        # Borderless only under Fun Time, which owns the slot's geometry; run
+        # standalone the window keeps its chrome so it can be moved and closed.
+        borderless=args.fun_time,
     )
 
     state = SharedState()

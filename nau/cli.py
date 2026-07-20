@@ -48,6 +48,9 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--height", type=int, default=900)
     p.add_argument("--x", type=int, default=None)
     p.add_argument("--y", type=int, default=None)
+    p.add_argument("--borderless", action="store_true", default=False,
+                   help="Drop the title bar (Fun Time owns the slot's geometry); "
+                        "standalone keeps its chrome so the window can be moved and closed")
     p.add_argument("--tcode-host", default=nau.get("tcode_udp_host", "127.0.0.1"))
     p.add_argument("--tcode-port", type=int, default=nau.get("tcode_udp_port", 50557))
     p.add_argument("--command-file", type=Path, default=None,
