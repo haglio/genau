@@ -45,7 +45,7 @@ from .overlay import (
     time_to_x,
 )
 from .runtime import SEEK_STEP_MS, apply_command
-from .volume import VolumeHud, VolumeHudPainter, chip_xy, hit_part, volume_at
+from .volume import VolumeHud, VolumeHudPainter, chip_local, chip_xy, hit_part, volume_at
 from .session import PlayerSession
 from .status import status_fields
 from .tcode_driver import FunscriptTCodeDriver
@@ -347,8 +347,8 @@ def _run(args) -> int:
     def _click(mx: int, my: int, win_w: int, win_h: int) -> None:
         # The volume control first — it floats over the video, so a press on it is
         # never also a press on what is behind it.
-        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=_timeline_h())
-        if _press_volume(mx - vx, my - vy):
+        if _press_volume(*chip_local(mx, my, win_w=win_w, win_h=win_h,
+                                     timeline_h=_timeline_h())):
             return
         # Click on the timeline seeks there; a click on the video toggles pause.
         if my >= win_h - _timeline_h():
@@ -382,8 +382,8 @@ def _run(args) -> int:
                     # Dragging along the track keeps setting the level, the way
                     # every volume slider does; a drag that began elsewhere misses
                     # the chip and does nothing.
-                    vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=_timeline_h())
-                    cx, cy = ev.pos[0] - vx, ev.pos[1] - vy
+                    cx, cy = chip_local(*ev.pos, win_w=win_w, win_h=win_h,
+                                        timeline_h=_timeline_h())
                     if hit_part(cx, cy) == "track":
                         _press_volume(cx, cy)
             elif ev.type == pygame.KEYDOWN:

@@ -9,6 +9,7 @@ from nau.volume import (
     SPEAKER_W,
     VolumeHud,
     VolumeHudPainter,
+    chip_local,
     chip_xy,
     hit_part,
     volume_at,
@@ -30,6 +31,36 @@ class TestPlacement:
         x, _y = chip_xy(win_w=80, win_h=200, timeline_h=40)
 
         assert x >= 0
+
+
+class TestWindowPoints:
+    """Presses arrive in the window's coordinates; every hit test here takes the
+    chip's.  The chip is placed from the window's bottom-right corner, so its
+    origin moves with the window and with the timeline beneath it — which is why
+    undoing `chip_xy` belongs beside `chip_xy` and not at each call site."""
+
+    GEOMETRY = {"win_w": 1200, "win_h": 900, "timeline_h": 40}
+
+    def test_the_chips_own_corner_reads_as_its_origin(self):
+        assert chip_local(*chip_xy(**self.GEOMETRY), **self.GEOMETRY) == (0, 0)
+
+    def test_a_window_point_over_the_speaker_lands_on_the_mute(self):
+        vx, vy = chip_xy(**self.GEOMETRY)
+
+        local = chip_local(vx + 2, vy + CHIP_H // 2, **self.GEOMETRY)
+
+        assert hit_part(*local) == "mute"
+
+    def test_a_window_point_over_the_slider_lands_on_the_track(self):
+        vx, vy = chip_xy(**self.GEOMETRY)
+
+        local = chip_local(vx + CHIP_W - 4, vy + CHIP_H // 2, **self.GEOMETRY)
+
+        assert hit_part(*local) == "track"
+
+    def test_a_window_point_away_from_the_chip_lands_on_nothing(self):
+        """A press on the video is not a press on the control floating over it."""
+        assert hit_part(*chip_local(20, 20, **self.GEOMETRY)) == ""
 
 
 class TestHitTesting:
