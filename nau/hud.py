@@ -39,6 +39,7 @@ from player_core.hud_panel import (
     RED,
     TEXT_MUTED,
     TEXT_PRIMARY,
+    WHITE,
     HudPanel,
     load_font,
     text_width,
@@ -249,13 +250,13 @@ class NauHudPainter:
         panel = HudPanel(width, height)
         draw = panel.draw
         y = _PAD
-        # Green while a bare, player-less command lands here, the palette's grey
+        # White while a bare, player-less command lands here, the palette's grey
         # otherwise — the same dot, in the same corner, as each satellite's.  It
         # leads the first line and is drawn whether or not there is a line: a dot
         # that vanished when the player had nothing else to say could not be told
         # from one saying the floor is elsewhere.
         draw.ellipse([_PAD, y + 2, _PAD + DOT, y + 2 + DOT],
-                     fill=(*(GREEN if hud.modes.active else TEXT_MUTED), 255))
+                     fill=(*(WHITE if hud.modes.active else TEXT_MUTED), 255))
         text_x = _PAD + DOT + DOT_GAP
         for line in lines:
             draw.text((text_x, y + line_h), line, font=self._body, anchor="ls",
