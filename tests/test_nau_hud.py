@@ -2,9 +2,17 @@
 from __future__ import annotations
 
 import numpy as np
-from player_core.hud_panel import load_font, text_width
+from player_core.hud_panel import GREEN, TEXT_MUTED, load_font, text_width
 
-from nau.hud import GENAU_PANEL_W, ModeHud, ModeHudPainter, compilation_label, hud_xy
+from nau.hud import (
+    DOT,
+    GENAU_PANEL_W,
+    PAD,
+    ModeHud,
+    ModeHudPainter,
+    compilation_label,
+    hud_xy,
+)
 from nau.library import FULL, MIXED, SHORTS
 
 
@@ -76,10 +84,31 @@ class TestPainter:
         assert long.shape[1] > text_width(load_font(11), long_hud.line)
         assert long.shape[0] == short.shape[0]  # one line either way
 
-    def test_nothing_to_say_paints_nothing(self):
-        """No library behind the playlist and no compilation: the corner stays
-        clear rather than carrying an empty slab."""
-        assert ModeHudPainter().bgra(ModeHud()) is None
+    def test_the_panel_is_there_even_with_no_words_for_it(self):
+        """The dot has to be readable at all times — an absent dot cannot be told
+        from an idle one — so the slab stays even when there is no mode to name."""
+        assert ModeHudPainter().bgra(ModeHud()) is not None
+
+    def test_the_dot_lights_up_only_while_the_primary_has_the_floor(self):
+        """It says whether a bare "next" or "end loop" would land here rather than
+        on a satellite.  Green for yes, the palette's grey for no."""
+        def dot(active: bool) -> tuple[int, ...]:
+            bgra = ModeHudPainter().bgra(ModeHud(length_mode=MIXED, active=active))
+            patch = bgra[PAD + 2:PAD + DOT, PAD:PAD + DOT - 2, :3]
+            return tuple(int(v) for v in patch.reshape(-1, 3).mean(axis=0))[::-1]  # BGR -> RGB
+
+        assert np.allclose(dot(True), GREEN, atol=40)
+        assert np.allclose(dot(False), TEXT_MUTED, atol=40)
+
+    def test_the_dot_does_not_shift_the_words_around(self):
+        """The dot is always in the same place and always the same size, so the
+        line beside it cannot jump when the floor moves to another player."""
+        painter = ModeHudPainter()
+
+        lit = painter.bgra(ModeHud(length_mode=MIXED, active=True))
+        idle = ModeHudPainter().bgra(ModeHud(length_mode=MIXED, active=False))
+
+        assert lit.shape == idle.shape
 
     def test_an_unchanged_hud_is_not_repainted(self):
         """It is asked for every frame at 60 fps; Pillow is far too slow to run
