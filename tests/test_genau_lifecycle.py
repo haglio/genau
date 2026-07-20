@@ -40,46 +40,26 @@ class FakeNotifier:
         self.closed += 1
 
 
-def _build_controller(
-    *,
-    quarter_offset=None,
-    on_toggle_playing=None,
-    on_pause_playing=None,
-    on_adjust_speed=None,
-    on_adjust_amplitude=None,
-    on_adjust_center=None,
-    on_cycle_shape=None,
-    on_toggle_cruise=None,
-):
+def _build_controller(**callbacks):
+    """Build a controller, passing through only the callbacks a test names.
+
+    Everything left out keeps the controller's own default, so each test can
+    assert that its one key reaches its one callback.
+    """
     view = FakeView()
     renderer = FakeRenderer()
     selection = FakeSelection()
     notifier = FakeNotifier()
     stop_event = threading.Event()
-    kwargs = dict(
+    controller = GenauLifecycleController(
         view=view,
         renderer=renderer,
         selection=selection,
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=75,
-        quarter_offset=quarter_offset or (lambda: None),
+        **callbacks,
     )
-    if on_toggle_playing is not None:
-        kwargs["on_toggle_playing"] = on_toggle_playing
-    if on_pause_playing is not None:
-        kwargs["on_pause_playing"] = on_pause_playing
-    if on_adjust_speed is not None:
-        kwargs["on_adjust_speed"] = on_adjust_speed
-    if on_adjust_amplitude is not None:
-        kwargs["on_adjust_amplitude"] = on_adjust_amplitude
-    if on_adjust_center is not None:
-        kwargs["on_adjust_center"] = on_adjust_center
-    if on_cycle_shape is not None:
-        kwargs["on_cycle_shape"] = on_cycle_shape
-    if on_toggle_cruise is not None:
-        kwargs["on_toggle_cruise"] = on_toggle_cruise
-    controller = GenauLifecycleController(**kwargs)
     return controller, view, renderer, selection, notifier, stop_event
 
 
@@ -170,28 +150,42 @@ def test_l_key_triggers_speed_up():
     assert deltas == [5]
 
 
-def test_k_key_triggers_amplitude_down():
+def test_7_and_9_keys_trigger_amplitude_down_and_up():
     deltas = []
     controller, *_ = _build_controller(
         on_adjust_amplitude=lambda d: deltas.append(d),
     )
 
-    event = type("Event", (), {"key": pygame.K_k, "mod": 0})()
-    controller._handle_key(event)
+    controller._handle_key(type("Event", (), {"key": pygame.K_7, "mod": 0})())
+    controller._handle_key(type("Event", (), {"key": pygame.K_9, "mod": 0})())
 
-    assert deltas == [-10]
+    assert deltas == [-10, 10]
 
 
-def test_i_key_triggers_amplitude_up():
-    deltas = []
+def test_i_key_triggers_cycle_shape():
+    calls = []
     controller, *_ = _build_controller(
-        on_adjust_amplitude=lambda d: deltas.append(d),
+        on_cycle_shape=lambda: calls.append(1),
     )
 
     event = type("Event", (), {"key": pygame.K_i, "mod": 0})()
     controller._handle_key(event)
 
-    assert deltas == [10]
+    assert calls == [1]
+
+
+def test_k_key_condemns_the_clip():
+    """K sits above the M / , / . row the way Up sits above the arrows, and
+    means for a Genau clip what Up means for a portrait video."""
+    calls = []
+    controller, *_ = _build_controller(
+        on_weird_clip=lambda: calls.append(1),
+    )
+
+    event = type("Event", (), {"key": pygame.K_k, "mod": 0})()
+    controller._handle_key(event)
+
+    assert calls == [1]
 
 
 def test_u_key_triggers_center_down():
@@ -218,13 +212,25 @@ def test_o_key_triggers_center_up():
     assert deltas == [5]
 
 
-def test_comma_key_triggers_cycle_shape():
+def test_comma_key_holds_the_clip():
     calls = []
     controller, *_ = _build_controller(
-        on_cycle_shape=lambda: calls.append(1),
+        on_toggle_clip_lock=lambda: calls.append(1),
     )
 
     event = type("Event", (), {"key": pygame.K_COMMA, "mod": 0})()
+    controller._handle_key(event)
+
+    assert calls == [1]
+
+
+def test_x_key_toggles_auto_advance():
+    calls = []
+    controller, *_ = _build_controller(
+        on_toggle_auto_advance=lambda: calls.append(1),
+    )
+
+    event = type("Event", (), {"key": pygame.K_x, "mod": 0})()
     controller._handle_key(event)
 
     assert calls == [1]
@@ -259,6 +265,7 @@ def test_default_callbacks_do_not_raise():
 
     for key in [pygame.K_ESCAPE, pygame.K_j, pygame.K_l, pygame.K_k,
                 pygame.K_i, pygame.K_u, pygame.K_o, pygame.K_COMMA,
-                pygame.K_SLASH, pygame.K_SPACE]:
+                pygame.K_SLASH, pygame.K_SPACE, pygame.K_7, pygame.K_9,
+                pygame.K_x]:
         event = type("Event", (), {"key": key, "mod": 0})()
         controller._handle_key(event)

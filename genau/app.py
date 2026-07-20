@@ -275,6 +275,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_blank=view.set_blank,
         display_state=display_state,
     )
+    from .auto_advance import toggle_auto_advance, toggle_clip_lock
     from .cruise_control import toggle_cruise_control
     from .direct_control import (
         adjust_amplitude,
@@ -300,6 +301,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_adjust_center=lambda delta: adjust_center(direct_state, delta),
         on_cycle_shape=lambda: cycle_shape(direct_state),
         on_toggle_cruise=lambda: toggle_cruise_control(cruise_control),
+        on_toggle_auto_advance=lambda: toggle_auto_advance(auto_advance),
+        on_toggle_clip_lock=lambda: toggle_clip_lock(auto_advance),
+        on_weird_clip=selection.discard_current,
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
