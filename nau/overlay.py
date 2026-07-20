@@ -9,6 +9,10 @@ from __future__ import annotations
 import numpy as np
 
 from .heatmap import build_heatmap
+# The volume control shares the timeline's row and the track stops clear of it,
+# so the track geometry has to know how wide it is.  volume.py owns the chip, so
+# it owns that width; the dependency runs this way, never back.
+from .volume import SLOT_W as _VOLUME_SLOT_W
 
 _ZOOM_SPAN_START_MS = 20_000.0
 _ZOOM_LEAD_FRAC = 0.10
@@ -207,12 +211,17 @@ TIMELINE_HEIGHT = _IDLE_HEIGHT  # bottom strip height when not recording
 
 
 def bar_track_x(width: int) -> tuple[int, int]:
-    """Left/right pixel bounds of the inset timeline track, so its start and end
-    sit a margin in from the window's side edges.  Clamped so the track never
-    inverts on a very narrow window.  Both the heatmap strip and the plain bar
-    use this, and click-to-seek maps onto it."""
+    """Left/right pixel bounds of the inset timeline track.
+
+    The start sits a fixed margin in from the left edge; the end stops short of
+    the volume control that shares the row, the way VLC's seek bar stopped clear
+    of its slider — ``volume.SLOT_W`` is the room it leaves.  Clamped so the track
+    never inverts on a very narrow window.  Both the heatmap strip and the plain
+    bar use this, and click-to-seek maps onto it, so all three agree on where the
+    track ends.
+    """
     inset = min(_BAR_INSET_X, max(0, width // 2 - 1))
-    return inset, width - inset
+    return inset, max(inset + 1, width - _VOLUME_SLOT_W)
 
 
 def _rgba_to_bgra(rgba):
