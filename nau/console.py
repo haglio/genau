@@ -33,10 +33,11 @@ GROUP_GAP = 12  # between groups of buttons that mean different things
 class Button:
     """One item on the console: what it posts, what it looks like, how it is drawn.
 
-    ``lit`` and ``warn`` are the two live states — green for on, red for a
-    suppression that is not the same as "off".  ``dim`` is a control at the end of
-    its range: drawn faded and left out of the hit targets, so a press that could
-    do nothing is not offered.
+    ``lit``, ``warn`` and ``hold`` are the live states — green for on, red for a
+    suppression that is not the same as "off", blue for armed-but-sitting-still,
+    which is the colour the drive readout gives the same condition.  ``dim`` is a
+    control at the end of its range: drawn faded and left out of the hit targets,
+    so a press that could do nothing is not offered.
 
     An empty ``action`` makes it a label: laid out in the row like anything else,
     drawn as a bare word with no box, and never a hit target.  That is how a pair
@@ -49,6 +50,7 @@ class Button:
     width: int = BUTTON
     lit: bool = False
     warn: bool = False
+    hold: bool = False
     dim: bool = False
 
 
@@ -64,6 +66,11 @@ class ConsoleModel:
     mode: str = "nau"
     takeover_allowed: bool = True
     cruise: bool = False
+    # The other hands-free switch: cruise varies the stroke, auto advance moves
+    # on to the next clip.  A held clip is auto advance still armed but sitting
+    # still, which the button shows as its own state rather than as off.
+    auto_advance: bool = False
+    clip_locked: bool = False
     shape: str = "sine"
     # Which of Genau's controls have run out of range: "amp_max", "amp_min",
     # "ctr_max", "ctr_min", "spd_max", "spd_min".
@@ -90,6 +97,8 @@ def read_console(path: Path) -> ConsoleModel | None:
         takeover_allowed=bool(raw.get("takeover_allowed", True)),
         cruise=bool(raw.get("cruise", False)),
         shape=str(raw.get("shape", "sine") or "sine"),
+        auto_advance=bool(raw.get("auto_advance", False)),
+        clip_locked=bool(raw.get("clip_locked", False)),
         limits=frozenset(str(limit) for limit in raw.get("limits", []) or []),
         osr2=str(raw.get("osr2", "") or ""),
     )
@@ -153,6 +162,11 @@ def console_rows(model: ConsoleModel) -> list[list[Button]]:
         rows.append(_drive_row(model))
         rows.append([
             Button("genau_toggle_cruise", "cc", "Cruise control", lit=model.cruise),
+            Button("genau_toggle_auto_advance", "aa",
+                   "Auto advance: holding this clip" if model.clip_locked
+                   else "Auto advance",
+                   lit=model.auto_advance and not model.clip_locked,
+                   hold=model.auto_advance and model.clip_locked),
             Button("genau_cycle_shape", _GLYPHS["wave"], f"Waveform: {model.shape}"),
             Button("quarter_button", _GLYPHS["quarter"], "Offset ¼ cycle"),
             Button("genau_toggle_auto", "GA",
