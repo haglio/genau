@@ -4,6 +4,7 @@ from pathlib import Path
 
 from genau.direct_control import DirectControlState, WaveformShape
 from genau.cruise_control import CruiseControlState
+from genau.auto_advance import AutoAdvanceState
 from genau.status_writer import build_status_text, write_status_file
 
 
@@ -139,3 +140,19 @@ def test_write_status_file_skips_when_unchanged(tmp_path: Path):
     assert write_status_file(path, ds, cs) is True  # first write
     mtime1 = path.stat().st_mtime_ns
     assert write_status_file(path, ds, cs) is False  # no change
+
+
+def test_build_status_text_reports_auto_advance_off_by_default():
+    text = build_status_text(DirectControlState(), CruiseControlState())
+
+    assert "advance=0" in text
+    assert "clip_locked=0" in text
+
+
+def test_build_status_text_reports_auto_advance_and_its_lock():
+    aa = AutoAdvanceState(active=True, locked=True)
+
+    text = build_status_text(DirectControlState(), CruiseControlState(), auto_advance=aa)
+
+    assert "advance=1" in text
+    assert "clip_locked=1" in text
