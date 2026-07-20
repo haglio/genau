@@ -3,13 +3,14 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from dataclasses import replace
 from pathlib import Path
 
 import pygame
 
 from genau.pygame_view import get_window_chrome_height
 from genau.tcode import UdpTCodeSink
-from player_core.file_channel import consume_command_file, read_paused_state
+from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.status import StatusWriter
 
@@ -42,6 +43,7 @@ from .overlay import (
     time_to_x,
 )
 from .runtime import SEEK_STEP_MS, apply_command
+from .volume import VolumeHud, VolumeHudPainter, chip_xy, hit_part, volume_at
 from .session import PlayerSession
 from .status import status_fields
 from .tcode_driver import FunscriptTCodeDriver
@@ -57,6 +59,7 @@ _OV_NAME = 3
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
 _OV_MODE = 6
+_OV_VOLUME = 7
 
 # Between the stacked overlays in the top-left column: the mode HUD, the video's
 # name, and the playback rate when it is off normal.
@@ -214,6 +217,12 @@ def _run(args) -> int:
     # Fun Time tracks it and says so; a session never told is one where the
     # satellites have had every word, which is where a fresh session starts.
     active = False
+    # The primary display's sound, as Fun Time publishes it.  Nau's own mpv is one
+    # of two sinks it drives (Genau's clip audio is the other), so the level here
+    # is drawn and reported, never decided: a press asks Fun Time and the answer
+    # comes back down the same channel.
+    volume_hud = VolumeHud()
+    volume_painter = VolumeHudPainter()
     heatmap = HeatmapStrip()
     mode_hud = ModeHudPainter()
     loop_thumbs = LoopThumbCapture()
@@ -287,13 +296,52 @@ def _run(args) -> int:
         nonlocal active
         active = has_floor
 
+    def _set_volume_hud(level: int, muted: bool) -> None:
+        nonlocal volume_hud
+        volume_hud = VolumeHud(volume=level, muted=muted)
+
     def _timeline_h() -> int:
         # The heatmap strip when scripted (may be taller while recording),
         # else the plain progress bar — always present so every video has a
         # clickable timeline.
         return heatmap.height or TIMELINE_HEIGHT
 
-    def _click_to_seek(mx: int, my: int, win_w: int, win_h: int) -> None:
+    def _post(command: str) -> None:
+        """Ask Fun Time for something, on the channel its dashboard uses.
+
+        Appended, because that file carries every mouse- and voice-driven writer
+        at once and the dispatch loop drains it a tick at a time.  Standalone
+        (no Fun Time) there is nowhere to ask, so the control is inert rather
+        than pretending: it goes on showing the level mpv is actually at.
+        """
+        if args.dashboard_cmd_file is not None:
+            append_command(Path(args.dashboard_cmd_file), command)
+
+    def _press_volume(cx: int, cy: int) -> bool:
+        """Take a press at chip-local ``(cx, cy)``; False if it missed the chip.
+
+        The new level is shown at once and asked for at the same time: Fun Time
+        holds the authority and its answer is a tick away, and a slider that waits
+        for it drags a frame behind the pointer.  Its answer overwrites this one
+        either way, so an ignored press corrects itself rather than sticking.
+        """
+        nonlocal volume_hud
+        part = hit_part(cx, cy)
+        if part == "mute":
+            volume_hud = replace(volume_hud, muted=not volume_hud.muted)
+            _post("audio_unmute" if not volume_hud.muted else "audio_mute")
+        elif part == "track":
+            level = volume_at(cx)
+            volume_hud = VolumeHud(volume=level, muted=False)
+            _post(f"audio_set_volume|{level}")
+        return bool(part)
+
+    def _click(mx: int, my: int, win_w: int, win_h: int) -> None:
+        # The volume control first — it floats over the video, so a press on it is
+        # never also a press on what is behind it.
+        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=_timeline_h())
+        if _press_volume(mx - vx, my - vy):
+            return
         # Click on the timeline seeks there; a click on the video toggles pause.
         if my >= win_h - _timeline_h():
             start_ms, end_ms = heatmap.window
@@ -313,7 +361,15 @@ def _run(args) -> int:
             if ev.type == pygame.QUIT:
                 stop_event.set()
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                _click_to_seek(ev.pos[0], ev.pos[1], win_w, win_h)
+                _click(ev.pos[0], ev.pos[1], win_w, win_h)
+            elif ev.type == pygame.MOUSEMOTION and ev.buttons[0]:
+                # Dragging along the track keeps setting the level, the way every
+                # volume slider does; a drag that began elsewhere misses the chip
+                # and does nothing.
+                vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=_timeline_h())
+                cx, cy = ev.pos[0] - vx, ev.pos[1] - vy
+                if hit_part(cx, cy) == "track":
+                    _press_volume(cx, cy)
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
                     stop_event.set()
@@ -354,6 +410,7 @@ def _run(args) -> int:
                     set_hybrid=_set_hybrid,
                     set_f_mode=_set_f_mode,
                     set_active=_set_active,
+                    set_volume_hud=_set_volume_hud,
                 )
 
         session.advance()
@@ -416,6 +473,11 @@ def _run(args) -> int:
             player.overlay(_OV_SPEED, left, top, speed_bgra(session.speed))
         else:
             player.remove_overlay(_OV_SPEED)
+
+        # The volume control, at the right-hand end of the row above the timeline —
+        # beside the transport, where a player's has always been.
+        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=_timeline_h())
+        player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume_hud))
 
         _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h)
 

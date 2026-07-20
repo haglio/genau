@@ -30,6 +30,7 @@ def apply_command(
     set_hybrid=None,
     set_f_mode=None,
     set_active=None,
+    set_volume_hud=None,
 ) -> bool:
     parts = command.strip().split(None, 1)
     if not parts:
@@ -52,7 +53,7 @@ def apply_command(
     elif keyword == "SET_SPEED":
         return _set_speed(session, arg)
     elif keyword == "SET_VOLUME":
-        return _set_volume(session, arg)
+        return _set_volume(session, arg, set_volume_hud)
     elif keyword == "RECORD_DOWN":
         session.record_down()
     elif keyword == "RECORD_UP":
@@ -149,13 +150,26 @@ def _set_speed(session, arg: str) -> bool:
     return True
 
 
-def _set_volume(session, arg: str) -> bool:
-    """SET_VOLUME <0-100> -> absolute playback volume. Returns False on a missing
-    or non-numeric argument so the caller reports it unhandled."""
+def _set_volume(session, arg: str, set_volume_hud=None) -> bool:
+    """SET_VOLUME <0-100> [muted] -> the primary display's sound level.
+
+    The mute comes as a flag of its own rather than as a level of zero.  Zero is
+    what an audio *sink* needs and all Fun Time used to send, but a control that
+    has to be looked at cannot tell silent from turned-all-the-way-down from it —
+    and unmuting has to come back to the level the speaker chose.  So the level is
+    what is drawn, the mute is drawn over it, and the audible loudness is worked
+    out here.  Returns False on a missing or non-numeric level, so the caller
+    reports it unhandled.
+    """
+    level, _, muted_arg = arg.partition(" ")
     try:
-        session.set_volume(int(arg))
+        volume = int(level)
     except ValueError:
         return False
+    muted = muted_arg.strip() not in ("", "0")
+    session.set_volume(0 if muted else volume)
+    if set_volume_hud is not None:
+        set_volume_hud(volume, muted)
     return True
 
 

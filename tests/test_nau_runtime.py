@@ -116,6 +116,39 @@ class TestApplyCommand:
         assert apply_command("SET_VOLUME loud", session) is False
         assert session.calls == []
 
+    def test_set_volume_takes_the_mute_as_a_fact_of_its_own(self):
+        """Fun Time publishes a mute to its audio sinks as a level of zero, which
+        is all a sink needs and not enough to *draw*: silent and turned-all-the-way
+        down look the same.  So the level and the mute both come, and the audible
+        loudness is derived here."""
+        session = SpySession()
+        shown = []
+
+        assert apply_command("SET_VOLUME 70 1", session, set_volume_hud=lambda *a: shown.append(a))
+
+        assert session.calls == [("set_volume", 0)], "muted plays silent"
+        assert shown == [(70, True)], "…but the control still shows where it was set"
+
+    def test_set_volume_unmuted_plays_and_shows_the_same_level(self):
+        session = SpySession()
+        shown = []
+
+        assert apply_command("SET_VOLUME 70 0", session, set_volume_hud=lambda *a: shown.append(a))
+
+        assert session.calls == [("set_volume", 70)]
+        assert shown == [(70, False)]
+
+    def test_set_volume_without_a_mute_flag_is_not_muted(self):
+        """The one-argument form is what every caller sent before there was a
+        control to draw, and it means exactly what it did then."""
+        session = SpySession()
+        shown = []
+
+        assert apply_command("SET_VOLUME 40", session, set_volume_hud=lambda *a: shown.append(a))
+
+        assert session.calls == [("set_volume", 40)]
+        assert shown == [(40, False)]
+
     def test_record_commands(self):
         session = SpySession()
 
