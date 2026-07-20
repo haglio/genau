@@ -20,7 +20,6 @@ from player_core.timeline import (  # noqa: F401 (bar_track_x/progress_bar_bgra 
     draw_track_marks,
     framed_track,
     progress_bar_bgra,
-    rgba_to_bgra,
 )
 
 from .heatmap import build_heatmap
@@ -203,24 +202,6 @@ def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
 # and its frame come from player_core.timeline; the heatmap fill below is Nau's.
 
 _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
-
-
-def _text_chip(text: str, *, fg=(240, 240, 240)):
-    """A translucent dark chip sized to *text*, for a screen corner."""
-    from PIL import Image, ImageDraw
-
-    pad = 5
-    tmp = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
-    box = tmp.textbbox((0, 0), text)
-    tw, th = box[2] - box[0], box[3] - box[1]
-    img = Image.new("RGBA", (tw + pad * 2, th + pad * 3), (0, 0, 0, 160))
-    ImageDraw.Draw(img).text((pad, pad), text, fill=fg)
-    return rgba_to_bgra(np.asarray(img))
-
-
-def name_bgra(text: str):
-    """The current video's name as a translucent chip for the top-left."""
-    return _text_chip(text)
 
 
 def heatmap_bgra(heatmap, position_ms, loop_bounds, width):

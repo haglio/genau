@@ -54,17 +54,38 @@ class TestCompilationLabel:
 
 class TestPainter:
     def test_the_top_line_sits_tight_to_the_top(self):
-        """The old console left a tall empty band above its first line; the mode
-        line now starts within a body line-height of the slab's top, the way the
-        satellites' status line does."""
+        """The old console left a tall empty band above its first line; the video
+        name now heads the console within a body line-height of the slab's top, the
+        way the satellites' status line does."""
         painter = ConsolePainter()
-        bgra = painter.bgra(ConsoleHud(modes=ModeHud(length_mode=FULL)))
+        bgra = painter.bgra(ConsoleHud(modes=ModeHud(video="Some Video Name")))
         rgb = _rgb(bgra)
 
-        # There is ink (the mode text) within the first line-height below the pad.
+        # There is ink (the name) within the first line-height below the pad.
         line_h = sum(load_font(11).getmetrics())
         band = rgb[PAD:PAD + line_h, :, :]
         assert (band > 200).any()
+
+    def test_it_names_the_video_playing(self):
+        """The video name heads the console — brought in off the chip it used to
+        sit in below — so a wider name widens the panel."""
+        narrow = ConsolePainter().bgra(ConsoleHud(modes=ModeHud(video="Short")))
+        wide = ConsolePainter().bgra(
+            ConsoleHud(modes=ModeHud(video="A Much Much Longer Video Name")))
+
+        assert wide.shape[1] > narrow.shape[1]
+
+    def test_the_mode_line_is_a_subtitle_under_the_name(self):
+        """The compilation and place-in-it sit beneath the name, not on its line,
+        so the name reads first and the context under it."""
+        painter = ConsolePainter()
+        bgra = painter.bgra(ConsoleHud(modes=ModeHud(
+            video="Clip", length_mode=SHORTS, compilation="Vol6", position=3, total=9)))
+        rgb = _rgb(bgra)
+
+        body_h = sum(load_font(11).getmetrics())
+        # The name is bright on the first line; the muted subtitle is below it.
+        assert (rgb[PAD:PAD + body_h, :, :] > 200).any()
 
     def test_hybrid_grows_the_panel_for_the_readout(self):
         painter = ConsolePainter()

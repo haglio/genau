@@ -39,7 +39,6 @@ from .overlay import (
     bar_track_x,
     heatmap_bgra,
     label_xs,
-    name_bgra,
     progress_bar_bgra,
     time_to_x,
 )
@@ -62,14 +61,10 @@ _APP_USER_MODEL_ID = "Nau.App"
 
 # Overlay ids (stable so each frame updates in place).
 _OV_HEATMAP = 0
-_OV_NAME = 3
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
 _OV_CONSOLE = 6
 _OV_VOLUME = 7
-
-# Between the console and the video-name chip stacked beneath it.
-_STACK_GAP = 4
 
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 
@@ -472,10 +467,11 @@ def _run(args) -> int:
             remembered = mode_now
             memory.write(mode_now)
 
-        # The top-left column: the console — the dot saying whether a bare
-        # command lands here, what is selecting this playlist, what is driving the
-        # device, and every control Fun Time's dashboard used to hold for this
-        # slot — then the video's name and its playback rate.
+        # The top-left corner: the console — the video's name and the dot saying
+        # whether a bare command lands here, what is selecting this playlist, what
+        # is driving the device, and every control Fun Time's dashboard used to
+        # hold for this slot.  The name heads it now rather than sitting in a chip
+        # of its own beneath.
         if args.console_file is not None:
             console = read_console(args.console_file) or console
         if args.drive_file is not None and genau_drives(console.mode):
@@ -485,6 +481,7 @@ def _run(args) -> int:
         left, top = hud_xy()
         panel = console_hud.bgra(ConsoleHud(
             modes=ModeHud(
+                video=session.current_video.stem,
                 length_mode=length_mode, compilation=jumps.compilation,
                 position=session.index + 1, total=len(session.playlist),
                 f_mode=f_mode,
@@ -496,10 +493,6 @@ def _run(args) -> int:
             drive=drive,
         ), hover=hover)
         player.overlay(_OV_CONSOLE, left, top, panel)
-        top += panel.shape[0] + _STACK_GAP
-
-        name = name_bgra(session.current_video.stem)
-        player.overlay(_OV_NAME, left, top, name)
 
         # The volume control, at the right-hand end of the row above the timeline —
         # beside the transport, where a player's has always been.
