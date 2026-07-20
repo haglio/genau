@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
-from player_core.hud_panel import GREEN, TEXT_MUTED, load_font, text_width
+from player_core.hud_panel import TEXT_MUTED, WHITE, load_font, text_width
 
 from nau.console import ConsoleModel
 from nau.hud import (
@@ -96,13 +96,13 @@ class TestPainter:
 
     def test_the_dot_lights_up_only_while_the_primary_has_the_floor(self):
         """It says whether a bare "next" or "end loop" would land here rather than
-        on a satellite.  Green for yes, the palette's grey for no."""
+        on a satellite.  White for yes, the palette's grey for no."""
         def dot(active: bool) -> tuple[int, ...]:
             bgra = NauHudPainter().bgra(NauHud(modes=ModeHud(length_mode=MIXED, active=active)))
             patch = bgra[PAD + 2:PAD + DOT, PAD:PAD + DOT - 2, :3]
             return tuple(int(v) for v in patch.reshape(-1, 3).mean(axis=0))[::-1]  # BGR -> RGB
 
-        assert np.allclose(dot(True), GREEN, atol=40)
+        assert np.allclose(dot(True), WHITE, atol=40)
         assert np.allclose(dot(False), TEXT_MUTED, atol=40)
 
     def test_the_dot_does_not_shift_the_words_around(self):
