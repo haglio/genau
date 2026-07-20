@@ -108,34 +108,3 @@ class TestTickCruiseControlActive:
         for i in range(200):
             tick_cruise_control(dc, auto, now=0.1 * (i + 1))
         assert dc.shape in list(WaveformShape)
-
-
-class TestCruiseControlClipAdvance:
-    def test_advances_clip_after_interval(self):
-        dc = DirectControlState()
-        auto = CruiseControlState(active=True, rng=random.Random(42))
-        calls = []
-        step_clip = lambda delta: calls.append(delta)
-        tick_cruise_control(dc, auto, now=0.0, step_clip=step_clip)
-        # Tick past the clip interval (~8-12s range)
-        for i in range(150):
-            tick_cruise_control(dc, auto, now=0.1 * (i + 1), step_clip=step_clip)
-        assert len(calls) >= 1
-        assert all(c == 1 for c in calls)
-
-    def test_does_not_advance_when_inactive(self):
-        dc = DirectControlState()
-        auto = CruiseControlState(active=False, rng=random.Random(42))
-        calls = []
-        step_clip = lambda delta: calls.append(delta)
-        for i in range(150):
-            tick_cruise_control(dc, auto, now=0.1 * i, step_clip=step_clip)
-        assert calls == []
-
-    def test_no_error_without_step_clip(self):
-        dc = DirectControlState()
-        auto = CruiseControlState(active=True, rng=random.Random(42))
-        tick_cruise_control(dc, auto, now=0.0)
-        for i in range(150):
-            tick_cruise_control(dc, auto, now=0.1 * (i + 1))
-        # Should complete without error when step_clip is None

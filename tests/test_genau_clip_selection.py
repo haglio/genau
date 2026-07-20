@@ -44,19 +44,23 @@ class FakeNotifier:
         self.clip_notifications.append(path)
 
 
-def _build_controller(*paths: str, loader_busy: bool = False, adopt_on_load: bool = False):
+def _build_controller(
+    *paths: str, loader_busy: bool = False, adopt_on_load: bool = False, discard_clip=None,
+):
     clip_store = ClipCacheStore(limit=3)
     sequence = ClipSequenceController([Path(path) for path in paths])
     loader = FakeLoader(clip_store, is_busy=loader_busy, adopt_on_load=adopt_on_load)
     renderer = FakeRenderer()
     notifier = FakeNotifier()
 
+    kwargs = {} if discard_clip is None else {"discard_clip": discard_clip}
     controller = ClipSelectionController(
         sequence=sequence,
         clip_store=clip_store,
         loader=loader,
         renderer=renderer,
         notifier=notifier,
+        **kwargs,
     )
     return controller, clip_store, loader, renderer, notifier
 
@@ -202,3 +206,32 @@ def test_request_nearby_prefetch_is_empty_for_single_clip():
     controller.request_nearby_prefetch()
 
     assert loader.prefetch_requests == []
+
+
+class TestDiscardCurrent:
+    def test_condemns_the_clip_and_moves_on_to_the_next(self):
+        condemned: list[Path] = []
+        controller, clip_store, _loader, renderer, notifier = _build_controller(
+            "a.mp4", "b.mp4", "c.mp4", discard_clip=condemned.append,
+        )
+        clip_store.clip_cache[Path("b.mp4")] = {"frames": ["f0"]}
+
+        assert controller.discard_current() is True
+
+        assert condemned == [Path("a.mp4")]
+        assert controller.count == 2
+        assert renderer.current_clip_path == Path("b.mp4")
+        assert notifier.clip_notifications == [Path("b.mp4")]
+
+    def test_the_only_clip_is_never_condemned(self):
+        """Genau always has something on screen, so the last clip is untouchable."""
+        condemned: list[Path] = []
+        controller, _store, _loader, renderer, _notifier = _build_controller(
+            "a.mp4", discard_clip=condemned.append,
+        )
+
+        assert controller.discard_current() is False
+
+        assert condemned == []
+        assert controller.count == 1
+        assert renderer.current_clip_path is None

@@ -43,3 +43,28 @@ def test_nearby_candidates_empty_for_single_clip():
     controller = ClipSequenceController([Path("solo.mp4")])
 
     assert controller.nearby_candidates() == []
+
+
+class TestDropCurrent:
+    def test_drops_the_clip_and_lands_on_its_successor(self):
+        seq = ClipSequenceController([Path("a.mp4"), Path("b.mp4"), Path("c.mp4")])
+        seq.step(1)
+
+        assert seq.drop_current() == Path("c.mp4")
+        assert seq.count == 2
+        assert seq.current_path == Path("c.mp4")
+
+    def test_dropping_the_last_clip_wraps_to_the_first(self):
+        seq = ClipSequenceController([Path("a.mp4"), Path("b.mp4")])
+        seq.step(-1)
+        assert seq.current_path == Path("b.mp4")
+
+        assert seq.drop_current() == Path("a.mp4")
+        assert seq.count == 1
+
+    def test_the_only_clip_is_never_dropped(self):
+        """An empty sequence has nothing to show, so the last clip stays."""
+        seq = ClipSequenceController([Path("a.mp4")])
+
+        assert seq.drop_current() is None
+        assert seq.count == 1
