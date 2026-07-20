@@ -148,6 +148,26 @@ class TestPainter:
         assert _ink(painter.bgra(_hud(cruise=True)), AMBER) > \
             _ink(DriveHudPainter().bgra(_hud(cruise=False)), AMBER)
 
+    def test_auto_advance_says_so_beside_cruise(self):
+        """They are separate switches, so the panel has to be able to show
+        either, both, or neither."""
+        neither = _ink(DriveHudPainter().bgra(_hud()), AMBER)
+        cruise = _ink(DriveHudPainter().bgra(_hud(cruise=True)), AMBER)
+        advance = _ink(DriveHudPainter().bgra(_hud(auto_advance=True)), AMBER)
+        both = _ink(DriveHudPainter().bgra(_hud(cruise=True, auto_advance=True)), AMBER)
+
+        assert advance > neither
+        assert both > cruise and both > advance
+
+    def test_a_held_clip_recolours_the_auto_advance_flag(self):
+        """The hold only exists inside auto advance, so it rides that flag
+        rather than taking a place of its own."""
+        armed = DriveHudPainter().bgra(_hud(auto_advance=True))
+        held = DriveHudPainter().bgra(_hud(auto_advance=True, clip_locked=True))
+
+        assert _ink(held, AMBER) < _ink(armed, AMBER)
+        assert _ink(held, BLUE) > _ink(armed, BLUE)
+
     def test_a_bigger_stroke_draws_a_bigger_bar(self):
         """The amplitude bar is the stroke's extent, so it has to grow with it —
         it is the only thing on the panel that says how far the device travels."""
