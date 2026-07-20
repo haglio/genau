@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pygame
 from PIL import Image
 from pygame._sdl2.video import Renderer, Texture, Window
 
+from .drive_hud import PANEL_SIZE as DRIVE_PANEL_SIZE
+from .drive_hud import DriveHud, DriveHudPainter
 from .layout import compute_video_rects
-
-if TYPE_CHECKING:
-    from .refresh_controller import DirectOverlayData
 
 # Near-black magenta used as the Win32 color key for HUD transparency.
 # Any pixel drawn in this exact color becomes fully transparent.
 HUD_COLOR_KEY = (1, 0, 1)
+
+# Where the drive readout sits in Genau's window — the top-left corner, the same
+# corner every player in this family puts its HUD in.
+DRIVE_HUD_XY = (8, 8)
 
 
 def get_window_chrome_height() -> int:
@@ -95,8 +97,8 @@ class PygameView:
         self._video_size: tuple[int, int] | None = None
         self._loading_font: pygame.font.Font | None = None
         self._loading_text: str | None = None
-        self._direct_overlay: DirectOverlayData | None = None
-        self._overlay_font: pygame.font.Font | None = None
+        self._drive_hud: DriveHud | None = None
+        self._drive_painter = DriveHudPainter()
         self.hud_active: bool = False
         # When blank, the window paints solid black and draws no clip or overlay.
         # Genau uses this while it isn't the active display (e.g. Nau mode), so an
@@ -118,8 +120,8 @@ class PygameView:
     def set_loading_text(self, text: str | None) -> None:
         self._loading_text = text
 
-    def set_direct_overlay(self, data: DirectOverlayData | None) -> None:
-        self._direct_overlay = data
+    def set_drive_hud(self, hud: DriveHud | None) -> None:
+        self._drive_hud = hud
 
     def set_blank(self, blank: bool) -> None:
         self._blank = blank
@@ -129,7 +131,7 @@ class PygameView:
         self._video_size = (w, h)
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
         self._current_texture = Texture.from_surface(self.renderer, surface)
-        if self._direct_overlay is None:
+        if self._drive_hud is None:
             self._present_scene()
 
     def present(self) -> None:
@@ -155,8 +157,8 @@ class PygameView:
                 self._current_texture.draw()
         if show_clip and self._loading_text:
             self._draw_loading_overlay()
-        if not self._blank and self._direct_overlay is not None:
-            self._draw_direct_overlay()
+        if not self._blank and self._drive_hud is not None:
+            self._draw_drive_hud()
         self.renderer.present()
 
     def _draw_loading_overlay(self) -> None:
@@ -173,90 +175,22 @@ class PygameView:
         dest = pygame.Rect(win_w - w - padding * 3, padding, w + padding * 2, h + padding * 2)
         texture.draw(dstrect=dest)
 
-    def _draw_direct_overlay(self) -> None:
-        data = self._direct_overlay
-        if data is None:
+    def _draw_drive_hud(self) -> None:
+        """Blit the drive readout, painted by the module both players share.
+
+        Genau used to draw this panel itself, straight into this window with
+        ``pygame.draw`` calls and a Consolas SysFont — the last HUD in the family
+        still doing that.  It is now the same painting Nau composites into its
+        video in Hybrid, so the panel reads the same whichever player is showing
+        it, and there is only one place to change it.
+        """
+        hud = self._drive_hud
+        if hud is None:
             return
-        if self._overlay_font is None:
-            self._overlay_font = pygame.font.SysFont("consolas", 12)
-
-        wave_w, wave_h = 160, 60
-        amp_bar_w = 20
-        spd_bar_h = 16
-        pad = 8
-        gap = 4
-
-        panel_w = pad + wave_w + gap + amp_bar_w + pad
-        panel_h = pad + spd_bar_h + gap + wave_h + pad
-
-        surface = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
-        surface.fill((0, 0, 0, 160))
-
-        # --- Speed bar above waveform ---
-        spd_x, spd_y = pad, pad
-        pps = data.phase_per_second
-        cycle_frac = min(1.0, 1.0 / (pps * data.display_seconds)) if pps > 0 else 1.0
-        spd_fill_w = max(4, int(cycle_frac * wave_w))
-        pygame.draw.rect(surface, (60, 60, 60), (spd_x, spd_y, wave_w, spd_bar_h))
-        pygame.draw.rect(surface, (80, 180, 80), (spd_x, spd_y, spd_fill_w, spd_bar_h))
-        spd_text = self._overlay_font.render(f"SPD {data.speed}", True, (220, 220, 220))
-        surface.blit(spd_text, (spd_x + 3, spd_y + 1))
-
-        # --- Waveform graph (scrolling) ---
-        wave_x = pad
-        wave_y = pad + spd_bar_h + gap
-        points = data.waveform_points
-        if len(points) >= 2:
-            coords = []
-            for i, val in enumerate(points):
-                x = wave_x + int(i / (len(points) - 1) * (wave_w - 1))
-                y = wave_y + int((1 - val) * (wave_h - 1))
-                coords.append((x, y))
-            pygame.draw.lines(surface, (100, 200, 255), False, coords, 2)
-
-        # Center dotted line through waveform
-        center_norm = data.center / 100
-        ctr_y = wave_y + int((1 - center_norm) * (wave_h - 1))
-        for dx in range(0, wave_w, 6):
-            x1 = wave_x + dx
-            x2 = min(wave_x + dx + 3, wave_x + wave_w - 1)
-            pygame.draw.line(surface, (200, 200, 100, 180), (x1, ctr_y), (x2, ctr_y), 1)
-
-        # Highlight dot on left edge at current position
-        pos_norm = data.position / 9999
-        dot_y = wave_y + int((1 - pos_norm) * (wave_h - 1))
-        pygame.draw.circle(surface, (255, 255, 100), (wave_x, dot_y), 4)
-
-        # Waveform border
-        pygame.draw.rect(surface, (80, 80, 80), (wave_x, wave_y, wave_w, wave_h), 1)
-
-        # --- Amplitude bar to the right of waveform ---
-        amp_x = wave_x + wave_w + gap
-        amp_y = wave_y
-        # Bar height and position reflect amplitude and center
-        amp_frac = data.amplitude / 100
-        ctr_frac = data.center / 100
-        bar_h = max(2, int(amp_frac * wave_h))
-        bar_top = amp_y + int((1 - ctr_frac) * wave_h - bar_h / 2)
-        bar_top = max(amp_y, min(amp_y + wave_h - bar_h, bar_top))
-        pygame.draw.rect(surface, (60, 60, 60), (amp_x, amp_y, amp_bar_w, wave_h))
-        pygame.draw.rect(surface, (100, 160, 255), (amp_x, bar_top, amp_bar_w, bar_h))
-        # AMP label
-        amp_label = self._overlay_font.render(f"{data.amplitude}", True, (220, 220, 220))
-        label_y = bar_top + (bar_h - amp_label.get_height()) // 2
-        label_y = max(amp_y, min(amp_y + wave_h - amp_label.get_height(), label_y))
-        label_x = amp_x + (amp_bar_w - amp_label.get_width()) // 2
-        surface.blit(amp_label, (label_x, label_y))
-
-        if data.cruise_active:
-            cc_text = self._overlay_font.render("CC", True, (255, 200, 100))
-            surface.blit(
-                cc_text, (panel_w - cc_text.get_width() - pad, pad + 1)
-            )
-
+        surface = pygame.image.frombuffer(
+            self._drive_painter.rgba_bytes(hud), DRIVE_PANEL_SIZE, "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
-        dest = pygame.Rect(pad, pad, panel_w, panel_h)
-        texture.draw(dstrect=dest)
+        texture.draw(dstrect=pygame.Rect(DRIVE_HUD_XY, DRIVE_PANEL_SIZE))
 
     def set_hud_mode(self, active: bool) -> None:
         if active == self.hud_active:

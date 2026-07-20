@@ -70,18 +70,18 @@ def test_present_scene_skips_texture_when_blank(mock_pygame):
     texture.draw.assert_not_called()
 
 
-def test_present_scene_skips_direct_overlay_when_blank(mock_pygame):
+def test_present_scene_skips_the_drive_hud_when_blank(mock_pygame):
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
     view.hud_active = False
-    view._direct_overlay = MagicMock()  # non-None would normally trigger overlay
-    view._draw_direct_overlay = MagicMock()
+    view._drive_hud = MagicMock()  # non-None would normally trigger overlay
+    view._draw_drive_hud = MagicMock()
     view.set_blank(True)
 
     view._present_scene()
 
-    view._draw_direct_overlay.assert_not_called()
+    view._draw_drive_hud.assert_not_called()
 
 
 def test_present_scene_clears_to_black_when_blank(mock_pygame):
@@ -151,12 +151,12 @@ def test_present_scene_calls_draw_overlay_in_hud_mode(mock_pygame):
 
     view = PygameView(width=800, height=600)
     view.hud_active = True
-    view._direct_overlay = MagicMock()  # non-None triggers overlay
-    view._draw_direct_overlay = MagicMock()
+    view._drive_hud = MagicMock()  # non-None triggers overlay
+    view._draw_drive_hud = MagicMock()
 
     view._present_scene()
 
-    view._draw_direct_overlay.assert_called_once()
+    view._draw_drive_hud.assert_called_once()
 
 
 def test_set_hud_mode_true_enables_layered_window(mock_pygame):
