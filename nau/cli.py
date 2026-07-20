@@ -56,6 +56,8 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                    help="Flag file that owns the paused state when present")
     p.add_argument("--status-file", type=Path, default=None,
                    help="Publish playback status to this file")
+    p.add_argument("--dashboard-cmd-file", type=Path, default=None,
+                   help="Where a press on the volume control posts its Fun Time command")
     p.add_argument("--no-audio", action="store_true", default=False,
                    help="Never extract or play audio (silent)")
     return p
