@@ -59,6 +59,15 @@ class ProjectConfig:
         return self.state_dir / "genau_paused.txt"
 
     @property
+    def genau_drive_file(self) -> Path:
+        """Where Genau says what it is driving the device with, for Nau to draw.
+
+        In Hybrid the readout belongs to Nau's console — the controls that move
+        these numbers are on it — so Genau publishes rather than paints.
+        """
+        return self.state_dir / "genau_drive.txt"
+
+    @property
     def logs_dir(self) -> Path:
         return self.state_dir
 
