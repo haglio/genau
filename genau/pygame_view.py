@@ -20,22 +20,6 @@ HUD_COLOR_KEY = (1, 0, 1)
 DRIVE_HUD_XY = (8, 8)
 
 
-def get_window_chrome_height() -> int:
-    try:
-        import ctypes
-        SM_CYCAPTION = 4
-        SM_CYFRAME = 33
-        SM_CXPADDEDBORDER = 92
-        user32 = ctypes.windll.user32
-        return (
-            user32.GetSystemMetrics(SM_CYCAPTION)
-            + user32.GetSystemMetrics(SM_CYFRAME)
-            + user32.GetSystemMetrics(SM_CXPADDEDBORDER)
-        )
-    except Exception:
-        return 0
-
-
 def hud_window_identity(
     active: bool,
     *,
@@ -78,10 +62,14 @@ class PygameView:
         hybrid_icon_path: Path | None = None,
     ) -> None:
         pygame.init()
-        chrome_height = get_window_chrome_height()
-        client_height = max(1, height - chrome_height)
-        self.window = Window(title, size=(width, client_height))
-        self.window.position = (x, y + chrome_height)
+        # Borderless, like the satellites and Nau: the primary slot's mode used to
+        # be readable off this window's title bar, but that moved onto the in-video
+        # HUD, so the bar was only taking space.  With no chrome the client area is
+        # the whole rect Fun Time sizes the window to — and, in Hybrid, this
+        # transparent layer lines up with Nau's video beneath it pixel for pixel,
+        # where a title bar on one and not the other would shift them apart.
+        self.window = Window(title, size=(width, height), borderless=True)
+        self.window.position = (x, y)
         load_window_icon(self.window, icon_path)
         # Fun Time Hybrid mode shows this window as "Hybrid Nau+Genau" with its
         # own icon; genau mode is plain "Genau".  Driven off the HUD toggle.

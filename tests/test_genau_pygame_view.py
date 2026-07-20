@@ -25,6 +25,20 @@ def test_pygame_view_create(mock_pygame):
     assert view.height == 600
 
 
+def test_the_window_is_borderless_and_fills_its_rect(mock_pygame):
+    """The primary slot has no title bar — the mode it used to name is on the HUD —
+    so the window is chromeless and its client area is the whole rect, both to
+    reclaim the space and to keep the Hybrid layer aligned with Nau's video."""
+    import genau.pygame_view as pv
+
+    pv.PygameView(width=800, height=600, x=100, y=50, title="Genau")
+
+    _title, kwargs = pv.Window.call_args
+    assert kwargs["size"] == (800, 600)   # the whole rect, no chrome subtracted
+    assert kwargs["borderless"] is True
+    assert pv.Window.return_value.position == (100, 50)  # the rect's own corner
+
+
 def test_hud_mode_defaults_to_false(mock_pygame):
     from genau.pygame_view import PygameView
 
