@@ -152,6 +152,66 @@ class TestPainter:
             "primary_prev", "primary_next"]
 
 
+class TestPresses:
+    """Which control a mouse press at a *window* point landed on.
+
+    The panel's hit targets are placed from its own top-left corner, but presses
+    arrive in the window's coordinates, so every hit test has to undo `hud_xy`
+    first.  The painter is the only thing that knows both where the panel went
+    and what it drew there, so it is the only thing that should have to.
+    """
+
+    @staticmethod
+    def _painted(mode: str = "nau") -> NauHudPainter:
+        painter = NauHudPainter()
+        painter.bgra(NauHud(console=ConsoleModel(mode=mode)))
+        return painter
+
+    @staticmethod
+    def _over(painter: NauHudPainter, action: str) -> tuple[int, int]:
+        """The window point at the middle of the button posting *action*."""
+        (bx, by, bw, bh), _button = next(
+            (rect, b) for rect, b in painter.buttons if b.action == action)
+        left, top = hud_xy()
+        return left + bx + bw // 2, top + by + bh // 2
+
+    def test_a_press_on_a_button_carries_that_buttons_command(self):
+        painter = self._painted()
+
+        assert painter.command_at(*self._over(painter, "primary_next")) == "primary_next"
+
+    def test_a_press_on_the_video_below_the_panel_carries_nothing(self):
+        """A press that misses every button falls through to the video, where it
+        seeks or pauses — so "no button here" has to be sayable."""
+        painter = self._painted()
+
+        assert painter.command_at(900, 700) == ""
+
+    def test_the_panels_own_corner_is_not_read_as_the_windows(self):
+        """The panel is inset from the window corner.  Feeding a hit test the
+        window point untranslated shifts every target up and left by that inset,
+        which is how a press lands on the button beside the one under the cursor."""
+        painter = self._painted()
+        (bx, by, _bw, _bh), _button = next(
+            (rect, b) for rect, b in painter.buttons if b.action == "primary_prev")
+
+        assert painter.command_at(bx, by) == ""
+
+    def test_the_cursor_over_a_button_is_reported_where_the_panel_can_draw_it(self):
+        """The tooltip is drawn inside the panel, so the spot handed back has to be
+        in the panel's coordinates, not the window's."""
+        painter = self._painted()
+        mx, my = self._over(painter, "primary_next")
+        left, top = hud_xy()
+
+        assert painter.hover_at(mx, my) == (mx - left, my - top)
+
+    def test_the_cursor_over_no_button_is_not_reported_at_all(self):
+        painter = self._painted()
+
+        assert painter.hover_at(900, 700) is None
+
+
 class TestPlacement:
     def test_the_panel_sits_in_the_top_left_corner(self):
         """Where the satellites put theirs, so every player in the family answers

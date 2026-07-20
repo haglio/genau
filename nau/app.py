@@ -26,7 +26,7 @@ from .cli import (
 )
 from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
-from .console import ConsoleModel, genau_drives, hit_test, read_console, tooltip_at
+from .console import ConsoleModel, genau_drives, read_console
 from .hud import ModeHud, NauHud, NauHudPainter, hud_xy
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, LENGTH_MODES, next_length_mode
@@ -313,13 +313,17 @@ def _run(args) -> int:
     def _post(command: str) -> None:
         """Ask Fun Time for something, on the channel its dashboard uses.
 
+        Every control on this HUD asks rather than acts — the console's buttons
+        because the verbs are the room's, not this player's, and the volume slider
+        because Fun Time holds the authority over the primary display's sound.
+
         Appended, because that file carries every mouse- and voice-driven writer
         at once and the dispatch loop drains it a tick at a time.  Standalone
-        (no Fun Time) there is nowhere to ask, so the control is inert rather
-        than pretending: it goes on showing the level mpv is actually at.
+        (no Fun Time) there is nowhere to ask, so a control is inert rather than
+        pretending: it goes on showing whatever is actually the case.
         """
         if args.dashboard_cmd_file is not None:
-            append_command(Path(args.dashboard_cmd_file), command)
+            append_command(args.dashboard_cmd_file, command)
 
     def _press_volume(cx: int, cy: int) -> bool:
         """Take a press at chip-local ``(cx, cy)``; False if it missed the chip.
@@ -365,14 +369,15 @@ def _run(args) -> int:
             if ev.type == pygame.QUIT:
                 stop_event.set()
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                pressed = hit_test(console_hud.buttons, *_console_local(*ev.pos))
-                if pressed and args.dashboard_cmd_file is not None:
-                    append_command(args.dashboard_cmd_file, pressed)
-                elif not pressed:
+                pressed = console_hud.command_at(*ev.pos)
+                if pressed:
+                    _post(pressed)
+                else:
+                    # A press that missed every button falls through to the video,
+                    # where it seeks or pauses as it always did.
                     _click(ev.pos[0], ev.pos[1], win_w, win_h)
             elif ev.type == pygame.MOUSEMOTION:
-                local = _console_local(*ev.pos)
-                hover = local if tooltip_at(console_hud.buttons, *local) else None
+                hover = console_hud.hover_at(*ev.pos)
                 if ev.buttons[0]:
                     # Dragging along the track keeps setting the level, the way
                     # every volume slider does; a drag that began elsewhere misses
