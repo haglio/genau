@@ -23,6 +23,9 @@ class GenauLifecycleController:
         on_adjust_center=lambda delta: None,
         on_cycle_shape=lambda: None,
         on_toggle_cruise=lambda: None,
+        on_toggle_auto_advance=lambda: None,
+        on_toggle_clip_lock=lambda: None,
+        on_weird_clip=lambda: None,
     ):
         self.view = view
         self.renderer = renderer
@@ -38,6 +41,9 @@ class GenauLifecycleController:
         self.on_adjust_center = on_adjust_center
         self.on_cycle_shape = on_cycle_shape
         self.on_toggle_cruise = on_toggle_cruise
+        self.on_toggle_auto_advance = on_toggle_auto_advance
+        self.on_toggle_clip_lock = on_toggle_clip_lock
+        self.on_weird_clip = on_weird_clip
         self._resize_pending_at: float | None = None
 
     def process_events(self) -> None:
@@ -68,18 +74,27 @@ class GenauLifecycleController:
             self.on_adjust_speed(-5)
         elif event.key == pygame.K_l:
             self.on_adjust_speed(5)
-        elif event.key == pygame.K_k:
+        elif event.key == pygame.K_7:
             self.on_adjust_amplitude(-10)
-        elif event.key == pygame.K_i:
+        elif event.key == pygame.K_9:
             self.on_adjust_amplitude(10)
         elif event.key == pygame.K_u:
             self.on_adjust_center(-5)
         elif event.key == pygame.K_o:
             self.on_adjust_center(5)
-        elif event.key == pygame.K_COMMA:
+        elif event.key == pygame.K_i:
             self.on_cycle_shape()
         elif event.key == pygame.K_SLASH:
             self.on_toggle_cruise()
+        elif event.key == pygame.K_x:
+            self.on_toggle_auto_advance()
+        # K / M / , / . are Genau's clip cluster, laid out like the arrow keys:
+        # K above for "condemn this one", M and . either side for previous and
+        # next, and , below K to hold the clip against auto-advance.
+        elif event.key == pygame.K_k:
+            self.on_weird_clip()
+        elif event.key == pygame.K_COMMA:
+            self.on_toggle_clip_lock()
 
     def _on_resize(self) -> None:
         self._resize_pending_at = time.monotonic()
