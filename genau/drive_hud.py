@@ -103,6 +103,9 @@ class DriveHud:
     auto_advance: bool = False
     # A held clip: auto advance is still armed, but sitting still.
     clip_locked: bool = False
+    # Seconds between auto-advances, so the readout can say the pace it is set to;
+    # 0 means the jittered default, which has no single number to show.
+    advance_interval: int = 0
     playing: bool = False
     spd_at_max: bool = False
     spd_at_min: bool = False
@@ -256,7 +259,8 @@ class DriveSection:
         if hud.cruise:
             flags.append(("Cruise", AMBER))
         if hud.auto_advance:
-            flags.append(("Auto", BLUE if hud.clip_locked else AMBER))
+            label = f"Auto {hud.advance_interval}s" if hud.advance_interval else "Auto"
+            flags.append((label, BLUE if hud.clip_locked else AMBER))
         return flags
 
     def _value(self, draw, y: int, key: str, value: str, *,
@@ -318,7 +322,7 @@ class DriveSection:
 # other channel between these players: the reader polls per frame, and a torn or
 # missing read simply means "keep the readout you have".
 
-_SCALARS = ("speed", "amplitude", "center", "position")
+_SCALARS = ("speed", "amplitude", "center", "position", "advance_interval")
 _FLAGS = ("cruise", "auto_advance", "clip_locked", "playing",
           "spd_at_max", "spd_at_min", "amp_at_max", "amp_at_min",
           "ctr_at_max", "ctr_at_min")
