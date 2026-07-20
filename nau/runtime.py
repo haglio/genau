@@ -27,7 +27,6 @@ def apply_command(
     play_full_vid=None,
     play_money_shot=None,
     end_compilation=None,
-    set_hybrid=None,
     set_f_mode=None,
     set_active=None,
     set_volume_hud=None,
@@ -104,13 +103,6 @@ def apply_command(
         if not arg:
             return False
         session.set_tcode_enabled(arg != "0")
-    elif keyword == "SET_HYBRID":
-        # In Hybrid, Genau's window is a transparent layer over Nau's and its own
-        # panel holds the top-left corner; Nau moves its corner furniture aside.
-        # Only the orchestrator knows which mode the primary slot is in.
-        if set_hybrid is None or not arg:
-            return False
-        set_hybrid(arg != "0")
     elif keyword == "SET_F_MODE":
         # F-mode narrows the playlist Fun Time writes to the scripted videos.
         # Nau receives the result and cannot tell it from any other playlist, so

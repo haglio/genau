@@ -6,11 +6,16 @@ from pathlib import Path
 
 from player_core.file_channel import consume_command_file
 
-from .drive_hud import DriveHud
+from .drive_hud import DriveHud, publish_drive
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
 from .status_writer import write_status_file
+
+# How often the drive readout goes out for Nau to draw.  Its trace scrolls, so it
+# cannot wait on a change the way the status file does — 25/s is well under
+# Genau's refresh rate and well over what reads as smooth.
+_DRIVE_PUBLISH_INTERVAL_S = 0.04
 
 
 class GenauRefreshController:
@@ -41,6 +46,7 @@ class GenauRefreshController:
         tcode_sender=None,
         cruise_control=None,
         broker_cmd_file: Path | None = None,
+        drive_file: Path | None = None,
         set_drive_hud=None,
         present_scene=None,
         stop_event=None,
@@ -73,6 +79,8 @@ class GenauRefreshController:
         self.tcode_sender = tcode_sender
         self.cruise_control = cruise_control
         self.broker_cmd_file = broker_cmd_file
+        self.drive_file = drive_file
+        self._last_drive_publish = 0.0
         self.set_drive_hud = set_drive_hud or (lambda _hud: None)
         self.present_scene = present_scene or (lambda: None)
         self.stop_event = stop_event
@@ -142,7 +150,7 @@ class GenauRefreshController:
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
         if direct_active:
-            self._update_drive_hud()
+            self._update_drive_hud(now)
         elif self.direct_state is not None:
             self.set_drive_hud(None)
 
@@ -218,7 +226,7 @@ class GenauRefreshController:
             hud_on = self.hud_state["active"] if self.hud_state is not None else False
             write_status_file(status_path, self.direct_state, self.cruise_control, hud_active=hud_on)
 
-    def _update_drive_hud(self) -> None:
+    def _update_drive_hud(self, now: float) -> None:
         from .direct_control import MIN_BPM, sample_waveform
 
         ds = self.direct_state
@@ -232,7 +240,7 @@ class GenauRefreshController:
         # Show enough time that one whole cycle is visible at the slowest speed.
         display_seconds = 60.0 * self.beats_per_loop / MIN_BPM
 
-        self.set_drive_hud(DriveHud(
+        hud = DriveHud(
             speed=ds.speed,
             amplitude=ds.amplitude,
             center=ds.center,
@@ -245,4 +253,23 @@ class GenauRefreshController:
                 start_phase=start_phase,
                 phase_range=phase_per_second * display_seconds,
             )),
-        ))
+        )
+        self.set_drive_hud(hud)
+        self._publish_drive(hud, now)
+
+    def _publish_drive(self, hud: DriveHud, now: float) -> None:
+        """Say the readout for Nau to draw, at a fraction of the refresh rate.
+
+        In Hybrid this panel belongs to Nau's console — the controls that move
+        these numbers are up there, so the numbers are too — and Genau's window is
+        only the transparent layer driving the device.  The trace scrolls, so this
+        cannot wait for a change the way the status file does; it is throttled
+        instead, well under the refresh rate and well over what the eye reads as
+        smooth.
+        """
+        if self.drive_file is None:
+            return
+        if now - self._last_drive_publish < _DRIVE_PUBLISH_INTERVAL_S:
+            return
+        self._last_drive_publish = now
+        publish_drive(self.drive_file, hud)

@@ -27,11 +27,15 @@ once.  This one persists, because a mode you are in is not news, it is a state.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
+from genau.drive_hud import DriveHud, DriveSection
 from player_core.hud_panel import (
+    BG_PRIMARY,
+    BORDER_PANEL,
     GREEN,
+    RED,
     TEXT_MUTED,
     TEXT_PRIMARY,
     HudPanel,
@@ -39,7 +43,21 @@ from player_core.hud_panel import (
     text_width,
 )
 
+from .console import (
+    Button,
+    ConsoleModel,
+    Rect,
+    console_rows,
+    place_rows,
+    row_width,
+    rows_height,
+    tooltip_at,
+)
 from .library import FULL, MIXED, SHORTS
+
+# The glyphs the console's buttons are drawn with come from Segoe UI Symbol;
+# Segoe UI Bold has none of them and Pillow draws tofu rather than falling back.
+SYMBOL_FONT = "seguisym.ttf"
 
 # What the length modes are called on screen.  The library names them for what
 # it filters on; the HUD names them for what the user asked for.
@@ -77,9 +95,9 @@ class ModeHud:
     volume whose clips are the playlist, empty while the library is feeding it
     normally; *position* and *total* place the current video in that playlist.
     *f_mode* and *active* are Fun Time's, not Nau's: only the orchestrator knows
-    them, and they arrive over the command channel like the hybrid flag does.
-    *active* is whether a bare, player-less command lands here rather than on a
-    satellite — drawn as the dot, never as a word.
+    them, and they arrive published.  *active* is whether a bare, player-less
+    command lands here rather than on a satellite — drawn as the dot, never as a
+    word.
     """
 
     length_mode: str = ""
@@ -117,67 +135,158 @@ class ModeHud:
 # --- the panel ---------------------------------------------------------------
 
 _SIZE_BODY = 11
-PAD = 10
+_SIZE_TINY = 8
+_PAD = 10
 DOT = 10      # the active-player dot at the head of the panel
 DOT_GAP = 8   # …and the room between it and the words
 _MARGIN = 8   # inset from the window's top-left corner
-
-# Genau draws its own panel (waveform, speed, amplitude) at the same inset in its
-# own window.  In Hybrid that window is a transparent layer over Nau's, so the
-# two would sit on top of each other; Nau's starts past Genau's instead.  The
-# width is Genau's panel's, kept as a constant rather than imported, because
-# Nau must not reach into Genau's rendering to lay out its own corner.
-GENAU_PANEL_W = 200
-_GENAU_GAP = 8
+_LINE_GAP = 4
+_SECTION_GAP = 8
 
 
-def hud_xy(*, hybrid: bool) -> tuple[int, int]:
+def hud_xy() -> tuple[int, int]:
     """Where the panel goes: the window's top-left corner, the same place the
-    satellites put theirs — shifted clear of Genau's panel in Hybrid."""
-    return _MARGIN + (GENAU_PANEL_W + _GENAU_GAP if hybrid else 0), _MARGIN
+    satellites put theirs.
+
+    It used to shift right in Hybrid to clear a panel Genau drew in its own
+    transparent layer over this window — with Genau's width hand-copied into a
+    constant here, which silently broke Nau's layout whenever that panel was
+    resized.  Genau's readout is drawn inside this panel now, so there is nothing
+    to clear and nothing to keep in step.
+    """
+    return _MARGIN, _MARGIN
 
 
-class ModeHudPainter:
-    """Paints a :class:`ModeHud`, and only when what it says changes.
+@dataclass(frozen=True)
+class NauHud:
+    """Everything on Nau's HUD: what it is playing inside, and the room's controls.
+
+    *modes* is Nau's own answer to "what is selecting this playlist?".  The rest
+    arrives from Fun Time — only the orchestrator knows which mode the primary slot
+    is in, what is driving the device, or where Genau's controls have hit their
+    limits — and *drive* is Genau's live readout, present only while a waveform is
+    driving the device.
+    """
+
+    modes: ModeHud = field(default_factory=ModeHud)
+    console: ConsoleModel = field(default_factory=ConsoleModel)
+    drive: DriveHud | None = None
+
+
+class NauHudPainter:
+    """Paints Nau's HUD, and only when something on it has moved.
 
     Nau redraws its overlays every frame at 60 fps and Pillow is nowhere near
-    cheap enough for that, so the bitmap is kept until the mode moves — which is
-    a few times an hour.
+    cheap enough for that, so the bitmap is kept until the panel's contents
+    change.  The button rects from the last painting are kept beside it, so what
+    is clickable is exactly what was drawn.
     """
 
     def __init__(self) -> None:
-        self._font = load_font(_SIZE_BODY)
-        self._painted: ModeHud | None = None
+        self._body = load_font(_SIZE_BODY)
+        self._tiny = load_font(_SIZE_TINY)
+        self._glyph = load_font(_SIZE_BODY, SYMBOL_FONT)
+        self._drive = DriveSection()
+        self._painted: tuple[NauHud, tuple[int, int] | None] | None = None
         self._bgra: np.ndarray | None = None
+        self.buttons: list[tuple[Rect, Button]] = []
 
+    def bgra(self, hud: NauHud, *, hover: tuple[int, int] | None = None) -> np.ndarray:
+        """*hud* as an mpv overlay bitmap, with the button under *hover* named.
 
-    def bgra(self, hud: ModeHud) -> np.ndarray:
-        """*hud* as an mpv overlay bitmap.
-
-        Always a bitmap now, never None: the dot is on it, and a dot that
-        disappears when the player has nothing else to say cannot be told from an
-        idle one — which would leave only the player *holding* the floor saying
-        anything, and no way to read that off this one.
+        The cursor is part of what is drawn, so it is part of what the cache is
+        keyed on — otherwise a tooltip would only appear when something else about
+        the panel happened to move.
         """
-        if hud != self._painted:
-            self._painted, self._bgra = hud, self._paint(hud)
+        if (hud, hover) != self._painted or self._bgra is None:
+            self._painted, self._bgra = (hud, hover), self._paint(hud, hover)
         return self._bgra
 
-    def _paint(self, hud: ModeHud) -> np.ndarray:
-        line = hud.line
-        ascent, descent = self._font.getmetrics()
-        text_x = PAD + DOT + DOT_GAP
-        panel = HudPanel(
-            text_x + text_width(self._font, line) + PAD,
-            2 * PAD + ascent + descent,
-        )
-        # Green while a bare command lands here, the palette's grey otherwise —
-        # the same dot, in the same place, as each satellite's.
-        panel.draw.ellipse(
-            [PAD, PAD + 2, PAD + DOT, PAD + 2 + DOT],
-            fill=(*(GREEN if hud.active else TEXT_MUTED), 255),
-        )
-        if line:
-            panel.draw.text((text_x, PAD + ascent), line, font=self._font, anchor="ls",
-                            fill=(*TEXT_PRIMARY, 255))
+    def _paint(self, hud: NauHud, hover: tuple[int, int] | None = None) -> np.ndarray:
+        rows = console_rows(hud.console)
+        lines = [line for line in (hud.modes.line, hud.console.osr2) if line]
+        line_h = sum(self._body.getmetrics())
+        drive_w, drive_h = DriveSection.SIZE if hud.drive is not None else (0, 0)
+
+        dotted = DOT + DOT_GAP
+        width = 2 * _PAD + max(
+            [row_width(rows), drive_w]
+            + [dotted + text_width(self._body, line) for line in lines])
+        # The dot's own line is there even with nothing to say beside it.
+        height = 2 * _PAD + rows_height(rows) + _SECTION_GAP
+        height += max(1, len(lines)) * (line_h + _LINE_GAP) - _LINE_GAP
+        if hud.drive is not None:
+            height += drive_h + _SECTION_GAP
+
+        panel = HudPanel(width, height)
+        draw = panel.draw
+        y = _PAD
+        # Green while a bare, player-less command lands here, the palette's grey
+        # otherwise — the same dot, in the same corner, as each satellite's.  It
+        # leads the first line and is drawn whether or not there is a line: a dot
+        # that vanished when the player had nothing else to say could not be told
+        # from one saying the floor is elsewhere.
+        draw.ellipse([_PAD, y + 2, _PAD + DOT, y + 2 + DOT],
+                     fill=(*(GREEN if hud.modes.active else TEXT_MUTED), 255))
+        text_x = _PAD + DOT + DOT_GAP
+        for line in lines:
+            draw.text((text_x, y + line_h), line, font=self._body, anchor="ls",
+                      fill=(*TEXT_PRIMARY, 255))
+            y += line_h + _LINE_GAP
+        y += (_SECTION_GAP - _LINE_GAP) if lines else line_h + _SECTION_GAP - _LINE_GAP
+
+        self.buttons = place_rows(rows, x=_PAD, y=y)
+        for rect, button in self.buttons:
+            self._button(draw, rect, button)
+        y += rows_height(rows)
+
+        if hud.drive is not None:
+            # Drawn into this panel rather than beside it: the controls above are
+            # what move these numbers, and a reading that lived on its own slab
+            # would be a second HUD to find rather than the answer to the row you
+            # just pressed.
+            self._drive.draw(draw, _PAD, y + _SECTION_GAP, hud.drive)
+
+        if hover is not None:
+            self._tooltip(draw, width, height, tooltip_at(self.buttons, *hover), hover)
         return panel.to_bgra()
+
+    def _tooltip(self, draw, width: int, height: int, text: str, pos: tuple[int, int]) -> None:
+        """A tooltip drawn inside the panel near the cursor — the HUD lives in the
+        video, so there is no native one to fall back on, and every glyph up here
+        is cryptic on purpose."""
+        if not text:
+            return
+        pad = 5
+        ascent, descent = self._tiny.getmetrics()
+        w = text_width(self._tiny, text) + 2 * pad
+        h = ascent + descent + 2 * pad
+        x = max(2, min(pos[0] + 14, width - w - 2))
+        y = max(2, min(pos[1] + 16, height - h - 2))
+        draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=4,
+                               fill=(*BG_PRIMARY, 240), outline=(*BORDER_PANEL, 255), width=1)
+        draw.text((x + w / 2, y + h / 2), text, font=self._tiny, anchor="mm",
+                  fill=(*TEXT_PRIMARY, 255))
+
+    def _button(self, draw, rect: Rect, button: Button) -> None:
+        """One control, in the one button shape this family's HUDs are drawn with:
+        an outline when off, filled when on, faded when it has run out of range.
+
+        A label — an item with nothing to post — is drawn as a bare word instead,
+        because a box around it would invite a press that does nothing.
+        """
+        x, y, w, h = rect
+        if not button.action:
+            draw.text((x + w, y + h / 2), button.glyph, font=self._tiny, anchor="rm",
+                      fill=(*TEXT_MUTED, 255))
+            return
+        fill = GREEN if button.lit else RED if button.warn else None
+        edge = TEXT_MUTED if button.dim else (fill or TEXT_MUTED)
+        draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=3,
+                               fill=(*fill, 255) if fill else None,
+                               outline=(*edge, 255), width=1)
+        # A word rides the UI face; a symbol needs the face that actually has it.
+        font = self._tiny if button.glyph.isalnum() else self._glyph
+        ink = BG_PRIMARY if fill else TEXT_MUTED if button.dim else TEXT_PRIMARY
+        draw.text((x + w / 2, y + h / 2), button.glyph, font=font, anchor="mm",
+                  fill=(*ink, 255))

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pygame
 
+from genau.drive_hud import DriveHud, read_drive
 from genau.pygame_view import get_window_chrome_height
 from genau.tcode import UdpTCodeSink
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
@@ -25,7 +26,8 @@ from .cli import (
 )
 from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
-from .hud import ModeHud, ModeHudPainter, hud_xy
+from .console import ConsoleModel, genau_drives, hit_test, read_console, tooltip_at
+from .hud import ModeHud, NauHud, NauHudPainter, hud_xy
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, LENGTH_MODES, next_length_mode
 from .mode_memory import RememberedMode
@@ -58,7 +60,7 @@ _OV_SPEED = 2
 _OV_NAME = 3
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
-_OV_MODE = 6
+_OV_CONSOLE = 6
 _OV_VOLUME = 7
 
 # Between the stacked overlays in the top-left column: the mode HUD, the video's
@@ -206,8 +208,6 @@ def _run(args) -> int:
     # one without library dirs): no length filter is running, so the HUD has no
     # mode to name and the toggle has nothing to rebuild.
     length_mode = (remembered.length_mode or DEFAULT_MODE) if source is not None else ""
-    # Genau's HUD holds the top-left corner in Hybrid; Fun Time says when.
-    hybrid = False
     # Fun Time's F-mode narrows the playlist it writes to the scripted videos.
     # The result is indistinguishable from any other playlist here, so this only
     # ever comes from Fun Time saying so — and defaults off, because a session
@@ -224,7 +224,15 @@ def _run(args) -> int:
     volume_hud = VolumeHud()
     volume_painter = VolumeHudPainter()
     heatmap = HeatmapStrip()
-    mode_hud = ModeHudPainter()
+    console_hud = NauHudPainter()
+    # What Fun Time says about the primary slot, and what Genau says it is doing
+    # to the device.  Both arrive published; before the first read the console
+    # still draws, with the player's own controls and nothing claimed about the
+    # room around it.
+    console = ConsoleModel()
+    drive: DriveHud | None = None
+    # Where the cursor is over the console, so a button can name itself on hover.
+    hover: tuple[int, int] | None = None
     loop_thumbs = LoopThumbCapture()
     status_writer = StatusWriter(args.status_file, status_fields) if args.status_file else None
     stop_event = threading.Event()
@@ -283,10 +291,6 @@ def _run(args) -> int:
         if source is None:
             return
         jumps.end_compilation(source.playlist_for(length_mode))
-
-    def _set_hybrid(active: bool) -> None:
-        nonlocal hybrid
-        hybrid = active
 
     def _set_f_mode(active: bool) -> None:
         nonlocal f_mode
@@ -361,15 +365,22 @@ def _run(args) -> int:
             if ev.type == pygame.QUIT:
                 stop_event.set()
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                _click(ev.pos[0], ev.pos[1], win_w, win_h)
-            elif ev.type == pygame.MOUSEMOTION and ev.buttons[0]:
-                # Dragging along the track keeps setting the level, the way every
-                # volume slider does; a drag that began elsewhere misses the chip
-                # and does nothing.
-                vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=_timeline_h())
-                cx, cy = ev.pos[0] - vx, ev.pos[1] - vy
-                if hit_part(cx, cy) == "track":
-                    _press_volume(cx, cy)
+                pressed = hit_test(console_hud.buttons, *_console_local(*ev.pos))
+                if pressed and args.dashboard_cmd_file is not None:
+                    append_command(args.dashboard_cmd_file, pressed)
+                elif not pressed:
+                    _click(ev.pos[0], ev.pos[1], win_w, win_h)
+            elif ev.type == pygame.MOUSEMOTION:
+                local = _console_local(*ev.pos)
+                hover = local if tooltip_at(console_hud.buttons, *local) else None
+                if ev.buttons[0]:
+                    # Dragging along the track keeps setting the level, the way
+                    # every volume slider does; a drag that began elsewhere misses
+                    # the chip and does nothing.
+                    vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=_timeline_h())
+                    cx, cy = ev.pos[0] - vx, ev.pos[1] - vy
+                    if hit_part(cx, cy) == "track":
+                        _press_volume(cx, cy)
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
                     stop_event.set()
@@ -407,7 +418,6 @@ def _run(args) -> int:
                     play_full_vid=jumps.play_full_vid,
                     play_money_shot=jumps.play_money_shot,
                     end_compilation=_end_compilation,
-                    set_hybrid=_set_hybrid,
                     set_f_mode=_set_f_mode,
                     set_active=_set_active,
                     set_volume_hud=_set_volume_hud,
@@ -451,19 +461,28 @@ def _run(args) -> int:
             remembered = mode_now
             memory.write(mode_now)
 
-        # The top-left column, stacked: the dot saying whether a bare command
-        # lands here, which mode is selecting what plays (the length filter, or
-        # the compilation holding the playlist) and whether F-mode is narrowing
-        # it, then the video's name, then its playback rate when off normal.
-        # Always drawn — the dot has to be readable even with no mode to name.
-        left, top = hud_xy(hybrid=hybrid)
-        modes = mode_hud.bgra(ModeHud(
-            length_mode=length_mode, compilation=jumps.compilation,
-            position=session.index + 1, total=len(session.playlist),
-            f_mode=f_mode, active=active,
-        ))
-        player.overlay(_OV_MODE, left, top, modes)
-        top += modes.shape[0] + _STACK_GAP
+        # The top-left column: the console — the dot saying whether a bare
+        # command lands here, what is selecting this playlist, what is driving the
+        # device, and every control Fun Time's dashboard used to hold for this
+        # slot — then the video's name and its playback rate.
+        if args.console_file is not None:
+            console = read_console(args.console_file) or console
+        if args.drive_file is not None and genau_drives(console.mode):
+            drive = read_drive(args.drive_file) or drive
+        else:
+            drive = None
+        left, top = hud_xy()
+        panel = console_hud.bgra(NauHud(
+            modes=ModeHud(
+                length_mode=length_mode, compilation=jumps.compilation,
+                position=session.index + 1, total=len(session.playlist),
+                f_mode=f_mode, active=active,
+            ),
+            console=console,
+            drive=drive,
+        ), hover=hover)
+        player.overlay(_OV_CONSOLE, left, top, panel)
+        top += panel.shape[0] + _STACK_GAP
 
         name = name_bgra(session.current_video.stem)
         player.overlay(_OV_NAME, left, top, name)
