@@ -7,11 +7,14 @@ and hybrid, Genau into its own window in genau.  So the mode switch and the driv
 controls keep their places as you flip between modes — only the transport changes,
 because it steps Nau's video in one and Genau's clips in the other.
 
-Its top line is Nau's own answer to "what am I inside?" — the length mode or the
-compilation, with the active-player dot at its head — and it is empty in genau
-mode, where there is no Nau playlist behind the screen.  Everything else is the
-console the orchestrator publishes (:mod:`nau.console`) plus, while Genau is
-driving, the drive readout (:mod:`genau.drive_hud`) with its own arrows.
+Its top block is Nau's own answer to "what am I playing?" — the video's name
+beside the active-player dot, with the length mode or compilation as a muted
+subtitle under it — and it is empty in genau mode, where there is no Nau playlist
+behind the screen.  The name used to sit in a chip of its own below the console;
+it heads the console now, so there is one HUD and not a panel with a tag under it.
+Everything else is the console the orchestrator publishes (:mod:`nau.console`)
+plus, while Genau is driving, the drive readout (:mod:`genau.drive_hud`) with its
+own arrows.
 
 The wording and shape are pure functions; the drawing goes onto the slab
 :mod:`player_core.hud_panel` owns, the same slab the satellites' HUD is drawn on,
@@ -104,15 +107,19 @@ def compilation_label(title: str) -> str:
 
 @dataclass(frozen=True)
 class ModeHud:
-    """Nau's own answer to "what is selecting this playlist?" — the top line.
+    """Nau's own answer to "what am I playing?" — the console's top block.
 
-    *length_mode* is the library's filter, empty when there is no library behind
-    the playlist; *compilation* is the volume holding the playlist, with
-    *position*/*total* placing the current video in it.  *f_mode* is Fun Time's
-    filter over whichever of those runs.  All empty in genau mode, where there is
-    no Nau playlist to describe.
+    *video* is the name of the clip on screen, drawn beside the active dot; it
+    used to live in a chip of its own below the console, and now it heads the
+    console instead.  *length_mode* is the library's filter, empty when there is
+    no library behind the playlist; *compilation* is the volume holding the
+    playlist, with *position*/*total* placing the current video in it; *f_mode* is
+    Fun Time's filter over whichever of those runs — together they are the muted
+    subtitle under the name.  All empty in genau mode, where there is no Nau
+    playlist to describe.
     """
 
+    video: str = ""
     length_mode: str = ""
     compilation: str = ""
     position: int = 0
@@ -142,7 +149,8 @@ _PAD = 10
 DOT = 10       # the active-player dot at the head of the top line
 DOT_GAP = 8    # …and the room between it and the words
 _MARGIN = 8    # inset from the window's top-left corner
-_ROW_GAP = 4   # between the top line, the buttons, the OSR2 row, the readout
+_ROW_GAP = 4   # between the top block, the buttons, the OSR2 row, the readout
+_SUBTITLE_GAP = 2  # between the video name and the muted mode line under it
 _OSR2_H = 16   # the OSR2 read-out row's height
 
 
@@ -228,17 +236,22 @@ class ConsolePainter:
 
     def _paint(self, hud: ConsoleHud, hover: tuple[int, int] | None = None) -> "Image.Image":
         rows = console_rows(hud.console)
-        line = hud.modes.line
+        name = hud.modes.video
+        context = hud.modes.line
         drive_w, drive_h = DriveSection.SIZE if hud.drive is not None else (0, 0)
         body_ascent, body_descent = self._body.getmetrics()
         top_h = body_ascent + body_descent
+        tiny_h = sum(self._tiny.getmetrics())
+        context_h = (_SUBTITLE_GAP + tiny_h) if context else 0
+        text_x = _PAD + DOT + DOT_GAP
 
         width = 2 * _PAD + max(
             row_width(rows), drive_w, self._osr2_width(hud.console),
-            DOT + DOT_GAP + text_width(self._body, line),
+            DOT + DOT_GAP + text_width(self._body, name),
+            DOT + DOT_GAP + text_width(self._tiny, context),
         )
         height = (
-            2 * _PAD + top_h + _ROW_GAP + rows_height(rows)
+            2 * _PAD + top_h + context_h + _ROW_GAP + rows_height(rows)
             + _ROW_GAP + _OSR2_H
         )
         if hud.drive is not None:
@@ -247,8 +260,10 @@ class ConsolePainter:
         panel = HudPanel(width, height)
         draw = panel.draw
 
-        # Top line: the dot, then Nau's mode line — one line, tight to the top so
-        # the corner does not carry the empty band it used to.
+        # Top block: the active-player dot and the video's name — what is playing
+        # here, off the separate chip it used to sit in — with the mode line (the
+        # compilation and your place in it, or the length mode, plus F-Mode) as a
+        # muted subtitle beneath.  Both empty in genau mode.
         y = _PAD
         # White while a bare, player-less command lands here, the palette's grey
         # otherwise — the same dot, in the same corner and colour, as each
@@ -256,10 +271,16 @@ class ConsolePainter:
         dot_cy = y + top_h // 2
         draw.ellipse([_PAD, dot_cy - DOT // 2, _PAD + DOT, dot_cy - DOT // 2 + DOT],
                      fill=(*(WHITE if hud.console.active else TEXT_MUTED), 255))
-        if line:
-            draw.text((_PAD + DOT + DOT_GAP, y + body_ascent), line, font=self._body,
+        if name:
+            draw.text((text_x, y + body_ascent), name, font=self._body,
                       anchor="ls", fill=(*TEXT_PRIMARY, 255))
-        y += top_h + _ROW_GAP
+        y += top_h
+        if context:
+            y += _SUBTITLE_GAP
+            draw.text((text_x, y), context, font=self._tiny, anchor="la",
+                      fill=(*TEXT_MUTED, 255))
+            y += tiny_h
+        y += _ROW_GAP
 
         self.buttons = place_rows(rows, x=_PAD, y=y)
         for rect, button in self.buttons:
