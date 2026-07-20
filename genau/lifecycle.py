@@ -26,6 +26,8 @@ class GenauLifecycleController:
         on_toggle_auto_advance=lambda: None,
         on_toggle_clip_lock=lambda: None,
         on_weird_clip=lambda: None,
+        on_console_press=lambda mx, my: None,
+        on_console_motion=lambda mx, my: None,
     ):
         self.view = view
         self.renderer = renderer
@@ -44,6 +46,8 @@ class GenauLifecycleController:
         self.on_toggle_auto_advance = on_toggle_auto_advance
         self.on_toggle_clip_lock = on_toggle_clip_lock
         self.on_weird_clip = on_weird_clip
+        self.on_console_press = on_console_press
+        self.on_console_motion = on_console_motion
         self._resize_pending_at: float | None = None
 
     def process_events(self) -> None:
@@ -52,6 +56,12 @@ class GenauLifecycleController:
                 self.on_close()
             elif event.type == pygame.KEYDOWN:
                 self._handle_key(event)
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # In genau mode Genau draws the primary console; a press on it
+                # posts the same command the dashboard would have.
+                self.on_console_press(*event.pos)
+            elif event.type == pygame.MOUSEMOTION:
+                self.on_console_motion(*event.pos)
             elif event.type == pygame.VIDEORESIZE:
                 self._on_resize()
 

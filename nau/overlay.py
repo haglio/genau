@@ -223,16 +223,6 @@ def name_bgra(text: str):
     return _text_chip(text)
 
 
-def _format_speed(speed: float) -> str:
-    """Playback rate as a compact label, e.g. 1.0 -> '1×', 1.5 -> '1.5×'."""
-    return f"{speed:g}×"
-
-
-def speed_bgra(speed: float):
-    """The current playback rate as an amber chip (shown only when off 1×)."""
-    return _text_chip(_format_speed(speed), fg=(255, 205, 90))
-
-
 def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
     """The bottom heatmap strip as a BGRA array, or None when there is nothing
     to draw.  Uses the same inset, floated, bordered frame and full-height marks

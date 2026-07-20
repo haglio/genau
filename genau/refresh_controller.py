@@ -6,6 +6,9 @@ from pathlib import Path
 
 from player_core.file_channel import consume_command_file
 
+from nau.console import ConsoleModel, read_console
+from nau.hud import ConsoleHud, ModeHud
+
 from .drive_hud import DriveHud, publish_drive
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
@@ -16,6 +19,11 @@ from .status_writer import write_status_file
 # cannot wait on a change the way the status file does — 25/s is well under
 # Genau's refresh rate and well over what reads as smooth.
 _DRIVE_PUBLISH_INTERVAL_S = 0.04
+
+# How often Genau re-reads the console Fun Time publishes.  Its own drive numbers
+# scroll every tick, but the mode / OSR2 / broker around them move a few times a
+# minute, so the file is read far less often than the readout is rebuilt.
+_CONSOLE_READ_INTERVAL_S = 0.2
 
 
 class GenauRefreshController:
@@ -48,7 +56,8 @@ class GenauRefreshController:
         auto_advance=None,
         broker_cmd_file: Path | None = None,
         drive_file: Path | None = None,
-        set_drive_hud=None,
+        console_file: Path | None = None,
+        set_console=None,
         present_scene=None,
         stop_event=None,
         hud_state=None,
@@ -82,8 +91,14 @@ class GenauRefreshController:
         self.auto_advance = auto_advance
         self.broker_cmd_file = broker_cmd_file
         self.drive_file = drive_file
+        self.console_file = console_file
         self._last_drive_publish = 0.0
-        self.set_drive_hud = set_drive_hud or (lambda _hud: None)
+        # The console around the readout — mode, OSR2, broker — as Fun Time
+        # published it; genau mode defaults it to itself so a standalone Genau
+        # still draws a sensible panel with no file behind it.
+        self._console_model = ConsoleModel(mode="genau")
+        self._last_console_read = 0.0
+        self.set_console = set_console or (lambda _console: None)
         self.present_scene = present_scene or (lambda: None)
         self.stop_event = stop_event
         self.hud_state = hud_state
@@ -168,9 +183,9 @@ class GenauRefreshController:
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
         if direct_active:
-            self._update_drive_hud(now)
+            self._update_console(now)
         elif self.direct_state is not None:
-            self.set_drive_hud(None)
+            self.set_console(None)
 
         prev_playing = self._prev_playing
         if self.direct_state is not None:
@@ -252,8 +267,22 @@ class GenauRefreshController:
                 hud_active=hud_on,
             )
 
-    def _update_drive_hud(self, now: float) -> None:
-        from .direct_control import MIN_BPM, sample_waveform
+    def _update_console(self, now: float) -> None:
+        """Build the drive readout, publish it for Nau, and draw the whole console
+        for Genau's own window."""
+        hud = self._build_drive_hud()
+        self._publish_drive(hud, now)
+        if now - self._last_console_read >= _CONSOLE_READ_INTERVAL_S and self.console_file:
+            self._last_console_read = now
+            published = read_console(self.console_file)
+            if published is not None:
+                self._console_model = published
+        # Genau draws no Nau mode line — there is no Nau playlist behind its
+        # screen — so the top line is bare but for the active dot.
+        self.set_console(ConsoleHud(modes=ModeHud(), console=self._console_model, drive=hud))
+
+    def _build_drive_hud(self) -> DriveHud:
+        from .direct_control import MAX_SPEED, MIN_BPM, MIN_SPEED, sample_waveform
 
         ds = self.direct_state
         position = 0
@@ -266,7 +295,11 @@ class GenauRefreshController:
         # Show enough time that one whole cycle is visible at the slowest speed.
         display_seconds = 60.0 * self.beats_per_loop / MIN_BPM
 
-        hud = DriveHud(
+        # Which arrow would do nothing — the readout greys those out.  The centre's
+        # range is what the amplitude leaves it (it cannot push a stroke off the
+        # top or bottom of the device), the same clamp the status file uses.
+        half = ds.amplitude // 2
+        return DriveHud(
             speed=ds.speed,
             amplitude=ds.amplitude,
             center=ds.center,
@@ -276,14 +309,18 @@ class GenauRefreshController:
             auto_advance=self.auto_advance.active if self.auto_advance else False,
             clip_locked=self.auto_advance.locked if self.auto_advance else False,
             playing=ds.playing,
+            spd_at_max=ds.speed >= MAX_SPEED,
+            spd_at_min=ds.speed <= MIN_SPEED,
+            amp_at_max=ds.amplitude >= 100,
+            amp_at_min=ds.amplitude <= 0,
+            ctr_at_max=ds.center >= 100 - half,
+            ctr_at_min=ds.center <= half,
             waveform=tuple(sample_waveform(
                 ds.shape, ds.amplitude, ds.center, 80,
                 start_phase=start_phase,
                 phase_range=phase_per_second * display_seconds,
             )),
         )
-        self.set_drive_hud(hud)
-        self._publish_drive(hud, now)
 
     def _publish_drive(self, hud: DriveHud, now: float) -> None:
         """Say the readout for Nau to draw, at a fraction of the refresh rate.

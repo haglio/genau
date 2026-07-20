@@ -120,7 +120,7 @@ def _build_controller(
     loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
     hide_window_calls: list[str] = []
-    drive_huds: list = []
+    consoles: list = []
     present_calls: list[int] = []
     hud_mode_calls: list[bool] = []
     blank_calls: list[bool] = []
@@ -163,7 +163,7 @@ def _build_controller(
         cruise_control=cruise_control,
         auto_advance=auto_advance,
         broker_cmd_file=broker_cmd_file,
-        set_drive_hud=drive_huds.append,
+        set_console=consoles.append,
         present_scene=lambda: present_calls.append(1),
         hud_state=hud_state,
         set_hud_mode=set_hud_mode or hud_mode_calls.append,
@@ -181,7 +181,7 @@ def _build_controller(
         "loading_texts": loading_texts,
         "show_window_calls": show_window_calls,
         "hide_window_calls": hide_window_calls,
-        "drive_huds": drive_huds,
+        "consoles": consoles,
         "present_calls": present_calls,
         "hud_mode_calls": hud_mode_calls,
         "blank_calls": blank_calls,
@@ -344,8 +344,8 @@ def test_direct_mode_publishes_the_drive_readout():
 
     built["controller"].refresh()
 
-    assert len(built["drive_huds"]) == 1
-    hud = built["drive_huds"][0]
+    assert len(built["consoles"]) == 1
+    hud = built["consoles"][0].drive
     assert (hud.amplitude, hud.center, hud.speed) == (70, 60, 50)
     assert hud.shape == "sine"  # named on the panel, not only drawn
     assert len(hud.waveform) == 80
@@ -654,7 +654,7 @@ def test_broker_auto_cleared_resumes_direct_control():
     built["controller"].refresh()
 
     assert len(tcode.sends) == 1
-    assert len(built["drive_huds"]) == 1
+    assert len(built["consoles"]) == 1
 
 
 def test_multiline_commands_all_applied():

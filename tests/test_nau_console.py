@@ -1,137 +1,195 @@
-"""Nau's console: the controls Fun Time's dashboard used to hold for the primary."""
+"""The primary console: the controls whichever player holds the slot draws."""
 from __future__ import annotations
+
+from pathlib import Path
 
 from nau.console import (
     BUTTON,
     ConsoleModel,
     console_rows,
+    genau_drives,
     hit_test,
+    nau_displays,
     place_rows,
+    read_console,
+    tooltip_at,
 )
 
 
 def _actions(model: ConsoleModel) -> list[str]:
-    return [button.action for row in console_rows(model) for button in row]
+    return [b.action for row in console_rows(model) for b in row if b.action]
 
 
-class TestRows:
-    def test_nau_mode_carries_the_players_own_controls_and_the_mode_switch(self):
-        actions = _actions(ConsoleModel(mode="nau"))
+def _button(model: ConsoleModel, action: str):
+    return next(b for row in console_rows(model) for b in row if b.action == action)
 
-        assert actions == [
-            "primary_prev", "primary_next",
-            "primary_nudge_prev", "primary_nudge_next",
-            "open_file_dialog", "clipper_save", "nau_record_tap",
-            "nau_activate", "hybrid_activate", "genau_activate",
-        ]
 
-    def test_nau_mode_leaves_out_the_drive_controls(self):
-        """Nothing is driving the device from a waveform in Nau mode, so amplitude,
-        centre, cruise and the rest would be buttons that do nothing visible."""
-        actions = _actions(ConsoleModel(mode="nau"))
+class TestTransport:
+    """Prev/next step Nau's video where Nau is on screen, Genau's clips where it
+    is — with the actions that only make sense for each."""
 
-        assert not any(action.startswith("genau_") and action != "genau_activate"
-                       for action in actions)
+    def test_nau_and_hybrid_step_the_video_and_act_on_it(self):
+        for mode in ("nau", "hybrid"):
+            actions = _actions(ConsoleModel(mode=mode))
+            for action in ("primary_prev", "primary_next", "primary_nudge_prev",
+                           "primary_nudge_next", "open_file_dialog", "clipper_save",
+                           "nau_record_tap"):
+                assert action in actions, (mode, action)
 
-    def test_hybrid_adds_the_drive_controls_because_genau_is_driving(self):
+    def test_record_is_there_in_hybrid_too_not_only_nau(self):
+        """Nau is on screen in hybrid, so there is a loop to record — it went
+        missing when the console only offered it in nau mode."""
+        assert "nau_record_tap" in _actions(ConsoleModel(mode="hybrid"))
+
+    def test_genau_steps_its_own_clips_and_can_mark_one_weird(self):
+        actions = _actions(ConsoleModel(mode="genau"))
+
+        assert "genau_prev_clip" in actions
+        assert "genau_next_clip" in actions
+        assert "genau_weird_clip" in actions  # the mark-weird the readout lacked
+
+    def test_genau_offers_no_video_only_actions(self):
+        """Nudge, open, clip and record act on a video; Genau's clips are not one."""
+        actions = _actions(ConsoleModel(mode="genau"))
+
+        for action in ("primary_nudge_prev", "open_file_dialog", "clipper_save",
+                       "nau_record_tap"):
+            assert action not in actions
+
+
+class TestPlaybackSpeed:
+    def test_the_video_rate_has_controls_where_nau_is_on_screen(self):
+        for mode in ("nau", "hybrid"):
+            actions = _actions(ConsoleModel(mode=mode))
+            assert "nau_speed_down" in actions and "nau_speed_up" in actions
+
+    def test_genau_has_no_video_rate(self):
+        """Genau's clips play at the stroke's rate, so there is no video rate to
+        set — that Speed is the stroke's, on the readout."""
+        actions = _actions(ConsoleModel(mode="genau"))
+
+        assert "nau_speed_down" not in actions
+
+    def test_the_rate_is_shown_as_a_read_out_between_the_arrows(self):
+        rows = console_rows(with_speed(ConsoleModel(mode="nau"), 1.5))
+        readouts = [b.glyph for row in rows for b in row if not b.action]
+
+        assert "1.5×" in readouts
+
+
+class TestDriveControls:
+    """The amplitude/centre/speed arrows moved onto the readout, so they are not
+    console buttons any more; the hands-free switches still are."""
+
+    def test_the_switch_row_is_there_while_genau_drives(self):
+        for mode in ("hybrid", "genau"):
+            actions = _actions(ConsoleModel(mode=mode))
+            for action in ("genau_toggle_cruise", "genau_toggle_auto_advance",
+                           "genau_cycle_shape", "quarter_button", "genau_toggle_auto"):
+                assert action in actions, (mode, action)
+
+    def test_the_axis_arrows_are_not_console_buttons(self):
+        """They belong to the readout now, drawn on the bars themselves."""
         actions = _actions(ConsoleModel(mode="hybrid"))
 
-        for action in ("genau_amplitude_up", "genau_center_down", "genau_speed_up",
-                       "genau_toggle_cruise", "genau_cycle_shape", "quarter_button",
-                       "genau_toggle_auto"):
-            assert action in actions
+        for action in ("genau_amplitude_up", "genau_center_down", "genau_speed_up"):
+            assert action not in actions
 
-    def test_record_belongs_to_nau_alone(self):
-        """Recording a loop is Nau's own; in Hybrid the primary slot is shared with
-        a waveform and there is no loop to mark."""
-        assert "nau_record_tap" in _actions(ConsoleModel(mode="nau"))
-        assert "nau_record_tap" not in _actions(ConsoleModel(mode="hybrid"))
+    def test_nau_mode_has_none_of_the_drive_switches(self):
+        actions = _actions(ConsoleModel(mode="nau"))
 
+        assert not any(a.startswith("genau_") and a != "genau_activate" for a in actions)
+
+
+class TestState:
     def test_the_mode_you_are_in_is_lit_and_the_others_are_not(self):
-        rows = console_rows(ConsoleModel(mode="hybrid"))
-        modes = {b.action: b for row in rows for b in row if b.action.endswith("_activate")}
+        model = ConsoleModel(mode="hybrid")
 
-        assert modes["hybrid_activate"].lit is True
-        assert modes["nau_activate"].lit is False
-        assert modes["genau_activate"].lit is False
+        assert _button(model, "hybrid_activate").lit is True
+        assert _button(model, "nau_activate").lit is False
 
-    def test_a_suppressed_takeover_is_marked_rather_than_merely_unlit(self):
-        """Allowed and suppressed are both live states — an unlit button would
-        read as "off", which is not the same as "Genau may not take the device"."""
-        def takeover(allowed: bool):
-            rows = console_rows(ConsoleModel(mode="hybrid", takeover_allowed=allowed))
-            return next(b for row in rows for b in row if b.action == "genau_toggle_auto")
+    def test_a_suppressed_takeover_is_warned_not_merely_unlit(self):
+        assert _button(ConsoleModel(mode="hybrid", takeover_allowed=True), "genau_toggle_auto").lit
+        assert _button(ConsoleModel(mode="hybrid", takeover_allowed=False), "genau_toggle_auto").warn
 
-        assert takeover(True).lit is True
-        assert takeover(False).warn is True
+    def test_a_held_clip_holds_auto_advance_apart_from_merely_armed(self):
+        armed = _button(ConsoleModel(mode="genau", auto_advance=True), "genau_toggle_auto_advance")
+        held = _button(ConsoleModel(mode="genau", auto_advance=True, clip_locked=True),
+                       "genau_toggle_auto_advance")
 
-    def test_each_drive_pair_is_labelled_with_what_it_moves(self):
-        """Three identical up/down pairs in a row say nothing about which is
-        amplitude and which is speed — the dashboard labelled them and so must
-        this.  A label is placed like a control but posts nothing."""
-        rows = console_rows(ConsoleModel(mode="hybrid"))
-        drive = next(row for row in rows if any(b.action == "genau_amplitude_up" for b in row))
-
-        assert [b.glyph for b in drive if not b.action] == ["Amp", "Ctr", "Spd"]
-
-        placed = place_rows(rows, x=0, y=0)
-        label_rect = next(r for r, b in placed if b.glyph == "Amp" and not b.action)
-        centre = (label_rect[0] + label_rect[2] // 2, label_rect[1] + label_rect[3] // 2)
-        assert hit_test(placed, *centre) == ""
-
-    def test_auto_advance_sits_beside_cruise_and_says_which_state_it_is_in(self):
-        """Two hands-free switches, armed separately: cruise varies the stroke,
-        auto advance moves on to the next clip.  A held clip is auto advance
-        still armed but sitting still, so it is lit differently rather than off."""
-        def advance(**state):
-            rows = console_rows(ConsoleModel(mode="hybrid", **state))
-            return next(b for row in rows for b in row
-                        if b.action == "genau_toggle_auto_advance")
-
-        assert advance().lit is False
-        assert advance(auto_advance=True).lit is True
-        assert advance(auto_advance=True, clip_locked=True).hold is True
-
-    def test_cruise_lights_while_it_is_holding_the_speed(self):
-        rows = console_rows(ConsoleModel(mode="hybrid", cruise=True))
-        cruise = next(b for row in rows for b in row if b.action == "genau_toggle_cruise")
-
-        assert cruise.lit is True
-
-    def test_a_control_at_its_limit_is_dimmed_and_stops_being_clickable(self):
-        """The dashboard greyed these out at the ends of their range; a HUD button
-        that still looks live but does nothing is worse than one that says so."""
-        model = ConsoleModel(mode="hybrid", limits=frozenset({"amp_max", "spd_min"}))
-        rows = console_rows(model)
-        by_action = {b.action: b for row in rows for b in row}
-
-        assert by_action["genau_amplitude_up"].dim is True
-        assert by_action["genau_amplitude_down"].dim is False
-        assert by_action["genau_speed_down"].dim is True
-
-        placed = place_rows(rows, x=0, y=0)
-        assert hit_test(placed, *_centre(placed, "genau_amplitude_up")) == ""
-        assert hit_test(placed, *_centre(placed, "genau_amplitude_down")) == "genau_amplitude_down"
+        assert armed.lit is True and armed.hold is False
+        assert held.hold is True and held.lit is False
 
 
-def _centre(placed, action: str) -> tuple[int, int]:
-    rect = next(r for r, button in placed if button.action == action)
-    return rect[0] + rect[2] // 2, rect[1] + rect[3] // 2
+class TestModePredicates:
+    def test_nau_displays_covers_nau_and_hybrid(self):
+        assert nau_displays("nau") and nau_displays("hybrid")
+        assert not nau_displays("genau")
+
+    def test_genau_drives_covers_genau_and_hybrid(self):
+        assert genau_drives("genau") and genau_drives("hybrid")
+        assert not genau_drives("nau")
+
+
+class TestReadConsole:
+    def test_it_reads_back_what_fun_time_published(self, tmp_path: Path):
+        import json
+        path = tmp_path / "nau_console.json"
+        path.write_text(json.dumps({
+            "mode": "hybrid", "active": True, "osr2": "genau", "broker": True,
+            "takeover_allowed": False, "cruise": True, "auto_advance": True,
+            "clip_locked": True, "shape": "sawtooth",
+        }), encoding="utf-8")
+
+        model = read_console(path)
+
+        assert model.mode == "hybrid"
+        assert model.active is True
+        assert model.osr2 == "genau"
+        assert model.broker is True
+        assert model.takeover_allowed is False
+        assert (model.cruise, model.auto_advance, model.clip_locked) == (True, True, True)
+        assert model.shape == "sawtooth"
+
+    def test_a_torn_or_missing_file_keeps_the_console_you_have(self, tmp_path: Path):
+        path = tmp_path / "nau_console.json"
+        assert read_console(path) is None
+
+        path.write_text('{"mode": "nau"', encoding="utf-8")
+        assert read_console(path) is None
 
 
 class TestLayout:
-    def test_rows_stack_and_buttons_run_along_them(self):
-        rows = console_rows(ConsoleModel(mode="nau"))
+    def test_the_mode_row_leads_so_it_holds_its_place_across_modes(self):
+        for mode in ("nau", "hybrid", "genau"):
+            first = console_rows(ConsoleModel(mode=mode))[0]
+            assert [b.action for b in first] == [
+                "nau_activate", "hybrid_activate", "genau_activate"]
 
-        placed = place_rows(rows, x=10, y=20)
+    def test_a_press_finds_the_button_under_it(self):
+        placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)
+        rect, _b = next((r, b) for r, b in placed if b.action == "primary_next")
 
-        first = [rect for rect, _b in placed][0]
-        assert first[0] == 10 and first[1] == 20
-        assert all(rect[3] == BUTTON for rect, _b in placed)
-        # Every button lands somewhere different.
-        assert len({rect[:2] for rect, _b in placed}) == len(placed)
+        assert hit_test(placed, rect[0] + 1, rect[1] + 1) == "primary_next"
+        assert tooltip_at(placed, rect[0] + 1, rect[1] + 1) == "Next video"
 
     def test_a_press_off_every_button_posts_nothing(self):
         placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)
 
         assert hit_test(placed, 5000, 5000) == ""
+
+    def test_a_read_out_is_not_a_hit_target(self):
+        placed = place_rows(console_rows(with_speed(ConsoleModel(mode="nau"), 1.0)), x=0, y=0)
+        rect = next(r for r, b in placed if not b.action and b.glyph.endswith("×"))
+
+        assert hit_test(placed, rect[0] + 1, rect[1] + 1) == ""
+
+    def test_the_buttons_are_the_declared_size(self):
+        placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)
+
+        assert all(rect[3] == BUTTON for rect, _b in placed)
+
+
+def with_speed(model: ConsoleModel, speed: float) -> ConsoleModel:
+    from dataclasses import replace
+    return replace(model, playback_speed=speed)
