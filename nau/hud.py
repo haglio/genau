@@ -11,6 +11,11 @@ and that is the first thing it says.  Fun Time's F-mode then sits over whichever
 of those is running, narrowing it to the scripted videos, so it rides alongside
 rather than replacing.
 
+The dot at its head answers a different question — whether a bare, player-less
+command lands here or on a satellite — and so it is drawn even when there is no
+mode to name: an absent dot cannot be told from an idle one, and the whole point
+of it is being readable on the player that does *not* have the floor.
+
 The wording and the shape are pure functions here; the drawing goes onto the
 slab :mod:`player_core.hud_panel` owns, which is the same slab the satellites'
 HUD is drawn on, so the two players say things the same way — and from the same
@@ -25,7 +30,14 @@ import re
 from dataclasses import dataclass
 
 import numpy as np
-from player_core.hud_panel import TEXT_PRIMARY, HudPanel, load_font, text_width
+from player_core.hud_panel import (
+    GREEN,
+    TEXT_MUTED,
+    TEXT_PRIMARY,
+    HudPanel,
+    load_font,
+    text_width,
+)
 
 from .library import FULL, MIXED, SHORTS
 
@@ -64,8 +76,10 @@ class ModeHud:
     one), in which case there is no length mode to claim.  *compilation* is the
     volume whose clips are the playlist, empty while the library is feeding it
     normally; *position* and *total* place the current video in that playlist.
-    *f_mode* is Fun Time's, not Nau's: only the orchestrator knows it, and it
-    arrives over the command channel like the hybrid flag does.
+    *f_mode* and *active* are Fun Time's, not Nau's: only the orchestrator knows
+    them, and they arrive over the command channel like the hybrid flag does.
+    *active* is whether a bare, player-less command lands here rather than on a
+    satellite — drawn as the dot, never as a word.
     """
 
     length_mode: str = ""
@@ -73,6 +87,7 @@ class ModeHud:
     position: int = 0
     total: int = 0
     f_mode: bool = False
+    active: bool = False
 
     @property
     def line(self) -> str:
@@ -102,7 +117,9 @@ class ModeHud:
 # --- the panel ---------------------------------------------------------------
 
 _SIZE_BODY = 11
-_PAD = 10
+PAD = 10
+DOT = 10      # the active-player dot at the head of the panel
+DOT_GAP = 8   # …and the room between it and the words
 _MARGIN = 8   # inset from the window's top-left corner
 
 # Genau draws its own panel (waveform, speed, amplitude) at the same inset in its
@@ -133,21 +150,34 @@ class ModeHudPainter:
         self._painted: ModeHud | None = None
         self._bgra: np.ndarray | None = None
 
-    def bgra(self, hud: ModeHud) -> np.ndarray | None:
-        """*hud* as an mpv overlay bitmap, or None when it has nothing to say."""
+
+    def bgra(self, hud: ModeHud) -> np.ndarray:
+        """*hud* as an mpv overlay bitmap.
+
+        Always a bitmap now, never None: the dot is on it, and a dot that
+        disappears when the player has nothing else to say cannot be told from an
+        idle one — which would leave only the player *holding* the floor saying
+        anything, and no way to read that off this one.
+        """
         if hud != self._painted:
             self._painted, self._bgra = hud, self._paint(hud)
         return self._bgra
 
-    def _paint(self, hud: ModeHud) -> np.ndarray | None:
+    def _paint(self, hud: ModeHud) -> np.ndarray:
         line = hud.line
-        if not line:
-            return None
         ascent, descent = self._font.getmetrics()
+        text_x = PAD + DOT + DOT_GAP
         panel = HudPanel(
-            2 * _PAD + text_width(self._font, line),
-            2 * _PAD + ascent + descent,
+            text_x + text_width(self._font, line) + PAD,
+            2 * PAD + ascent + descent,
         )
-        panel.draw.text((_PAD, _PAD + ascent), line, font=self._font, anchor="ls",
-                        fill=(*TEXT_PRIMARY, 255))
+        # Green while a bare command lands here, the palette's grey otherwise —
+        # the same dot, in the same place, as each satellite's.
+        panel.draw.ellipse(
+            [PAD, PAD + 2, PAD + DOT, PAD + 2 + DOT],
+            fill=(*(GREEN if hud.active else TEXT_MUTED), 255),
+        )
+        if line:
+            panel.draw.text((text_x, PAD + ascent), line, font=self._font, anchor="ls",
+                            fill=(*TEXT_PRIMARY, 255))
         return panel.to_bgra()

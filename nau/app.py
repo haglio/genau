@@ -210,6 +210,10 @@ def _run(args) -> int:
     # ever comes from Fun Time saying so — and defaults off, because a session
     # that is never told is a session where nothing narrowed it.
     f_mode = False
+    # Whether a bare, player-less command lands here rather than on a satellite.
+    # Fun Time tracks it and says so; a session never told is one where the
+    # satellites have had every word, which is where a fresh session starts.
+    active = False
     heatmap = HeatmapStrip()
     mode_hud = ModeHudPainter()
     loop_thumbs = LoopThumbCapture()
@@ -279,6 +283,10 @@ def _run(args) -> int:
         nonlocal f_mode
         f_mode = active
 
+    def _set_active(has_floor: bool) -> None:
+        nonlocal active
+        active = has_floor
+
     def _timeline_h() -> int:
         # The heatmap strip when scripted (may be taller while recording),
         # else the plain progress bar — always present so every video has a
@@ -345,6 +353,7 @@ def _run(args) -> int:
                     end_compilation=_end_compilation,
                     set_hybrid=_set_hybrid,
                     set_f_mode=_set_f_mode,
+                    set_active=_set_active,
                 )
 
         session.advance()
@@ -385,21 +394,19 @@ def _run(args) -> int:
             remembered = mode_now
             memory.write(mode_now)
 
-        # The top-left column, stacked: which mode is selecting what plays (the
-        # length filter, or the compilation holding the playlist) and whether
-        # F-mode is narrowing it, then the video's name, then its playback rate
-        # when that is off normal.
+        # The top-left column, stacked: the dot saying whether a bare command
+        # lands here, which mode is selecting what plays (the length filter, or
+        # the compilation holding the playlist) and whether F-mode is narrowing
+        # it, then the video's name, then its playback rate when off normal.
+        # Always drawn — the dot has to be readable even with no mode to name.
         left, top = hud_xy(hybrid=hybrid)
         modes = mode_hud.bgra(ModeHud(
             length_mode=length_mode, compilation=jumps.compilation,
             position=session.index + 1, total=len(session.playlist),
-            f_mode=f_mode,
+            f_mode=f_mode, active=active,
         ))
-        if modes is None:
-            player.remove_overlay(_OV_MODE)
-        else:
-            player.overlay(_OV_MODE, left, top, modes)
-            top += modes.shape[0] + _STACK_GAP
+        player.overlay(_OV_MODE, left, top, modes)
+        top += modes.shape[0] + _STACK_GAP
 
         name = name_bgra(session.current_video.stem)
         player.overlay(_OV_NAME, left, top, name)
