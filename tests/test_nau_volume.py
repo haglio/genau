@@ -6,6 +6,8 @@ import numpy as np
 from nau.volume import (
     CHIP_H,
     CHIP_W,
+    MARGIN,
+    SLOT_W,
     SPEAKER_W,
     VolumeHud,
     VolumeHudPainter,
@@ -17,14 +19,22 @@ from nau.volume import (
 
 
 class TestPlacement:
-    def test_the_chip_sits_at_the_right_edge_above_the_timeline(self):
-        """Where a player's volume control has always been — beside the transport,
-        not up in the corner where the mode furniture lives."""
-        x, y = chip_xy(win_w=1200, win_h=900, timeline_h=40)
+    def test_the_chip_sits_in_the_timeline_row_at_its_right_end(self):
+        """VLC put the volume beside the seek bar, not above it — so the chip drops
+        into the timeline row, hard against the right, and the scrubber's track
+        makes room for it (nau.overlay.bar_track_x reserves SLOT_W there)."""
+        tl = 40
+        x, y = chip_xy(win_w=1200, win_h=900, timeline_h=tl)
 
-        assert x + CHIP_W <= 1200
-        assert x > 1200 // 2, "right-hand side"
-        assert y + CHIP_H <= 900 - 40, "clear of the timeline"
+        assert x + CHIP_W <= 1200                    # fully on-screen
+        assert 1200 - (x + CHIP_W) <= MARGIN         # hard against the right edge
+        assert 900 - tl <= y and y + CHIP_H <= 900   # within the timeline row's band
+
+    def test_the_slot_it_reserves_covers_the_chip_and_its_margins(self):
+        """The scrubber subtracts SLOT_W to clear the chip, so the slot has to be
+        at least the chip plus the gap it sits in — otherwise the track runs under
+        it."""
+        assert SLOT_W >= CHIP_W + MARGIN
 
     def test_a_window_narrower_than_the_chip_still_places_it(self):
         """Clamped rather than pushed off the left edge, so it stays clickable."""
