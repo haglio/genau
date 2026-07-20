@@ -79,6 +79,19 @@ class TestRows:
         centre = (label_rect[0] + label_rect[2] // 2, label_rect[1] + label_rect[3] // 2)
         assert hit_test(placed, *centre) == ""
 
+    def test_auto_advance_sits_beside_cruise_and_says_which_state_it_is_in(self):
+        """Two hands-free switches, armed separately: cruise varies the stroke,
+        auto advance moves on to the next clip.  A held clip is auto advance
+        still armed but sitting still, so it is lit differently rather than off."""
+        def advance(**state):
+            rows = console_rows(ConsoleModel(mode="hybrid", **state))
+            return next(b for row in rows for b in row
+                        if b.action == "genau_toggle_auto_advance")
+
+        assert advance().lit is False
+        assert advance(auto_advance=True).lit is True
+        assert advance(auto_advance=True, clip_locked=True).hold is True
+
     def test_cruise_lights_while_it_is_holding_the_speed(self):
         rows = console_rows(ConsoleModel(mode="hybrid", cruise=True))
         cruise = next(b for row in rows for b in row if b.action == "genau_toggle_cruise")
