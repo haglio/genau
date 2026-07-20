@@ -81,6 +81,28 @@ class TestControls:
             assert PAD <= y and y + h <= PAD + SECTION_H
 
 
+class TestAutoAdvanceInterval:
+    """Auto-advance says the seconds it is set to, so the pace is visible."""
+
+    def test_a_set_interval_is_named_in_seconds(self):
+        labels = dict(DriveSection._flags(_hud(auto_advance=True, advance_interval=5)))
+
+        assert "Auto 5s" in labels
+
+    def test_the_jittered_default_shows_no_number(self):
+        """A bare arming has no single interval, so it stays plain ``Auto`` rather
+        than claiming a second count it does not have."""
+        labels = dict(DriveSection._flags(_hud(auto_advance=True, advance_interval=0)))
+
+        assert "Auto" in labels
+
+    def test_the_interval_survives_the_wire(self, tmp_path):
+        path = tmp_path / "genau_drive.txt"
+        publish_drive(path, _hud(auto_advance=True, advance_interval=7))
+
+        assert read_drive(path).advance_interval == 7
+
+
 class TestReadout:
     def test_it_fills_the_block_it_declares(self):
         rgb = _rendered(_hud(speed=62, center=45, amplitude=80))
