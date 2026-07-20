@@ -13,6 +13,7 @@ from genau.runtime_commands import (
 from genau.engine import PlaybackEngine
 from genau.direct_control import DirectControlState, WaveformShape
 from genau.cruise_control import CruiseControlState
+from genau.auto_advance import AutoAdvanceState
 
 
 class TestApplyRuntimeCommand:
@@ -611,3 +612,77 @@ class TestApplyRuntimeCommand:
                 step_clip=lambda _step: None,
             )
             assert handled is False, f"{cmd} should be ignored without display_state"
+
+
+class TestAutoAdvanceCommands:
+    def _apply(self, command, aa):
+        return apply_runtime_command(
+            command,
+            engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+            rh_paused={"value": False},
+            step_clip=lambda _step: None,
+            auto_advance_state=aa,
+        )
+
+    def test_toggle_arms_auto_advance(self):
+        aa = AutoAdvanceState(active=False)
+        assert self._apply("TOGGLE_AUTO_ADVANCE", aa) is True
+        assert aa.active is True
+
+    def test_on_and_off_are_absolute(self):
+        aa = AutoAdvanceState(active=False)
+        assert self._apply("AUTO_ADVANCE_ON", aa) is True
+        assert aa.active is True
+        assert self._apply("AUTO_ADVANCE_OFF", aa) is True
+        assert aa.active is False
+
+    def test_a_number_names_the_seconds_and_arms(self):
+        aa = AutoAdvanceState(active=False)
+        assert self._apply("ADVANCE 30", aa) is True
+        assert aa.active is True
+        assert aa.interval == 30.0
+
+    def test_toggle_clip_lock_holds_the_clip(self):
+        aa = AutoAdvanceState(active=True)
+        assert self._apply("TOGGLE_CLIP_LOCK", aa) is True
+        assert aa.locked is True
+
+    def test_ignored_without_auto_advance_state(self):
+        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        for cmd in (
+            "TOGGLE_AUTO_ADVANCE", "AUTO_ADVANCE_ON", "AUTO_ADVANCE_OFF",
+            "TOGGLE_CLIP_LOCK", "ADVANCE 30",
+        ):
+            handled = apply_runtime_command(
+                cmd,
+                engine=engine,
+                rh_paused={"value": False},
+                step_clip=lambda _step: None,
+            )
+            assert handled is False, f"{cmd} should be ignored without auto_advance_state"
+
+
+class TestWeirdCommand:
+    def test_weird_condemns_the_clip_on_screen(self):
+        calls: list[int] = []
+
+        handled = apply_runtime_command(
+            "WEIRD",
+            engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+            rh_paused={"value": False},
+            step_clip=lambda _step: None,
+            discard_clip=lambda: calls.append(1),
+        )
+
+        assert handled is True
+        assert calls == [1]
+
+    def test_weird_ignored_without_a_way_to_discard(self):
+        handled = apply_runtime_command(
+            "WEIRD",
+            engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+            rh_paused={"value": False},
+            step_clip=lambda _step: None,
+        )
+
+        assert handled is False

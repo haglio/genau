@@ -29,10 +29,29 @@ from .config import load_config
 from .engine import PlaybackEngine
 from .state import SharedState, udp_reader
 from .video import cache_dir_for_clips_folder, load_clip_frames, scan_clips
+from .weird import move_clip_to_weird, weird_dir_for_clips_folder
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
     return preparse_config_path(argv)
+
+
+def _condemn_clip(path: Path, weird_dir: Path, logger: logging.Logger) -> None:
+    """Move a clip out of rotation, logging where it went — or why it didn't.
+
+    A failed move must not take the player down with it: the clip is already
+    off the playlist by the time this runs, so the worst case is a file left
+    in ``clips/`` that the next session shows again.
+    """
+    try:
+        landed = move_clip_to_weird(path, weird_dir)
+    except OSError:
+        logger.warning("Could not move %s to %s", path.name, weird_dir, exc_info=True)
+        return
+    if landed is None:
+        logger.info("Clip %s was already gone; nothing to condemn", path.name)
+    else:
+        logger.info("Condemned %s to %s", path.name, weird_dir)
 
 
 def build_parser(config) -> argparse.ArgumentParser:
@@ -160,6 +179,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     # dark instead would make a bare `python -m genau` come up black.
     display_state = {"active": True}
 
+    from .auto_advance import AutoAdvanceState
     from .cruise_control import CruiseControlState
     from .direct_control import DirectControlState, bpm_for_speed
     from .tcode import RateLimitedTCodeSender, UdpTCodeSink
@@ -169,6 +189,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         bpm=bpm_for_speed(50),
     )
     cruise_control = CruiseControlState()
+    auto_advance = AutoAdvanceState()
     sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
     tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
     logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
@@ -211,12 +232,14 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_active_clip_loaded=renderer.prepare_active_clip_for_current_size,
         on_error=lambda msg: state.__setattr__("error", msg),
     )
+    weird_dir = weird_dir_for_clips_folder(clips_folder)
     selection = ClipSelectionController(
         sequence=clip_sequence,
         clip_store=clip_store,
         loader=loader,
         renderer=renderer,
         notifier=notifier,
+        discard_clip=lambda path: _condemn_clip(path, weird_dir, logger),
     )
 
     refresh_controller = GenauRefreshController(
@@ -241,6 +264,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         direct_state=direct_state,
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
+        auto_advance=auto_advance,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
         drive_file=config.genau_drive_file,
         set_drive_hud=view.set_drive_hud,

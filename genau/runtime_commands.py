@@ -15,6 +15,12 @@ from .cruise_control import (
     enable_cruise_control,
     toggle_cruise_control,
 )
+from .auto_advance import (
+    disable_auto_advance,
+    enable_auto_advance,
+    toggle_auto_advance,
+    toggle_clip_lock,
+)
 
 
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
@@ -27,8 +33,10 @@ def apply_runtime_command(
     engine: PlaybackEngine,
     rh_paused,
     step_clip,
+    discard_clip=None,
     direct_state=None,
     cruise_control_state=None,
+    auto_advance_state=None,
     stop_event=None,
     hud_state=None,
     display_state=None,
@@ -46,6 +54,8 @@ def apply_runtime_command(
         step_clip(-1)
     elif normalized == "NEXT":
         step_clip(1)
+    elif normalized == "WEIRD" and discard_clip is not None:
+        discard_clip()
     elif normalized in {QUARTER_CYCLE_OFFSET_COMMAND, LEGACY_QUARTER_CYCLE_OFFSET_COMMAND}:
         engine.phase = (engine.phase + 0.25) % 1.0
     elif normalized == "PAUSE":
@@ -78,6 +88,14 @@ def apply_runtime_command(
         enable_cruise_control(cruise_control_state)
     elif normalized == "CRUISE_OFF" and cruise_control_state is not None:
         disable_cruise_control(cruise_control_state)
+    elif normalized == "TOGGLE_AUTO_ADVANCE" and auto_advance_state is not None:
+        toggle_auto_advance(auto_advance_state)
+    elif normalized == "AUTO_ADVANCE_ON" and auto_advance_state is not None:
+        enable_auto_advance(auto_advance_state)
+    elif normalized == "AUTO_ADVANCE_OFF" and auto_advance_state is not None:
+        disable_auto_advance(auto_advance_state)
+    elif normalized == "TOGGLE_CLIP_LOCK" and auto_advance_state is not None:
+        toggle_clip_lock(auto_advance_state)
     elif normalized == "HUD_ON" and hud_state is not None:
         hud_state["active"] = True
     elif normalized == "HUD_OFF" and hud_state is not None:
@@ -90,7 +108,7 @@ def apply_runtime_command(
     elif normalized == "DISPLAY_OFF" and display_state is not None:
         display_state["active"] = False
     else:
-        return _try_numeric_command(normalized, direct_state)
+        return _try_numeric_command(normalized, direct_state, auto_advance_state)
     return True
 
 
@@ -101,19 +119,26 @@ _NUMERIC_SETTERS = {
 }
 
 
-def _try_numeric_command(normalized: str, direct_state) -> bool:
-    if direct_state is None:
-        return False
+def _try_numeric_command(normalized: str, direct_state, auto_advance_state) -> bool:
     parts = normalized.split(None, 1)
     if len(parts) != 2:
         return False
     keyword, raw_value = parts
-    setter = _NUMERIC_SETTERS.get(keyword)
-    if setter is None:
-        return False
     try:
         value = int(raw_value)
     except ValueError:
+        return False
+
+    # Naming an interval arms auto-advance: "advance thirty" is an instruction
+    # to start moving, not a setting to apply the next time it happens to be on.
+    if keyword == "ADVANCE":
+        if auto_advance_state is None:
+            return False
+        enable_auto_advance(auto_advance_state, interval=float(value))
+        return True
+
+    setter = _NUMERIC_SETTERS.get(keyword)
+    if setter is None or direct_state is None:
         return False
     setter(direct_state, value)
     return True

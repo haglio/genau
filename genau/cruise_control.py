@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -17,6 +16,13 @@ def _snap_to_5(value: float) -> int:
 
 @dataclass
 class CruiseControlState:
+    """Hands-free variation of the stroke itself — never of which clip plays.
+
+    Moving on to another clip is :mod:`genau.auto_advance`'s job, and the two
+    are armed separately: a session can vary the stroke on one clip, or hold
+    the stroke steady while the clips change, or both.
+    """
+
     active: bool = False
     rng: random.Random = field(default_factory=random.Random)
     _last_tick: float = 0.0
@@ -25,7 +31,6 @@ class CruiseControlState:
     _next_retarget: float = 0.0
     _next_speed_change: float = 0.0
     _next_shape_change: float = 0.0
-    _next_clip_change: float = 0.0
 
 
 def toggle_cruise_control(state: CruiseControlState) -> None:
@@ -44,7 +49,6 @@ def tick_cruise_control(
     direct: DirectControlState,
     cc: CruiseControlState,
     now: float,
-    step_clip: Callable[[int], None] | None = None,
 ) -> None:
     if not cc.active:
         return
@@ -82,8 +86,3 @@ def tick_cruise_control(
         shapes = list(WaveformShape)
         direct.shape = cc.rng.choice(shapes)
         cc._next_shape_change = now + cc.rng.uniform(5, 15)
-
-    # Advance clip periodically
-    if step_clip is not None and now >= cc._next_clip_change:
-        step_clip(1)
-        cc._next_clip_change = now + cc.rng.uniform(8, 12)

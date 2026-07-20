@@ -45,6 +45,7 @@ class GenauRefreshController:
         direct_state=None,
         tcode_sender=None,
         cruise_control=None,
+        auto_advance=None,
         broker_cmd_file: Path | None = None,
         drive_file: Path | None = None,
         set_drive_hud=None,
@@ -78,6 +79,7 @@ class GenauRefreshController:
         self.direct_state = direct_state
         self.tcode_sender = tcode_sender
         self.cruise_control = cruise_control
+        self.auto_advance = auto_advance
         self.broker_cmd_file = broker_cmd_file
         self.drive_file = drive_file
         self._last_drive_publish = 0.0
@@ -111,7 +113,15 @@ class GenauRefreshController:
         if direct_active:
             if self.cruise_control is not None:
                 from .cruise_control import tick_cruise_control
-                tick_cruise_control(self.direct_state, self.cruise_control, now, step_clip=self.selection.step)
+                tick_cruise_control(self.direct_state, self.cruise_control, now)
+            if self.auto_advance is not None:
+                from .auto_advance import tick_auto_advance
+                tick_auto_advance(
+                    self.auto_advance,
+                    now,
+                    playing=self.direct_state.playing,
+                    step_clip=self.selection.step,
+                )
             auto_active = self.direct_state.playing
             raw_bpm = self.direct_state.bpm
             paused = not self.direct_state.playing
@@ -165,8 +175,10 @@ class GenauRefreshController:
                 engine=self.engine,
                 rh_paused=self.rh_paused,
                 step_clip=self.selection.step,
+                discard_clip=self.selection.discard_current,
                 direct_state=self.direct_state,
                 cruise_control_state=self.cruise_control,
+                auto_advance_state=self.auto_advance,
                 stop_event=self.stop_event,
                 hud_state=self.hud_state,
                 display_state=self.display_state,
@@ -224,7 +236,13 @@ class GenauRefreshController:
         if self.direct_state is not None and self.cruise_control is not None:
             status_path = self.command_file.parent / "genau_status.txt"
             hud_on = self.hud_state["active"] if self.hud_state is not None else False
-            write_status_file(status_path, self.direct_state, self.cruise_control, hud_active=hud_on)
+            write_status_file(
+                status_path,
+                self.direct_state,
+                self.cruise_control,
+                auto_advance=self.auto_advance,
+                hud_active=hud_on,
+            )
 
     def _update_drive_hud(self, now: float) -> None:
         from .direct_control import MIN_BPM, sample_waveform
