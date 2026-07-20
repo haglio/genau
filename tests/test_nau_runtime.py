@@ -287,6 +287,24 @@ class TestApplyCommand:
         assert apply_command("SET_F_MODE 1", session) is False
         assert apply_command("SET_F_MODE", session, set_f_mode=lambda _f: None) is False
 
+    def test_set_active_invokes_callback(self):
+        """Which player a bare command reaches is the orchestrator's bookkeeping;
+        Nau only ever learns it by being told."""
+        session = SpySession()
+        states = []
+
+        assert apply_command("SET_ACTIVE 1", session, set_active=states.append)
+        assert apply_command("SET_ACTIVE 0", session, set_active=states.append)
+
+        assert states == [True, False]
+        assert session.calls == []
+
+    def test_set_active_without_callback_or_argument_returns_false(self):
+        session = SpySession()
+
+        assert apply_command("SET_ACTIVE 1", session) is False
+        assert apply_command("SET_ACTIVE", session, set_active=lambda _a: None) is False
+
     def test_quit_sets_stop_event(self):
         session = SpySession()
         stop = threading.Event()
