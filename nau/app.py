@@ -44,7 +44,14 @@ from .overlay import (
     time_to_x,
 )
 from .runtime import SEEK_STEP_MS, apply_command
-from .volume import VolumeHud, VolumeHudPainter, chip_local, chip_xy, hit_part, volume_at
+from player_core.volume import (
+    VolumeHud,
+    VolumeHudPainter,
+    chip_local,
+    chip_xy,
+    hit_part,
+    volume_at,
+)
 from .session import PlayerSession
 from .status import status_fields
 from .tcode_driver import FunscriptTCodeDriver
