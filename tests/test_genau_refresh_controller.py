@@ -113,7 +113,7 @@ def _build_controller(
     loading_texts: list[str | None] = []
     show_window_calls: list[str] = []
     hide_window_calls: list[str] = []
-    overlay_data_list: list = []
+    drive_huds: list = []
     present_calls: list[int] = []
     hud_mode_calls: list[bool] = []
     blank_calls: list[bool] = []
@@ -155,7 +155,7 @@ def _build_controller(
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
         broker_cmd_file=broker_cmd_file,
-        set_direct_overlay=overlay_data_list.append,
+        set_drive_hud=drive_huds.append,
         present_scene=lambda: present_calls.append(1),
         hud_state=hud_state,
         set_hud_mode=set_hud_mode or hud_mode_calls.append,
@@ -173,7 +173,7 @@ def _build_controller(
         "loading_texts": loading_texts,
         "show_window_calls": show_window_calls,
         "hide_window_calls": hide_window_calls,
-        "overlay_data_list": overlay_data_list,
+        "drive_huds": drive_huds,
         "present_calls": present_calls,
         "hud_mode_calls": hud_mode_calls,
         "blank_calls": blank_calls,
@@ -328,7 +328,7 @@ def test_no_tcode_sender_in_passive_mode():
     built["controller"].refresh()
 
 
-def test_direct_mode_sets_overlay_data():
+def test_direct_mode_publishes_the_drive_readout():
     dc = DirectControlState(playing=True, bpm=120.0, amplitude=70, intended_center=60)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
@@ -336,11 +336,11 @@ def test_direct_mode_sets_overlay_data():
 
     built["controller"].refresh()
 
-    assert len(built["overlay_data_list"]) == 1
-    data = built["overlay_data_list"][0]
-    assert data.amplitude == 70
-    assert data.center == 60
-    assert data.speed == 50
+    assert len(built["drive_huds"]) == 1
+    hud = built["drive_huds"][0]
+    assert (hud.amplitude, hud.center, hud.speed) == (70, 60, 50)
+    assert hud.shape == "sine"  # named on the panel, not only drawn
+    assert len(hud.waveform) == 80
 
 
 def test_direct_mode_calls_present_scene():
@@ -619,26 +619,7 @@ def test_broker_auto_cleared_resumes_direct_control():
     built["controller"].refresh()
 
     assert len(tcode.sends) == 1
-    assert len(built["overlay_data_list"]) == 1
-
-
-def test_overlay_display_seconds_derived_from_min_bpm():
-    """Display window must fit one full waveform cycle at the minimum BPM."""
-    from genau.direct_control import MIN_BPM
-
-    dc = DirectControlState(playing=True, bpm=60.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    beats_per_loop = 4.0
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
-
-    built["controller"].refresh()
-
-    data = built["overlay_data_list"][0]
-    # At MIN_BPM, one cycle = 60 * beats_per_loop / MIN_BPM seconds.
-    # display_seconds must equal that so the bar fills exactly at min speed.
-    expected = 60.0 * beats_per_loop / MIN_BPM
-    assert data.display_seconds == expected
+    assert len(built["drive_huds"]) == 1
 
 
 def test_multiline_commands_all_applied():

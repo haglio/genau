@@ -6,23 +6,11 @@ from pathlib import Path
 
 from player_core.file_channel import consume_command_file
 
+from .drive_hud import DriveHud
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
 from .status_writer import write_status_file
-
-
-@dataclass
-class DirectOverlayData:
-    speed: int
-    bpm: float
-    amplitude: int
-    center: int
-    waveform_points: list[float]
-    position: int
-    cruise_active: bool
-    phase_per_second: float = 1.0
-    display_seconds: float = 4.0
 
 
 class GenauRefreshController:
@@ -53,7 +41,7 @@ class GenauRefreshController:
         tcode_sender=None,
         cruise_control=None,
         broker_cmd_file: Path | None = None,
-        set_direct_overlay=None,
+        set_drive_hud=None,
         present_scene=None,
         stop_event=None,
         hud_state=None,
@@ -85,7 +73,7 @@ class GenauRefreshController:
         self.tcode_sender = tcode_sender
         self.cruise_control = cruise_control
         self.broker_cmd_file = broker_cmd_file
-        self.set_direct_overlay = set_direct_overlay or (lambda _data: None)
+        self.set_drive_hud = set_drive_hud or (lambda _hud: None)
         self.present_scene = present_scene or (lambda: None)
         self.stop_event = stop_event
         self.hud_state = hud_state
@@ -154,9 +142,9 @@ class GenauRefreshController:
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
         if direct_active:
-            self._update_direct_overlay()
+            self._update_drive_hud()
         elif self.direct_state is not None:
-            self.set_direct_overlay(None)
+            self.set_drive_hud(None)
 
         prev_playing = self._prev_playing
         if self.direct_state is not None:
@@ -230,7 +218,7 @@ class GenauRefreshController:
             hud_on = self.hud_state["active"] if self.hud_state is not None else False
             write_status_file(status_path, self.direct_state, self.cruise_control, hud_active=hud_on)
 
-    def _update_direct_overlay(self) -> None:
+    def _update_drive_hud(self) -> None:
         from .direct_control import MIN_BPM, sample_waveform
 
         ds = self.direct_state
@@ -241,21 +229,20 @@ class GenauRefreshController:
             start_phase = self.tcode_sender.stroke_phase
 
         phase_per_second = ds.bpm / 60.0 / self.beats_per_loop if ds.bpm > 0 else 1.0
-        # Show enough time so one full waveform cycle is visible at the slowest speed
+        # Show enough time that one whole cycle is visible at the slowest speed.
         display_seconds = 60.0 * self.beats_per_loop / MIN_BPM
 
-        self.set_direct_overlay(DirectOverlayData(
+        self.set_drive_hud(DriveHud(
             speed=ds.speed,
-            bpm=ds.bpm,
             amplitude=ds.amplitude,
             center=ds.center,
-            waveform_points=sample_waveform(
+            shape=ds.shape.value,
+            position=position,
+            cruise=self.cruise_control.active if self.cruise_control else False,
+            playing=ds.playing,
+            waveform=tuple(sample_waveform(
                 ds.shape, ds.amplitude, ds.center, 80,
                 start_phase=start_phase,
                 phase_range=phase_per_second * display_seconds,
-            ),
-            position=position,
-            cruise_active=self.cruise_control.active if self.cruise_control else False,
-            phase_per_second=phase_per_second,
-            display_seconds=display_seconds,
+            )),
         ))

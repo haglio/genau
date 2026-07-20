@@ -242,7 +242,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
-        set_direct_overlay=view.set_direct_overlay,
+        set_drive_hud=view.set_drive_hud,
         present_scene=view.present,
         stop_event=stop_event,
         hud_state=hud_state,
