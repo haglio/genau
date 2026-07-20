@@ -265,6 +265,8 @@ class GenauRefreshController:
             shape=ds.shape.value,
             position=position,
             cruise=self.cruise_control.active if self.cruise_control else False,
+            auto_advance=self.auto_advance.active if self.auto_advance else False,
+            clip_locked=self.auto_advance.locked if self.auto_advance else False,
             playing=ds.playing,
             waveform=tuple(sample_waveform(
                 ds.shape, ds.amplitude, ds.center, 80,
