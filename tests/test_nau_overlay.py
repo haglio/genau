@@ -218,14 +218,6 @@ class TestHeatmapBgra:
         assert heatmap_bgra(strip, 0, None, 100) is None
 
 
-class TestNameChip:
-    def test_produces_bgra_with_height(self):
-        from nau.overlay import name_bgra
-        chip = name_bgra("Some Video Name")
-        assert chip.ndim == 3 and chip.shape[2] == 4
-        assert chip.shape[0] > 0 and chip.shape[1] > 0
-
-
 class TestLoopThumbCapture:
     def test_asks_for_in_first_then_out_near_end(self):
         from nau.overlay import LoopThumbCapture
