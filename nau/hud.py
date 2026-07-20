@@ -33,6 +33,7 @@ import numpy as np
 from genau.drive_hud import DriveHud, DriveSection
 from player_core.hud_panel import (
     BG_PRIMARY,
+    BLUE,
     BORDER_PANEL,
     GREEN,
     RED,
@@ -280,7 +281,7 @@ class NauHudPainter:
             draw.text((x + w, y + h / 2), button.glyph, font=self._tiny, anchor="rm",
                       fill=(*TEXT_MUTED, 255))
             return
-        fill = GREEN if button.lit else RED if button.warn else None
+        fill = GREEN if button.lit else RED if button.warn else BLUE if button.hold else None
         edge = TEXT_MUTED if button.dim else (fill or TEXT_MUTED)
         draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=3,
                                fill=(*fill, 255) if fill else None,
