@@ -49,6 +49,7 @@ from .console import (
     ConsoleModel,
     Rect,
     console_rows,
+    hit_test,
     place_rows,
     row_width,
     rows_height,
@@ -202,6 +203,32 @@ class NauHudPainter:
         if (hud, hover) != self._painted or self._bgra is None:
             self._painted, self._bgra = (hud, hover), self._paint(hud, hover)
         return self._bgra
+
+    def command_at(self, mx: int, my: int) -> str:
+        """The command a press at *window* point ``(mx, my)`` posts, "" over none.
+
+        The rects were placed from the panel's own corner and presses arrive from
+        the window's, so the inset between the two comes off first.  It comes off
+        here because this is the only object that knows both numbers: a caller
+        undoing `hud_xy` itself is a second copy of where the panel went, free to
+        drift from the real one and slide every hit target off what was drawn.
+        """
+        return hit_test(self.buttons, *self._local(mx, my))
+
+    def hover_at(self, mx: int, my: int) -> tuple[int, int] | None:
+        """Where to name the button under *window* point ``(mx, my)``, else None.
+
+        Panel-local, because the tooltip is drawn inside the panel — the HUD lives
+        in the video and there is no native tooltip out there to fall back on.
+        """
+        local = self._local(mx, my)
+        return local if tooltip_at(self.buttons, *local) else None
+
+    @staticmethod
+    def _local(mx: int, my: int) -> tuple[int, int]:
+        """A window point in the panel's own coordinates."""
+        left, top = hud_xy()
+        return mx - left, my - top
 
     def _paint(self, hud: NauHud, hover: tuple[int, int] | None = None) -> np.ndarray:
         rows = console_rows(hud.console)
