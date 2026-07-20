@@ -168,10 +168,12 @@ class TestZoomWindow:
 
 
 class TestBarTrackX:
-    def test_insets_the_track_from_the_window_edges(self):
+    def test_insets_the_track_from_the_left_and_leaves_the_volume_slot_at_the_right(self):
         from nau.overlay import bar_track_x
-        # The timeline's start/end sit a fixed margin in from the edges.
-        assert bar_track_x(1000) == (40, 960)
+        from nau.volume import SLOT_W
+        # The start sits a fixed margin in from the left; the end stops clear of
+        # the volume control the way VLC's seek bar stopped short of its slider.
+        assert bar_track_x(1000) == (40, 1000 - SLOT_W)
 
     def test_clamps_so_the_track_never_inverts_on_a_narrow_window(self):
         from nau.overlay import bar_track_x

@@ -32,7 +32,7 @@ from PIL import Image, ImageDraw
 # small enough to ignore.
 CHIP_W = 112
 CHIP_H = 22
-MARGIN = 10          # inset from the window's right edge and from the timeline
+MARGIN = 10          # inset from the window's right edge and from the track
 SPEAKER_W = 26       # the left end that toggles the mute
 PAD = 6
 TRACK_H = 4
@@ -40,15 +40,24 @@ TRACK_H = 4
 MIN_VOLUME = 0
 MAX_VOLUME = 100
 
+# The room the control reserves at the right end of the timeline row, so the
+# scrubber's track stops clear of it — a margin from the window edge, the chip,
+# and a margin's gap back to the track.  ``nau.overlay.bar_track_x`` subtracts it.
+SLOT_W = MARGIN + CHIP_W + MARGIN
+
 
 def chip_xy(*, win_w: int, win_h: int, timeline_h: int) -> tuple[int, int]:
-    """Where the chip sits: the right-hand end of the row above the timeline.
+    """The chip's top-left: the right end of the timeline row, centred in its
+    height.
 
-    Beside the transport rather than up in the top-left column, which belongs to
-    the furniture that says what is *selecting* the video.  Clamped at the left so
-    a narrow window shrinks the margin instead of pushing the chip off screen.
+    Beside the scrubber, the way VLC laid the seek bar and the volume out
+    together, rather than floating in a row of its own above it.  The track leaves
+    ``SLOT_W`` clear on the right for it.  Clamped at the left so a narrow window
+    shrinks the margin instead of pushing the chip off screen.
     """
-    return max(0, win_w - CHIP_W - MARGIN), max(0, win_h - timeline_h - CHIP_H - MARGIN)
+    x = max(0, win_w - MARGIN - CHIP_W)
+    y = win_h - timeline_h + max(0, (timeline_h - CHIP_H) // 2)
+    return x, y
 
 
 # --- hit-testing -------------------------------------------------------------
