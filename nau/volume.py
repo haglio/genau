@@ -57,6 +57,19 @@ _TRACK_X0 = SPEAKER_W
 _TRACK_X1 = CHIP_W - PAD
 
 
+def chip_local(mx: int, my: int, *, win_w: int, win_h: int,
+               timeline_h: int) -> tuple[int, int]:
+    """A window point in the chip's own coordinates — what the hit tests below take.
+
+    The chip is placed from the window's bottom-right corner, so its origin moves
+    with the window and with the timeline under it.  Undoing `chip_xy` lives here
+    beside `chip_xy` rather than at each call site, where it would be one more
+    copy of the chip's position, free to drift from the real one.
+    """
+    vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=timeline_h)
+    return mx - vx, my - vy
+
+
 def hit_part(x: int, y: int) -> str:
     """Which control a press at chip-local ``(x, y)`` is on: "mute", "track", or
     "" for neither.  The speaker takes the left end and the slider the rest, so
