@@ -7,17 +7,12 @@ import pygame
 from PIL import Image
 from pygame._sdl2.video import Renderer, Texture, Window
 
-from .drive_hud import PANEL_SIZE as DRIVE_PANEL_SIZE
-from .drive_hud import DriveHud, DriveHudPainter
+from nau.hud import ConsoleHud, ConsolePainter, hud_xy
 from .layout import compute_video_rects
 
 # Near-black magenta used as the Win32 color key for HUD transparency.
 # Any pixel drawn in this exact color becomes fully transparent.
 HUD_COLOR_KEY = (1, 0, 1)
-
-# Where the drive readout sits in Genau's window — the top-left corner, the same
-# corner every player in this family puts its HUD in.
-DRIVE_HUD_XY = (8, 8)
 
 
 def get_window_chrome_height() -> int:
@@ -112,8 +107,12 @@ class PygameView:
         self._video_size: tuple[int, int] | None = None
         self._loading_font: pygame.font.Font | None = None
         self._loading_text: str | None = None
-        self._drive_hud: DriveHud | None = None
-        self._drive_painter = DriveHudPainter()
+        # In genau mode Genau draws the whole primary console — the same one Nau
+        # draws over its video in the other modes — into its own window, and takes
+        # its clicks.  None until the refresh loop has one to show.
+        self._console: ConsoleHud | None = None
+        self._console_painter = ConsolePainter()
+        self._console_hover: tuple[int, int] | None = None
         self.hud_active: bool = False
         # When blank, the window paints solid black and draws no clip or overlay.
         # Genau uses this while it isn't the active display (e.g. Nau mode), so an
@@ -135,8 +134,17 @@ class PygameView:
     def set_loading_text(self, text: str | None) -> None:
         self._loading_text = text
 
-    def set_drive_hud(self, hud: DriveHud | None) -> None:
-        self._drive_hud = hud
+    def set_console(self, console: ConsoleHud | None) -> None:
+        self._console = console
+
+    def console_command_at(self, mx: int, my: int) -> str:
+        """The command a press at ``(mx, my)`` posts on the console, "" over none."""
+        return self._console_painter.command_at(mx, my)
+
+    def set_console_hover(self, mx: int, my: int) -> None:
+        """Remember where the cursor is over the console, so a button under it
+        names itself; forgotten when it is over nothing."""
+        self._console_hover = self._console_painter.hover_at(mx, my)
 
     def set_blank(self, blank: bool) -> None:
         self._blank = blank
@@ -146,7 +154,7 @@ class PygameView:
         self._video_size = (w, h)
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
         self._current_texture = Texture.from_surface(self.renderer, surface)
-        if self._drive_hud is None:
+        if self._console is None:
             self._present_scene()
 
     def present(self) -> None:
@@ -173,11 +181,10 @@ class PygameView:
         if show_clip and self._loading_text:
             self._draw_loading_overlay()
         # Not while the HUD is on: that is Hybrid, where this window is a
-        # transparent layer over Nau's and the readout is drawn inside Nau's
-        # console, beneath the controls that move it.  Drawing it here too would
-        # put the same panel on screen twice.
-        if not self._blank and not self.hud_active and self._drive_hud is not None:
-            self._draw_drive_hud()
+        # transparent layer over Nau's and Nau draws the console over its own
+        # video.  Drawing it here too would put the same console on screen twice.
+        if not self._blank and not self.hud_active and self._console is not None:
+            self._draw_console()
         self.renderer.present()
 
     def _draw_loading_overlay(self) -> None:
@@ -194,22 +201,20 @@ class PygameView:
         dest = pygame.Rect(win_w - w - padding * 3, padding, w + padding * 2, h + padding * 2)
         texture.draw(dstrect=dest)
 
-    def _draw_drive_hud(self) -> None:
-        """Blit the drive readout, painted by the module both players share.
+    def _draw_console(self) -> None:
+        """Blit the primary console, painted by the module every player shares.
 
-        Genau used to draw this panel itself, straight into this window with
-        ``pygame.draw`` calls and a Consolas SysFont — the last HUD in the family
-        still doing that.  It is now the same painting Nau composites into its
-        video in Hybrid, so the panel reads the same whichever player is showing
-        it, and there is only one place to change it.
+        In genau mode Genau is on screen, so it draws the console Nau draws in the
+        other modes — the same painter, so the panel reads the same whichever
+        player is showing it, and there is one place to change it.
         """
-        hud = self._drive_hud
-        if hud is None:
+        console = self._console
+        if console is None:
             return
-        surface = pygame.image.frombuffer(
-            self._drive_painter.rgba_bytes(hud), DRIVE_PANEL_SIZE, "RGBA")
+        rgba, size = self._console_painter.rgba(console, hover=self._console_hover)
+        surface = pygame.image.frombuffer(rgba, size, "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
-        texture.draw(dstrect=pygame.Rect(DRIVE_HUD_XY, DRIVE_PANEL_SIZE))
+        texture.draw(dstrect=pygame.Rect(hud_xy(), size))
 
     def set_hud_mode(self, active: bool) -> None:
         if active == self.hud_active:

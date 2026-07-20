@@ -1,18 +1,21 @@
-"""The controls on Nau's HUD, and where they sit.
+"""The controls on the primary console, and where they sit.
 
 Fun Time's dashboard used to draw a schematic of the two monitors with a little
-box per player, and the primary player's box carried this row of buttons: step
-the video, nudge it, open a file, save a clip, mark a loop, switch which player
-owns the primary slot, and — when Genau is driving the device — its amplitude,
-centre, speed, cruise, waveform and quarter-cycle offset.  Every one of them is
-about the player that now draws its own HUD, so they belong on it.
+box per player, and the primary player's box carried these controls.  The primary
+player draws its own HUD now, so they live on it — and whichever player holds the
+primary slot draws that HUD: Nau in nau and hybrid, Genau in genau mode.  The
+console is the same in every mode, so the mode switch and the drive controls do
+not move as you flip between them; only the transport changes, because prev/next
+step Nau's video in nau/hybrid and Genau's clips in genau.
 
-Kept free of Pillow, like ``satellite.hud`` is, so the rows, the geometry and
-the hit-testing are testable without a font.  :mod:`nau.hud` paints them.
+Kept free of Pillow, like ``satellite.hud`` is, so the rows, the geometry and the
+hit-testing are testable without a font.  :mod:`nau.hud` paints them; the drive
+readout's own arrows come from :mod:`genau.drive_hud`.
 
 The action on each button is a Fun Time dashboard command verbatim, because that
-is where a press goes: appended to the same command file the dashboard writes, so
-nothing new has to learn what these buttons mean.
+is where a press goes: appended to the same command file the dashboard wrote, so
+nothing new has to learn what these buttons mean, and Fun Time routes each to the
+player the mode says owns it.
 """
 from __future__ import annotations
 
@@ -23,7 +26,7 @@ from pathlib import Path
 Rect = tuple[int, int, int, int]  # (x, y, w, h)
 
 BUTTON = 18   # a square control; the wider ones are multiples plus the gaps
-LABEL_W = 26  # a word naming the pair beside it, rather than a control
+VALUE_W = 34  # a value read-out between a pair of buttons (the playback rate)
 GAP = 4       # between buttons along a row
 ROW_GAP = 5   # between rows
 GROUP_GAP = 12  # between groups of buttons that mean different things
@@ -34,14 +37,13 @@ class Button:
     """One item on the console: what it posts, what it looks like, how it is drawn.
 
     ``lit``, ``warn`` and ``hold`` are the live states — green for on, red for a
-    suppression that is not the same as "off", blue for armed-but-sitting-still,
-    which is the colour the drive readout gives the same condition.  ``dim`` is a
-    control at the end of its range: drawn faded and left out of the hit targets,
-    so a press that could do nothing is not offered.
+    suppression that is not the same as "off", blue for armed-but-sitting-still.
+    ``dim`` is a control at the end of its range or with nothing to act on: drawn
+    faded and left out of the hit targets, so a press that could do nothing is not
+    offered.
 
-    An empty ``action`` makes it a label: laid out in the row like anything else,
-    drawn as a bare word with no box, and never a hit target.  That is how a pair
-    of arrows gets told from the two pairs beside it.
+    An empty ``action`` makes it a read-out: laid out in the row like anything
+    else, drawn as a bare value with no box, and never a hit target.
     """
 
     action: str
@@ -56,35 +58,38 @@ class Button:
 
 @dataclass(frozen=True)
 class ConsoleModel:
-    """What Fun Time tells Nau about the primary slot, so the console can draw it.
+    """What Fun Time tells the primary player about its slot, so the console can
+    draw it — none of which the player can see for itself.
 
-    Nau knows what it is playing but nothing about the room around it: which mode
-    the slot is in, what is driving the device, or where Genau's controls have hit
-    their limits.  All of that arrives published, the way the satellites' maps do.
+    Everything here arrives published (``nau_console.json``) except
+    ``playback_speed``, which is Nau's own and folded in by whoever is drawing.
     """
 
     mode: str = "nau"
+    # The dot: whether a bare, player-less command ("next", "lock") lands on the
+    # primary rather than on a satellite.
+    active: bool = False
+    # What is driving the OSR2 right now: off / auto / funscript / genau / idle.
+    osr2: str = "off"
+    # Whether the OSR2 broker service is up — its own concern, only the primary's.
+    broker: bool = False
     takeover_allowed: bool = True
     cruise: bool = False
-    # The other hands-free switch: cruise varies the stroke, auto advance moves
-    # on to the next clip.  A held clip is auto advance still armed but sitting
-    # still, which the button shows as its own state rather than as off.
+    # The other hands-free switch: cruise varies the stroke, auto advance moves on
+    # to the next clip.  A held clip is auto advance still armed but sitting still.
     auto_advance: bool = False
     clip_locked: bool = False
     shape: str = "sine"
-    # Which of Genau's controls have run out of range: "amp_max", "amp_min",
-    # "ctr_max", "ctr_min", "spd_max", "spd_min".
-    limits: frozenset[str] = field(default_factory=frozenset)
-    # What is driving the device, in Fun Time's words — the dashboard drew this as
-    # a box of its own with a cable running to the primary player.
-    osr2: str = ""
+    # Nau's video playback rate, shown while Nau is on screen.  Not published —
+    # Nau knows its own rate and folds it in; Genau leaves it at 1.
+    playback_speed: float = 1.0
 
 
 def read_console(path: Path) -> ConsoleModel | None:
     """The console panel Fun Time published, or None when there is not a whole one.
 
-    None means "keep the console you have": Fun Time replaces this file while Nau
-    polls it, so a lost race must not empty the panel for a frame.
+    None means "keep the console you have": Fun Time replaces this file while the
+    player polls it, so a lost race must not empty the panel for a frame.
     """
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -94,13 +99,14 @@ def read_console(path: Path) -> ConsoleModel | None:
         return None
     return ConsoleModel(
         mode=str(raw.get("mode", "nau")),
+        active=bool(raw.get("active", False)),
+        osr2=str(raw.get("osr2", "off") or "off"),
+        broker=bool(raw.get("broker", False)),
         takeover_allowed=bool(raw.get("takeover_allowed", True)),
         cruise=bool(raw.get("cruise", False)),
-        shape=str(raw.get("shape", "sine") or "sine"),
         auto_advance=bool(raw.get("auto_advance", False)),
         clip_locked=bool(raw.get("clip_locked", False)),
-        limits=frozenset(str(limit) for limit in raw.get("limits", []) or []),
-        osr2=str(raw.get("osr2", "") or ""),
+        shape=str(raw.get("shape", "sine") or "sine"),
     )
 
 
@@ -108,8 +114,8 @@ def read_console(path: Path) -> ConsoleModel | None:
 # Pillow draws tofu where Qt used to fall back silently.
 _GLYPHS = {
     "prev": "⏮", "next": "⏭", "back": "−", "fwd": "+",
-    "open": "📂", "clip": "✂", "record": "⏺",
-    "up": "▲", "down": "▼", "wave": "∿", "quarter": "¼",
+    "open": "📂", "clip": "✂", "record": "⏺", "trash": "🗑",
+    "wave": "∿", "quarter": "¼", "minus": "−", "plus": "+",
 }
 
 _MODE_BUTTONS = (
@@ -118,78 +124,108 @@ _MODE_BUTTONS = (
     ("genau_activate", "Genau", "genau"),
 )
 
-# Each of Genau's three parameters: the label the pair sits under, the command
-# stem, and the limit keys that grey each end out.
-_DRIVE_PARAMS = (
-    ("Amp", "genau_amplitude", "amp"),
-    ("Ctr", "genau_center", "ctr"),
-    ("Spd", "genau_speed", "spd"),
-)
+
+def nau_displays(mode: str) -> bool:
+    """Whether Nau's video is on the primary screen — nau and hybrid.
+
+    The transport steps Nau's video then, and the nudge / open / clip / record
+    that act on a video make sense; in genau mode the transport steps Genau's own
+    clips instead and those video actions have nothing to act on.
+    """
+    return mode in ("nau", "hybrid")
 
 
 def genau_drives(mode: str) -> bool:
-    """Whether a waveform is driving the device in *mode*.
+    """Whether a waveform is driving the device — genau and hybrid.
 
-    Only then do amplitude, centre, cruise and the rest mean anything — in Nau
-    mode they would be a row of buttons with nothing behind them.  Genau mode is
-    included for completeness; Nau is not on screen there to be asked.
+    Only then do amplitude, centre, speed, cruise and the rest mean anything, so
+    only then does the drive readout and its control row appear.
     """
     return mode in ("genau", "hybrid")
 
 
+def _format_rate(rate: float) -> str:
+    """A playback rate as a compact label: 1.0 -> '1×', 1.5 -> '1.5×'."""
+    return f"{rate:g}×"
+
+
 def console_rows(model: ConsoleModel) -> list[list[Button]]:
-    """The console's buttons, row by row, for the mode Fun Time says it is in."""
-    rows = [
-        [
-            Button("primary_prev", _GLYPHS["prev"], "Previous video"),
-            Button("primary_next", _GLYPHS["next"], "Next video"),
-            Button("primary_nudge_prev", _GLYPHS["back"], "Back 10s"),
-            Button("primary_nudge_next", _GLYPHS["fwd"], "Forward 10s"),
-            Button("open_file_dialog", _GLYPHS["open"], "Open file browser"),
-            Button("clipper_save", _GLYPHS["clip"], "Save clip"),
-        ],
+    """The console's buttons, row by row, for the mode Fun Time says it is in.
+
+    The mode row leads, so it holds the same place in every mode.  Then the
+    transport — Nau's video or Genau's clips — and, while Genau is driving, the
+    hands-free control row (the drive readout's amplitude/centre/speed arrows are
+    drawn on the readout itself, not here).
+    """
+    rows: list[list[Button]] = [
         [
             Button(action, label, f"{label} mode", width=BUTTON * 2 + GAP,
                    lit=model.mode == mode)
             for action, label, mode in _MODE_BUTTONS
         ],
     ]
-    if model.mode == "nau":
-        # Recording marks a loop in the video Nau is playing.  In Hybrid the slot
-        # is shared with a waveform and there is no loop to mark.
-        rows[0].append(Button("nau_record_tap", _GLYPHS["record"], "Record loop"))
+    rows.append(_transport_row(model))
+    if nau_displays(model.mode):
+        rows.append(_playback_speed_row(model))
     if genau_drives(model.mode):
-        rows.append(_drive_row(model))
-        rows.append([
-            Button("genau_toggle_cruise", "cc", "Cruise control", lit=model.cruise),
-            Button("genau_toggle_auto_advance", "aa",
-                   "Auto advance: holding this clip" if model.clip_locked
-                   else "Auto advance",
-                   lit=model.auto_advance and not model.clip_locked,
-                   hold=model.auto_advance and model.clip_locked),
-            Button("genau_cycle_shape", _GLYPHS["wave"], f"Waveform: {model.shape}"),
-            Button("quarter_button", _GLYPHS["quarter"], "Offset ¼ cycle"),
-            Button("genau_toggle_auto", "GA",
-                   "Genau takeover: allowed" if model.takeover_allowed
-                   else "Genau takeover: suppressed",
-                   lit=model.takeover_allowed, warn=not model.takeover_allowed),
-        ])
+        rows.append(_control_row(model))
     return rows
 
 
-def _drive_row(model: ConsoleModel) -> list[Button]:
-    """Amplitude, centre and speed, each a labelled up/down pair, greyed at its
-    limits.  Without the labels the row is three identical pairs of arrows."""
-    row: list[Button] = []
-    for label, stem, key in _DRIVE_PARAMS:
-        row.append(Button("", label, "", width=LABEL_W))
-        row += [
-            Button(f"{stem}_{end}", _GLYPHS[glyph], f"{label} {word}",
-                   dim=f"{key}_{limit}" in model.limits)
-            for end, glyph, word, limit in (("up", "up", "up", "max"),
-                                            ("down", "down", "down", "min"))
+def _transport_row(model: ConsoleModel) -> list[Button]:
+    """Stepping and the actions on what is on screen.
+
+    In nau/hybrid that is Nau's video — step it, nudge inside it, open a file,
+    save a clip, record a loop.  In genau it is Genau's own clips — step them and
+    mark one weird; nudge/open/clip/record have no video to act on.
+    """
+    if nau_displays(model.mode):
+        return [
+            Button("primary_prev", _GLYPHS["prev"], "Previous video"),
+            Button("primary_next", _GLYPHS["next"], "Next video"),
+            Button("primary_nudge_prev", _GLYPHS["back"], "Back 10s"),
+            Button("primary_nudge_next", _GLYPHS["fwd"], "Forward 10s"),
+            Button("open_file_dialog", _GLYPHS["open"], "Open file browser"),
+            Button("clipper_save", _GLYPHS["clip"], "Save clip"),
+            Button("nau_record_tap", _GLYPHS["record"], "Record loop"),
         ]
-    return row
+    return [
+        Button("genau_prev_clip", _GLYPHS["prev"], "Previous clip"),
+        Button("genau_next_clip", _GLYPHS["next"], "Next clip"),
+        Button("genau_weird_clip", _GLYPHS["trash"], "Mark weird — move it out"),
+    ]
+
+
+def _playback_speed_row(model: ConsoleModel) -> list[Button]:
+    """Nau's video playback rate: slower, the rate itself, faster.
+
+    Separate from the drive readout's Speed, which is the *stroke* rate; this is
+    how fast the video plays.
+    """
+    return [
+        Button("nau_speed_down", _GLYPHS["minus"], "Slower playback"),
+        Button("", _format_rate(model.playback_speed), "", width=VALUE_W),
+        Button("nau_speed_up", _GLYPHS["plus"], "Faster playback"),
+    ]
+
+
+def _control_row(model: ConsoleModel) -> list[Button]:
+    """The hands-free switches and the offset — everything Genau does that is not
+    a level on the readout."""
+    return [
+        Button("genau_toggle_cruise", "cc", "Cruise control", lit=model.cruise),
+        Button("genau_toggle_auto_advance", "aa",
+               "Auto advance: holding this clip" if model.clip_locked
+               else "Auto advance",
+               lit=model.auto_advance and not model.clip_locked,
+               hold=model.auto_advance and model.clip_locked),
+        Button("genau_cycle_shape", _GLYPHS["wave"], f"Waveform: {model.shape}"),
+        Button("quarter_button", _GLYPHS["quarter"], "Offset ¼ cycle"),
+        Button("genau_toggle_auto", "GA",
+               "Genau takeover: allowed" if model.takeover_allowed
+               else "Genau takeover: suppressed",
+               lit=model.takeover_allowed, warn=not model.takeover_allowed),
+    ]
 
 
 def place_rows(rows: list[list[Button]], *, x: int, y: int) -> list[tuple[Rect, Button]]:
@@ -214,22 +250,19 @@ def place_rows(rows: list[list[Button]], *, x: int, y: int) -> list[tuple[Rect, 
 def _group_break(row: list[Button], index: int) -> bool:
     """Whether a wider gap belongs before ``row[index]``.
 
-    The controls fall into pairs and triples that mean different things — stepping
-    the video, nudging inside it, the file actions — and a run of evenly spaced
-    squares reads as one long undifferentiated strip.  Genau's parameters break
-    every two, since each is an up/down pair.
+    The controls fall into groups that mean different things — stepping the video,
+    nudging inside it, the file actions — and a run of evenly spaced squares reads
+    as one long undifferentiated strip.
     """
     previous, current = row[index - 1], row[index]
-    if not current.action:
-        return True  # a label opens the group it names
-    if not previous.action:
-        return False  # …and its own pair follows it close
+    if not current.action or not previous.action:
+        return True  # a read-out stands apart from the controls around it
     return _family(previous.action) != _family(current.action)
 
 
 def _family(action: str) -> str:
     """Which group of controls *action* belongs to."""
-    for prefix in ("primary_nudge", "primary", "genau_"):
+    for prefix in ("primary_nudge", "primary", "nau_speed", "genau_"):
         if action.startswith(prefix):
             return prefix
     return "file"
@@ -249,8 +282,8 @@ def rows_height(rows: list[list[Button]]) -> int:
 def hit_test(placed: list[tuple[Rect, Button]], px: int, py: int) -> str:
     """The command for a press at ``(px, py)``, or "" over none of the buttons.
 
-    A dimmed control is skipped: it is at the end of its range, so the press it
-    would post is one Fun Time would ignore.
+    A dimmed control is skipped: it is at its limit or has nothing to act on, so
+    the press it would post is one Fun Time would ignore.
     """
     for (bx, by, bw, bh), button in placed:
         if button.dim or not button.action:

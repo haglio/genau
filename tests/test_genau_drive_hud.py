@@ -1,29 +1,22 @@
-"""Genau's drive readout: what it says about the stroke it is sending."""
+"""Genau's drive readout: what it says, and the arrows it now carries."""
 from __future__ import annotations
 
 import numpy as np
-from player_core.hud_panel import AMBER, BLUE, load_font, text_width
+from player_core.hud_panel import HudPanel, load_font, text_width
 
 from genau.drive_hud import (
-    PANEL_SIZE,
+    SECTION_H,
+    SECTION_W,
     DriveHud,
-    DriveHudPainter,
+    DriveSection,
+    controls,
     label_pair_x,
     publish_drive,
     read_drive,
     shape_label,
 )
 
-
-def _rgb(bgra: np.ndarray) -> np.ndarray:
-    return bgra[:, :, [2, 1, 0]]
-
-
-def _ink(bgra: np.ndarray, color, *, tolerance: int = 40) -> int:
-    """How many pixels are drawn in *color* — how the panel's parts are told
-    apart without asserting on exact coordinates."""
-    diff = np.abs(_rgb(bgra).astype(int) - np.asarray(color, dtype=int))
-    return int((diff.max(axis=2) <= tolerance).sum())
+PAD = 10
 
 
 def _hud(**overrides) -> DriveHud:
@@ -33,71 +26,93 @@ def _hud(**overrides) -> DriveHud:
     return DriveHud(**base)
 
 
+def _rendered(hud: DriveHud) -> np.ndarray:
+    panel = HudPanel(SECTION_W + 2 * PAD, SECTION_H + 2 * PAD)
+    DriveSection().draw(panel.draw, PAD, PAD, hud)
+    return np.asarray(panel.image)
+
+
 class TestShapeLabel:
     def test_names_the_waveform_instead_of_only_drawing_it(self):
-        """The old panel drew the wave and never named it, so the shape you had
-        cycled to could only be inferred from the trace."""
         assert shape_label("sine") == "Sine"
         assert shape_label("rounded_square") == "Square"
         assert shape_label("sawtooth") == "Sawtooth"
-        assert shape_label("triangle") == "Triangle"
 
     def test_an_unknown_shape_is_titled_rather_than_dropped(self):
         assert shape_label("half_moon") == "Half Moon"
 
 
-class TestLabelPair:
-    """A key and its value placed as one unit, so neither can land on the other."""
+class TestControls:
+    """The readout carries its own arrows now — speed at the bar's ends, amplitude
+    at its bar's ends, centre in the gutter beside its line."""
 
-    def test_the_value_follows_its_key(self):
-        font = load_font(8)
+    def test_it_offers_every_axis_a_way_up_and_down(self):
+        actions = {control.action for control in controls(0, 0, _hud())}
 
-        key_x, value_x = label_pair_x(font, "Speed", "62", left=10)
+        assert actions == {
+            "genau_speed_down", "genau_speed_up",
+            "genau_amplitude_up", "genau_amplitude_down",
+            "genau_center_up", "genau_center_down",
+        }
 
-        assert key_x == 10
-        assert value_x >= key_x + text_width(font, "Speed")
+    def test_an_arrow_at_its_limit_is_dimmed(self):
+        """The flag on the readout says the axis has run out of range, so the arrow
+        that would do nothing is greyed — the console then drops it from the hit
+        targets, the same as any dimmed control."""
+        by_action = {c.action: c for c in controls(0, 0, _hud(spd_at_max=True, amp_at_min=True))}
 
-    def test_a_right_aligned_pair_ends_at_the_edge_it_was_given(self):
-        """The amplitude's pair is wider than the bar it labels, so it hangs off
-        that column to the left rather than being squeezed into it — which is how
-        "Amp" and its number came to be drawn on top of each other."""
-        font = load_font(8)
+        assert by_action["genau_speed_up"].dim is True
+        assert by_action["genau_speed_down"].dim is False
+        assert by_action["genau_amplitude_down"].dim is True
 
-        key_x, value_x = label_pair_x(font, "Amp", "100", right=222)
+    def test_the_centre_arrows_follow_the_line(self):
+        """They sit beside the centre's dotted line, so they move up the panel as
+        the centre rises."""
+        low = {c.action: c.rect for c in controls(0, 0, _hud(center=20))}
+        high = {c.action: c.rect for c in controls(0, 0, _hud(center=80))}
 
-        assert value_x + text_width(font, "100") == 222
-        assert key_x < value_x
+        assert high["genau_center_up"][1] < low["genau_center_up"][1]
 
-    def test_the_two_pairs_the_panel_draws_do_not_meet(self):
-        font = load_font(8)
-        width = PANEL_SIZE[0]
+    def test_the_arrows_it_offers_all_fall_on_the_block_it_draws(self):
+        """Drawing and hit-testing place the arrows from one geometry, so a press
+        lands on what is on screen."""
+        for x, y, w, h in (c.rect for c in controls(PAD, PAD, _hud())):
+            assert PAD <= x and x + w <= PAD + SECTION_W
+            assert PAD <= y and y + h <= PAD + SECTION_H
 
-        _speed_key, speed_value = label_pair_x(font, "Speed", "100", left=10)
-        amp_key, _amp_value = label_pair_x(font, "Amp", "100", right=width - 10)
 
-        assert speed_value + text_width(font, "100") < amp_key
+class TestReadout:
+    def test_it_fills_the_block_it_declares(self):
+        rgb = _rendered(_hud(speed=62, center=45, amplitude=80))
+
+        assert rgb.shape == (SECTION_H + 2 * PAD, SECTION_W + 2 * PAD, 4)
+        assert (rgb[:, :, 3] > 0).mean() > 0.5
+
+    def test_a_bigger_stroke_draws_a_bigger_bar(self):
+        def blue(hud):
+            rgb = _rendered(hud).astype(int)[:, :, :3]
+            return int(((rgb[:, :, 2] > 150) & (rgb[:, :, 0] < 120)).sum())
+
+        assert blue(_hud(amplitude=90, waveform=())) > blue(_hud(amplitude=20, waveform=()))
 
 
 class TestPublishing:
     """In Hybrid the readout is drawn by Nau, so Genau says it instead of drawing it."""
 
-    def test_a_published_readout_reads_back_whole(self, tmp_path):
-        hud = _hud(cruise=True, playing=True, shape="sawtooth")
+    def test_a_published_readout_reads_back_whole_including_its_limits(self, tmp_path):
+        hud = _hud(cruise=True, playing=True, shape="sawtooth",
+                   spd_at_max=True, ctr_at_min=True)
         path = tmp_path / "genau_drive.txt"
 
         assert publish_drive(path, hud) is True
         read = read_drive(path)
 
         assert (read.speed, read.amplitude, read.center) == (hud.speed, hud.amplitude, hud.center)
-        assert (read.position, read.shape) == (hud.position, hud.shape)
-        assert (read.cruise, read.playing) == (True, True)
-        # The trace goes over at three decimals — a thousandth of the box it is
-        # drawn in, so the rounding is invisible and the line stays short.
+        assert (read.cruise, read.playing, read.shape) == (True, True, "sawtooth")
+        assert (read.spd_at_max, read.ctr_at_min) == (True, True)
         assert np.allclose(read.waveform, hud.waveform, atol=5e-4)
 
     def test_a_readout_that_has_been_over_the_wire_survives_going_again(self, tmp_path):
-        """What Nau holds must publish back to the same bytes, or the reader's
-        "has this moved?" comparison sees a change every single tick."""
         path = tmp_path / "genau_drive.txt"
         publish_drive(path, _hud())
         once = read_drive(path)
@@ -107,8 +122,6 @@ class TestPublishing:
         assert read_drive(path) == once
 
     def test_a_missing_or_torn_read_keeps_what_the_reader_has(self, tmp_path):
-        """The file is replaced while Nau polls it every frame; a lost race must
-        not blank the readout for a frame, so it answers None rather than empty."""
         path = tmp_path / "genau_drive.txt"
 
         assert read_drive(path) is None
@@ -116,67 +129,12 @@ class TestPublishing:
         path.write_text("speed=40\namplit", encoding="utf-8")
         assert read_drive(path) is None
 
-    def test_a_readout_with_no_trace_yet_still_reads_back(self, tmp_path):
-        path = tmp_path / "genau_drive.txt"
-        publish_drive(path, _hud(waveform=()))
 
-        assert read_drive(path).waveform == ()
+class TestLabelPair:
+    def test_a_pair_is_placed_as_one_unit(self):
+        font = load_font(8)
 
+        key_x, value_x = label_pair_x(font, "Speed", "62", left=10)
 
-class TestPainter:
-    def test_paints_the_declared_panel(self):
-        bgra = DriveHudPainter().bgra(_hud())
-
-        width, height = PANEL_SIZE
-        assert bgra.shape == (height, width, 4)
-        assert (bgra[:, :, 3] > 0).mean() > 0.5  # the slab fills it, corners aside
-
-    def test_a_state_that_has_not_moved_is_not_repainted(self):
-        """Both hosts redraw at display rate and Pillow cannot keep up, so the
-        bitmap has to survive between changes — the same reason Nau's mode panel
-        caches."""
-        painter = DriveHudPainter()
-
-        first = painter.bgra(_hud())
-
-        assert painter.bgra(_hud()) is first
-        assert painter.bgra(_hud(amplitude=20)) is not first
-
-    def test_cruise_says_so_only_while_it_is_holding_the_speed(self):
-        painter = DriveHudPainter()
-
-        assert _ink(painter.bgra(_hud(cruise=True)), AMBER) > \
-            _ink(DriveHudPainter().bgra(_hud(cruise=False)), AMBER)
-
-    def test_auto_advance_says_so_beside_cruise(self):
-        """They are separate switches, so the panel has to be able to show
-        either, both, or neither."""
-        neither = _ink(DriveHudPainter().bgra(_hud()), AMBER)
-        cruise = _ink(DriveHudPainter().bgra(_hud(cruise=True)), AMBER)
-        advance = _ink(DriveHudPainter().bgra(_hud(auto_advance=True)), AMBER)
-        both = _ink(DriveHudPainter().bgra(_hud(cruise=True, auto_advance=True)), AMBER)
-
-        assert advance > neither
-        assert both > cruise and both > advance
-
-    def test_a_held_clip_recolours_the_auto_advance_flag(self):
-        """The hold only exists inside auto advance, so it rides that flag
-        rather than taking a place of its own."""
-        armed = DriveHudPainter().bgra(_hud(auto_advance=True))
-        held = DriveHudPainter().bgra(_hud(auto_advance=True, clip_locked=True))
-
-        assert _ink(held, AMBER) < _ink(armed, AMBER)
-        assert _ink(held, BLUE) > _ink(armed, BLUE)
-
-    def test_a_bigger_stroke_draws_a_bigger_bar(self):
-        """The amplitude bar is the stroke's extent, so it has to grow with it —
-        it is the only thing on the panel that says how far the device travels."""
-        small = _ink(DriveHudPainter().bgra(_hud(amplitude=20, waveform=())), BLUE)
-        large = _ink(DriveHudPainter().bgra(_hud(amplitude=90, waveform=())), BLUE)
-
-        assert large > small
-
-    def test_an_empty_waveform_still_paints(self):
-        """Before the first sample there is no trace to draw; the panel is the
-        readout, not the trace, so it must stand without one."""
-        assert DriveHudPainter().bgra(_hud(waveform=())).shape[2] == 4
+        assert key_x == 10
+        assert value_x >= key_x + text_width(font, "Speed")

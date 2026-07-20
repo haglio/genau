@@ -27,7 +27,7 @@ from .cli import (
 from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
 from .console import ConsoleModel, genau_drives, read_console
-from .hud import ModeHud, NauHud, NauHudPainter, hud_xy
+from .hud import ConsoleHud, ConsolePainter, ModeHud, hud_xy, with_playback_speed
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, LENGTH_MODES, next_length_mode
 from .mode_memory import RememberedMode
@@ -41,7 +41,6 @@ from .overlay import (
     label_xs,
     name_bgra,
     progress_bar_bgra,
-    speed_bgra,
     time_to_x,
 )
 from .runtime import SEEK_STEP_MS, apply_command
@@ -63,15 +62,13 @@ _APP_USER_MODEL_ID = "Nau.App"
 
 # Overlay ids (stable so each frame updates in place).
 _OV_HEATMAP = 0
-_OV_SPEED = 2
 _OV_NAME = 3
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
 _OV_CONSOLE = 6
 _OV_VOLUME = 7
 
-# Between the stacked overlays in the top-left column: the mode HUD, the video's
-# name, and the playback rate when it is off normal.
+# Between the console and the video-name chip stacked beneath it.
 _STACK_GAP = 4
 
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
@@ -231,10 +228,6 @@ def _run(args) -> int:
     # ever comes from Fun Time saying so — and defaults off, because a session
     # that is never told is a session where nothing narrowed it.
     f_mode = False
-    # Whether a bare, player-less command lands here rather than on a satellite.
-    # Fun Time tracks it and says so; a session never told is one where the
-    # satellites have had every word, which is where a fresh session starts.
-    active = False
     # The primary display's sound, as Fun Time publishes it.  Nau's own mpv is one
     # of two sinks it drives (Genau's clip audio is the other), so the level here
     # is drawn and reported, never decided: a press asks Fun Time and the answer
@@ -242,7 +235,7 @@ def _run(args) -> int:
     volume_hud = VolumeHud()
     volume_painter = VolumeHudPainter()
     heatmap = HeatmapStrip()
-    console_hud = NauHudPainter()
+    console_hud = ConsolePainter()
     # What Fun Time says about the primary slot, and what Genau says it is doing
     # to the device.  Both arrive published; before the first read the console
     # still draws, with the player's own controls and nothing claimed about the
@@ -310,13 +303,9 @@ def _run(args) -> int:
             return
         jumps.end_compilation(source.playlist_for(length_mode))
 
-    def _set_f_mode(active: bool) -> None:
+    def _set_f_mode(on: bool) -> None:
         nonlocal f_mode
-        f_mode = active
-
-    def _set_active(has_floor: bool) -> None:
-        nonlocal active
-        active = has_floor
+        f_mode = on
 
     def _set_volume_hud(level: int, muted: bool) -> None:
         nonlocal volume_hud
@@ -442,7 +431,6 @@ def _run(args) -> int:
                     play_money_shot=jumps.play_money_shot,
                     end_compilation=_end_compilation,
                     set_f_mode=_set_f_mode,
-                    set_active=_set_active,
                     set_volume_hud=_set_volume_hud,
                 )
 
@@ -495,13 +483,16 @@ def _run(args) -> int:
         else:
             drive = None
         left, top = hud_xy()
-        panel = console_hud.bgra(NauHud(
+        panel = console_hud.bgra(ConsoleHud(
             modes=ModeHud(
                 length_mode=length_mode, compilation=jumps.compilation,
                 position=session.index + 1, total=len(session.playlist),
-                f_mode=f_mode, active=active,
+                f_mode=f_mode,
             ),
-            console=console,
+            # Nau knows its own playback rate; Fun Time does not publish it, so it
+            # is folded in here.  The dot's `active` and everything else came down
+            # in the console file.
+            console=with_playback_speed(console, session.speed),
             drive=drive,
         ), hover=hover)
         player.overlay(_OV_CONSOLE, left, top, panel)
@@ -509,12 +500,6 @@ def _run(args) -> int:
 
         name = name_bgra(session.current_video.stem)
         player.overlay(_OV_NAME, left, top, name)
-        top += name.shape[0] + _STACK_GAP
-
-        if session.speed != 1.0:
-            player.overlay(_OV_SPEED, left, top, speed_bgra(session.speed))
-        else:
-            player.remove_overlay(_OV_SPEED)
 
         # The volume control, at the right-hand end of the row above the timeline —
         # beside the transport, where a player's has always been.

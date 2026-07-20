@@ -13,7 +13,7 @@ from app_support.logging_utils import (
     install_exception_logging,
 )
 from app_support.threading_utils import start_daemon_thread
-from player_core.file_channel import read_paused_state
+from player_core.file_channel import append_command, read_paused_state
 
 from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
@@ -73,6 +73,10 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--notify-port", type=int, default=config.genau.notify_port)
     ap.add_argument("--command-file", default=str(config.genau_cmd_file))
     ap.add_argument("--paused-file", default=str(config.genau_paused_file))
+    ap.add_argument("--console-file", default=None,
+                    help="Poll this file for the console panel Fun Time publishes")
+    ap.add_argument("--dashboard-cmd-file", default=None,
+                    help="Where a press on the console posts its Fun Time command")
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
     ap.add_argument(
@@ -270,7 +274,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         auto_advance=auto_advance,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
         drive_file=config.genau_drive_file,
-        set_drive_hud=view.set_drive_hud,
+        console_file=Path(args.console_file) if args.console_file else None,
+        set_console=view.set_console,
         present_scene=view.present,
         stop_event=stop_event,
         hud_state=hud_state,
@@ -288,6 +293,16 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         space_action,
         toggle_playing,
     )
+
+    dashboard_cmd_file = Path(args.dashboard_cmd_file) if args.dashboard_cmd_file else None
+
+    def _press_console(mx: int, my: int) -> None:
+        """A press on the console Genau is drawing: post the command it carries to
+        the same channel the dashboard uses, so Fun Time routes it like any other.
+        Inert with no dashboard (standalone), where there is nowhere to ask."""
+        command = view.console_command_at(mx, my)
+        if command and dashboard_cmd_file is not None:
+            append_command(dashboard_cmd_file, command)
 
     lifecycle = GenauLifecycleController(
         view=view,
@@ -307,6 +322,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_toggle_auto_advance=lambda: toggle_auto_advance(auto_advance),
         on_toggle_clip_lock=lambda: toggle_clip_lock(auto_advance),
         on_weird_clip=selection.discard_current,
+        on_console_press=_press_console,
+        on_console_motion=view.set_console_hover,
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
