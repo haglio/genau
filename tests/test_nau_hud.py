@@ -4,15 +4,16 @@ from __future__ import annotations
 import numpy as np
 from player_core.hud_panel import GREEN, TEXT_MUTED, load_font, text_width
 
+from nau.console import ConsoleModel
 from nau.hud import (
     DOT,
-    GENAU_PANEL_W,
-    PAD,
     ModeHud,
-    ModeHudPainter,
+    NauHud,
+    NauHudPainter,
     compilation_label,
     hud_xy,
 )
+from nau.hud import _PAD as PAD
 from nau.library import FULL, MIXED, SHORTS
 
 
@@ -72,28 +73,32 @@ class TestCompilationLabel:
 
 
 class TestPainter:
-    def test_the_panel_is_sized_to_what_it_says(self):
-        """Sized to its line, so a long volume title is never clipped and a bare
-        "Shorts" does not sit in a mostly-empty slab."""
+    def test_the_panel_is_wide_enough_for_what_it_says(self):
+        """Sized to its contents, so a long volume title is never clipped and a
+        bare "Shorts" does not sit in a mostly-empty slab."""
         long_hud = ModeHud(compilation="Angels of Debauchery 8", position=9, total=20)
 
-        short = ModeHudPainter().bgra(ModeHud(length_mode=SHORTS))
-        long = ModeHudPainter().bgra(long_hud)
+        short = NauHudPainter().bgra(NauHud(modes=ModeHud(length_mode=SHORTS)))
+        long = NauHudPainter().bgra(NauHud(modes=long_hud))
 
         assert long.shape[1] > short.shape[1]
         assert long.shape[1] > text_width(load_font(11), long_hud.line)
-        assert long.shape[0] == short.shape[0]  # one line either way
 
     def test_the_panel_is_there_even_with_no_words_for_it(self):
         """The dot has to be readable at all times — an absent dot cannot be told
-        from an idle one — so the slab stays even when there is no mode to name."""
-        assert ModeHudPainter().bgra(ModeHud()) is not None
+        from an idle one — so the slab stays even when there is no mode to name.
+        The controls are the player's own and are there regardless too."""
+        bare = NauHudPainter().bgra(NauHud())
+        titled = NauHudPainter().bgra(NauHud(modes=ModeHud(length_mode=FULL)))
+
+        assert bare.size > 0
+        assert bare.shape[0] == titled.shape[0]  # the dot's line is kept either way
 
     def test_the_dot_lights_up_only_while_the_primary_has_the_floor(self):
         """It says whether a bare "next" or "end loop" would land here rather than
         on a satellite.  Green for yes, the palette's grey for no."""
         def dot(active: bool) -> tuple[int, ...]:
-            bgra = ModeHudPainter().bgra(ModeHud(length_mode=MIXED, active=active))
+            bgra = NauHudPainter().bgra(NauHud(modes=ModeHud(length_mode=MIXED, active=active)))
             patch = bgra[PAD + 2:PAD + DOT, PAD:PAD + DOT - 2, :3]
             return tuple(int(v) for v in patch.reshape(-1, 3).mean(axis=0))[::-1]  # BGR -> RGB
 
@@ -103,44 +108,53 @@ class TestPainter:
     def test_the_dot_does_not_shift_the_words_around(self):
         """The dot is always in the same place and always the same size, so the
         line beside it cannot jump when the floor moves to another player."""
-        painter = ModeHudPainter()
+        painter = NauHudPainter()
 
-        lit = painter.bgra(ModeHud(length_mode=MIXED, active=True))
-        idle = ModeHudPainter().bgra(ModeHud(length_mode=MIXED, active=False))
+        lit = painter.bgra(NauHud(modes=ModeHud(length_mode=MIXED, active=True)))
+        idle = NauHudPainter().bgra(NauHud(modes=ModeHud(length_mode=MIXED, active=False)))
 
         assert lit.shape == idle.shape
 
     def test_an_unchanged_hud_is_not_repainted(self):
         """It is asked for every frame at 60 fps; Pillow is far too slow to run
-        that often, and the modes change a few times an hour."""
-        painter = ModeHudPainter()
-        hud = ModeHud(length_mode=FULL)
+        that often, and what it draws changes a few times a minute at most."""
+        painter = NauHudPainter()
+        hud = NauHud(modes=ModeHud(length_mode=FULL))
 
-        assert painter.bgra(hud) is painter.bgra(ModeHud(length_mode=FULL))
+        assert painter.bgra(hud) is painter.bgra(NauHud(modes=ModeHud(length_mode=FULL)))
 
     def test_a_changed_hud_is_repainted(self):
-        painter = ModeHudPainter()
+        painter = NauHudPainter()
 
-        first = painter.bgra(ModeHud(length_mode=FULL))
-        second = painter.bgra(ModeHud(length_mode=SHORTS))
+        first = painter.bgra(NauHud(modes=ModeHud(length_mode=FULL)))
+        second = painter.bgra(NauHud(modes=ModeHud(length_mode=SHORTS)))
 
         assert not np.array_equal(first, second)
+
+    def test_hybrid_grows_the_panel_for_the_drive_controls(self):
+        """The controls that steer the device only mean something while one is
+        being steered, so the panel carries them — and grows — only then."""
+        painter = NauHudPainter()
+
+        plain = painter.bgra(NauHud(console=ConsoleModel(mode="nau"))).shape[0]
+        hybrid = NauHudPainter().bgra(NauHud(console=ConsoleModel(mode="hybrid"))).shape[0]
+
+        assert hybrid > plain
+
+    def test_the_buttons_it_drew_are_the_buttons_it_reports(self):
+        """Hit-testing runs off the last painting, so a press can only ever land
+        on something that was actually drawn."""
+        painter = NauHudPainter()
+
+        painter.bgra(NauHud(console=ConsoleModel(mode="nau")))
+
+        assert [b.action for _rect, b in painter.buttons if b.action][:2] == [
+            "primary_prev", "primary_next"]
 
 
 class TestPlacement:
     def test_the_panel_sits_in_the_top_left_corner(self):
         """Where the satellites put theirs, so every player in the family answers
-        "what am I inside?" from the same place."""
-        x, y = hud_xy(hybrid=False)
-
-        assert (x, y) == (8, 8)
-
-    def test_hybrid_shifts_it_clear_of_genau(self):
-        """In Hybrid, Genau's window is a transparent layer over Nau's and its own
-        panel holds that same corner, so Nau's starts past it instead of under it."""
-        plain_x, plain_y = hud_xy(hybrid=False)
-
-        x, y = hud_xy(hybrid=True)
-
-        assert x >= plain_x + GENAU_PANEL_W
-        assert y == plain_y
+        "what am I inside?" from the same place — in every mode now, since Genau
+        no longer draws a panel of its own for this one to dodge."""
+        assert hud_xy() == (8, 8)

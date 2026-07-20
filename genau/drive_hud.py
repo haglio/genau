@@ -15,9 +15,11 @@ showing one panel between them in Hybrid rather than two side by side.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from PIL import Image
+from player_core.file_channel import publish_whole
 from player_core.hud_panel import (
     AMBER,
     BLUE,
@@ -30,11 +32,15 @@ from player_core.hud_panel import (
     to_bgra,
 )
 
-# Sized for the labels the old panel did without: it printed a bare "100" beside
-# the amplitude bar and nothing at all for the shape or the centre.
-PANEL_SIZE = (232, 132)
-
 _PAD = 10
+
+# The readout's own block, sized for the labels the old panel did without: it
+# printed a bare "100" beside the amplitude bar and nothing at all for the shape
+# or the centre.  PANEL_SIZE is that block on a slab of its own, which is how
+# Genau shows it; Nau draws the block inside its console instead.
+SECTION_W, SECTION_H = 212, 112
+PANEL_SIZE = (SECTION_W + 2 * _PAD, SECTION_H + 2 * _PAD)
+
 _SIZE_BODY = 11
 _SIZE_TINY = 8
 _GAP = 6
@@ -99,75 +105,48 @@ class DriveHud:
     waveform: tuple[float, ...] = ()
 
 
-class DriveHudPainter:
-    """Paints a :class:`DriveHud`, and only when it has moved.
+class DriveSection:
+    """The readout itself, drawn into whatever panel is hosting it.
 
-    Both hosts redraw at their display rate and Pillow is nowhere near cheap
-    enough for that, so the bitmap is kept until the drive state changes — which,
-    while a stroke is running, is every published tick, and while it is parked is
-    never.
-
-    The same painting serves both: :meth:`bgra` is what mpv's overlays take, so
-    Nau composites the panel into its video, and :meth:`rgba_bytes` is what pygame
-    takes, so Genau blits it into its own window.  One painting, so the panel
-    cannot look like two different things depending on who is showing it.
+    A block rather than a panel, because it has two hosts: Genau puts it on a slab
+    of its own (:class:`DriveHudPainter` below), and Nau draws it inside its
+    console, under the controls that change it.  Keeping it a block is what makes
+    that second case one HUD rather than two stacked on each other.
     """
+
+    SIZE = (SECTION_W, SECTION_H)
 
     def __init__(self) -> None:
         self._tiny = load_font(_SIZE_TINY)
-        self._painted: DriveHud | None = None
-        self._image: Image.Image | None = None
-        self._bgra: np.ndarray | None = None
 
-    def bgra(self, hud: DriveHud) -> np.ndarray:
-        """The panel as an mpv overlay bitmap."""
-        if self._repaint(hud) or self._bgra is None:
-            self._bgra = to_bgra(self._image)
-        return self._bgra
-
-    def rgba_bytes(self, hud: DriveHud) -> bytes:
-        """The panel as pygame's ``frombuffer(..., "RGBA")`` takes it."""
-        self._repaint(hud)
-        return self._image.tobytes()
-
-    def _repaint(self, hud: DriveHud) -> bool:
-        """Redraw if *hud* has moved; report whether it did."""
-        if hud == self._painted and self._image is not None:
-            return False
-        self._painted, self._image = hud, self._paint(hud)
-        return True
-
-    def _paint(self, hud: DriveHud) -> Image.Image:
-        width, height = PANEL_SIZE
-        panel = HudPanel(width, height)
-        draw = panel.draw
-        right = width - _PAD
+    def draw(self, draw, x: int, y: int, hud: DriveHud) -> None:
+        """Paint the readout with its top-left corner at ``(x, y)``."""
+        right = x + SECTION_W
 
         # Speed, across the top, with the amplitude's own column reserved beside
         # it — the two tracks share a row of labels so the numbers line up.
         wave_right = right - _AMP_W - _GAP
-        self._value(draw, _PAD, "Speed", str(hud.speed), left=_PAD)
-        self._value(draw, _PAD, "Amp", str(hud.amplitude), right=right)
-        bar_y = _PAD + _LABEL_H
-        self._bar(draw, _PAD, bar_y, wave_right - _PAD, _BAR_H,
+        self._value(draw, y, "Speed", str(hud.speed), left=x)
+        self._value(draw, y, "Amp", str(hud.amplitude), right=right)
+        bar_y = y + _LABEL_H
+        self._bar(draw, x, bar_y, wave_right - x, _BAR_H,
                   fill=_fraction(hud.speed), color=GREEN)
 
         # The wave itself, and the amplitude standing beside it: the bar's height
         # is the amplitude and its offset the centre, so the two together read as
         # "this much stroke, sitting here" without either number being needed.
         wave_y = bar_y + _BAR_H + _GAP
-        wave_h = height - _PAD - _LABEL_H - _GAP - wave_y
-        self._wave(draw, _PAD, wave_y, wave_right - _PAD, wave_h, hud)
+        wave_h = y + SECTION_H - _LABEL_H - _GAP - wave_y
+        self._wave(draw, x, wave_y, wave_right - x, wave_h, hud)
         self._amp_bar(draw, wave_right + _GAP, wave_y, _AMP_W, wave_h, hud)
 
         # The shape by name, and cruise beside it when it is holding the speed.
-        foot_y = height - _PAD - _LABEL_H
-        draw.text((_PAD, foot_y + _LABEL_H / 2), shape_label(hud.shape), font=self._tiny,
+        foot_y = y + SECTION_H - _LABEL_H
+        draw.text((x, foot_y + _LABEL_H / 2), shape_label(hud.shape), font=self._tiny,
                   anchor="lm", fill=(*TEXT_MUTED, 255))
         if hud.cruise:
             draw.text((right, foot_y + _LABEL_H / 2), "Cruise", font=self._tiny,
                       anchor="rm", fill=(*AMBER, 255))
-        return panel.image
 
     def _value(self, draw, y: int, key: str, value: str,
                *, left: int | None = None, right: int | None = None) -> None:
@@ -215,6 +194,100 @@ class DriveHudPainter:
         top = y + round((1 - _fraction(hud.center)) * h - bar_h / 2)
         top = max(y, min(y + h - bar_h, top))
         draw.rectangle([x, top, x + w - 1, top + bar_h - 1], fill=(*BLUE, 255))
+
+
+class DriveHudPainter:
+    """Genau's own panel: the readout on a slab of its own, repainted only when
+    the drive state has moved.
+
+    Genau redraws at its display rate and Pillow is nowhere near cheap enough for
+    that, so the bitmap is kept until the state changes — which, while a stroke is
+    running, is every tick, and while it is parked is never.  :meth:`rgba_bytes`
+    is what pygame takes; :meth:`bgra` is what mpv's overlays take, so the same
+    painting can go straight into a video.
+    """
+
+    def __init__(self) -> None:
+        self._section = DriveSection()
+        self._painted: DriveHud | None = None
+        self._image: Image.Image | None = None
+        self._bgra: np.ndarray | None = None
+
+    def bgra(self, hud: DriveHud) -> np.ndarray:
+        """The panel as an mpv overlay bitmap."""
+        if self._repaint(hud) or self._bgra is None:
+            self._bgra = to_bgra(self._image)
+        return self._bgra
+
+    def rgba_bytes(self, hud: DriveHud) -> bytes:
+        """The panel as pygame's ``frombuffer(..., "RGBA")`` takes it."""
+        self._repaint(hud)
+        return self._image.tobytes()
+
+    def _repaint(self, hud: DriveHud) -> bool:
+        """Redraw if *hud* has moved; report whether it did."""
+        if hud == self._painted and self._image is not None:
+            return False
+        panel = HudPanel(*PANEL_SIZE)
+        self._section.draw(panel.draw, _PAD, _PAD, hud)
+        self._painted, self._image = hud, panel.image
+        return True
+
+
+# --- publishing --------------------------------------------------------------
+# In Hybrid the readout is drawn by Nau, inside its console, under the controls
+# that move it — so Genau stops drawing and starts saying.  A file, like every
+# other channel between these players: Nau polls it per frame, and a torn or
+# missing read simply means "keep the readout you have".
+
+_SCALARS = ("speed", "amplitude", "center", "position")
+_FLAGS = ("cruise", "playing")
+
+
+def drive_text(hud: DriveHud) -> str:
+    """*hud* as the line-per-field text :func:`read_drive` parses back."""
+    lines = [f"{name}={getattr(hud, name)}" for name in _SCALARS]
+    lines += [f"{name}={'1' if getattr(hud, name) else '0'}" for name in _FLAGS]
+    lines.append(f"shape={hud.shape}")
+    lines.append("waveform=" + ",".join(f"{value:.3f}" for value in hud.waveform))
+    return "\n".join(lines) + "\n"
+
+
+def publish_drive(path: Path, hud: DriveHud) -> bool:
+    """Write the readout whole, so a player polling it never reads it half-drawn."""
+    return publish_whole(path, drive_text(hud))
+
+
+def read_drive(path: Path) -> DriveHud | None:
+    """The published readout, or None when there is not a whole one to read.
+
+    None means "keep what you have": the file is replaced while this polls it, and
+    a lost race must not blank the readout for a frame.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    values = dict(line.split("=", 1) for line in text.splitlines() if "=" in line)
+    if not values.keys() >= {*_SCALARS, *_FLAGS, "shape"}:
+        return None
+    try:
+        scalars = {name: int(values[name]) for name in _SCALARS}
+    except ValueError:
+        return None
+    return DriveHud(
+        **scalars,
+        **{name: values[name].strip() == "1" for name in _FLAGS},
+        shape=values["shape"].strip(),
+        waveform=_waveform(values.get("waveform", "")),
+    )
+
+
+def _waveform(raw: str) -> tuple[float, ...]:
+    try:
+        return tuple(float(value) for value in raw.split(",") if value)
+    except ValueError:
+        return ()
 
 
 def _fraction(percent: int) -> float:

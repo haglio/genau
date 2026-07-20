@@ -146,12 +146,28 @@ def test_present_scene_tiles_portrait_texture(mock_pygame):
     assert texture.draw.call_count == 2
 
 
-def test_present_scene_calls_draw_overlay_in_hud_mode(mock_pygame):
+def test_hud_mode_leaves_the_drive_readout_to_nau(mock_pygame):
+    """HUD mode is Hybrid: this window is a transparent layer over Nau's, and the
+    readout is drawn inside Nau's console beneath the controls that move it.
+    Drawing it here as well would put the same panel on screen twice."""
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
     view.hud_active = True
-    view._drive_hud = MagicMock()  # non-None triggers overlay
+    view._drive_hud = MagicMock()
+    view._draw_drive_hud = MagicMock()
+
+    view._present_scene()
+
+    view._draw_drive_hud.assert_not_called()
+
+
+def test_genau_draws_the_readout_itself_when_it_owns_the_screen(mock_pygame):
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+    view.hud_active = False
+    view._drive_hud = MagicMock()
     view._draw_drive_hud = MagicMock()
 
     view._present_scene()

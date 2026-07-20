@@ -9,6 +9,8 @@ from genau.drive_hud import (
     DriveHud,
     DriveHudPainter,
     label_pair_x,
+    publish_drive,
+    read_drive,
     shape_label,
 )
 
@@ -74,6 +76,51 @@ class TestLabelPair:
         amp_key, _amp_value = label_pair_x(font, "Amp", "100", right=width - 10)
 
         assert speed_value + text_width(font, "100") < amp_key
+
+
+class TestPublishing:
+    """In Hybrid the readout is drawn by Nau, so Genau says it instead of drawing it."""
+
+    def test_a_published_readout_reads_back_whole(self, tmp_path):
+        hud = _hud(cruise=True, playing=True, shape="sawtooth")
+        path = tmp_path / "genau_drive.txt"
+
+        assert publish_drive(path, hud) is True
+        read = read_drive(path)
+
+        assert (read.speed, read.amplitude, read.center) == (hud.speed, hud.amplitude, hud.center)
+        assert (read.position, read.shape) == (hud.position, hud.shape)
+        assert (read.cruise, read.playing) == (True, True)
+        # The trace goes over at three decimals — a thousandth of the box it is
+        # drawn in, so the rounding is invisible and the line stays short.
+        assert np.allclose(read.waveform, hud.waveform, atol=5e-4)
+
+    def test_a_readout_that_has_been_over_the_wire_survives_going_again(self, tmp_path):
+        """What Nau holds must publish back to the same bytes, or the reader's
+        "has this moved?" comparison sees a change every single tick."""
+        path = tmp_path / "genau_drive.txt"
+        publish_drive(path, _hud())
+        once = read_drive(path)
+
+        publish_drive(path, once)
+
+        assert read_drive(path) == once
+
+    def test_a_missing_or_torn_read_keeps_what_the_reader_has(self, tmp_path):
+        """The file is replaced while Nau polls it every frame; a lost race must
+        not blank the readout for a frame, so it answers None rather than empty."""
+        path = tmp_path / "genau_drive.txt"
+
+        assert read_drive(path) is None
+
+        path.write_text("speed=40\namplit", encoding="utf-8")
+        assert read_drive(path) is None
+
+    def test_a_readout_with_no_trace_yet_still_reads_back(self, tmp_path):
+        path = tmp_path / "genau_drive.txt"
+        publish_drive(path, _hud(waveform=()))
+
+        assert read_drive(path).waveform == ()
 
 
 class TestPainter:

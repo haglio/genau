@@ -157,7 +157,11 @@ class PygameView:
                 self._current_texture.draw()
         if show_clip and self._loading_text:
             self._draw_loading_overlay()
-        if not self._blank and self._drive_hud is not None:
+        # Not while the HUD is on: that is Hybrid, where this window is a
+        # transparent layer over Nau's and the readout is drawn inside Nau's
+        # console, beneath the controls that move it.  Drawing it here too would
+        # put the same panel on screen twice.
+        if not self._blank and not self.hud_active and self._drive_hud is not None:
             self._draw_drive_hud()
         self.renderer.present()
 
