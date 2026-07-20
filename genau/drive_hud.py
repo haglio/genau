@@ -100,7 +100,12 @@ class DriveHud:
     center: int = 0
     shape: str = "sine"
     position: int = 0
+    # Cruise varies the stroke; auto advance moves on to the next clip.  Two
+    # switches, armed separately, so the panel has to be able to say either.
     cruise: bool = False
+    auto_advance: bool = False
+    # A held clip: auto advance is still armed, but sitting still.
+    clip_locked: bool = False
     playing: bool = False
     waveform: tuple[float, ...] = ()
 
@@ -140,13 +145,32 @@ class DriveSection:
         self._wave(draw, x, wave_y, wave_right - x, wave_h, hud)
         self._amp_bar(draw, wave_right + _GAP, wave_y, _AMP_W, wave_h, hud)
 
-        # The shape by name, and cruise beside it when it is holding the speed.
+        # The shape by name, and whichever hands-free switches are armed beside
+        # it — laid out right to left from the edge, so the row keeps its shape
+        # whether one, both or neither is on.
         foot_y = y + SECTION_H - _LABEL_H
         draw.text((x, foot_y + _LABEL_H / 2), shape_label(hud.shape), font=self._tiny,
                   anchor="lm", fill=(*TEXT_MUTED, 255))
+        edge = right
+        for label, color in self._flags(hud):
+            draw.text((edge, foot_y + _LABEL_H / 2), label, font=self._tiny,
+                      anchor="rm", fill=(*color, 255))
+            edge -= text_width(self._tiny, label) + _GAP
+
+    @staticmethod
+    def _flags(hud: DriveHud) -> list[tuple[str, tuple[int, int, int]]]:
+        """The armed switches, in the order they are printed from the right.
+
+        A held clip recolours auto advance rather than adding a flag of its own:
+        the hold only exists inside auto advance, so it is a state of that
+        switch, not a third one.
+        """
+        flags: list[tuple[str, tuple[int, int, int]]] = []
         if hud.cruise:
-            draw.text((right, foot_y + _LABEL_H / 2), "Cruise", font=self._tiny,
-                      anchor="rm", fill=(*AMBER, 255))
+            flags.append(("Cruise", AMBER))
+        if hud.auto_advance:
+            flags.append(("Auto", BLUE if hud.clip_locked else AMBER))
+        return flags
 
     def _value(self, draw, y: int, key: str, value: str,
                *, left: int | None = None, right: int | None = None) -> None:
@@ -241,7 +265,7 @@ class DriveHudPainter:
 # missing read simply means "keep the readout you have".
 
 _SCALARS = ("speed", "amplitude", "center", "position")
-_FLAGS = ("cruise", "playing")
+_FLAGS = ("cruise", "auto_advance", "clip_locked", "playing")
 
 
 def drive_text(hud: DriveHud) -> str:
