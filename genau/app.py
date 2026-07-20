@@ -66,14 +66,13 @@ def build_parser(config) -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
 
-    # Set AppUserModelID before any window creation so Genau gets its
-    # own taskbar identity (icon + title) instead of inheriting python.exe's.
-    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id, stamp_pinned_shortcuts
-    try:
-        set_app_user_model_id(APP_USER_MODEL_ID)
-    except OSError:
-        pass  # Non-fatal
-    stamp_pinned_shortcuts(APP_USER_MODEL_ID, include="genau", exclude="genauvr")
+    # Before any window creation, so Genau gets its own taskbar identity
+    # (icon + title) instead of inheriting python.exe's.
+    from .win32 import APP_USER_MODEL_ID, take_taskbar_identity
+    take_taskbar_identity(
+        APP_USER_MODEL_ID, include="genau", exclude="genauvr",
+        config_path=config.config_path,
+    )
 
     logger = configure_logging("genau", config.log_file("genau_listener"))
     install_exception_logging(logger)

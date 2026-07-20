@@ -185,3 +185,33 @@ def stamp_pinned_shortcuts(app_id: str, *, include: str, exclude: str | None = N
             _log.info("Stamped AppUserModelID on %s", lnk)
         except OSError as exc:
             _log.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)
+
+
+def take_taskbar_identity(
+    app_id: str, *, include: str, exclude: str | None = None, config_path: str | Path,
+) -> None:
+    """Claim this process's place on the taskbar, and stamp the pin if it is ours.
+
+    The two halves look alike and are not.  Setting the process AUMID touches
+    nothing outside this process — it is only how the taskbar groups our windows
+    under the right icon, so it runs for every session however it was started.
+
+    Stamping edits a shortcut under %APPDATA%, outside every checkout, and that
+    shortcut launches the installed app.  A session on an explicit --config (a
+    test run's temp one, an alternate of the developer's) is a different
+    instance, and the pin points at neither of them.  Fun Time's integration
+    suite launches Nau and Genau on a temp config, so every run was doing it.
+
+    Paths resolve before comparing: Nau and GenauVR each build their own spelling
+    of the one config file, and an argparse default arrives unresolved, so the
+    same file must not read as a different app.
+    """
+    from .config import DEFAULT_CONFIG_PATH
+
+    try:
+        set_app_user_model_id(app_id)
+    except OSError:
+        pass  # Cosmetic: costs the icon, never worth failing to start over.
+    if Path(config_path).resolve() != DEFAULT_CONFIG_PATH:
+        return
+    stamp_pinned_shortcuts(app_id, include=include, exclude=exclude)

@@ -254,16 +254,17 @@ def main(argv: list[str] | None = None) -> None:
 
 
 def _start(argv: list[str] | None) -> None:
-    # Set AppUserModelID before any window creation so GenauVR gets its
-    # own taskbar identity instead of inheriting python.exe's.
-    from genau.win32 import set_app_user_model_id, stamp_pinned_shortcuts
-    try:
-        set_app_user_model_id(VR_APP_USER_MODEL_ID)
-    except OSError:
-        pass  # Non-fatal
-    stamp_pinned_shortcuts(VR_APP_USER_MODEL_ID, include="genauvr")
-
     args = _parse_args(argv)
+
+    # Before any window creation, so GenauVR gets its own taskbar identity
+    # instead of inheriting python.exe's.  Needs the args first, because whether
+    # this session is the app the pin launches is a question about its config.
+    from genau.win32 import take_taskbar_identity
+    take_taskbar_identity(
+        VR_APP_USER_MODEL_ID, include="genauvr",
+        config_path=args.config or DEFAULT_CONFIG,
+    )
+
     cfg = _load_config(args)
 
     # Ask for VR before decoding anything: a clip takes seconds to load, and

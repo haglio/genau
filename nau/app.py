@@ -120,13 +120,15 @@ def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -
         player.overlay(_OV_OUT_THUMB, ox, y, out_t)
 
 
-def _set_aumid() -> None:
+def _set_aumid(config_path) -> None:
     try:
-        from genau.win32 import set_app_user_model_id, stamp_pinned_shortcuts
-        set_app_user_model_id(_APP_USER_MODEL_ID)
-        stamp_pinned_shortcuts(_APP_USER_MODEL_ID, include="nau", exclude="genau")
+        from genau.win32 import take_taskbar_identity
+        take_taskbar_identity(
+            _APP_USER_MODEL_ID, include="nau", exclude="genau", config_path=config_path,
+        )
     except Exception:
         pass
+
 
 
 def _open_window(args):
@@ -151,7 +153,7 @@ def _open_window(args):
 
 
 def _run(args) -> int:
-    _set_aumid()
+    _set_aumid(args.config)
     screen = _open_window(args)
     # mpv renders the video directly into this window; overlays go on top.  Until
     # it does, the window is the loading screen's to paint.
