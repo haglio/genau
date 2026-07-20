@@ -9,6 +9,7 @@ from pathlib import Path
 import pygame
 
 from genau.drive_hud import DriveHud, read_drive
+from genau.pygame_view import get_window_chrome_height
 from genau.tcode import UdpTCodeSink
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
@@ -150,18 +151,26 @@ def _open_window(args):
     also why Fun Time, which waits on this window by caption, now finds it
     within its budget however cold the duration cache is.
 
-    Borderless, like the satellites: the mode this window's title bar used to name
-    is on the in-video HUD now, so the bar only took space.  With no chrome the
-    client area is the whole rect Fun Time sizes it to, and the caption survives
-    only for Alt-Tab and the window lookup.
+    Borderless under Fun Time, like the satellites: the mode this window's title
+    bar used to name is on the in-video HUD now, so the bar only took space.  With
+    no chrome the client area is the whole rect Fun Time sizes it to, and the
+    caption survives only for Alt-Tab and the window lookup.  Standalone it keeps
+    its chrome — so the window can be dragged and closed — and its client is sized
+    down to leave the video inside the rect.
     """
     pygame.init()
-    if args.x is not None and args.y is not None:
-        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
+    if args.borderless:
+        pos_y, client_h, flags = args.y, args.height, pygame.NOFRAME
+    else:
+        chrome = get_window_chrome_height()
+        pos_y, client_h, flags = (args.y + chrome if args.y is not None else None,
+                                  max(1, args.height - chrome), 0)
+    if args.x is not None and pos_y is not None:
+        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{pos_y}"
     icon = _load_icon_surface()
     if icon is not None:
         pygame.display.set_icon(icon)  # must precede set_mode to take effect
-    screen = pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
+    screen = pygame.display.set_mode((args.width, client_h), flags)
     pygame.display.set_caption("Nau")
     return screen
 
