@@ -116,10 +116,18 @@ class GenauRefreshController:
                 tick_cruise_control(self.direct_state, self.cruise_control, now)
             if self.auto_advance is not None:
                 from .auto_advance import tick_auto_advance
+                # The interval is timed against the clip actually on screen — a
+                # decoded, rendering one — so a slow load can't make a short
+                # interval fire repeatedly and stack switches that never play.
+                entry = self.renderer.current_clip_entry()
+                on_screen_clip = (
+                    self.renderer.current_clip_path if entry and entry.get("frames") else None
+                )
                 tick_auto_advance(
                     self.auto_advance,
                     now,
                     playing=self.direct_state.playing,
+                    on_screen_clip=on_screen_clip,
                     step_clip=self.selection.step,
                 )
             auto_active = self.direct_state.playing
