@@ -129,6 +129,13 @@ class TestResolvePlaylist:
         assert resolve_playlist(args) == []
 
 
+class TestBorderless:
+    def test_borderless_is_off_by_default_and_on_by_flag(self):
+        """Standalone keeps its chrome; Fun Time passes --borderless to drop it."""
+        assert build_parser({}).parse_args([]).borderless is False
+        assert build_parser({}).parse_args(["--borderless"]).borderless is True
+
+
 class TestLibrarySource:
     def test_none_without_dirs(self):
         args = build_parser({}).parse_args([])
