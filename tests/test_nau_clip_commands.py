@@ -19,13 +19,13 @@ def test_play_full_vid_invokes_callback():
     assert calls == ["f"]
 
 
-def test_play_money_shot_invokes_callback():
+def test_play_clip_jump_invokes_callback():
     calls: list[str] = []
-    assert apply_command("PLAY_MONEY_SHOT", _Spy(), play_money_shot=lambda: calls.append("m"))
+    assert apply_command("PLAY_CLIP_JUMP", _Spy(), play_clip_jump=lambda: calls.append("m"))
     assert calls == ["m"]
 
 
 def test_clip_commands_without_callbacks_return_false():
     assert apply_command("PLAY_COMPILATION", _Spy()) is False
     assert apply_command("PLAY_FULL_VID", _Spy()) is False
-    assert apply_command("PLAY_MONEY_SHOT", _Spy()) is False
+    assert apply_command("PLAY_CLIP_JUMP", _Spy()) is False

@@ -2,7 +2,7 @@
 
 :mod:`nau.clip_nav` reads the ``clip`` metadata Evolver records and answers
 questions about one video; this drives the playlist from those answers, which is
-what Fun Time's "compilation" / "full video" / "money shot" actually do.
+what Fun Time's "compilation" / "full video" / "clip jump" actually do.
 
 They lived as three closures inside the run loop, where nothing could reach them
 to test and the one piece of state they own had nowhere to live: playing a
@@ -105,9 +105,9 @@ class ClipJumps:
         """Jump from the current clip to the library scene it was taken from."""
         self._jump(self._nav.full_vid_of(self._session.current_video), "full video")
 
-    def play_money_shot(self) -> None:
+    def play_clip_jump(self) -> None:
         """Jump from the current full scene to its clip (the reverse of full vid)."""
-        self._jump(self._nav.clip_of(self._session.current_video), "money shot")
+        self._jump(self._nav.clip_of(self._session.current_video), "clip jump")
 
     def _jump(self, target: Path | None, what: str) -> None:
         """Play *target*, or say *what* had nowhere to go.

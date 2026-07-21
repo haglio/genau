@@ -7,9 +7,9 @@ the three navigations Fun Time exposes:
 
 * ``compilation`` — the clip's siblings, in original order (for a playlist);
 * ``full vid``    — the library video the clip's scene was taken from;
-* ``money shot``  — the reverse, a full scene's clip.
+* ``clip jump``  — the reverse, a full scene's clip.
 
-``full vid``/``money shot`` answer from a ``full_video`` the sidecar records when
+``full vid``/``clip jump`` answer from a ``full_video`` the sidecar records when
 one is there: :mod:`nau.clip_match` found the clip's own frames inside that scene,
 so it beats any reading of the names. The answer is held against the scene's
 *version family* rather than the one file matched, so it survives whichever
@@ -51,8 +51,8 @@ _STOPWORDS = frozenset({"the", "and", "for", "of", "a", "an", "in", "to", "my", 
 def _distinctive(source: str, performer: str) -> set[str]:
     """Source-title words that actually identify the movie.
 
-    The performer's own name is stripped out: a title like *Asa Akira To the
-    Limit* would otherwise match every Asa Akira file in the library on her name
+    The performer's own name is stripped out: a title like *Mia Vale To the
+    Limit* would otherwise match every Mia Vale file in the library on her name
     alone. Stopwords and one/two-letter fragments go too.
     """
     perf = _tokens(performer)
@@ -64,7 +64,7 @@ def _matches(meta: dict, text: set[str]) -> bool:
 
     Requires every performer token to be present *and* at least one distinctive
     source-title word — enough to pair ``Kim Lee - POV Scene 2``
-    with a ``Kim-Chase---POV-Jugg-Fuckers-2-(2009)`` scene, while rejecting
+    with a ``Kim-Lee---POV-Scene-Fuckers-2-(2009)`` scene, while rejecting
     both a same-source scene starring someone else and an unrelated file that
     merely shares the performer.
     """
@@ -168,7 +168,7 @@ class ClipNav:
 
         Never the file you are already on: a clip matches its own name, which
         would just replay it. Being on a clip already means there is nothing to
-        jump to — its siblings are a different scene, not this one's money shot.
+        jump to — its siblings are a different scene, not this one's clip jump.
         """
         if video in self._clips:
             return None
@@ -260,8 +260,8 @@ def _resolve(meta: dict, candidates: list[Path]) -> Path | None:
     """The library file *meta*'s scene was taken from, or None.
 
     Two tiers, because filenames in the wild carry wildly different detail. A
-    name that repeats the movie ("...POV-Jugg-Fuckers-2-(2009)...") is matched
-    outright. A name that carries only the performer ("redacted_540-hash")
+    name that repeats the movie ("...POV-Scene-Fuckers-2-(2009)...") is matched
+    outright. A name that carries only the performer ("Nina-Cole_540-hash")
     can still be resolved — but only when that performer has exactly one scene
     here, since with several there is no way to tell which one it was.
     """
