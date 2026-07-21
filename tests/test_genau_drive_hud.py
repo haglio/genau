@@ -1,4 +1,4 @@
-"""Genau's drive readout: what it says, and the arrows it now carries."""
+"""Genau's drive readout: what it says, and the controls it carries."""
 from __future__ import annotations
 
 import numpy as np
@@ -13,7 +13,6 @@ from genau.drive_hud import (
     label_pair_x,
     publish_drive,
     read_drive,
-    shape_label,
 )
 
 PAD = 10
@@ -32,19 +31,8 @@ def _rendered(hud: DriveHud) -> np.ndarray:
     return np.asarray(panel.image)
 
 
-class TestShapeLabel:
-    def test_names_the_waveform_instead_of_only_drawing_it(self):
-        assert shape_label("sine") == "Sine"
-        assert shape_label("rounded_square") == "Square"
-        assert shape_label("sawtooth") == "Sawtooth"
-
-    def test_an_unknown_shape_is_titled_rather_than_dropped(self):
-        assert shape_label("half_moon") == "Half Moon"
-
-
 class TestControls:
-    """The readout carries its own arrows now — speed at the bar's ends, amplitude
-    at its bar's ends, centre in the gutter beside its line."""
+    """Each axis is one object: its controls, its bar and its number together."""
 
     def test_it_offers_every_axis_a_way_up_and_down(self):
         actions = {control.action for control in controls(0, 0, _hud())}
@@ -55,8 +43,28 @@ class TestControls:
             "genau_center_up", "genau_center_down",
         }
 
-    def test_an_arrow_at_its_limit_is_dimmed(self):
-        """The flag on the readout says the axis has run out of range, so the arrow
+    def test_every_axis_is_moved_by_the_same_pair_of_marks(self):
+        """Triangles on two axes and −/+ on the third read as two kinds of
+        control for three things that are the same kind."""
+        by_action = {c.action: c.glyph for c in controls(0, 0, _hud())}
+
+        assert {by_action[a] for a in
+                ("genau_speed_up", "genau_amplitude_up", "genau_center_up")} == {"+"}
+        assert {by_action[a] for a in
+                ("genau_speed_down", "genau_amplitude_down", "genau_center_down")} == {"−"}
+
+    def test_the_speed_controls_sit_below_the_trace(self):
+        """Speed is out from between centre and amplitude, under the trace, so the
+        three axes do not crowd one band."""
+        by_action = {c.action: c.rect for c in controls(0, 0, _hud())}
+        wave_bottom = max(by_action["genau_amplitude_down"][1] + by_action["genau_amplitude_down"][3],
+                          by_action["genau_center_down"][1])
+
+        assert by_action["genau_speed_down"][1] >= wave_bottom
+        assert by_action["genau_speed_up"][1] >= wave_bottom
+
+    def test_a_mark_at_its_limit_is_dimmed(self):
+        """The flag on the readout says the axis has run out of range, so the mark
         that would do nothing is greyed — the console then drops it from the hit
         targets, the same as any dimmed control."""
         by_action = {c.action: c for c in controls(0, 0, _hud(spd_at_max=True, amp_at_min=True))}
@@ -65,7 +73,7 @@ class TestControls:
         assert by_action["genau_speed_down"].dim is False
         assert by_action["genau_amplitude_down"].dim is True
 
-    def test_the_centre_arrows_follow_the_line(self):
+    def test_the_centre_marks_follow_the_line(self):
         """They sit beside the centre's dotted line, so they move up the panel as
         the centre rises."""
         low = {c.action: c.rect for c in controls(0, 0, _hud(center=20))}
@@ -73,34 +81,13 @@ class TestControls:
 
         assert high["genau_center_up"][1] < low["genau_center_up"][1]
 
-    def test_the_arrows_it_offers_all_fall_on_the_block_it_draws(self):
-        """Drawing and hit-testing place the arrows from one geometry, so a press
-        lands on what is on screen."""
-        for x, y, w, h in (c.rect for c in controls(PAD, PAD, _hud())):
-            assert PAD <= x and x + w <= PAD + SECTION_W
-            assert PAD <= y and y + h <= PAD + SECTION_H
-
-
-class TestAutoAdvanceInterval:
-    """Auto-advance says the seconds it is set to, so the pace is visible."""
-
-    def test_a_set_interval_is_named_in_seconds(self):
-        labels = dict(DriveSection._flags(_hud(auto_advance=True, advance_interval=5)))
-
-        assert "Auto 5s" in labels
-
-    def test_the_jittered_default_shows_no_number(self):
-        """A bare arming has no single interval, so it stays plain ``Auto`` rather
-        than claiming a second count it does not have."""
-        labels = dict(DriveSection._flags(_hud(auto_advance=True, advance_interval=0)))
-
-        assert "Auto" in labels
-
-    def test_the_interval_survives_the_wire(self, tmp_path):
-        path = tmp_path / "genau_drive.txt"
-        publish_drive(path, _hud(auto_advance=True, advance_interval=7))
-
-        assert read_drive(path).advance_interval == 7
+    def test_the_marks_it_offers_all_fall_on_the_block_it_draws(self):
+        """Drawing and hit-testing place the marks from one geometry, so a press
+        lands on what is on screen — at either end of the centre's travel."""
+        for center in (0, 50, 100):
+            for x, y, w, h in (c.rect for c in controls(PAD, PAD, _hud(center=center))):
+                assert PAD <= x and x + w <= PAD + SECTION_W
+                assert PAD <= y and y + h <= PAD + SECTION_H
 
 
 class TestReadout:
@@ -122,7 +109,7 @@ class TestPublishing:
     """In Hybrid the readout is drawn by Nau, so Genau says it instead of drawing it."""
 
     def test_a_published_readout_reads_back_whole_including_its_limits(self, tmp_path):
-        hud = _hud(cruise=True, playing=True, shape="sawtooth",
+        hud = _hud(shape="sawtooth", advance_interval=7,
                    spd_at_max=True, ctr_at_min=True)
         path = tmp_path / "genau_drive.txt"
 
@@ -130,7 +117,7 @@ class TestPublishing:
         read = read_drive(path)
 
         assert (read.speed, read.amplitude, read.center) == (hud.speed, hud.amplitude, hud.center)
-        assert (read.cruise, read.playing, read.shape) == (True, True, "sawtooth")
+        assert (read.shape, read.advance_interval) == ("sawtooth", 7)
         assert (read.spd_at_max, read.ctr_at_min) == (True, True)
         assert np.allclose(read.waveform, hud.waveform, atol=5e-4)
 
