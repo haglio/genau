@@ -53,6 +53,15 @@ def tick_cruise_control(
     if not cc.active:
         return
 
+    # Armed but not stroking — paused by hand, or frozen under OmniPause, or (in
+    # Hybrid) sitting out while a funscript has the device.  Auto advance has
+    # always sat still then; cruise went on quietly moving amplitude, centre,
+    # speed and shape, so a session came back from a pause to a stroke it never
+    # asked for.  The clock keeps up so resuming picks up where it left off.
+    if not direct.playing:
+        cc._last_tick = now
+        return
+
     dt = now - cc._last_tick
     cc._last_tick = now
 
