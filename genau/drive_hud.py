@@ -42,8 +42,10 @@ _CTRL = 14           # an integrated control button (square)
 _GAP = 6
 _AMP_W = 18          # the amplitude bar's width
 _WAVE_H = 96         # the trace's own height
-_CTR_LABEL_W = 52    # room for "Center 100" down the left
-_AMP_LABEL_W = 42    # room for "Amp 100" down the right
+# The side labels stack their number under their word, so each column is only as
+# wide as the wider of the two rather than as wide as both plus a gap.
+_CTR_LABEL_W = 34    # room for "Center" down the left
+_AMP_LABEL_W = 24    # room for "Amp" down the right
 _WAVE_W = 120        # the trace, between the two axis columns
 _TRACK = (56, 56, 62)  # the unfilled part of a bar — a shade off the slab
 
@@ -97,6 +99,12 @@ class DriveHud:
     # Seconds between auto-advances.  Carried here because Fun Time does not know
     # it — Genau owns the pace — and the console's auto-advance button says it.
     advance_interval: int = 0
+    # Whether Genau is the one driving the device.  Not published — Genau cannot
+    # see the handoff; whoever draws the console knows it from the OSR2 state and
+    # folds it in.  False greys every control here, because a stroke Genau is not
+    # sending cannot be adjusted: pressing one during a funscript's turn is what
+    # put two drivers on the device at once.
+    driving: bool = True
     spd_at_max: bool = False
     spd_at_min: bool = False
     amp_at_max: bool = False
@@ -166,7 +174,7 @@ def _geometry(x: int, y: int, center_frac: float) -> _Geometry:
         center_up=center_up, center_down=center_down,
         center_label_right=x + _CTR_LABEL_W,
         amp_label_left=amp_x + _AMP_W + _GAP,
-        axis_label_y=y + (_WAVE_H - _LABEL_H) // 2,
+        axis_label_y=y + (_WAVE_H - 2 * _LABEL_H) // 2,
         speed_label_y=speed_y + _CTRL + 2,
         speed_label_x=(wave_x + amp_x + _AMP_W) // 2,
     )
@@ -178,13 +186,14 @@ def controls(x: int, y: int, hud: DriveHud) -> list[DriveControl]:
     greyed out at the end of its range.  The console adds these to its hit
     targets, so a press on the trace's controls posts exactly what is drawn."""
     g = _geometry(x, y, _fraction(hud.center))
+    idle = not hud.driving
     return [
-        DriveControl(g.speed_down, "genau_speed_down", _LESS, hud.spd_at_min),
-        DriveControl(g.speed_up, "genau_speed_up", _MORE, hud.spd_at_max),
-        DriveControl(g.amp_up, "genau_amplitude_up", _MORE, hud.amp_at_max),
-        DriveControl(g.amp_down, "genau_amplitude_down", _LESS, hud.amp_at_min),
-        DriveControl(g.center_up, "genau_center_up", _MORE, hud.ctr_at_max),
-        DriveControl(g.center_down, "genau_center_down", _LESS, hud.ctr_at_min),
+        DriveControl(g.speed_down, "genau_speed_down", _LESS, idle or hud.spd_at_min),
+        DriveControl(g.speed_up, "genau_speed_up", _MORE, idle or hud.spd_at_max),
+        DriveControl(g.amp_up, "genau_amplitude_up", _MORE, idle or hud.amp_at_max),
+        DriveControl(g.amp_down, "genau_amplitude_down", _LESS, idle or hud.amp_at_min),
+        DriveControl(g.center_up, "genau_center_up", _MORE, idle or hud.ctr_at_max),
+        DriveControl(g.center_down, "genau_center_down", _LESS, idle or hud.ctr_at_min),
     ]
 
 
@@ -208,11 +217,12 @@ class DriveSection:
             self._control(draw, control)
 
         # Each number beside the controls that move it: centre out to the left,
-        # amplitude out to the right, speed under its own row.
-        self._value(draw, g.axis_label_y, "Center", str(hud.center),
-                    right=g.center_label_right)
-        self._value(draw, g.axis_label_y, "Amp", str(hud.amplitude),
-                    left=g.amp_label_left)
+        # amplitude out to the right, speed under its own row.  The two side
+        # labels stack — word over number — so the columns cost half the width.
+        self._stacked(draw, g.axis_label_y, "Center", str(hud.center),
+                      right=g.center_label_right)
+        self._stacked(draw, g.axis_label_y, "Amp", str(hud.amplitude),
+                      left=g.amp_label_left)
         self._value(draw, g.speed_label_y, "Speed", str(hud.speed),
                     center=g.speed_label_x)
 
@@ -223,6 +233,18 @@ class DriveSection:
         draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=3,
                                outline=(*ink, 255), width=1)
         draw_glyph(draw, x + w / 2, y + h / 2, control.glyph, self._glyph, (*ink, 255))
+
+    def _stacked(self, draw, y: int, key: str, value: str, *,
+                 left: int | None = None, right: int | None = None) -> None:
+        """A muted word with its bright number under it, in one narrow column.
+
+        The pair side by side cost the width of both plus a gap on each flank of
+        the trace; stacked, each column is only as wide as the wider of the two.
+        """
+        for line_no, (text, ink) in enumerate(((key, TEXT_MUTED), (value, TEXT_PRIMARY))):
+            x = left if left is not None else (right or 0) - text_width(self._tiny, text)
+            draw.text((x, y + line_no * _LABEL_H + _LABEL_H / 2), text, font=self._tiny,
+                      anchor="lm", fill=(*ink, 255))
 
     def _value(self, draw, y: int, key: str, value: str, *,
                left: int | None = None, right: int | None = None,
@@ -248,7 +270,9 @@ class DriveSection:
         """The stroke drawn as a trace, with the centre marked across it and the
         device's live position marked down the left edge."""
         x, y, w, h = rect
-        draw.rectangle([x, y, x + w - 1, y + h - 1], fill=(*_TRACK, 96),
+        # Opaque, like every other panel on this HUD.  Half-transparent, the video
+        # showed through the one place on the console you have to read a shape.
+        draw.rectangle([x, y, x + w - 1, y + h - 1], fill=(*_TRACK, 255),
                        outline=(*TEXT_MUTED, 160), width=1)
         centre_y = y + round((1 - _fraction(hud.center)) * (h - 1))
         for dash in range(0, w, 6):
