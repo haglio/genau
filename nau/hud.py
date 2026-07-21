@@ -88,9 +88,10 @@ _REVISION = re.compile(r"\s*\(v\d+\)$")
 # What the OSR2 line says by what is driving the device, and the colour it says
 # it in — green when a funscript is driving, blue when Genau is, muted when
 # nothing is, amber for the broker's own auto mode.
+OSR2_GENAU = "genau"  # the one state in which the drive readout can be pressed
 _OSR2_LABELS = {
     "off": "Off", "auto": "Auto", "funscript": "FunScript",
-    "genau": "Genau", "idle": "Idle",
+    OSR2_GENAU: "Genau", "idle": "Idle",
 }
 _OSR2_COLORS = {
     "funscript": GREEN, "genau": BLUE, "auto": AMBER,
@@ -132,10 +133,15 @@ class ModeHud:
     position: int = 0
     total: int = 0
     f_mode: bool = False
+    # A status line the drawing player supplies whole, for a player with no
+    # library behind it to say something in the same place Nau says its mode.
+    status: str = ""
 
     @property
     def line(self) -> str:
         """The top line's text — empty when there is nothing to say."""
+        if self.status:
+            return self.status
         parts = []
         if self.compilation:
             parts.append(
@@ -247,12 +253,18 @@ class ConsolePainter:
         # The pace auto advance is set to is Genau's, not Fun Time's, so it comes
         # up on the readout and is folded in here for the control that shows it.
         console = hud.console
-        if hud.drive is not None:
-            console = replace(console, advance_interval=hud.drive.advance_interval)
+        drive = hud.drive
+        if drive is not None:
+            console = replace(console, advance_interval=drive.advance_interval)
+            # Genau cannot see the handoff, so whoever draws the console tells the
+            # readout whether Genau has the device.  While a funscript does, every
+            # control on it is greyed and answers no press — adjusting a stroke
+            # Genau is not sending is what woke it against the funscript.
+            drive = replace(drive, driving=console.osr2 == OSR2_GENAU)
         rows = console_rows(console)
         status = hud.modes.line
         filename = hud.modes.video
-        drive_w, drive_h = DriveSection.SIZE if hud.drive is not None else (0, 0)
+        drive_w, drive_h = DriveSection.SIZE if drive is not None else (0, 0)
         body_ascent, body_descent = self._body.getmetrics()
         top_h = body_ascent + body_descent
         tiny_h = sum(self._tiny.getmetrics())
@@ -268,7 +280,7 @@ class ConsolePainter:
             2 * _PAD + top_h + filename_h + _ROW_GAP + rows_height(rows)
             + _ROW_GAP + _OSR2_H
         )
-        if hud.drive is not None:
+        if drive is not None:
             height += _ROW_GAP + drive_h
 
         panel = HudPanel(width, height)
@@ -304,12 +316,12 @@ class ConsolePainter:
         self._osr2(draw, _PAD, y, console)
         y += _OSR2_H
 
-        if hud.drive is not None:
+        if drive is not None:
             y += _ROW_GAP
-            self._drive.draw(draw, _PAD, y, hud.drive)
+            self._drive.draw(draw, _PAD, y, drive)
             # The readout draws its own arrows; the console only needs them as hit
             # targets, so they answer a press and name themselves on hover.
-            for control in drive_controls(_PAD, y, hud.drive):
+            for control in drive_controls(_PAD, y, drive):
                 self.buttons.append((
                     control.rect,
                     Button(control.action, "", _DRIVE_TIPS.get(control.action, ""),
@@ -387,7 +399,7 @@ class ConsolePainter:
         it, which is bright."""
         x, y, w, h = rect
         if not button.action:
-            ink = TEXT_MUTED if button.glyph.isalpha() else TEXT_PRIMARY
+            ink = TEXT_MUTED if button.glyph.replace(" ", "").isalpha() else TEXT_PRIMARY
             draw.text((x + w / 2, y + h / 2), button.glyph, font=self._tiny, anchor="mm",
                       fill=(*ink, 255))
             return
