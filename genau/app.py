@@ -77,6 +77,8 @@ def build_parser(config) -> argparse.ArgumentParser:
                     help="Poll this file for the console panel Fun Time publishes")
     ap.add_argument("--dashboard-cmd-file", default=None,
                     help="Where a press on the console posts its Fun Time command")
+    ap.add_argument("--drive-file", default=None,
+                    help="Where to publish the drive readout for Nau to draw in Hybrid")
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
     ap.add_argument(
@@ -273,7 +275,11 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         cruise_control=cruise_control,
         auto_advance=auto_advance,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
-        drive_file=config.genau_drive_file,
+        # Named by whoever launched us when there is one: standalone this is our
+        # own state dir, but under Fun Time the reader is Nau, which is told the
+        # path by Fun Time — and Genau resolving its own put the readout in a
+        # directory nobody was watching, so Hybrid drew no readout at all.
+        drive_file=Path(args.drive_file) if args.drive_file else config.genau_drive_file,
         console_file=Path(args.console_file) if args.console_file else None,
         set_console=view.set_console,
         present_scene=view.present,
