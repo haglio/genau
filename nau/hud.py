@@ -7,14 +7,15 @@ and hybrid, Genau into its own window in genau.  So the mode switch and the driv
 controls keep their places as you flip between modes — only the transport changes,
 because it steps Nau's video in one and Genau's clips in the other.
 
-Its top block is Nau's own answer to "what am I playing?" — the video's name
-beside the active-player dot, with the length mode or compilation as a muted
-subtitle under it — and it is empty in genau mode, where there is no Nau playlist
-behind the screen.  The name used to sit in a chip of its own below the console;
-it heads the console now, so there is one HUD and not a panel with a tag under it.
-Everything else is the console the orchestrator publishes (:mod:`nau.console`)
-plus, while Genau is driving, the drive readout (:mod:`genau.drive_hud`) with its
-own arrows.
+Its top block is Nau's own answer to "what am I playing?" — the status line (the
+length mode, or the compilation and your place in it) beside the active-player
+dot, with the file on screen as a muted line under it, the same shape each
+satellite's HUD leads with.  Both are empty in genau mode, where there is no Nau
+playlist behind the screen.  The file name used to sit in a chip of its own below
+the console; it belongs to this block now, so there is one HUD and not a panel
+with a tag under it.  Everything else is the console the orchestrator publishes
+(:mod:`nau.console`) plus, while Genau is driving, the drive readout
+(:mod:`genau.drive_hud`) with its own controls.
 
 The wording and shape are pure functions; the drawing goes onto the slab
 :mod:`player_core.hud_panel` owns, the same slab the satellites' HUD is drawn on,
@@ -22,6 +23,7 @@ so every player says things the same way and from the same corner.
 """
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field, replace
 
@@ -40,17 +42,22 @@ from player_core.hud_panel import (
     TEXT_PRIMARY,
     WHITE,
     HudPanel,
+    draw_glyph,
     load_font,
     text_width,
     to_bgra,
 )
 
 from .console import (
+    BUTTON,
+    GAP,
+    WAVE_ICON,
     Button,
     ConsoleModel,
     Rect,
     console_rows,
     hit_test,
+    osr2_row,
     place_rows,
     row_width,
     rows_height,
@@ -150,8 +157,10 @@ DOT = 10       # the active-player dot at the head of the top line
 DOT_GAP = 8    # …and the room between it and the words
 _MARGIN = 8    # inset from the window's top-left corner
 _ROW_GAP = 4   # between the top block, the buttons, the OSR2 row, the readout
-_SUBTITLE_GAP = 2  # between the video name and the muted mode line under it
-_OSR2_H = 16   # the OSR2 read-out row's height
+_SUBTITLE_GAP = 2  # between the status line and the file name under it
+_OSR2_H = BUTTON      # the OSR2 line, sized to the controls sharing it
+_OSR2_LABEL_GAP = 5   # "OSR2" sits right up against the pill it names …
+_OSR2_GROUP_GAP = 16  # … and well clear of the two controls beside them
 
 
 def hud_xy() -> tuple[int, int]:
@@ -235,23 +244,28 @@ class ConsolePainter:
         return mx - left, my - top
 
     def _paint(self, hud: ConsoleHud, hover: tuple[int, int] | None = None) -> "Image.Image":
-        rows = console_rows(hud.console)
-        name = hud.modes.video
-        context = hud.modes.line
+        # The pace auto advance is set to is Genau's, not Fun Time's, so it comes
+        # up on the readout and is folded in here for the control that shows it.
+        console = hud.console
+        if hud.drive is not None:
+            console = replace(console, advance_interval=hud.drive.advance_interval)
+        rows = console_rows(console)
+        status = hud.modes.line
+        filename = hud.modes.video
         drive_w, drive_h = DriveSection.SIZE if hud.drive is not None else (0, 0)
         body_ascent, body_descent = self._body.getmetrics()
         top_h = body_ascent + body_descent
         tiny_h = sum(self._tiny.getmetrics())
-        context_h = (_SUBTITLE_GAP + tiny_h) if context else 0
+        filename_h = (_SUBTITLE_GAP + tiny_h) if filename else 0
         text_x = _PAD + DOT + DOT_GAP
 
         width = 2 * _PAD + max(
-            row_width(rows), drive_w, self._osr2_width(hud.console),
-            DOT + DOT_GAP + text_width(self._body, name),
-            DOT + DOT_GAP + text_width(self._tiny, context),
+            row_width(rows), drive_w, self._osr2_width(console),
+            DOT + DOT_GAP + text_width(self._body, status),
+            DOT + DOT_GAP + text_width(self._tiny, filename),
         )
         height = (
-            2 * _PAD + top_h + context_h + _ROW_GAP + rows_height(rows)
+            2 * _PAD + top_h + filename_h + _ROW_GAP + rows_height(rows)
             + _ROW_GAP + _OSR2_H
         )
         if hud.drive is not None:
@@ -260,24 +274,24 @@ class ConsolePainter:
         panel = HudPanel(width, height)
         draw = panel.draw
 
-        # Top block: the active-player dot and the video's name — what is playing
-        # here, off the separate chip it used to sit in — with the mode line (the
-        # compilation and your place in it, or the length mode, plus F-Mode) as a
-        # muted subtitle beneath.  Both empty in genau mode.
+        # Top block: the active-player dot and the status line — what is selecting
+        # this playlist — in the body face, with the file on screen as a muted line
+        # under it.  Same shape as each satellite's HUD, which leads with its
+        # status and not with a file name.  Both empty in genau mode.
         y = _PAD
         # White while a bare, player-less command lands here, the palette's grey
         # otherwise — the same dot, in the same corner and colour, as each
         # satellite's, so the primary reads as one of the family.
         dot_cy = y + top_h // 2
         draw.ellipse([_PAD, dot_cy - DOT // 2, _PAD + DOT, dot_cy - DOT // 2 + DOT],
-                     fill=(*(WHITE if hud.console.active else TEXT_MUTED), 255))
-        if name:
-            draw.text((text_x, y + body_ascent), name, font=self._body,
+                     fill=(*(WHITE if console.active else TEXT_MUTED), 255))
+        if status:
+            draw.text((text_x, y + body_ascent), status, font=self._body,
                       anchor="ls", fill=(*TEXT_PRIMARY, 255))
         y += top_h
-        if context:
+        if filename:
             y += _SUBTITLE_GAP
-            draw.text((text_x, y), context, font=self._tiny, anchor="la",
+            draw.text((text_x, y), filename, font=self._tiny, anchor="la",
                       fill=(*TEXT_MUTED, 255))
             y += tiny_h
         y += _ROW_GAP
@@ -287,7 +301,7 @@ class ConsolePainter:
             self._button(draw, rect, button)
         y += rows_height(rows) + _ROW_GAP
 
-        self._osr2(draw, _PAD, y, hud.console)
+        self._osr2(draw, _PAD, y, console)
         y += _OSR2_H
 
         if hud.drive is not None:
@@ -306,31 +320,47 @@ class ConsolePainter:
             self._tooltip(draw, width, height, tooltip_at(self.buttons, *hover), hover)
         return panel.image
 
+    @staticmethod
+    def _osr2_controls_width(controls: list[Button]) -> int:
+        return sum(b.width for b in controls) + GAP * (len(controls) - 1)
+
+    def _osr2_pill_width(self, model: ConsoleModel) -> int:
+        return text_width(self._tiny, _OSR2_LABELS.get(model.osr2, model.osr2)) + 10
+
     def _osr2_width(self, model: ConsoleModel) -> int:
-        state = _OSR2_LABELS.get(model.osr2, model.osr2)
-        return (text_width(self._tiny, "OSR2") + 8
-                + text_width(self._tiny, state) + 10
-                + text_width(self._tiny, "Broker"))
+        return (self._osr2_controls_width(osr2_row(model)) + _OSR2_GROUP_GAP
+                + text_width(self._tiny, "OSR2") + _OSR2_LABEL_GAP
+                + self._osr2_pill_width(model))
 
     def _osr2(self, draw, x: int, y: int, model: ConsoleModel) -> None:
-        """The OSR2 read-out: a muted label, a boxed state word, and the broker.
+        """The device's own line: its two controls, then what has it.
 
-        A read-out, not a control — it says what has the device and whether the
-        broker that talks to it is up.  Both are the primary's alone, which is why
-        the broker light moved off the dashboard and onto this HUD.
+        The broker and the takeover switch act on the OSR2 rather than on any
+        player, so they share the OSR2's line and sit together at its head —
+        placed by hand rather than through the row layout, which would read them
+        as different families and open a gap between them.  The label then hugs
+        its pill, well clear of the controls, so "OSR2 Genau" reads as one
+        read-out instead of as a third button.
         """
-        draw.text((x, y + _OSR2_H / 2), "OSR2", font=self._tiny, anchor="lm",
+        controls = osr2_row(model)
+        run_x = x
+        for button in controls:
+            rect = (run_x, y, button.width, _OSR2_H)
+            self._button(draw, rect, button)
+            self.buttons.append((rect, button))
+            run_x += button.width + GAP
+
+        label_x = x + self._osr2_controls_width(controls) + _OSR2_GROUP_GAP
+        draw.text((label_x, y + _OSR2_H / 2), "OSR2", font=self._tiny, anchor="lm",
                   fill=(*TEXT_MUTED, 255))
         state = _OSR2_LABELS.get(model.osr2, model.osr2)
         color = _OSR2_COLORS.get(model.osr2, TEXT_PRIMARY)
-        box_x = x + text_width(self._tiny, "OSR2") + 8
-        box_w = text_width(self._tiny, state) + 10
-        draw.rounded_rectangle([box_x, y, box_x + box_w - 1, y + _OSR2_H - 1],
+        pill_x = label_x + text_width(self._tiny, "OSR2") + _OSR2_LABEL_GAP
+        pill_w = self._osr2_pill_width(model)
+        draw.rounded_rectangle([pill_x, y, pill_x + pill_w - 1, y + _OSR2_H - 1],
                                radius=3, outline=(*color, 255), width=1)
-        draw.text((box_x + box_w / 2, y + _OSR2_H / 2), state, font=self._tiny,
+        draw.text((pill_x + pill_w / 2, y + _OSR2_H / 2), state, font=self._tiny,
                   anchor="mm", fill=(*color, 255))
-        draw.text((box_x + box_w + 10, y + _OSR2_H / 2), "Broker", font=self._tiny,
-                  anchor="lm", fill=(*(BLUE if model.broker else RED), 255))
 
     def _tooltip(self, draw, width: int, height: int, text: str, pos: tuple[int, int]) -> None:
         """A tooltip drawn inside the panel near the cursor — the HUD lives in the
@@ -352,22 +382,49 @@ class ConsolePainter:
         """One control, in the one button shape this family's HUDs use: an outline
         when off, filled when on, faded when it cannot be pressed.
 
-        A read-out — an item with nothing to post — is a bare value with no box."""
+        A read-out — an item with nothing to post — is bare text with no box, in
+        the readout's own key/value colours: a muted word names the value beside
+        it, which is bright."""
         x, y, w, h = rect
         if not button.action:
+            ink = TEXT_MUTED if button.glyph.isalpha() else TEXT_PRIMARY
             draw.text((x + w / 2, y + h / 2), button.glyph, font=self._tiny, anchor="mm",
-                      fill=(*TEXT_PRIMARY, 255))
+                      fill=(*ink, 255))
             return
         fill = GREEN if button.lit else RED if button.warn else BLUE if button.hold else None
         edge = TEXT_MUTED if button.dim else (fill or TEXT_MUTED)
         draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=3,
                                fill=(*fill, 255) if fill else None,
                                outline=(*edge, 255), width=1)
-        # A word rides the UI face; a symbol needs the face that actually has it.
-        font = self._tiny if button.glyph.isalnum() else self._glyph
         ink = BG_PRIMARY if fill else TEXT_MUTED if button.dim else TEXT_PRIMARY
-        draw.text((x + w / 2, y + h / 2), button.glyph, font=font, anchor="mm",
-                  fill=(*ink, 255))
+        if button.glyph == WAVE_ICON:
+            self._wave_icon(draw, rect, ink)
+        elif len(button.glyph) == 1 and not button.glyph.isalnum():
+            # A symbol needs the face that actually has it, and centring on its
+            # own ink — the font's box would drop it toward the button's floor.
+            draw_glyph(draw, x + w / 2, y + h / 2, button.glyph, self._glyph, (*ink, 255))
+        else:
+            draw.text((x + w / 2, y + h / 2), button.glyph, font=self._tiny,
+                      anchor="mm", fill=(*ink, 255))
+
+    @staticmethod
+    def _wave_icon(draw, rect: Rect, ink) -> None:
+        """The waveform control's face: a trace drawn to the button's own bounds.
+
+        ∿ is a small mark sitting low in a tall box, so however it was centred it
+        read as a smudge in the corner of the button rather than as an icon.  A
+        curve drawn to fit says "waveform" at a glance and fills the square.
+        """
+        x, y, w, h = rect
+        pad = 3
+        x0, x1 = x + pad, x + w - pad - 1
+        cy, amp = y + h / 2, (h - 2 * pad) / 2
+        steps = 12
+        draw.line(
+            [(x0 + i * (x1 - x0) / steps, cy - amp * math.sin(2 * math.pi * i / steps))
+             for i in range(steps + 1)],
+            fill=(*ink, 255), width=2, joint="curve",
+        )
 
 
 def with_playback_speed(console: ConsoleModel, speed: float) -> ConsoleModel:

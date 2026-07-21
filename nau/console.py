@@ -27,9 +27,25 @@ Rect = tuple[int, int, int, int]  # (x, y, w, h)
 
 BUTTON = 18   # a square control; the wider ones are multiples plus the gaps
 VALUE_W = 34  # a value read-out between a pair of buttons (the playback rate)
+PLAYBACK_LABEL_W = 44  # the word naming that pair
+BROKER_W = 40      # the two word-buttons on the OSR2 line
+TAKEOVER_W = 52
 GAP = 4       # between buttons along a row
 ROW_GAP = 5   # between rows
 GROUP_GAP = 12  # between groups of buttons that mean different things
+
+_SHAPE_LABELS = {"rounded_square": "Square"}
+
+
+def shape_label(shape: str) -> str:
+    """The waveform's name, for the control that cycles it to say what it is on.
+
+    ``rounded_square`` is the one whose internal name reads badly spelled out;
+    the rest title-case.
+    """
+    if shape in _SHAPE_LABELS:
+        return _SHAPE_LABELS[shape]
+    return " ".join(word.capitalize() for word in shape.split("_"))
 
 
 @dataclass(frozen=True)
@@ -83,6 +99,9 @@ class ConsoleModel:
     # Nau's video playback rate, shown while Nau is on screen.  Not published —
     # Nau knows its own rate and folds it in; Genau leaves it at 1.
     playback_speed: float = 1.0
+    # Seconds between auto-advances.  Also not published — Genau owns the pace and
+    # says it on the drive readout, which whoever draws the console folds in here.
+    advance_interval: int = 0
 
 
 def read_console(path: Path) -> ConsoleModel | None:
@@ -115,8 +134,14 @@ def read_console(path: Path) -> ConsoleModel | None:
 _GLYPHS = {
     "prev": "⏮", "next": "⏭", "back": "−", "fwd": "+",
     "open": "📂", "clip": "✂", "record": "⏺", "trash": "🗑",
-    "wave": "∿", "quarter": "¼", "minus": "−", "plus": "+",
+    "lock": "🔒", "quarter": "¼", "minus": "−", "plus": "+",
 }
+
+# The waveform control draws a curve rather than a glyph: ∿ is a small mark low
+# in a big box, so it read as a smudge in the corner of its button whatever the
+# centring.  The painter recognises this marker and draws a trace that fills the
+# button; nothing else on the console needs a bespoke icon.
+WAVE_ICON = "\x00wave"
 
 _MODE_BUTTONS = (
     ("nau_activate", "Nau", "nau"),
@@ -199,32 +224,67 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
 def _playback_speed_row(model: ConsoleModel) -> list[Button]:
     """Nau's video playback rate: slower, the rate itself, faster.
 
-    Separate from the drive readout's Speed, which is the *stroke* rate; this is
-    how fast the video plays.
+    Named, because "Speed" already means the *stroke* rate down on the drive
+    readout and an unlabelled −/+ pair beside a number said neither.
     """
     return [
-        Button("nau_speed_down", _GLYPHS["minus"], "Slower playback"),
+        Button("", "Playback", "", width=PLAYBACK_LABEL_W),
+        Button("nau_speed_down", _GLYPHS["minus"], "Play the video slower"),
         Button("", _format_rate(model.playback_speed), "", width=VALUE_W),
-        Button("nau_speed_up", _GLYPHS["plus"], "Faster playback"),
+        Button("nau_speed_up", _GLYPHS["plus"], "Play the video faster"),
     ]
 
 
+def _advance_label(model: ConsoleModel) -> str:
+    """The auto-advance control's face — with the pace it is set to, when it has
+    one.  A bare arming jitters an 8-12s default, which has no number to show."""
+    return f"aa {model.advance_interval}s" if model.advance_interval else "aa"
+
+
 def _control_row(model: ConsoleModel) -> list[Button]:
-    """The hands-free switches and the offset — everything Genau does that is not
-    a level on the readout."""
+    """The hands-free switches, the hold and the offset — everything Genau does
+    that is not a level on the readout."""
     return [
-        Button("genau_toggle_cruise", "cc", "Cruise control", lit=model.cruise),
-        Button("genau_toggle_auto_advance", "aa",
-               "Auto advance: holding this clip" if model.clip_locked
-               else "Auto advance",
+        Button("genau_toggle_cruise", "cc",
+               "Cruise control: vary the stroke hands-free", lit=model.cruise),
+        Button("genau_toggle_auto_advance", _advance_label(model),
+               "Auto advance: move on to the next clip on a timer",
+               width=BUTTON * 2 + GAP,
                lit=model.auto_advance and not model.clip_locked,
                hold=model.auto_advance and model.clip_locked),
-        Button("genau_cycle_shape", _GLYPHS["wave"], f"Waveform: {model.shape}"),
-        Button("quarter_button", _GLYPHS["quarter"], "Offset ¼ cycle"),
-        Button("genau_toggle_auto", "GA",
-               "Genau takeover: allowed" if model.takeover_allowed
-               else "Genau takeover: suppressed",
-               lit=model.takeover_allowed, warn=not model.takeover_allowed),
+        # Holding a clip only means anything inside auto advance, so outside it the
+        # control is drawn faded and answers no press.
+        Button("genau_toggle_clip_lock", _GLYPHS["lock"],
+               "Hold this clip against auto advance" if model.auto_advance
+               else "Hold a clip — only while auto advance is armed",
+               hold=model.clip_locked, dim=not model.auto_advance),
+        Button("genau_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(model.shape)}"),
+        Button("quarter_button", _GLYPHS["quarter"], "Offset the stroke a ¼ cycle"),
+    ]
+
+
+def osr2_row(model: ConsoleModel) -> list[Button]:
+    """The two controls that sit beside the OSR2 read-out.
+
+    Both act on the device rather than on a player, which is why they share the
+    device's line: the broker is the service that talks to the OSR2 at all, and
+    takeover is whether Genau may drive it while the broker is in its own auto
+    mode.  Neither was reachable from a HUD before — the broker light was a
+    dashboard button and this one hid behind a two-letter label that stood for
+    nothing.
+    """
+    return [
+        Button("broker_panel", "Broker",
+               "OSR2 broker is running — press to stop it" if model.broker
+               else "OSR2 broker is not running — press to start it",
+               width=BROKER_W, lit=model.broker, warn=not model.broker),
+        Button("genau_toggle_auto", "Takeover",
+               "Genau may drive the OSR2 while the broker is in auto mode — "
+               "press to suppress it" if model.takeover_allowed
+               else "Genau is suppressed from driving the OSR2 in the broker's "
+                    "auto mode — press to allow it",
+               width=TAKEOVER_W, lit=model.takeover_allowed,
+               warn=not model.takeover_allowed),
     ]
 
 
@@ -260,8 +320,19 @@ def _group_break(row: list[Button], index: int) -> bool:
     return _family(previous.action) != _family(current.action)
 
 
+# Genau controls whose command name does not begin with genau_.  Without this the
+# ¼ offset fell out of the group it belongs to and opened a gap mid-row.
+_GENAU_CONTROLS = frozenset({"quarter_button"})
+
+
 def _family(action: str) -> str:
     """Which group of controls *action* belongs to."""
+    # The three mode buttons are one group; genau_activate happens to start with
+    # the Genau controls' prefix, which used to split the row after Hybrid.
+    if action.endswith("_activate"):
+        return "mode"
+    if action in _GENAU_CONTROLS:
+        return "genau_"
     for prefix in ("primary_nudge", "primary", "nau_speed", "genau_"):
         if action.startswith(prefix):
             return prefix
