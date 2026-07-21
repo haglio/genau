@@ -181,9 +181,22 @@ class TestPresses:
 
     def test_a_readouts_arrow_press_reaches_genau(self):
         painter = ConsolePainter()
-        painter.bgra(ConsoleHud(console=ConsoleModel(mode="hybrid"), drive=_drive()))
+        painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode="hybrid", osr2="genau"), drive=_drive()))
 
         assert painter.command_at(*self._over(painter, "genau_amplitude_up")) == "genau_amplitude_up"
+
+    def test_the_readouts_controls_are_dead_while_a_funscript_has_the_device(self):
+        """Genau is paused through a funscript's stretch, so a stroke it is not
+        sending cannot be adjusted — pressing one woke Genau onto a device the
+        funscript was already driving, and the two fought over it."""
+        painter = ConsolePainter()
+        painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode="hybrid", osr2="funscript"), drive=_drive()))
+
+        over = self._over(painter, "genau_amplitude_up")
+        assert painter.command_at(*over) == ""
+        assert all(b.dim for _rect, b in painter.buttons if b.action.startswith("genau_amplitude"))
 
     def test_the_cursor_over_a_button_is_reported_in_panel_coordinates(self):
         painter = self._painted()

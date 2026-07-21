@@ -26,8 +26,8 @@ from pathlib import Path
 Rect = tuple[int, int, int, int]  # (x, y, w, h)
 
 BUTTON = 18   # a square control; the wider ones are multiples plus the gaps
-VALUE_W = 34  # a value read-out between a pair of buttons (the playback rate)
-PLAYBACK_LABEL_W = 44  # the word naming that pair
+VALUE_W = 22  # a value read-out between a pair of buttons (the playback rate)
+PLAYBACK_LABEL_W = 66  # the words naming that pair
 BROKER_W = 40      # the two word-buttons on the OSR2 line
 TAKEOVER_W = 52
 GAP = 4       # between buttons along a row
@@ -228,7 +228,7 @@ def _playback_speed_row(model: ConsoleModel) -> list[Button]:
     readout and an unlabelled −/+ pair beside a number said neither.
     """
     return [
-        Button("", "Playback", "", width=PLAYBACK_LABEL_W),
+        Button("", "Playback speed", "", width=PLAYBACK_LABEL_W),
         Button("nau_speed_down", _GLYPHS["minus"], "Play the video slower"),
         Button("", _format_rate(model.playback_speed), "", width=VALUE_W),
         Button("nau_speed_up", _GLYPHS["plus"], "Play the video faster"),
@@ -316,7 +316,11 @@ def _group_break(row: list[Button], index: int) -> bool:
     """
     previous, current = row[index - 1], row[index]
     if not current.action or not previous.action:
-        return True  # a read-out stands apart from the controls around it
+        # A word naming the row stands apart from the controls; a value sitting
+        # between a pair of them belongs with them, and pushing the − and + that
+        # far apart made the pair read as two unrelated buttons.
+        readout = current if not current.action else previous
+        return readout.glyph.replace(" ", "").isalpha()
     return _family(previous.action) != _family(current.action)
 
 
