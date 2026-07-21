@@ -10,8 +10,10 @@ from nau.console import (
     genau_drives,
     hit_test,
     nau_displays,
+    osr2_row,
     place_rows,
     read_console,
+    shape_label,
     tooltip_at,
 )
 
@@ -22,6 +24,41 @@ def _actions(model: ConsoleModel) -> list[str]:
 
 def _button(model: ConsoleModel, action: str):
     return next(b for row in console_rows(model) for b in row if b.action == action)
+
+
+def _osr2_button(model: ConsoleModel, action: str):
+    return next(b for b in osr2_row(model) if b.action == action)
+
+
+class TestShapeLabel:
+    """The control that cycles the waveform names it on hover, so the name lives
+    with the console rather than with the readout that no longer prints it."""
+
+    def test_names_the_waveform_instead_of_leaving_it_to_the_curve(self):
+        assert shape_label("sine") == "Sine"
+        assert shape_label("rounded_square") == "Square"
+        assert shape_label("sawtooth") == "Sawtooth"
+
+    def test_an_unknown_shape_is_titled_rather_than_dropped(self):
+        assert shape_label("half_moon") == "Half Moon"
+
+
+class TestOsr2Row:
+    """The device's own controls: the broker that talks to it at all, and whether
+    Genau may drive it while the broker is in auto mode."""
+
+    def test_the_broker_is_a_control_and_says_which_way_a_press_goes(self):
+        running = _osr2_button(ConsoleModel(broker=True), "broker_panel")
+        down = _osr2_button(ConsoleModel(broker=False), "broker_panel")
+
+        assert running.lit is True and "stop" in running.tooltip
+        assert down.warn is True and "start" in down.tooltip
+
+    def test_takeover_says_what_it_means_rather_than_wearing_two_letters(self):
+        allowed = _osr2_button(ConsoleModel(takeover_allowed=True), "genau_toggle_auto")
+
+        assert allowed.glyph == "Takeover"
+        assert "auto mode" in allowed.tooltip
 
 
 class TestTransport:
@@ -85,8 +122,25 @@ class TestDriveControls:
         for mode in ("hybrid", "genau"):
             actions = _actions(ConsoleModel(mode=mode))
             for action in ("genau_toggle_cruise", "genau_toggle_auto_advance",
-                           "genau_cycle_shape", "quarter_button", "genau_toggle_auto"):
+                           "genau_toggle_clip_lock", "genau_cycle_shape", "quarter_button"):
                 assert action in actions, (mode, action)
+
+    def test_holding_a_clip_is_offered_only_inside_auto_advance(self):
+        """The hold exists only within auto advance, so outside it the control is
+        faded and answers no press rather than posting a command that does
+        nothing."""
+        off = _button(ConsoleModel(mode="genau"), "genau_toggle_clip_lock")
+        armed = _button(ConsoleModel(mode="genau", auto_advance=True), "genau_toggle_clip_lock")
+
+        assert off.dim is True
+        assert armed.dim is False
+
+    def test_auto_advance_wears_the_pace_it_is_set_to(self):
+        """A bare arming jitters a default with no single number, so it stays plain."""
+        assert _button(ConsoleModel(mode="genau", advance_interval=5),
+                       "genau_toggle_auto_advance").glyph == "aa 5s"
+        assert _button(ConsoleModel(mode="genau"),
+                       "genau_toggle_auto_advance").glyph == "aa"
 
     def test_the_axis_arrows_are_not_console_buttons(self):
         """They belong to the readout now, drawn on the bars themselves."""
@@ -109,8 +163,8 @@ class TestState:
         assert _button(model, "nau_activate").lit is False
 
     def test_a_suppressed_takeover_is_warned_not_merely_unlit(self):
-        assert _button(ConsoleModel(mode="hybrid", takeover_allowed=True), "genau_toggle_auto").lit
-        assert _button(ConsoleModel(mode="hybrid", takeover_allowed=False), "genau_toggle_auto").warn
+        assert _osr2_button(ConsoleModel(takeover_allowed=True), "genau_toggle_auto").lit
+        assert _osr2_button(ConsoleModel(takeover_allowed=False), "genau_toggle_auto").warn
 
     def test_a_held_clip_holds_auto_advance_apart_from_merely_armed(self):
         armed = _button(ConsoleModel(mode="genau", auto_advance=True), "genau_toggle_auto_advance")

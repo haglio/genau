@@ -54,38 +54,42 @@ class TestCompilationLabel:
 
 class TestPainter:
     def test_the_top_line_sits_tight_to_the_top(self):
-        """The old console left a tall empty band above its first line; the video
-        name now heads the console within a body line-height of the slab's top, the
-        way the satellites' status line does."""
+        """The old console left a tall empty band above its first line; the status
+        line now heads the console within a body line-height of the slab's top, the
+        way each satellite's does."""
         painter = ConsolePainter()
-        bgra = painter.bgra(ConsoleHud(modes=ModeHud(video="Some Video Name")))
+        bgra = painter.bgra(ConsoleHud(modes=ModeHud(length_mode=FULL)))
         rgb = _rgb(bgra)
 
-        # There is ink (the name) within the first line-height below the pad.
+        # There is ink (the status text) within the first line-height below the pad.
         line_h = sum(load_font(11).getmetrics())
         band = rgb[PAD:PAD + line_h, :, :]
         assert (band > 200).any()
 
-    def test_it_names_the_video_playing(self):
-        """The video name heads the console — brought in off the chip it used to
-        sit in below — so a wider name widens the panel."""
-        narrow = ConsolePainter().bgra(ConsoleHud(modes=ModeHud(video="Short")))
-        wide = ConsolePainter().bgra(
-            ConsoleHud(modes=ModeHud(video="A Much Much Longer Video Name")))
-
-        assert wide.shape[1] > narrow.shape[1]
-
-    def test_the_mode_line_is_a_subtitle_under_the_name(self):
-        """The compilation and place-in-it sit beneath the name, not on its line,
-        so the name reads first and the context under it."""
+    def test_the_status_leads_and_the_file_name_is_the_muted_line_under_it(self):
+        """The satellites lead with what they are showing, not with a file name, so
+        the primary does too: the length mode or compilation in the body face, the
+        file beneath it in the muted one."""
         painter = ConsolePainter()
         bgra = painter.bgra(ConsoleHud(modes=ModeHud(
-            video="Clip", length_mode=SHORTS, compilation="Vol6", position=3, total=9)))
+            video="Some Video Name", length_mode=MIXED)))
         rgb = _rgb(bgra)
 
         body_h = sum(load_font(11).getmetrics())
-        # The name is bright on the first line; the muted subtitle is below it.
-        assert (rgb[PAD:PAD + body_h, :, :] > 200).any()
+        bright_rows = np.nonzero((rgb > 200).any(axis=(1, 2)))[0]
+        muted = (rgb[:, :, 0] > 100) & (rgb[:, :, 0] < 160)
+        muted_rows = np.nonzero(muted.any(axis=1))[0]
+
+        assert bright_rows.min() < PAD + body_h          # the status is on top …
+        assert muted_rows.max() > bright_rows.min()      # … the file name below it
+
+    def test_a_longer_file_name_widens_the_panel(self):
+        """It is drawn, not truncated, so the slab grows to hold it."""
+        narrow = ConsolePainter().bgra(ConsoleHud(modes=ModeHud(video="Short")))
+        wide = ConsolePainter().bgra(
+            ConsoleHud(modes=ModeHud(video="A Much Much Longer Video Name Indeed")))
+
+        assert wide.shape[1] > narrow.shape[1]
 
     def test_hybrid_grows_the_panel_for_the_readout(self):
         painter = ConsolePainter()
