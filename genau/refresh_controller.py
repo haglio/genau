@@ -305,15 +305,11 @@ class GenauRefreshController:
             center=ds.center,
             shape=ds.shape.value,
             position=position,
-            cruise=self.cruise_control.active if self.cruise_control else False,
-            auto_advance=self.auto_advance.active if self.auto_advance else False,
-            clip_locked=self.auto_advance.locked if self.auto_advance else False,
             advance_interval=(
                 round(self.auto_advance.interval)
                 if self.auto_advance and self.auto_advance.interval
                 else 0
             ),
-            playing=ds.playing,
             spd_at_max=ds.speed >= MAX_SPEED,
             spd_at_min=ds.speed <= MIN_SPEED,
             amp_at_max=ds.amplitude >= 100,
