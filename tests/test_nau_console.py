@@ -44,8 +44,7 @@ class TestShapeLabel:
 
 
 class TestOsr2Row:
-    """The device's own controls: the broker that talks to it at all, and whether
-    Genau may drive it while the broker is in auto mode."""
+    """The device's own control: the broker that talks to the OSR2 at all."""
 
     def test_the_broker_is_a_control_and_says_which_way_a_press_goes(self):
         running = _osr2_button(ConsoleModel(broker=True), "broker_panel")
@@ -54,11 +53,10 @@ class TestOsr2Row:
         assert running.lit is True and "stop" in running.tooltip
         assert down.warn is True and "start" in down.tooltip
 
-    def test_takeover_says_what_it_means_rather_than_wearing_two_letters(self):
-        allowed = _osr2_button(ConsoleModel(takeover_allowed=True), "genau_toggle_auto")
-
-        assert allowed.glyph == "Takeover"
-        assert "auto mode" in allowed.tooltip
+    def test_the_broker_is_the_only_control_on_that_line(self):
+        """The takeover switch shared it until its one trigger — the OSR2's own
+        free mode — turned out to be unreachable from here."""
+        assert [b.action for b in osr2_row(ConsoleModel())] == ["broker_panel"]
 
 
 class TestTransport:
@@ -162,10 +160,6 @@ class TestState:
         assert _button(model, "hybrid_activate").lit is True
         assert _button(model, "nau_activate").lit is False
 
-    def test_a_suppressed_takeover_is_warned_not_merely_unlit(self):
-        assert _osr2_button(ConsoleModel(takeover_allowed=True), "genau_toggle_auto").lit
-        assert _osr2_button(ConsoleModel(takeover_allowed=False), "genau_toggle_auto").warn
-
     def test_a_held_clip_holds_auto_advance_apart_from_merely_armed(self):
         armed = _button(ConsoleModel(mode="genau", auto_advance=True), "genau_toggle_auto_advance")
         held = _button(ConsoleModel(mode="genau", auto_advance=True, clip_locked=True),
@@ -191,7 +185,7 @@ class TestReadConsole:
         path = tmp_path / "nau_console.json"
         path.write_text(json.dumps({
             "mode": "hybrid", "active": True, "osr2": "genau", "broker": True,
-            "takeover_allowed": False, "cruise": True, "auto_advance": True,
+            "cruise": True, "auto_advance": True,
             "clip_locked": True, "shape": "sawtooth",
         }), encoding="utf-8")
 
@@ -201,7 +195,6 @@ class TestReadConsole:
         assert model.active is True
         assert model.osr2 == "genau"
         assert model.broker is True
-        assert model.takeover_allowed is False
         assert (model.cruise, model.auto_advance, model.clip_locked) == (True, True, True)
         assert model.shape == "sawtooth"
 
