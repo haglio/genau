@@ -49,7 +49,7 @@ class TestCompilationLabel:
         ) == "Volume 6"
 
     def test_an_undashed_title_survives_whole(self):
-        assert compilation_label("redacted Overload 3") == "redacted Overload 3"
+        assert compilation_label("Scene Five 3") == "Scene Five 3"
 
 
 class TestPainter:

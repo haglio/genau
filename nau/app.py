@@ -245,7 +245,7 @@ def _run(args) -> int:
 
     # Clip navigation: a clip carved from a compilation records its siblings,
     # order, and source scene in its sidecar (see nau.clip_nav). Built once over
-    # the whole discovered library so "compilation"/"full video"/"money shot" can
+    # the whole discovered library so "compilation"/"full video"/"clip jump" can
     # jump from whatever is on screen.  With no library there is nothing to jump
     # to, and an empty index answers that without a special case.
     entries = source.entries if source is not None else []
@@ -423,7 +423,7 @@ def _run(args) -> int:
                     set_length_mode=_set_length_mode,
                     play_compilation=jumps.play_compilation,
                     play_full_vid=jumps.play_full_vid,
-                    play_money_shot=jumps.play_money_shot,
+                    play_clip_jump=jumps.play_clip_jump,
                     end_compilation=_end_compilation,
                     set_f_mode=_set_f_mode,
                     set_volume_hud=_set_volume_hud,

@@ -25,7 +25,7 @@ def apply_command(
     set_length_mode=None,
     play_compilation=None,
     play_full_vid=None,
-    play_money_shot=None,
+    play_clip_jump=None,
     end_compilation=None,
     set_f_mode=None,
     set_volume_hud=None,
@@ -88,10 +88,10 @@ def apply_command(
         if play_full_vid is None:
             return False
         play_full_vid()
-    elif keyword == "PLAY_MONEY_SHOT":
-        if play_money_shot is None:
+    elif keyword == "PLAY_CLIP_JUMP":
+        if play_clip_jump is None:
             return False
-        play_money_shot()
+        play_clip_jump()
     elif keyword == "END_COMPILATION":
         # Out of a compilation without naming a length: back to the mode that was
         # feeding the playlist when it was entered.
