@@ -58,9 +58,40 @@ class TestTickCruiseControlInactive:
         assert dc.center == 50
 
 
+class TestTickCruiseControlPaused:
+    """Armed but not stroking — paused by hand, frozen under OmniPause, or sitting
+    out a funscript's turn in Hybrid.  Auto advance has always sat still then; this
+    used to go on moving the stroke, so a session came back from a pause to a
+    stroke it never asked for."""
+
+    def test_a_paused_hand_freezes_the_stroke(self):
+        dc = DirectControlState(speed=50, amplitude=80, intended_center=50,
+                                shape=WaveformShape.SINE, playing=False)
+        cc = CruiseControlState(active=True, rng=random.Random(42))
+
+        tick_cruise_control(dc, cc, now=0.0)
+        for i in range(200):
+            tick_cruise_control(dc, cc, now=0.1 * (i + 1))
+
+        assert (dc.speed, dc.amplitude, dc.center) == (50, 80, 50)
+        assert dc.shape is WaveformShape.SINE
+
+    def test_it_picks_up_where_it_left_off_rather_than_lurching_on_resume(self):
+        """The clock keeps up through the pause, so the first tick after it sees a
+        normal step — not the whole pause at once, and not a skipped tick."""
+        dc = DirectControlState(speed=50, amplitude=80, intended_center=50, playing=False)
+        cc = CruiseControlState(active=True, rng=random.Random(42))
+
+        for i in range(100):
+            tick_cruise_control(dc, cc, now=0.1 * i)
+
+        assert cc._last_tick == 0.1 * 99
+
+
 class TestTickCruiseControlActive:
     def test_changes_parameters_over_time(self):
-        dc = DirectControlState(speed=50, amplitude=80, intended_center=50, shape=WaveformShape.SINE)
+        dc = DirectControlState(speed=50, amplitude=80, intended_center=50,
+                                shape=WaveformShape.SINE, playing=True)
         auto = CruiseControlState(active=True, rng=random.Random(42))
         # Initialize timing
         tick_cruise_control(dc, auto, now=0.0)
@@ -78,7 +109,7 @@ class TestTickCruiseControlActive:
         assert changed
 
     def test_amplitude_stays_in_range(self):
-        dc = DirectControlState(amplitude=50)
+        dc = DirectControlState(amplitude=50, playing=True)
         auto = CruiseControlState(active=True, rng=random.Random(42))
         tick_cruise_control(dc, auto, now=0.0)
         for i in range(500):
@@ -86,7 +117,7 @@ class TestTickCruiseControlActive:
         assert 0 <= dc.amplitude <= 100
 
     def test_center_stays_in_range(self):
-        dc = DirectControlState(center=50)
+        dc = DirectControlState(center=50, playing=True)
         auto = CruiseControlState(active=True, rng=random.Random(42))
         tick_cruise_control(dc, auto, now=0.0)
         for i in range(500):
@@ -94,7 +125,7 @@ class TestTickCruiseControlActive:
         assert 0 <= dc.center <= 100
 
     def test_speed_stays_in_range(self):
-        dc = DirectControlState(speed=50)
+        dc = DirectControlState(speed=50, playing=True)
         auto = CruiseControlState(active=True, rng=random.Random(42))
         tick_cruise_control(dc, auto, now=0.0)
         for i in range(500):
@@ -102,7 +133,7 @@ class TestTickCruiseControlActive:
         assert 0 <= dc.speed <= 100
 
     def test_shape_is_valid(self):
-        dc = DirectControlState()
+        dc = DirectControlState(playing=True)
         auto = CruiseControlState(active=True, rng=random.Random(42))
         tick_cruise_control(dc, auto, now=0.0)
         for i in range(200):
