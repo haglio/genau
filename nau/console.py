@@ -28,8 +28,7 @@ Rect = tuple[int, int, int, int]  # (x, y, w, h)
 BUTTON = 18   # a square control; the wider ones are multiples plus the gaps
 VALUE_W = 22  # a value read-out between a pair of buttons (the playback rate)
 PLAYBACK_LABEL_W = 66  # the words naming that pair
-BROKER_W = 40      # the two word-buttons on the OSR2 line
-TAKEOVER_W = 52
+BROKER_W = 40      # the word-button on the OSR2 line
 GAP = 4       # between buttons along a row
 ROW_GAP = 5   # between rows
 GROUP_GAP = 12  # between groups of buttons that mean different things
@@ -89,7 +88,6 @@ class ConsoleModel:
     osr2: str = "off"
     # Whether the OSR2 broker service is up — its own concern, only the primary's.
     broker: bool = False
-    takeover_allowed: bool = True
     cruise: bool = False
     # The other hands-free switch: cruise varies the stroke, auto advance moves on
     # to the next clip.  A held clip is auto advance still armed but sitting still.
@@ -121,7 +119,6 @@ def read_console(path: Path) -> ConsoleModel | None:
         active=bool(raw.get("active", False)),
         osr2=str(raw.get("osr2", "off") or "off"),
         broker=bool(raw.get("broker", False)),
-        takeover_allowed=bool(raw.get("takeover_allowed", True)),
         cruise=bool(raw.get("cruise", False)),
         auto_advance=bool(raw.get("auto_advance", False)),
         clip_locked=bool(raw.get("clip_locked", False)),
@@ -132,8 +129,11 @@ def read_console(path: Path) -> ConsoleModel | None:
 # The glyphs, all from Segoe UI Symbol — Segoe UI Bold has none of them, and
 # Pillow draws tofu where Qt used to fall back silently.
 _GLYPHS = {
-    "prev": "⏮", "next": "⏭", "back": "−", "fwd": "+",
-    "open": "📂", "clip": "✂", "record": "⏺", "trash": "🗑",
+    # The transport, in one family of marks: to the ends of the video with a bar,
+    # ten seconds either way without one.  A bare −/+ said "less/more", which is
+    # what the level controls say, not "back/forward through this".
+    "prev": "⏮", "next": "⏭", "back": "⏪", "fwd": "⏩",
+    "open": "📂", "record": "⏺", "save": "💾", "trash": "🗑",
     "lock": "🔒", "quarter": "¼", "minus": "−", "plus": "+",
 }
 
@@ -206,13 +206,17 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
     """
     if nau_displays(model.mode):
         return [
+            # Ordered as the video runs: back to the last one, back ten, forward
+            # ten, on to the next.
             Button("primary_prev", _GLYPHS["prev"], "Previous video"),
-            Button("primary_next", _GLYPHS["next"], "Next video"),
             Button("primary_nudge_prev", _GLYPHS["back"], "Back 10s"),
             Button("primary_nudge_next", _GLYPHS["fwd"], "Forward 10s"),
+            Button("primary_next", _GLYPHS["next"], "Next video"),
             Button("open_file_dialog", _GLYPHS["open"], "Open file browser"),
-            Button("clipper_save", _GLYPHS["clip"], "Save clip"),
+            # Recording a loop and saving what it caught are one job in two
+            # presses, so they sit together and apart from the file browser.
             Button("nau_record_tap", _GLYPHS["record"], "Record loop"),
+            Button("clipper_save", _GLYPHS["save"], "Save clip"),
         ]
     return [
         Button("genau_prev_clip", _GLYPHS["prev"], "Previous clip"),
@@ -264,27 +268,17 @@ def _control_row(model: ConsoleModel) -> list[Button]:
 
 
 def osr2_row(model: ConsoleModel) -> list[Button]:
-    """The two controls that sit beside the OSR2 read-out.
+    """The control that sits beside the OSR2 read-out.
 
-    Both act on the device rather than on a player, which is why they share the
-    device's line: the broker is the service that talks to the OSR2 at all, and
-    takeover is whether Genau may drive it while the broker is in its own auto
-    mode.  Neither was reachable from a HUD before — the broker light was a
-    dashboard button and this one hid behind a two-letter label that stood for
-    nothing.
+    The broker is the service that talks to the OSR2 at all, so it acts on the
+    device rather than on a player and shares the device's line.  It was a
+    dashboard button before this HUD existed and was briefly only a light.
     """
     return [
         Button("broker_panel", "Broker",
                "OSR2 broker is running — press to stop it" if model.broker
                else "OSR2 broker is not running — press to start it",
                width=BROKER_W, lit=model.broker, warn=not model.broker),
-        Button("genau_toggle_auto", "Takeover",
-               "Genau may drive the OSR2 while the broker is in auto mode — "
-               "press to suppress it" if model.takeover_allowed
-               else "Genau is suppressed from driving the OSR2 in the broker's "
-                    "auto mode — press to allow it",
-               width=TAKEOVER_W, lit=model.takeover_allowed,
-               warn=not model.takeover_allowed),
     ]
 
 
@@ -327,6 +321,9 @@ def _group_break(row: list[Button], index: int) -> bool:
 # Genau controls whose command name does not begin with genau_.  Without this the
 # ¼ offset fell out of the group it belongs to and opened a gap mid-row.
 _GENAU_CONTROLS = frozenset({"quarter_button"})
+# Recording a loop and saving what it caught: one job, two presses, and neither
+# of them the file browser they used to be spaced alongside.
+_CAPTURE_CONTROLS = frozenset({"nau_record_tap", "clipper_save"})
 
 
 def _family(action: str) -> str:
@@ -337,7 +334,11 @@ def _family(action: str) -> str:
         return "mode"
     if action in _GENAU_CONTROLS:
         return "genau_"
-    for prefix in ("primary_nudge", "primary", "nau_speed", "genau_"):
+    if action in _CAPTURE_CONTROLS:
+        return "capture"
+    # Stepping the video and nudging inside it are one run of four marks, so they
+    # are one family: prev, back ten, forward ten, next, evenly spaced.
+    for prefix in ("primary", "nau_speed", "genau_"):
         if action.startswith(prefix):
             return prefix
     return "file"
