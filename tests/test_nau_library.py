@@ -30,7 +30,7 @@ class TestNormalizeTitle:
         assert normalize_title("Jane-Doe") == "jane doe"
 
     def test_strips_quality_and_upscaler_tokens(self):
-        assert normalize_title("Jane Doe-redacted-it-dry-upscale-mp4-1080p_60fps") == "redacted redacted it dry"
+        assert normalize_title("scene-three-upscale-mp4-1080p_60fps") == "scene three"
         assert normalize_title("Jane-Doe-&-John-Roe-old_iris2") == "jane doe & john roe"
 
     def test_strips_trailing_hash_tokens(self):

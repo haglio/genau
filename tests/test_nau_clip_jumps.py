@@ -218,14 +218,14 @@ class TestSingleVideoJumps:
         assert session.played == [(scene, script)]
         assert notices.said == [("full video", "notice")]
 
-    def test_money_shot_plays_the_clip_carved_from_the_scene(self, tmp_path):
+    def test_clip_jump_plays_the_clip_carved_from_the_scene(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
         jumps, session, notices = _jumps(nav, scene)
 
-        jumps.play_money_shot()
+        jumps.play_clip_jump()
 
         assert session.played == [(second, None)]
-        assert notices.said == [("money shot", "notice")]
+        assert notices.said == [("clip jump", "notice")]
 
     def test_a_miss_says_so_rather_than_moving(self, tmp_path):
         """Most clips' source movies are not in the library at all, so having

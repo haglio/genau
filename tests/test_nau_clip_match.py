@@ -112,22 +112,22 @@ class TestLocate:
 class TestRecord:
     def test_writes_the_answer_into_the_clip_sidecar(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = lib / "w" / "Emy Reyes - Nights of Nonsense 8.mp4"
+        clip = lib / "w" / "Nora Quill - Nights of Nonsense 8.mp4"
         clip.parent.mkdir(parents=True)
         clip.write_bytes(b"x")
-        sidecar = meta / "w" / "Emy Reyes - Nights of Nonsense 8.json"
+        sidecar = meta / "w" / "Nora Quill - Nights of Nonsense 8.json"
         sidecar.parent.mkdir(parents=True)
         sidecar.write_text(json.dumps({
-            "version": {"group": "Emy Reyes - Nights of Nonsense 8", "processed": False},
+            "version": {"group": "Nora Quill - Nights of Nonsense 8", "processed": False},
             "video": {"action": "Alpha"},
-            "clip": {"compilation": "Vol1", "index": 9, "performer": "Emy Reyes"},
+            "clip": {"compilation": "Vol1", "index": 9, "performer": "Nora Quill"},
         }), encoding="utf-8")
-        scene = lib / "other" / "Emy-Reyes_540-izB4YKFa.mp4"
+        scene = lib / "other" / "Mia-Vale_540-izB4YKFa.mp4"
 
         record(clip, scene, offset=808.25, metadata_root=meta)
 
         assert read_clip(clip, meta) == {
-            "compilation": "Vol1", "index": 9, "performer": "Emy Reyes",
+            "compilation": "Vol1", "index": 9, "performer": "Nora Quill",
             "full_video": str(scene), "scene_offset": 808.25,
         }
         assert json.loads(sidecar.read_text(encoding="utf-8"))["video"] == {"action": "Alpha"}
@@ -144,12 +144,12 @@ class TestMatchLibrary:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         entries = []
         for rel, size, payload in (
-            ("other/Emy-Reyes_540-izB4YKFa.mp4", 100, {}),
-            ("other/Emy-Reyes_540-izB4YKFa_apo8_iris2.mp4", 400, {}),
-            ("w/Emy Reyes - Nights of Nonsense 8.mp4", 50,
-             {"clip": {"compilation": "Vol1", "index": 9, "performer": "Emy Reyes"}}),
-            ("w/Emy Reyes - redacted It Dry 3.mp4", 50,
-             {"clip": {"compilation": "Vol4", "index": 2, "performer": "Emy Reyes"}}),
+            ("other/Mia-Vale_540-izB4YKFa.mp4", 100, {}),
+            ("other/Mia-Vale_540-izB4YKFa_apo8_iris2.mp4", 400, {}),
+            ("w/Nora Quill - Nights of Nonsense 8.mp4", 50,
+             {"clip": {"compilation": "Vol1", "index": 9, "performer": "Nora Quill"}}),
+            ("w/Nora Quill - Scene Three 3.mp4", 50,
+             {"clip": {"compilation": "Vol4", "index": 2, "performer": "Nora Quill"}}),
         ):
             video = lib / rel
             video.parent.mkdir(parents=True, exist_ok=True)
@@ -165,7 +165,7 @@ class TestMatchLibrary:
         scene_frames = _frames(400, seed=1)
 
         def sampler(video, fps):
-            if video.name.startswith("Emy-Reyes"):
+            if video.name.startswith("Nora Quill"):
                 return scene_frames
             if "Angels" in video.name:
                 return scene_frames[80:120]
@@ -173,13 +173,13 @@ class TestMatchLibrary:
 
         matched = match_library(entries, meta, fps=8.0, sampler=sampler)
 
-        cut_from_it = lib / "w" / "Emy Reyes - Nights of Nonsense 8.mp4"
-        scene = lib / "other" / "Emy-Reyes_540-izB4YKFa.mp4"
+        cut_from_it = lib / "w" / "Nora Quill - Nights of Nonsense 8.mp4"
+        scene = lib / "other" / "Mia-Vale_540-izB4YKFa.mp4"
         assert list(matched) == [scene]
         assert matched[scene].clip == cut_from_it
         assert read_clip(cut_from_it, meta)["scene_offset"] == 10.0
         assert read_clip(cut_from_it, meta)["full_video"] == str(scene)
-        assert "full_video" not in read_clip(lib / "w" / "Emy Reyes - redacted It Dry 3.mp4", meta)
+        assert "full_video" not in read_clip(lib / "w" / "Nora Quill - Scene Three 3.mp4", meta)
 
     def test_decodes_the_cheapest_version_of_a_scene(self, tmp_path):
         """Upscales cost minutes where the original costs seconds, and they hold
@@ -207,7 +207,7 @@ class TestMatchLibrary:
              {"version": {"group": "redacted_540-pacI21CK"}}),
             ("other/redacted POV BJ 4k 60fps.mp4",
              {"version": {"group": "redacted POV BJ 4k 60fps"}}),
-            ("w/redacted - redacted It Dry 8.mp4",
+            ("w/redacted - Scene Three 8.mp4",
              {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
         ):
             video = lib / rel
@@ -231,7 +231,7 @@ class TestMatchLibrary:
 
         scene = lib / "other" / "redacted_540-pacI21CK.mp4"
         assert list(matched) == [scene]
-        clip = lib / "w" / "redacted - redacted It Dry 8.mp4"
+        clip = lib / "w" / "redacted - Scene Three 8.mp4"
         assert read_clip(clip, meta)["full_video"] == str(scene)
         assert read_clip(clip, meta)["scene_offset"] == 10.0
 
@@ -247,7 +247,7 @@ class TestMatchLibrary:
              {"version": {"group": "redacted_540-pacI21CK"}}),
             ("other/redacted POV BJ 4k 60fps.mp4",
              {"version": {"group": "redacted POV BJ 4k 60fps"}}),
-            ("w/redacted - redacted It Dry 8.mp4",
+            ("w/redacted - Scene Three 8.mp4",
              {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
         ):
             video = lib / rel
