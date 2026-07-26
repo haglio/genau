@@ -10,7 +10,7 @@ import pygame
 
 from genau.drive_hud import DriveHud, read_drive
 from genau.pygame_view import get_window_chrome_height
-from genau.tcode import UdpTCodeSink
+from player_core.tcode import UdpTCodeSink
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.status import StatusWriter
@@ -53,7 +53,7 @@ from player_core.volume import (
 )
 from .session import PlayerSession
 from .status import status_fields
-from .tcode_driver import FunscriptTCodeDriver
+from player_core.tcode_driver import FunscriptTCodeDriver
 
 logger = logging.getLogger(__name__)
 

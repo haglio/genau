@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from nau.funscript import Funscript
+from player_core.funscript import Funscript
 from nau.heatmap import _speed_to_color, build_heatmap
 
 _NEAR_BLACK = (10, 14, 30)

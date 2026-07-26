@@ -191,7 +191,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     from .auto_advance import AutoAdvanceState
     from .cruise_control import CruiseControlState
     from .direct_control import DirectControlState, bpm_for_speed
-    from .tcode import RateLimitedTCodeSender, UdpTCodeSink
+    from player_core.tcode import UdpTCodeSink
+
+    from .tcode import RateLimitedTCodeSender
     direct_state = DirectControlState(
         playing=False,
         speed=50,

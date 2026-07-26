@@ -1,37 +1,21 @@
+"""Genau's phase-driven T-Code sender.
+
+The wire format and the UDP sink live in ``player_core.tcode``, beneath every
+OSR2 driver in the family; what stays here is the one driver that is Genau's
+own — turning the stroke engine's continuous phase into rate-limited position
+commands, shaped by the direct-control state.
+"""
 from __future__ import annotations
 
-import socket
 import time
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
+
+from player_core.tcode import TCodeSink, format_tcode_command
 
 from .direct_control import phase_to_position
 
 if TYPE_CHECKING:
     from .direct_control import DirectControlState
-
-
-def format_tcode_command(axis: str, position: int, interval_ms: int) -> str:
-    position = max(0, min(9999, position))
-    interval_ms = max(0, interval_ms)
-    return f"{axis}{position:04d}I{interval_ms}"
-
-
-class TCodeSink(Protocol):
-    def send(self, command: str) -> None: ...
-    def close(self) -> None: ...
-
-
-class UdpTCodeSink:
-    def __init__(self, host: str = "127.0.0.1", port: int = 50557, *, sock=None) -> None:
-        self._host = host
-        self._port = port
-        self._sock = sock if sock is not None else socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-    def send(self, command: str) -> None:
-        self._sock.sendto((command + "\n").encode("ascii"), (self._host, self._port))
-
-    def close(self) -> None:
-        self._sock.close()
 
 
 class RateLimitedTCodeSender:
