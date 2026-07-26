@@ -27,16 +27,16 @@ def _entry(name: str, size: int, funscript: str | None = None) -> LibraryEntry:
 
 class TestNormalizeTitle:
     def test_lowercases(self):
-        assert normalize_title("Asa-Akira") == "asa akira"
+        assert normalize_title("Jane-Doe") == "jane doe"
 
     def test_strips_quality_and_upscaler_tokens(self):
         assert normalize_title("scene-three-upscale-mp4-1080p_60fps") == "scene three"
-        assert normalize_title("Lana-Violet-&-Tia-Ling-old_iris2") == "lana violet & tia ling"
+        assert normalize_title("Jane-Doe-&-John-Roe-old_iris2") == "jane doe & john roe"
 
     def test_strips_trailing_hash_tokens(self):
         # 6-12 char alnum tokens mixing letters+digits, when trailing.
         assert normalize_title("redacted_540-EhWGJW62") == "redacted"
-        assert normalize_title("Lana-Violet-&-Tia-Ling-ix1x4lx5-old_iris2") == "lana violet & tia ling"
+        assert normalize_title("Jane-Doe-&-John-Roe-ab12cd34-old_iris2") == "jane doe & john roe"
         # A trailing hash exposed only after a quality token is stripped.
         assert normalize_title("funscripted_video-0980a34b_topaz") == "funscripted video"
 
@@ -51,17 +51,17 @@ class TestGroupVersions:
         assert groups[0].alternates == []
 
     def test_largest_file_is_canonical(self):
-        small = _entry("Asa-Akira-540.mp4", size=100)
-        big = _entry("redacted080p.mp4", size=900)
-        mid = _entry("Asa-Akira-720p.mp4", size=400)
+        small = _entry("Jane-Doe-540.mp4", size=100)
+        big = _entry("Jane-Doe-1080p.mp4", size=900)
+        mid = _entry("Jane-Doe-720p.mp4", size=400)
 
         groups = group_versions([small, big, mid])
 
         assert len(groups) == 1
         assert groups[0].canonical is big
         assert [a.video for a in groups[0].alternates] == [
-            Path("Asa-Akira-720p.mp4"),
-            Path("Asa-Akira-540.mp4"),
+            Path("Jane-Doe-720p.mp4"),
+            Path("Jane-Doe-540.mp4"),
         ]
 
     def test_distinct_titles_stay_separate(self):
@@ -76,23 +76,23 @@ class TestGroupVersions:
         ]
 
     def test_scripted_and_unscripted_alternate_group_together(self):
-        scripted = _entry("Riley-Reid-topaz.mp4", size=500, funscript="Riley-Reid.funscript")
-        unscripted = _entry("Riley-Reid-1080p.mp4", size=800)
+        scripted = _entry("John-Roe-topaz.mp4", size=500, funscript="John-Roe.funscript")
+        unscripted = _entry("John-Roe-1080p.mp4", size=800)
 
         groups = group_versions([scripted, unscripted])
 
         assert len(groups) == 1
         assert groups[0].canonical is unscripted  # larger
         assert groups[0].alternates == [scripted]
-        assert groups[0].alternates[0].funscript == Path("Riley-Reid.funscript")
+        assert groups[0].alternates[0].funscript == Path("John-Roe.funscript")
 
     def test_upscale_with_appended_tag_folds_into_original(self):
         # The real-world miss: the upscale is the original's name plus an
         # appended tag, and the original's trailing hash is stripped while the
         # upscale keeps it mid-name — so exact-title matching split them. A
-        # token-wise prefix match ("mya luanna" begins the upscale) folds them.
-        original = _entry("Mya-Luanna-lA0JUsAd.mp4", size=166)
-        upscale = _entry("Mya-Luanna-lA0JUsAd_3_apf2_iris2.mp4", size=6035)
+        # token-wise prefix match ("richard roe" begins the upscale) folds them.
+        original = _entry("Richard-Roe-ab12cd34.mp4", size=166)
+        upscale = _entry("Richard-Roe-ab12cd34_3_apf2_iris2.mp4", size=6035)
 
         groups = group_versions([original, upscale])
 
@@ -103,8 +103,8 @@ class TestGroupVersions:
     def test_numbered_scenes_with_shared_prefix_stay_separate(self):
         # Same performer, different scene index — NOT versions of each other,
         # even though they share the first two tokens.
-        one = _entry("Juelz-Ventura-1_1080-rzGPIJrZ.mp4", size=1043)
-        two = _entry("Juelz-Ventura-2_720-ZByXAJ6K.mp4", size=347)
+        one = _entry("Mary-Roe-1_1080-wxyzabcd.mp4", size=1043)
+        two = _entry("Mary-Roe-2_720-mnpq12rs.mp4", size=347)
 
         groups = group_versions([one, two])
 
@@ -130,15 +130,15 @@ class TestGroupVersions:
 class TestCanonicalPlaylist:
     def test_one_canonical_entry_per_group(self):
         entries = [
-            _entry("Asa-Akira-540.mp4", 100),
-            _entry("redacted080p.mp4", 900),  # canonical of its group
-            _entry("Riley-Reid-720p.mp4", 200),  # sole member
+            _entry("Jane-Doe-540.mp4", 100),
+            _entry("Jane-Doe-1080p.mp4", 900),  # canonical of its group
+            _entry("John-Roe-720p.mp4", 200),  # sole member
         ]
 
         playlist = canonical_playlist(entries, random.Random(0))
 
         videos = {e.video for e in playlist}
-        assert videos == {Path("redacted080p.mp4"), Path("Riley-Reid-720p.mp4")}
+        assert videos == {Path("Jane-Doe-1080p.mp4"), Path("John-Roe-720p.mp4")}
         assert len(playlist) == 2
 
     def test_deterministic_given_seeded_rng(self):
@@ -253,14 +253,14 @@ class TestSelectLibrary:
 
     def test_applies_version_dedup(self):
         entries = [
-            _entry("Asa-540.mp4", 100),
-            _entry("Asa-1080p.mp4", 900),
+            _entry("Jane-540.mp4", 100),
+            _entry("Jane-1080p.mp4", 900),
         ]
-        durations = self._durations({"Asa-540.mp4": 300.0, "Asa-1080p.mp4": 300.0})
+        durations = self._durations({"Jane-540.mp4": 300.0, "Jane-1080p.mp4": 300.0})
 
         result = select_library(entries, mode="full", durations=durations, clips=[])
 
-        assert [e.video for e in result] == [Path("Asa-1080p.mp4")]
+        assert [e.video for e in result] == [Path("Jane-1080p.mp4")]
 
 
 class TestLibraryPlaylist:
@@ -269,12 +269,12 @@ class TestLibraryPlaylist:
 
     def test_full_length_pairs_are_deduped_and_shuffled(self):
         entries = [
-            _entry("Asa-540.mp4", 100, funscript="Asa.funscript"),
-            _entry("Asa-1080p.mp4", 900),  # canonical (bigger), no funscript
-            _entry("Riley-720p.mp4", 200, funscript="Riley.funscript"),
+            _entry("Jane-540.mp4", 100, funscript="Jane.funscript"),
+            _entry("Jane-1080p.mp4", 900),  # canonical (bigger), no funscript
+            _entry("John-720p.mp4", 200, funscript="John.funscript"),
         ]
         durations = self._durations({
-            "Asa-540.mp4": 300.0, "Asa-1080p.mp4": 300.0, "Riley-720p.mp4": 300.0,
+            "Jane-540.mp4": 300.0, "Jane-1080p.mp4": 300.0, "John-720p.mp4": 300.0,
         })
 
         pairs = library_playlist(
@@ -284,9 +284,9 @@ class TestLibraryPlaylist:
 
         # One entry per title; canonical (largest) chosen; correct pairing.
         as_dict = dict(pairs)
-        assert set(as_dict) == {Path("Asa-1080p.mp4"), Path("Riley-720p.mp4")}
-        assert as_dict[Path("Asa-1080p.mp4")] is None
-        assert as_dict[Path("Riley-720p.mp4")] == Path("Riley.funscript")
+        assert set(as_dict) == {Path("Jane-1080p.mp4"), Path("John-720p.mp4")}
+        assert as_dict[Path("Jane-1080p.mp4")] is None
+        assert as_dict[Path("John-720p.mp4")] == Path("John.funscript")
 
     def test_returns_path_tuples(self):
         entries = [_entry("solo-1080p.mp4", 100, funscript="solo.funscript")]
@@ -310,17 +310,17 @@ class TestLibraryPlaylist:
 
 class TestVersionIndex:
     def test_maps_every_member_to_ordered_group_pairs(self):
-        big = _entry("Asa-1080p.mp4", 900)
-        mid = _entry("Asa-720p.mp4", 400, funscript="Asa.funscript")
-        solo = _entry("Riley-1080p.mp4", 100)
+        big = _entry("Jane-1080p.mp4", 900)
+        mid = _entry("Jane-720p.mp4", 400, funscript="Jane.funscript")
+        solo = _entry("John-1080p.mp4", 100)
         groups = group_versions([mid, big, solo])
 
         index = version_index_from_groups(groups)
 
-        asa_pairs = [(Path("Asa-1080p.mp4"), None), (Path("Asa-720p.mp4"), Path("Asa.funscript"))]
-        assert index[Path("Asa-1080p.mp4")] == asa_pairs
-        assert index[Path("Asa-720p.mp4")] == asa_pairs
-        assert index[Path("Riley-1080p.mp4")] == [(Path("Riley-1080p.mp4"), None)]
+        asa_pairs = [(Path("Jane-1080p.mp4"), None), (Path("Jane-720p.mp4"), Path("Jane.funscript"))]
+        assert index[Path("Jane-1080p.mp4")] == asa_pairs
+        assert index[Path("Jane-720p.mp4")] == asa_pairs
+        assert index[Path("John-1080p.mp4")] == [(Path("John-1080p.mp4"), None)]
 
     def test_singleton_maps_to_itself_only(self):
         groups = group_versions([_entry("solo-1080p.mp4", 100)])
