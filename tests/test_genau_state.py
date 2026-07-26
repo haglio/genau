@@ -30,7 +30,10 @@ class TestSharedState:
 
     def test_has_lock(self):
         s = SharedState()
-        assert isinstance(s.lock, threading.Lock)
+        # threading.Lock is a factory function on <=3.12 but a real class on
+        # >=3.13, so isinstance against it raises on the older ones. Match the
+        # instance type instead, which is a genuine lock type on every version.
+        assert isinstance(s.lock, type(threading.Lock()))
 
 
 # ---------------------------------------------------------------------------
