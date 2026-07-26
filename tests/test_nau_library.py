@@ -36,7 +36,7 @@ class TestNormalizeTitle:
     def test_strips_trailing_hash_tokens(self):
         # 6-12 char alnum tokens mixing letters+digits, when trailing.
         assert normalize_title("redacted_540-EhWGJW62") == "redacted"
-        assert normalize_title("Jane-Doe-&-John-Roe-ix1x4lx5-old_iris2") == "jane doe & john roe"
+        assert normalize_title("Jane-Doe-&-John-Roe-ab12cd34-old_iris2") == "jane doe & john roe"
         # A trailing hash exposed only after a quality token is stripped.
         assert normalize_title("funscripted_video-0980a34b_topaz") == "funscripted video"
 
@@ -52,7 +52,7 @@ class TestGroupVersions:
 
     def test_largest_file_is_canonical(self):
         small = _entry("Jane-Doe-540.mp4", size=100)
-        big = _entry("redacted080p.mp4", size=900)
+        big = _entry("Jane-Doe-1080p.mp4", size=900)
         mid = _entry("Jane-Doe-720p.mp4", size=400)
 
         groups = group_versions([small, big, mid])
@@ -91,8 +91,8 @@ class TestGroupVersions:
         # appended tag, and the original's trailing hash is stripped while the
         # upscale keeps it mid-name — so exact-title matching split them. A
         # token-wise prefix match ("richard roe" begins the upscale) folds them.
-        original = _entry("Richard-Roe-lA0JUsAd.mp4", size=166)
-        upscale = _entry("Richard-Roe-lA0JUsAd_3_apf2_iris2.mp4", size=6035)
+        original = _entry("Richard-Roe-ab12cd34.mp4", size=166)
+        upscale = _entry("Richard-Roe-ab12cd34_3_apf2_iris2.mp4", size=6035)
 
         groups = group_versions([original, upscale])
 
@@ -103,8 +103,8 @@ class TestGroupVersions:
     def test_numbered_scenes_with_shared_prefix_stay_separate(self):
         # Same performer, different scene index — NOT versions of each other,
         # even though they share the first two tokens.
-        one = _entry("Mary-Roe-1_1080-rzGPIJrZ.mp4", size=1043)
-        two = _entry("Mary-Roe-2_720-ZByXAJ6K.mp4", size=347)
+        one = _entry("Mary-Roe-1_1080-wxyzabcd.mp4", size=1043)
+        two = _entry("Mary-Roe-2_720-mnpq12rs.mp4", size=347)
 
         groups = group_versions([one, two])
 
@@ -131,14 +131,14 @@ class TestCanonicalPlaylist:
     def test_one_canonical_entry_per_group(self):
         entries = [
             _entry("Jane-Doe-540.mp4", 100),
-            _entry("redacted080p.mp4", 900),  # canonical of its group
+            _entry("Jane-Doe-1080p.mp4", 900),  # canonical of its group
             _entry("John-Roe-720p.mp4", 200),  # sole member
         ]
 
         playlist = canonical_playlist(entries, random.Random(0))
 
         videos = {e.video for e in playlist}
-        assert videos == {Path("redacted080p.mp4"), Path("John-Roe-720p.mp4")}
+        assert videos == {Path("Jane-Doe-1080p.mp4"), Path("John-Roe-720p.mp4")}
         assert len(playlist) == 2
 
     def test_deterministic_given_seeded_rng(self):
