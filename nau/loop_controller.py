@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum, auto
 
-from .funscript import Funscript, snap_loop
+from player_core.funscript import Funscript, snap_loop
 
 
 class LoopState(Enum):

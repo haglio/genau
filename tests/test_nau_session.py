@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from nau.funscript import Funscript
+from player_core.funscript import Funscript
 from nau.session import (
     MAX_SPEED_RATE,
     MAX_VOLUME,
