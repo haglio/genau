@@ -454,7 +454,7 @@ class TestGroupVersionsByRecordedId:
         rec_b = _entry("other.mp4", 100)
         richard = _entry("Richard.mp4", 50)
         richard_up = _entry("Richard_topaz.mp4", 800)
-        ids = {rec_a.video: "f", rec_b.video: "f"}  # the Richards have no sidecar
+        ids = {rec_a.video: "f", rec_b.video: "f"}  # these two have no sidecar
 
         groups = group_versions([rec_a, rec_b, richard, richard_up], lambda v: ids.get(v))
 
