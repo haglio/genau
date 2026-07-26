@@ -8,7 +8,6 @@ build/
 .pytest_cache/
 .hypothesis/
 state/
-.claude/
 
 # Windows shortcuts: machine-specific, rewritten by Windows, drift constantly
 *.lnk
