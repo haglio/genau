@@ -5,7 +5,7 @@ horizontal pixel of the strip; overlay.py owns the drawing.
 """
 from __future__ import annotations
 
-from .funscript import Funscript
+from player_core.funscript import Funscript
 
 # Anchor colors for the classic funscript-heatmap feel: idle bins read as
 # near-black, then blue -> cyan -> green -> yellow -> red as the average

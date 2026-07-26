@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from .funscript import load as load_funscript
+from player_core.funscript import load as load_funscript
 from .loop_controller import LoopController, LoopState
 
 logger = logging.getLogger(__name__)

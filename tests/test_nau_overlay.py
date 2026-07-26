@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from nau.funscript import Funscript
+from player_core.funscript import Funscript
 from nau.heatmap import build_heatmap
 from nau.overlay import (
     HeatmapStrip,
