@@ -29,6 +29,7 @@ def apply_command(
     end_compilation=None,
     set_f_mode=None,
     set_volume_hud=None,
+    set_display=None,
 ) -> bool:
     parts = command.strip().split(None, 1)
     if not parts:
@@ -109,6 +110,15 @@ def apply_command(
         if set_f_mode is None or not arg:
             return False
         set_f_mode(arg != "0")
+    elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
+        # Whether Nau owns the primary rect right now, which is not the same as
+        # whether it is playing: Fun Time hands that rect to Genau in genau mode
+        # and minimizes Nau, and a minimized window keeps its taskbar button — so
+        # without this an alt-tab back lands on the frame it was paused on.  The
+        # mirror of the DISPLAY_ON/DISPLAY_OFF Genau is sent (see nau.display).
+        if set_display is None:
+            return False
+        set_display(keyword == "DISPLAY_ON")
     elif keyword == "QUIT":
         if stop_event is None:
             return False
