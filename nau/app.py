@@ -27,6 +27,7 @@ from .cli import (
 from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
 from .console import ConsoleModel, genau_drives, read_console
+from .display import Display
 from .hud import ConsoleHud, ConsolePainter, ModeHud, hud_xy, with_playback_speed
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, LENGTH_MODES, next_length_mode
@@ -65,6 +66,8 @@ _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
 _OV_CONSOLE = 6
 _OV_VOLUME = 7
+# Every one of the above: what a blanked display takes down with the video.
+_HUD_OVERLAYS = (_OV_HEATMAP, _OV_IN_THUMB, _OV_OUT_THUMB, _OV_CONSOLE, _OV_VOLUME)
 
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 
@@ -229,6 +232,10 @@ def _run(args) -> int:
     # comes back down the same channel.
     volume_hud = VolumeHud()
     volume_painter = VolumeHudPainter()
+    # Whether this window paints at all.  Fun Time gives the primary rect to
+    # Genau in genau mode and minimizes Nau — minimized, so it keeps its taskbar
+    # button — and says so on this channel; see nau.display.
+    display = Display(player, _HUD_OVERLAYS)
     heatmap = HeatmapStrip()
     console_hud = ConsolePainter()
     # What Fun Time says about the primary slot, and what Genau says it is doing
@@ -427,11 +434,36 @@ def _run(args) -> int:
                     end_compilation=_end_compilation,
                     set_f_mode=_set_f_mode,
                     set_volume_hud=_set_volume_hud,
+                    set_display=display.set_active,
                 )
 
         session.advance()
         if status_writer is not None:
             status_writer.write(session)
+
+        # Write the mode down whenever it moves, whichever path moved it, so the
+        # next session — which opens on this one's resumed playlist — can name it
+        # and re-enter the volume it was in.  Above the painting, because a
+        # blanked Nau still navigates: in genau mode the `[`/`]` keys drive it in
+        # the background, and where they leave it is what the next session opens
+        # on whether or not anyone was looking.
+        mode_now = RememberedMode(
+            length_mode=length_mode, compilation=jumps.compilation,
+            # Only while inside one: the clip is remembered as the volume's
+            # anchor, and outside a compilation there is no volume to anchor.
+            video=str(session.current_video) if jumps.compilation else "",
+        )
+        if mode_now != remembered:
+            remembered = mode_now
+            memory.write(mode_now)
+
+        # Black while Genau owns the primary rect, and none of the work below
+        # that builds a picture nobody can see.  Everything above still runs:
+        # navigation, the funscript, the status file clipper_save reads.
+        display.sync(win_w, win_h)
+        if not display.active:
+            clock.tick(60)
+            continue
 
         # --- overlays on top of mpv's video ---
         # The heatmap fills the inset track, so build its colour row at track
@@ -453,19 +485,6 @@ def _run(args) -> int:
                 win_w, record_in_ms=session.record_in_ms,
             )
         player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
-
-        # Write the mode down whenever it moves, whichever path moved it, so the
-        # next session — which opens on this one's resumed playlist — can name it
-        # and re-enter the volume it was in.
-        mode_now = RememberedMode(
-            length_mode=length_mode, compilation=jumps.compilation,
-            # Only while inside one: the clip is remembered as the volume's
-            # anchor, and outside a compilation there is no volume to anchor.
-            video=str(session.current_video) if jumps.compilation else "",
-        )
-        if mode_now != remembered:
-            remembered = mode_now
-            memory.write(mode_now)
 
         # The top-left corner: the console — the video's name and the dot saying
         # whether a bare command lands here, what is selecting this playlist, what
