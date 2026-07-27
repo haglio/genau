@@ -302,6 +302,26 @@ class TestApplyCommand:
         assert apply_command("SET_F_MODE 1", session) is False
         assert apply_command("SET_F_MODE", session, set_f_mode=lambda _f: None) is False
 
+    def test_display_verbs_invoke_callback(self):
+        """Whether Nau owns the primary rect is Fun Time's to say: in genau mode
+        it hands that rect to Genau and minimizes Nau, which keeps its taskbar
+        button — so the player has to be told to go black rather than sit there
+        holding the frame it was paused on."""
+        session = SpySession()
+        states = []
+
+        assert apply_command("DISPLAY_OFF", session, set_display=states.append)
+        assert apply_command("DISPLAY_ON", session, set_display=states.append)
+
+        assert states == [False, True]
+        assert session.calls == [], "the display is not playback"
+
+    def test_display_verbs_without_callback_return_false(self):
+        session = SpySession()
+
+        assert apply_command("DISPLAY_OFF", session) is False
+        assert apply_command("DISPLAY_ON", session) is False
+
     def test_quit_sets_stop_event(self):
         session = SpySession()
         stop = threading.Event()
