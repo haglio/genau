@@ -214,13 +214,25 @@ class TestState:
         assert _button(model, "hybrid_activate").lit is True
         assert _button(model, "nau_activate").lit is False
 
-    def test_a_held_clip_holds_auto_advance_apart_from_merely_armed(self):
-        armed = _button(ConsoleModel(mode="genau", auto_advance=True), "genau_toggle_auto_advance")
-        held = _button(ConsoleModel(mode="genau", auto_advance=True, clip_locked=True),
-                       "genau_toggle_auto_advance")
+    def test_a_held_clip_shows_on_the_padlock_and_not_on_the_arming(self):
+        """Auto advance is armed either way — the hold is the padlock's own state,
+        right beside it.  Saying it on both cost the arming a second color for
+        something that is not about it."""
+        armed = ConsoleModel(mode="genau", auto_advance=True)
+        held = ConsoleModel(mode="genau", auto_advance=True, clip_locked=True)
 
-        assert armed.lit is True and armed.hold is False
-        assert held.hold is True and held.lit is False
+        for model in (armed, held):
+            advance = _button(model, "genau_toggle_auto_advance")
+            assert advance.lit is True and advance.hold is False
+        assert _button(armed, "genau_toggle_clip_lock").hold is False
+        assert _button(held, "genau_toggle_clip_lock").hold is True
+
+    def test_f_mode_keeps_the_green_the_other_switches_gave_up(self):
+        """It narrows the playlist to what has a funscript, and green means the
+        favorites and the funscripts — so it is the one lit control here that is
+        not white."""
+        assert _button(ConsoleModel(mode="nau", f_mode=True), "primary_fmode").favorite is True
+        assert _button(ConsoleModel(mode="genau"), "genau_toggle_cruise").favorite is False
 
     def test_the_record_button_tells_marking_from_looping(self):
         """One key does both halves, and they look identical otherwise: the mark
