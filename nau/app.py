@@ -28,6 +28,7 @@ from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
 from .console import ConsoleModel, genau_drives, read_console
 from .display import Display
+from .funscript_jumps import FunscriptJumps
 from .hud import ConsoleHud, ConsolePainter, ModeHud, hud_xy, with_playback_speed
 from .notice import NoticeWriter
 from .library_source import DEFAULT_MODE, LENGTH_MODES, next_length_mode
@@ -260,10 +261,14 @@ def _run(args) -> int:
         [e.video for e in entries] + [c.video for c in (source.clips if source else [])],
         source.metadata_root if source is not None else None,
     )
+    notices = NoticeWriter(getattr(args, "notice_file", None))
     jumps = ClipJumps(
-        clip_nav, session, {e.video: e.funscript for e in entries},
-        NoticeWriter(getattr(args, "notice_file", None)),
+        clip_nav, session, {e.video: e.funscript for e in entries}, notices,
     )
+    # The funscript's own two moves — past this video's quiet stretch, or on to a
+    # video that has scripting at all.  They need nothing but the session, since
+    # the playlist already carries each video's funscript beside it.
+    funscript_jumps = FunscriptJumps(session, notices)
     # Entering a compilation swaps the playlist in memory only, and Fun Time can
     # only rotate its resumed file onto a video the file contains — which a
     # compilation's clips often are not.  So the clip is remembered too, and the
@@ -431,6 +436,8 @@ def _run(args) -> int:
                     play_compilation=jumps.play_compilation,
                     play_full_vid=jumps.play_full_vid,
                     play_clip_jump=jumps.play_clip_jump,
+                    jump_to_funscript=funscript_jumps.jump_to_funscript,
+                    next_funscripted=funscript_jumps.next_funscripted,
                     end_compilation=_end_compilation,
                     set_f_mode=_set_f_mode,
                     set_volume_hud=_set_volume_hud,
