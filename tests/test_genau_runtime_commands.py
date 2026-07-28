@@ -13,7 +13,7 @@ from genau.runtime_commands import (
 from genau.engine import PlaybackEngine
 from genau.direct_control import DirectControlState, WaveformShape
 from genau.cruise_control import CruiseControlState
-from genau.auto_advance import AutoAdvanceState
+from genau.clip_advance import MAX_INTERVAL_S, MIN_INTERVAL_S, ClipAdvanceState
 
 
 class TestApplyRuntimeCommand:
@@ -614,44 +614,55 @@ class TestApplyRuntimeCommand:
             assert handled is False, f"{cmd} should be ignored without display_state"
 
 
-class TestAutoAdvanceCommands:
+class TestClipAdvanceCommands:
     def _apply(self, command, aa):
         return apply_runtime_command(
             command,
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             rh_paused={"value": False},
             step_clip=lambda _step: None,
-            auto_advance_state=aa,
+            clip_advance_state=aa,
         )
 
-    def test_toggle_arms_auto_advance(self):
-        aa = AutoAdvanceState(active=False)
-        assert self._apply("TOGGLE_AUTO_ADVANCE", aa) is True
-        assert aa.active is True
+    def test_toggle_flips_the_lock(self):
+        aa = ClipAdvanceState(locked=True)
+        assert self._apply("TOGGLE_LOCK", aa) is True
+        assert aa.locked is False
 
     def test_on_and_off_are_absolute(self):
-        aa = AutoAdvanceState(active=False)
-        assert self._apply("AUTO_ADVANCE_ON", aa) is True
-        assert aa.active is True
-        assert self._apply("AUTO_ADVANCE_OFF", aa) is True
-        assert aa.active is False
-
-    def test_a_number_names_the_seconds_and_arms(self):
-        aa = AutoAdvanceState(active=False)
-        assert self._apply("ADVANCE 30", aa) is True
-        assert aa.active is True
-        assert aa.interval == 30.0
-
-    def test_toggle_clip_lock_holds_the_clip(self):
-        aa = AutoAdvanceState(active=True)
-        assert self._apply("TOGGLE_CLIP_LOCK", aa) is True
+        aa = ClipAdvanceState(locked=True)
+        assert self._apply("LOCK_OFF", aa) is True
+        assert aa.locked is False
+        assert self._apply("LOCK_ON", aa) is True
         assert aa.locked is True
 
-    def test_ignored_without_auto_advance_state(self):
+    def test_a_number_names_the_seconds_and_leaves_the_lock_alone(self):
+        """Naming a pace used to arm the moving as well, which made "advance
+        thirty" both a setting and a switch.  The padlock is the only switch."""
+        aa = ClipAdvanceState(locked=True)
+        assert self._apply("ADVANCE 30", aa) is True
+        assert aa.interval == 30
+        assert aa.locked is True
+
+    def test_a_named_pace_is_clamped_to_the_usable_range(self):
+        aa = ClipAdvanceState()
+        self._apply("ADVANCE 0", aa)
+        assert aa.interval == MIN_INTERVAL_S
+        self._apply("ADVANCE 900", aa)
+        assert aa.interval == MAX_INTERVAL_S
+
+    def test_the_arrows_step_the_pace_a_second_at_a_time(self):
+        aa = ClipAdvanceState(interval=10)
+        assert self._apply("ADVANCE_UP", aa) is True
+        assert aa.interval == 11
+        assert self._apply("ADVANCE_DOWN", aa) is True
+        assert aa.interval == 10
+
+    def test_ignored_without_clip_advance_state(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         for cmd in (
-            "TOGGLE_AUTO_ADVANCE", "AUTO_ADVANCE_ON", "AUTO_ADVANCE_OFF",
-            "TOGGLE_CLIP_LOCK", "ADVANCE 30",
+            "TOGGLE_LOCK", "LOCK_ON", "LOCK_OFF",
+            "ADVANCE_UP", "ADVANCE_DOWN", "ADVANCE 30",
         ):
             handled = apply_runtime_command(
                 cmd,
@@ -659,7 +670,7 @@ class TestAutoAdvanceCommands:
                 rh_paused={"value": False},
                 step_clip=lambda _step: None,
             )
-            assert handled is False, f"{cmd} should be ignored without auto_advance_state"
+            assert handled is False, f"{cmd} should be ignored without clip_advance_state"
 
 
 class TestWeirdCommand:

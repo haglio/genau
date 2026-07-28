@@ -23,8 +23,7 @@ class GenauLifecycleController:
         on_adjust_center=lambda delta: None,
         on_cycle_shape=lambda: None,
         on_toggle_cruise=lambda: None,
-        on_toggle_auto_advance=lambda: None,
-        on_toggle_clip_lock=lambda: None,
+        on_toggle_lock=lambda: None,
         on_weird_clip=lambda: None,
         on_console_press=lambda mx, my: None,
         on_console_motion=lambda mx, my: None,
@@ -43,8 +42,7 @@ class GenauLifecycleController:
         self.on_adjust_center = on_adjust_center
         self.on_cycle_shape = on_cycle_shape
         self.on_toggle_cruise = on_toggle_cruise
-        self.on_toggle_auto_advance = on_toggle_auto_advance
-        self.on_toggle_clip_lock = on_toggle_clip_lock
+        self.on_toggle_lock = on_toggle_lock
         self.on_weird_clip = on_weird_clip
         self.on_console_press = on_console_press
         self.on_console_motion = on_console_motion
@@ -96,15 +94,13 @@ class GenauLifecycleController:
             self.on_cycle_shape()
         elif event.key == pygame.K_SLASH:
             self.on_toggle_cruise()
-        elif event.key == pygame.K_x:
-            self.on_toggle_auto_advance()
         # K / M / , / . are Genau's clip cluster, laid out like the arrow keys:
         # K above for "condemn this one", M and . either side for previous and
-        # next, and , below K to hold the clip against auto-advance.
+        # next, and , below K to hold the clip on screen against the advance.
         elif event.key == pygame.K_k:
             self.on_weird_clip()
         elif event.key == pygame.K_COMMA:
-            self.on_toggle_clip_lock()
+            self.on_toggle_lock()
 
     def _on_resize(self) -> None:
         self._resize_pending_at = time.monotonic()
