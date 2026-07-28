@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
-from player_core.hud_panel import TEXT_MUTED, WHITE, load_font, text_width
+from player_core.hud_panel import ICON_GRIDS, TEXT_MUTED, WHITE, load_font, text_width
 
 from genau.drive_hud import DriveHud
 from nau.console import ConsoleModel
@@ -174,37 +174,43 @@ class TestPainter:
             assert tuple(box[box.shape[0] // 2, 2]) == fill
             assert (box == np.array((200, 80, 160), dtype=box.dtype)).all(axis=2).any()
 
-    def test_the_brokers_mark_is_its_icon_and_not_a_typed_letter(self):
-        """`broker_icon.ico` is a five-by-five "B" — a rectangle with two counters
-        — and a letter set in the body face is a thin thing beside it.  What has to
-        hold is the shape: three solid pink rows with two hollow ones between."""
-        box = self._broker_box(True)
-        pink = (box == np.array((200, 80, 160), dtype=box.dtype)).all(axis=2)
-        rows = [int(row.sum()) for row in pink if row.any()]
-        solid = max(rows)
+    def test_a_control_that_stands_for_an_app_wears_that_apps_mark(self):
+        """`broker_icon.ico` and `fmode_icon.ico` are five-by-five letters, and one
+        set in the body face is a thin thing beside them.  What has to hold is the
+        shape: the grid the .ico carries, in its pink, whatever the button is
+        doing underneath it."""
+        for action, grid in (("broker_panel", ICON_GRIDS["B"]),
+                             ("primary_fmode", ICON_GRIDS["F"])):
+            box = self._button_box(action, ConsoleModel(
+                mode="nau", broker=True, f_mode=True))
+            pink = (box == np.array((200, 80, 160), dtype=box.dtype)).all(axis=2)
+            ys, xs = np.nonzero(pink)
+            cell = (xs.max() - xs.min() + 1) / 5
+            drawn = [
+                "".join("#" if pink[int(ys.min() + (r + 0.5) * cell),
+                                    int(xs.min() + (c + 0.5) * cell)] else "."
+                        for c in range(5))
+                for r in range(5)
+            ]
 
-        # Five bands: solid, hollow, solid, hollow, solid — the hollow ones keep
-        # only their two end cells, so they carry well under half a solid row.
-        assert sorted(set(rows)) == [solid * 2 // 5, solid]
-        assert rows.count(solid) == rows.count(solid * 2 // 5) * 3 // 2
+            assert drawn == list(grid), action
 
     @staticmethod
-    def _broker_box(broker: bool) -> np.ndarray:
+    def _button_box(action: str, model: ConsoleModel) -> np.ndarray:
         painter = ConsolePainter()
-        rgb = _rgb(painter.bgra(
-            ConsoleHud(console=ConsoleModel(mode="nau", broker=broker))))
+        rgb = _rgb(painter.bgra(ConsoleHud(console=model)))
         (bx, by, bw, bh), _b = next(
-            (rect, b) for rect, b in painter.buttons if b.action == "broker_panel")
+            (rect, b) for rect, b in painter.buttons if b.action == action)
         return rgb[by:by + bh, bx:bx + bw]
+
+    def _broker_box(self, broker: bool) -> np.ndarray:
+        return self._button_box("broker_panel", ConsoleModel(mode="nau", broker=broker))
 
     def test_f_mode_is_the_one_lit_control_that_stays_green(self):
         """It narrows the playlist to the videos that have a funscript, and green
         is what the funscripts and the favorites own."""
-        painter = ConsolePainter()
-        rgb = _rgb(painter.bgra(ConsoleHud(console=ConsoleModel(mode="nau", f_mode=True))))
-        (bx, by, bw, bh), _b = next(
-            (rect, b) for rect, b in painter.buttons if b.action == "primary_fmode")
-        box = rgb[by:by + bh, bx:bx + bw].astype(int)
+        box = self._button_box("primary_fmode",
+                               ConsoleModel(mode="nau", f_mode=True)).astype(int)
 
         shades, counts = np.unique(box.reshape(-1, 3), axis=0, return_counts=True)
         assert tuple(shades[counts.argmax()]) == (48, 160, 48)

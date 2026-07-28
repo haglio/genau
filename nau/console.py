@@ -51,9 +51,9 @@ class Button:
     """One item on the console: what it posts, what it looks like, how it is drawn.
 
     ``lit``, ``warn`` and ``hold`` are the live states — white for on, red for a
-    suppression or a live recording, blue for armed-but-sitting-still.  On is
-    white rather than green because across this family green means the favorites
-    and the funscripts; a mode being selected or cruise being armed is neither.
+    live recording, blue for the loop that recording leaves running.  On is white
+    rather than green because across this family green means the favorites and
+    the funscripts; a mode being selected or cruise being armed is neither.
     ``favorite`` names the controls that *are* one of those, so their on-state
     keeps the green — F-mode is the only one so far.  ``dim`` is a control at the
     end of its range or with nothing to act on: drawn faded and left out of the
@@ -158,10 +158,6 @@ _GLYPHS = {
     "prev": "⏮", "next": "⏭", "back": "⏪", "fwd": "⏩",
     "open": "📂", "record": "⏺", "save": "💾", "trash": "🗑",
     "lock": "🔒", "quarter": "¼", "minus": "−", "plus": "+",
-    # F-mode is the letter itself: no mark says "scripted videos only", and the
-    # mode is called F everywhere else — on the Fun Time key that toggles it, in
-    # the subtitle above, and in what a speaker says out loud.
-    "fmode": "F",
 }
 
 # The waveform control draws a curve rather than a glyph: ∿ is a small mark low
@@ -170,11 +166,13 @@ _GLYPHS = {
 # button; nothing else on the console needs a bespoke icon.
 WAVE_ICON = "\x00wave"
 
-# The broker is the room's own service rather than any player's control, and it
-# had its own mark on the dashboard: the blocky pink "B" of ``broker_icon.ico``,
-# on blue while the service is up and red while it is down.  The painter knows
-# this marker the way it knows WAVE_ICON, so the console stays free of colors.
+# The two controls that stand for an app rather than for an action, and so wear
+# that app's mark: the pink five-by-five letter its .ico carries.  The broker's
+# "B" sits on blue while the service is up and red while it is down; F-mode's "F"
+# on the green the funscripts own.  The painter knows these markers the way it
+# knows WAVE_ICON, so the console stays free of both colors and Pillow.
 BROKER_ICON = "\x00broker"
+FMODE_ICON = "\x00fmode"
 
 _MODE_BUTTONS = (
     ("nau_activate", "Nau", "nau"),
@@ -262,7 +260,7 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
             # it narrows the playlist to the videos that have a funscript, so it
             # sits with the browser: both change what there is to step through,
             # rather than acting on the video on screen or on where it ends.
-            Button("primary_fmode", _GLYPHS["fmode"],
+            Button("primary_fmode", FMODE_ICON,
                    "F-Mode — play only the videos that have a funscript",
                    lit=model.f_mode, favorite=True),
             Button("browse_library", _GLYPHS["open"], "Browse the library"),
@@ -322,11 +320,12 @@ def _control_row(model: ConsoleModel) -> list[Button]:
                width=BUTTON * 2 + GAP,
                lit=model.auto_advance),
         # Holding a clip only means anything inside auto advance, so outside it the
-        # control is drawn faded and answers no press.
+        # control is drawn faded and answers no press.  On is on, in the same white
+        # every other switch here lights in — a hold is not a third kind of state.
         Button("genau_toggle_clip_lock", _GLYPHS["lock"],
                "Hold this clip against auto advance" if model.auto_advance
                else "Hold a clip — only while auto advance is armed",
-               hold=model.clip_locked, dim=not model.auto_advance),
+               lit=model.clip_locked, dim=not model.auto_advance),
         Button("genau_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(model.shape)}"),
         Button("quarter_button", _GLYPHS["quarter"], "Offset the stroke a ¼ cycle"),
     ]
