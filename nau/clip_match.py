@@ -28,7 +28,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from .cli import DEFAULT_CONFIG, load_config
 from .clip_nav import could_be_cut_from
 from .discovery import discover_entries
-from .library import LibraryEntry, VersionGroup, group_versions
+from .library import LibraryEntry, VersionGroup, group_versions, stable_title
 from .sidecar import read_clip, read_sidecar, read_version_group, sidecar_for
 
 logger = logging.getLogger(__name__)
@@ -224,12 +224,16 @@ def match_library(
     goes, since it reads every candidate video end to end and takes minutes.
     """
     metas = {entry.video: read_clip(entry.video, metadata_root) for entry in entries}
-    # Evolver's recorded version family, not the name prefix Nau falls back to:
-    # two scenes of one performer can share a prefix without being one video, and
-    # folding them would decode the one and leave the other unmatchable.
+    # One member of a group is decoded and one names the set, so the members have
+    # to be interchangeable. For clips that means the same pictures, which is
+    # what Evolver's recorded family means and what the names alone miss. For
+    # scenes it means the same timeline as well, and the recorded family does not
+    # promise that — it buckets by a title read out of the name, so unrelated
+    # scenes of a performer land in one group, where the wrong file is decoded
+    # and the wrong name gates and only the biggest is ever matched.
     versions = partial(read_version_group, metadata_root=metadata_root)
     clips = group_versions([e for e in entries if metas[e.video] is not None], versions)
-    scenes = group_versions([e for e in entries if metas[e.video] is None], versions)
+    scenes = group_versions([e for e in entries if metas[e.video] is None], _cut_of)
     families = {_cheapest(family): family for family in clips}
     hashes: dict[Path, np.ndarray] = {}
 
@@ -276,6 +280,15 @@ def _best_scene_per_clip(matched: dict[Path, Match]) -> dict[Path, Match]:
         if held is None or matched[held].score < match.score:
             winner[match.clip] = scene
     return {scene: matched[scene] for scene in matched if scene in set(winner.values())}
+
+
+def _cut_of(video: Path) -> str | None:
+    """Which cut *video* is a version of: its title, less what a version changes.
+
+    None where a name reduces to nothing — all quality tags and hash — so such a
+    file stands alone rather than gathering every other one to it.
+    """
+    return stable_title(video.stem) or None
 
 
 def _cheapest(family: VersionGroup) -> Path:

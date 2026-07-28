@@ -27,7 +27,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from .library import normalize_title
+from .library import stable_title
 from .sidecar import read_clip, read_version_group
 
 _TOKEN = re.compile(r"[a-z0-9]+")
@@ -103,7 +103,7 @@ class ClipNav:
         A recorded ``full_video`` can name a file since renamed or moved out;
         reading its name is then all that is left of it.
         """
-        return self._families.get(scene) or _scene_key(scene)
+        return self._families.get(scene) or stable_title(scene.stem)
 
     def is_clip(self, video: Path) -> bool:
         return video in self._clips
@@ -230,26 +230,21 @@ def _family_of(scene: Path, metadata_root: Path | None) -> str:
     never seen, where ``X.mp4`` and ``X_apo8_iris2.mp4`` still read as one.
     """
     recorded = read_version_group(scene, metadata_root) if metadata_root is not None else None
-    return recorded or _scene_key(scene)
-
-
-def _scene_key(scene: Path) -> str:
-    """A scene's name, reduced to what stays the same across its versions."""
-    return normalize_title(_strip_processing(scene.stem))
+    return recorded or stable_title(scene.stem)
 
 
 def _only_candidate(candidates: list[Path]) -> Path | None:
     """The one scene among *candidates*, or None when they are several.
 
     Re-encodes of one video are not "several": ``X.mp4`` and ``X_iris2.mp4`` are
-    the same scene, so they collapse under :func:`_scene_key` first. The largest
-    survivor wins, the canonical-is-biggest rule used elsewhere.
+    the same scene, so they collapse under :func:`stable_title` first. The
+    largest survivor wins, the canonical-is-biggest rule used elsewhere.
     """
     if not candidates:
         return None
     by_title: dict[str, list[Path]] = {}
     for candidate in candidates:
-        by_title.setdefault(_scene_key(candidate), []).append(candidate)
+        by_title.setdefault(stable_title(candidate.stem), []).append(candidate)
     if len(by_title) != 1:
         return None
     return _largest(next(iter(by_title.values())))
@@ -268,24 +263,3 @@ def _resolve(meta: dict, candidates: list[Path]) -> Path | None:
     if named is not None:
         return named
     return _only_candidate([c for c in candidates if could_be_cut_from(meta, c)])
-
-
-# Evolver names an enhanced file by appending the models that made it, so
-# "scene_apo8_iris2" is "scene". normalize_title knows some of these as quality
-# tokens but not all — "apo8" slipped through, which made a scene and its own
-# upscale look like two different scenes and killed the match.
-_PROCESSING_SUFFIXES = (
-    "_topaz_cfr", "_topaz", "_gcg5", "_prob4", "_ghq5",
-    "_iris3", "_iris2", "_apf2", "_apo8", "_enh",
-)
-
-
-def _strip_processing(stem: str) -> str:
-    """*stem* with every trailing processing suffix removed."""
-    changed = True
-    while changed:
-        changed = False
-        for suffix in _PROCESSING_SUFFIXES:
-            if stem.endswith(suffix):
-                stem, changed = stem[: -len(suffix)], True
-    return stem
