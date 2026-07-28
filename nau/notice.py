@@ -20,7 +20,11 @@ class NoticeWriter:
         self._clock = clock
 
     def say(self, message: str, *, level: str = "error") -> bool:
-        """Raise *message*; ``level`` "error" flashes red, "notice" green.
+        """Raise *message*; ``level`` picks the colour Fun Time flashes it in.
+
+        "error" is red, "notice" white, and "favorite" green — green being what
+        Fun Time reserves for the favourites and the funscripts, so a funscript
+        jump says so in the colour and an ordinary jump does not.
 
         The sequence is a wall-clock stamp rather than a counter. A counter
         restarts at 1 whenever Nau does, while the reader is still holding the

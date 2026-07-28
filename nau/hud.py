@@ -37,6 +37,7 @@ from player_core.hud_panel import (
     BLUE,
     BORDER_PANEL,
     GREEN,
+    PINK,
     RED,
     TEXT_MUTED,
     TEXT_PRIMARY,
@@ -49,6 +50,7 @@ from player_core.hud_panel import (
 )
 
 from .console import (
+    BROKER_ICON,
     BUTTON,
     GAP,
     WAVE_ICON,
@@ -394,6 +396,12 @@ class ConsolePainter:
         """One control, in the one button shape this family's HUDs use: an outline
         when off, filled when on, faded when it cannot be pressed.
 
+        On is white: green across this family is reserved for the favourites and
+        the funscripts, and none of the things lit up here — a mode, cruise, auto
+        advance — is either.  The broker keeps the face it wore on the dashboard
+        instead, a pink "B" on blue or red, because it is the room's own service
+        and not one of these controls at all.
+
         A read-out — an item with nothing to post — is bare text with no box, in
         the readout's own key/value colours: a muted word names the value beside
         it, which is bright."""
@@ -403,13 +411,21 @@ class ConsolePainter:
             draw.text((x + w / 2, y + h / 2), button.glyph, font=self._tiny, anchor="mm",
                       fill=(*ink, 255))
             return
-        fill = GREEN if button.lit else RED if button.warn else BLUE if button.hold else None
+        broker = button.glyph == BROKER_ICON
+        fill = WHITE if button.lit else RED if button.warn else BLUE if button.hold else None
+        if broker:
+            fill = BLUE if button.lit else RED
         edge = TEXT_MUTED if button.dim else (fill or TEXT_MUTED)
         draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=3,
                                fill=(*fill, 255) if fill else None,
                                outline=(*edge, 255), width=1)
         ink = BG_PRIMARY if fill else TEXT_MUTED if button.dim else TEXT_PRIMARY
-        if button.glyph == WAVE_ICON:
+        if broker:
+            # The dashboard's icon was a pink "B" with the panel's blue or red
+            # showing through it, so the letter is what carries the colour here.
+            draw.text((x + w / 2, y + h / 2), "B", font=self._tiny, anchor="mm",
+                      fill=(*PINK, 255))
+        elif button.glyph == WAVE_ICON:
             self._wave_icon(draw, rect, ink)
         elif len(button.glyph) == 1 and not button.glyph.isalnum():
             # A symbol needs the face that actually has it, and centring on its

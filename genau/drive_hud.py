@@ -25,7 +25,6 @@ from player_core.file_channel import publish_whole
 from player_core.hud_panel import (
     AMBER,
     BLUE,
-    GREEN,
     TEXT_MUTED,
     TEXT_PRIMARY,
     draw_glyph,
@@ -212,7 +211,10 @@ class DriveSection:
 
         self._wave(draw, g.wave, hud)
         self._amp_bar(draw, g.amp_bar, hud)
-        self._bar(draw, g.speed_bar, fill=_fraction(hud.speed), color=GREEN)
+        # Blue, like the trace above it and the amplitude bar beside it: all three
+        # are Genau's own stroke, and green on this family's HUDs means the
+        # favourites and the funscripts, which the stroke has nothing to do with.
+        self._bar(draw, g.speed_bar, fill=_fraction(hud.speed), color=BLUE)
         for control in controls(x, y, hud):
             self._control(draw, control)
 
