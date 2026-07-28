@@ -64,6 +64,39 @@ def normalize_title(stem: str) -> str:
     return " ".join(tokens)
 
 
+# Evolver names an enhanced file by appending the models that made it, so
+# "scene_apo8_iris2" is "scene". normalize_title knows some of these as quality
+# tokens but not all — "apo8" slipped through, which made a scene and its own
+# upscale look like two different scenes and killed the match.
+_PROCESSING_SUFFIXES = (
+    "_topaz_cfr", "_topaz", "_gcg5", "_prob4", "_ghq5",
+    "_iris3", "_iris2", "_apf2", "_apo8", "_enh",
+)
+
+
+def _strip_processing(stem: str) -> str:
+    """*stem* with every trailing processing suffix removed."""
+    changed = True
+    while changed:
+        changed = False
+        for suffix in _PROCESSING_SUFFIXES:
+            if stem.endswith(suffix):
+                stem, changed = stem[: -len(suffix)], True
+    return stem
+
+
+def stable_title(stem: str) -> str:
+    """*stem* reduced to what stays the same across versions of one video.
+
+    Where :func:`normalize_title` drops the tags a name may carry, this also
+    drops the ones Evolver appends, leaving two files equal exactly when they
+    are one video re-encoded. Unlike the prefix test :func:`group_versions`
+    falls back on, that equality does not fold a performer's longer-named
+    second scene into their first.
+    """
+    return normalize_title(_strip_processing(stem))
+
+
 @dataclass(frozen=True)
 class LibraryEntry:
     """One playable video plus its optional funscript and file size.

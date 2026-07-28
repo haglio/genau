@@ -138,30 +138,48 @@ def _frames(count: int, seed: int) -> np.ndarray:
     return rng.integers(0, 256, size=(count, SAMPLE_HEIGHT, SAMPLE_WIDTH), dtype=np.uint8)
 
 
+def _library(tmp_path, files: tuple[tuple[str, int, dict], ...]):
+    """*files* — (path under the library root, size, sidecar) — written out.
+
+    Returns the library root, the metadata root beside it, and the entries
+    discovery would have made of them.
+    """
+    lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+    entries = []
+    for rel, size, payload in files:
+        video = lib / rel
+        video.parent.mkdir(parents=True, exist_ok=True)
+        video.write_bytes(b"x" * size)
+        sidecar = (meta / rel).with_suffix(".json")
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(json.dumps(payload), encoding="utf-8")
+        entries.append(LibraryEntry(video=video, funscript=None, size=size))
+    return lib, meta, entries
+
+
 class TestMatchLibrary:
-    def _library(self, tmp_path):
+    def _one_scene_two_clips(self, tmp_path):
         """A performer with one scene (in two versions) and two of her clips."""
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        entries = []
-        for rel, size, payload in (
+        return _library(tmp_path, (
             ("other/Mia-Vale_540-izB4YKFa.mp4", 100, {}),
             ("other/Mia-Vale_540-izB4YKFa_apo8_iris2.mp4", 400, {}),
             ("w/Mia Vale - Angels of Debauchery 8.mp4", 50,
              {"clip": {"compilation": "Vol1", "index": 9, "performer": "Mia Vale"}}),
             ("w/Mia Vale - Scene Three 3.mp4", 50,
              {"clip": {"compilation": "Vol4", "index": 2, "performer": "Mia Vale"}}),
-        ):
-            video = lib / rel
-            video.parent.mkdir(parents=True, exist_ok=True)
-            video.write_bytes(b"x" * size)
-            sidecar = (meta / rel).with_suffix(".json")
-            sidecar.parent.mkdir(parents=True, exist_ok=True)
-            sidecar.write_text(json.dumps(payload), encoding="utf-8")
-            entries.append(LibraryEntry(video=video, funscript=None, size=size))
-        return lib, meta, entries
+        ))
+
+    def _two_scenes_one_clip(self, tmp_path):
+        """Two scenes of a performer whose names share a prefix, and her clip."""
+        return _library(tmp_path, (
+            ("other/redacted_540-pacI21CK.mp4", 1, {}),
+            ("other/redacted POV BJ 4k 60fps.mp4", 1, {}),
+            ("w/redacted - Scene Three 8.mp4", 1,
+             {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
+        ))
 
     def test_records_the_scene_each_clip_was_cut_from(self, tmp_path):
-        lib, meta, entries = self._library(tmp_path)
+        lib, meta, entries = self._one_scene_two_clips(tmp_path)
         scene_frames = _frames(400, seed=1)
 
         def sampler(video, fps):
@@ -184,7 +202,7 @@ class TestMatchLibrary:
     def test_decodes_the_cheapest_version_of_a_scene(self, tmp_path):
         """Upscales cost minutes where the original costs seconds, and they hold
         the same pictures, so only the smallest file of a family is ever read."""
-        _, meta, entries = self._library(tmp_path)
+        _, meta, entries = self._one_scene_two_clips(tmp_path)
         sampled = []
 
         def sampler(video, fps):
@@ -200,23 +218,7 @@ class TestMatchLibrary:
         to different lengths, and the clip is genuinely inside both. Only one can
         be its full_video, so the closer alignment gets it rather than whichever
         scene the sweep reached last."""
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        entries = []
-        for rel, payload in (
-            ("other/redacted_540-pacI21CK.mp4",
-             {"version": {"group": "redacted_540-pacI21CK"}}),
-            ("other/redacted POV BJ 4k 60fps.mp4",
-             {"version": {"group": "redacted POV BJ 4k 60fps"}}),
-            ("w/redacted - Scene Three 8.mp4",
-             {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
-        ):
-            video = lib / rel
-            video.parent.mkdir(parents=True, exist_ok=True)
-            video.write_bytes(b"x")
-            sidecar = (meta / rel).with_suffix(".json")
-            sidecar.parent.mkdir(parents=True, exist_ok=True)
-            sidecar.write_text(json.dumps(payload), encoding="utf-8")
-            entries.append(LibraryEntry(video=video, funscript=None, size=1))
+        lib, meta, entries = self._two_scenes_one_clip(tmp_path)
         release_540 = _frames(400, seed=6)
         clip_frames = release_540[80:120]
 
@@ -235,28 +237,12 @@ class TestMatchLibrary:
         assert read_clip(clip, meta)["full_video"] == str(scene)
         assert read_clip(clip, meta)["scene_offset"] == 10.0
 
-    def test_separates_scenes_evolver_calls_different_versions(self, tmp_path):
+    def test_separates_two_scenes_whose_names_share_a_prefix(self, tmp_path):
         """Two scenes of one performer can share a name prefix without being the
-        same video — "redacted_540-hash" and "redacted POV BJ 4k".
-        Folding them would decode one and leave the other unmatchable, so the
-        version group Evolver recorded decides, not the names."""
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        entries = []
-        for rel, payload in (
-            ("other/redacted_540-pacI21CK.mp4",
-             {"version": {"group": "redacted_540-pacI21CK"}}),
-            ("other/redacted POV BJ 4k 60fps.mp4",
-             {"version": {"group": "redacted POV BJ 4k 60fps"}}),
-            ("w/redacted - Scene Three 8.mp4",
-             {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
-        ):
-            video = lib / rel
-            video.parent.mkdir(parents=True, exist_ok=True)
-            video.write_bytes(b"x")
-            sidecar = (meta / rel).with_suffix(".json")
-            sidecar.parent.mkdir(parents=True, exist_ok=True)
-            sidecar.write_text(json.dumps(payload), encoding="utf-8")
-            entries.append(LibraryEntry(video=video, funscript=None, size=1))
+        same video — "redacted_540-hash" and "redacted POV BJ 4k". Folding them
+        would decode one and leave the other unmatchable, so a cut is only
+        another's version when the whole reduced title agrees, not its start."""
+        _, meta, entries = self._two_scenes_one_clip(tmp_path)
         scenes = []
 
         def sampler(video, fps):
@@ -267,6 +253,39 @@ class TestMatchLibrary:
         match_library(entries, meta, fps=8.0, sampler=sampler)
 
         assert len(scenes) == 2
+
+    def test_matches_a_scene_bucketed_under_a_shared_version_group(self, tmp_path):
+        """Evolver's version group is not always one video — it buckets by a
+        title read out of the name, so unrelated scenes of a performer land in
+        one group. Read as a family, the biggest member's name is what the
+        candidates are gated on and the smallest member's frames are what gets
+        searched, which leaves the clip of every other scene in the bucket
+        unmatchable however exactly its frames align."""
+        lib, meta, entries = _library(tmp_path, (
+            ("other/Jane Doe_iris2.mp4", 900, {"version": {"group": "Jane Doe"}}),
+            ("other/Jane-Doe-&-Ada-Roe-b4t7k1qz-old_iris2.mp4", 500,
+             {"version": {"group": "Jane Doe"}}),
+            ("other/Jane Doe - Cut to Length.mp4", 100, {"version": {"group": "Jane Doe"}}),
+            ("w/Jane Doe, Ada Roe - Load Bearing 2.mp4", 50,
+             {"clip": {"compilation": "Vol3", "index": 6, "performer": "Jane Doe, Ada Roe"}}),
+        ))
+        two_performers = _frames(400, seed=11)
+
+        def sampler(video, fps):
+            if video.name.startswith("Jane-Doe-&-Ada-Roe"):
+                return two_performers
+            if video.parent.name == "w":
+                return two_performers[80:120]
+            return _frames(40, seed=12)
+
+        matched = match_library(entries, meta, fps=8.0, sampler=sampler)
+
+        scene = lib / "other" / "Jane-Doe-&-Ada-Roe-b4t7k1qz-old_iris2.mp4"
+        clip = lib / "w" / "Jane Doe, Ada Roe - Load Bearing 2.mp4"
+        assert list(matched) == [scene]
+        assert matched[scene].clip == clip
+        assert read_clip(clip, meta)["full_video"] == str(scene)
+        assert read_clip(clip, meta)["scene_offset"] == 10.0
 
 
 class TestMain:
