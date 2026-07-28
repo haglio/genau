@@ -32,7 +32,6 @@ from PIL import Image
 from genau.drive_hud import DriveHud, DriveSection
 from genau.drive_hud import controls as drive_controls
 from player_core.hud_panel import (
-    AMBER,
     BG_PRIMARY,
     BLUE,
     BORDER_PANEL,
@@ -81,22 +80,26 @@ F_MODE_LABEL = "F-Mode"
 
 _SEPARATOR = " · "
 
+# The broker's mark, cell by cell: the "B" of ``broker_icon.ico``, which like
+# every icon in this family is a pink letter laid out on a five-by-five grid.
+_BROKER_GRID = ("#####", "#...#", "#####", "#...#", "#####")
+
 # A compilation is titled for a shelf: "various - Ultimate Example Studio Alpha
 # Collection - Volume 6 (v1)".  Everything up to the last dash is the series and
 # the trailing "(v1)" the archivist's revision, leaving the volume as the part
 # that says which one you are inside.
 _REVISION = re.compile(r"\s*\(v\d+\)$")
 
-# What the OSR2 line says by what is driving the device, and the colour it says
+# What the OSR2 line says by what is driving the device, and the color it says
 # it in — green when a funscript is driving, blue when Genau is, muted when
-# nothing is, amber for the broker's own auto mode.
+# nothing is, and the device's own pink when it is running itself in auto.
 OSR2_GENAU = "genau"  # the one state in which the drive readout can be pressed
 _OSR2_LABELS = {
     "off": "Off", "auto": "Auto", "funscript": "FunScript",
     OSR2_GENAU: "Genau", "idle": "Idle",
 }
 _OSR2_COLORS = {
-    "funscript": GREEN, "genau": BLUE, "auto": AMBER,
+    "funscript": GREEN, "genau": BLUE, "auto": PINK,
     "off": TEXT_MUTED, "idle": TEXT_MUTED,
 }
 
@@ -396,14 +399,15 @@ class ConsolePainter:
         """One control, in the one button shape this family's HUDs use: an outline
         when off, filled when on, faded when it cannot be pressed.
 
-        On is white: green across this family is reserved for the favorites and
-        the funscripts, and none of the things lit up here — a mode, cruise, auto
-        advance — is either.  The broker keeps the face it wore on the dashboard
-        instead, a pink "B" on blue or red, because it is the room's own service
-        and not one of these controls at all.
+        On is white, except where green applies: green across this family is kept
+        for the favorites and the funscripts, so F-mode — which narrows the
+        playlist to what has a funscript — lights green and a mode, cruise or auto
+        advance does not.  The broker keeps the face it wore on the dashboard
+        instead, its own pink mark on blue or red, because it is the room's own
+        service and not one of these controls at all.
 
         A read-out — an item with nothing to post — is bare text with no box, in
-        the readout's own key/value colours: a muted word names the value beside
+        the readout's own key/value colors: a muted word names the value beside
         it, which is bright."""
         x, y, w, h = rect
         if not button.action:
@@ -412,19 +416,23 @@ class ConsolePainter:
                       fill=(*ink, 255))
             return
         broker = button.glyph == BROKER_ICON
-        fill = WHITE if button.lit else RED if button.warn else BLUE if button.hold else None
+        lit = GREEN if button.favorite else WHITE
+        fill = lit if button.lit else RED if button.warn else BLUE if button.hold else None
         if broker:
             fill = BLUE if button.lit else RED
         edge = TEXT_MUTED if button.dim else (fill or TEXT_MUTED)
         draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=3,
                                fill=(*fill, 255) if fill else None,
                                outline=(*edge, 255), width=1)
-        ink = BG_PRIMARY if fill else TEXT_MUTED if button.dim else TEXT_PRIMARY
+        # The mark stays white over a colored fill and reverses out of a white
+        # one, so a control that changes state changes only what is behind its
+        # mark — the way the Dash's mic keeps its white glyph while the panel
+        # under it goes blue.  A record button whose circle went dark while it
+        # recorded read as a different button, not as the same one recording.
+        ink = (BG_PRIMARY if fill == WHITE else WHITE if fill
+               else TEXT_MUTED if button.dim else TEXT_PRIMARY)
         if broker:
-            # The dashboard's icon was a pink "B" with the panel's blue or red
-            # showing through it, so the letter is what carries the color here.
-            draw.text((x + w / 2, y + h / 2), "B", font=self._tiny, anchor="mm",
-                      fill=(*PINK, 255))
+            self._broker_mark(draw, rect)
         elif button.glyph == WAVE_ICON:
             self._wave_icon(draw, rect, ink)
         elif len(button.glyph) == 1 and not button.glyph.isalnum():
@@ -434,6 +442,28 @@ class ConsolePainter:
         else:
             draw.text((x + w / 2, y + h / 2), button.glyph, font=self._tiny,
                       anchor="mm", fill=(*ink, 255))
+
+    @staticmethod
+    def _broker_mark(draw, rect: Rect) -> None:
+        """The broker's own icon, drawn to fill its button.
+
+        Every mark in this family is a pink letter on a 5x5 grid — the "B" of
+        ``broker_icon.ico`` is a rectangle with two counters — and the counters
+        are left unpainted so the button's blue or red shows through them,
+        exactly as the file's transparent cells let the dashboard panel through.
+        Drawn rather than loaded: the .ico lives in Fun Time's repo, which this
+        one may not reach into, and a typed "B" is a thin letterform next to the
+        chunky mark the icon actually is.
+        """
+        x, y, w, h = rect
+        cell = max(1, min(w, h) // 7)
+        left, top = x + (w - 5 * cell) / 2, y + (h - 5 * cell) / 2
+        for row, line in enumerate(_BROKER_GRID):
+            for column, painted in enumerate(line):
+                if painted != "#":
+                    continue
+                cx, cy = left + column * cell, top + row * cell
+                draw.rectangle([cx, cy, cx + cell - 1, cy + cell - 1], fill=(*PINK, 255))
 
     @staticmethod
     def _wave_icon(draw, rect: Rect, ink) -> None:

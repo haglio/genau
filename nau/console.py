@@ -54,9 +54,10 @@ class Button:
     suppression or a live recording, blue for armed-but-sitting-still.  On is
     white rather than green because across this family green means the favorites
     and the funscripts; a mode being selected or cruise being armed is neither.
-    ``dim`` is a control at the end of its range or with nothing to act on: drawn
-    faded and left out of the hit targets, so a press that could do nothing is not
-    offered.
+    ``favorite`` names the controls that *are* one of those, so their on-state
+    keeps the green — F-mode is the only one so far.  ``dim`` is a control at the
+    end of its range or with nothing to act on: drawn faded and left out of the
+    hit targets, so a press that could do nothing is not offered.
 
     An empty ``action`` makes it a read-out: laid out in the row like anything
     else, drawn as a bare value with no box, and never a hit target.
@@ -70,6 +71,7 @@ class Button:
     warn: bool = False
     hold: bool = False
     dim: bool = False
+    favorite: bool = False
 
 
 @dataclass(frozen=True)
@@ -262,7 +264,7 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
             # rather than acting on the video on screen or on where it ends.
             Button("primary_fmode", _GLYPHS["fmode"],
                    "F-Mode — play only the videos that have a funscript",
-                   lit=model.f_mode),
+                   lit=model.f_mode, favorite=True),
             Button("browse_library", _GLYPHS["open"], "Browse the library"),
             # Recording a loop and saving what it caught are one job in two
             # presses, so they sit together and apart from the browser.  The
@@ -312,11 +314,13 @@ def _control_row(model: ConsoleModel) -> list[Button]:
     return [
         Button("genau_toggle_cruise", "cc",
                "Cruise control: vary the stroke hands-free", lit=model.cruise),
+        # Armed is armed, whether or not a clip is being held against it: the hold
+        # is the padlock's own state and shows there, so saying it twice only cost
+        # this control a second color for something that is not about it.
         Button("genau_toggle_auto_advance", _advance_label(model),
                "Auto advance: move on to the next clip on a timer",
                width=BUTTON * 2 + GAP,
-               lit=model.auto_advance and not model.clip_locked,
-               hold=model.auto_advance and model.clip_locked),
+               lit=model.auto_advance),
         # Holding a clip only means anything inside auto advance, so outside it the
         # control is drawn faded and answers no press.
         Button("genau_toggle_clip_lock", _GLYPHS["lock"],
