@@ -68,6 +68,7 @@ class PlayerSession:
         self._funscript = None
         self._loop_ctrl: LoopController | None = None
         self._last_pos_ms = 0.0
+        self._pending_seek_ms: float | None = None
         self.load(0)
 
     @property
@@ -296,11 +297,27 @@ class PlayerSession:
 
         While marking a loop, the record-down point is a floor: a backward seek
         can't rewind before where the loop started — it lands on the start.
+
+        A seek issued in the same breath as a ``load`` is held rather than
+        clamped: mpv opens a file asynchronously and reports no duration for a
+        tick or two, and the ceiling below would read that as "this video is
+        zero long" and put the playhead back at the top.  :meth:`advance`
+        applies the held seek on the first tick the duration is known.
         """
+        if self._player.duration_ms <= 0:
+            self._pending_seek_ms = position_ms
+            return
         floor = 0.0 if self.record_in_ms is None else float(self.record_in_ms)
         target = max(floor, min(self._player.duration_ms, position_ms))
         self._player.seek_ms(target)
         self._tcode.reset()
+
+    def _flush_pending_seek(self) -> None:
+        """Take a seek held over a file open, once the file is open."""
+        if self._pending_seek_ms is None or self._player.duration_ms <= 0:
+            return
+        target, self._pending_seek_ms = self._pending_seek_ms, None
+        self.seek_to(target)
 
     def advance(self) -> None:
         """Per-tick update: drive OSR2 output, reset on loop wrap, auto-advance.
@@ -308,6 +325,10 @@ class PlayerSession:
         mpv renders the video itself, so nothing is returned — the caller reads
         the session's position/state for the overlays.
         """
+        # Ahead of the pause check: a seek waiting on a file to open is owed
+        # whether or not the room is running, and a paused Nau that never landed
+        # it would show the wrong frame for as long as the pause lasts.
+        self._flush_pending_seek()
         if self._paused:
             return
 
@@ -359,6 +380,9 @@ class PlayerSession:
         self._index = index % len(self._playlist)
         vid_path, fs_path = self._playlist[self._index]
         logger.info("Loading: %s", vid_path.name)
+        # A seek still waiting on the outgoing file belonged to that file; the
+        # incoming one starts at the top unless the caller asks otherwise.
+        self._pending_seek_ms = None
         self._funscript = load_funscript(fs_path) if fs_path is not None else None
         # A loop controller exists for every video so clips can be recorded even
         # without a funscript; only its snapping is funscript-gated (raw ranges
