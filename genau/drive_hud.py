@@ -23,10 +23,10 @@ from pathlib import Path
 
 from player_core.file_channel import publish_whole
 from player_core.hud_panel import (
-    AMBER,
     BLUE,
     TEXT_MUTED,
     TEXT_PRIMARY,
+    WHITE,
     draw_glyph,
     load_font,
     text_width,
@@ -276,10 +276,13 @@ class DriveSection:
         # showed through the one place on the console you have to read a shape.
         draw.rectangle([x, y, x + w - 1, y + h - 1], fill=(*_TRACK, 255),
                        outline=(*TEXT_MUTED, 160), width=1)
+        # White, at the same part-strength it was drawn in before: the dotted line
+        # is a ruler across the trace rather than a state of anything, and amber on
+        # these HUDs is a warning's color, which this is not.
         centre_y = y + round((1 - _fraction(hud.center)) * (h - 1))
         for dash in range(0, w, 6):
             draw.line([(x + dash, centre_y), (min(x + dash + 3, x + w - 1), centre_y)],
-                      fill=(*AMBER, 150))
+                      fill=(*WHITE, 150))
         points = hud.waveform
         if len(points) >= 2:
             draw.line(
