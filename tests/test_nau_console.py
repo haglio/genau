@@ -6,6 +6,7 @@ from pathlib import Path
 from nau.console import (
     BROKER_ICON,
     BUTTON,
+    GAP,
     GROUP_GAP,
     ConsoleModel,
     console_rows,
@@ -136,14 +137,20 @@ class TestLock:
         assert held.tooltip.startswith("Locked") and "play on" in held.tooltip
         assert loose.tooltip.startswith("Unlocked") and "hold this video" in loose.tooltip
 
-    def test_it_stands_apart_from_the_four_marks_that_step_the_video(self):
-        """Those four each move the video now; this one says what the *end* of it
-        does.  Sharing their command prefix, it would have joined their run."""
+    def test_it_pairs_with_f_mode_and_stands_apart_from_everything_else(self):
+        """The two switches are the states the player sits in — this video held,
+        the playlist narrowed — where the four marks each move the video now and
+        the browser opens a file.  So they sit together, and clear of both.  The
+        lock also shares the transport's command prefix, which would otherwise
+        have made it read as a fifth step."""
         placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)
         by_action = {b.action: rect for rect, b in placed}
-        next_rect, lock_rect = by_action["primary_next"], by_action["primary_lock"]
+        step, lock = by_action["primary_next"], by_action["primary_lock"]
+        fmode, browse = by_action["primary_fmode"], by_action["browse_library"]
 
-        assert lock_rect[0] - (next_rect[0] + next_rect[2]) == GROUP_GAP
+        assert lock[0] - (step[0] + step[2]) == GROUP_GAP
+        assert fmode[0] - (lock[0] + lock[2]) == GAP        # the pair runs together
+        assert browse[0] - (fmode[0] + fmode[2]) == GROUP_GAP
 
 
 class TestPlaybackSpeed:
