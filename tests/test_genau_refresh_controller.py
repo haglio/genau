@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from genau.cruise_control import CruiseControlState
-from genau.auto_advance import AutoAdvanceState
+from genau.clip_advance import ClipAdvanceState
 from genau.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
 from genau.refresh_controller import GenauRefreshController
@@ -111,7 +111,7 @@ def _build_controller(
     direct_state: DirectControlState | None = None,
     tcode_sender: FakeTCodeSender | None = None,
     cruise_control: CruiseControlState | None = None,
-    auto_advance: AutoAdvanceState | None = None,
+    clip_advance: ClipAdvanceState | None = None,
     broker_cmd_file: Path | None = None,
     hud_state: dict | None = None,
     set_hud_mode=None,
@@ -161,7 +161,7 @@ def _build_controller(
         direct_state=direct_state,
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
-        auto_advance=auto_advance,
+        clip_advance=clip_advance,
         broker_cmd_file=broker_cmd_file,
         set_console=consoles.append,
         present_scene=lambda: present_calls.append(1),
@@ -504,18 +504,18 @@ def test_toggle_cruise_command_via_refresh():
     assert auto.active is True
 
 
-def test_toggle_auto_advance_command_via_refresh():
+def test_toggle_lock_command_via_refresh():
     dc = DirectControlState(playing=True, bpm=120.0)
-    aa = AutoAdvanceState(active=False)
+    aa = ClipAdvanceState(locked=True)
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
         entry=entry, direct_state=dc, tcode_sender=FakeTCodeSender(),
-        auto_advance=aa, command="TOGGLE_AUTO_ADVANCE",
+        clip_advance=aa, command="TOGGLE_LOCK",
     )
 
     built["controller"].refresh()
 
-    assert aa.active is True
+    assert aa.locked is False
 
 
 def test_cruise_control_ticks_during_refresh():
@@ -536,12 +536,12 @@ def test_cruise_control_ticks_during_refresh():
     assert dc.speed != 50 or dc.amplitude != 100 or dc.center != 50
 
 
-def _run_auto_advance(*, playing: bool, seconds: float = 15.0):
+def _run_clip_advance(*, playing: bool, seconds: float = 15.0, locked: bool = False):
     dc = DirectControlState(playing=playing, bpm=120.0)
-    aa = AutoAdvanceState(active=True, rng=random.Random(42))
+    aa = ClipAdvanceState(locked=locked, interval=10)
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=FakeTCodeSender(), auto_advance=aa
+        entry=entry, direct_state=dc, tcode_sender=FakeTCodeSender(), clip_advance=aa
     )
     tick = 0.0
     for _ in range(int(seconds / 0.1)):
@@ -551,19 +551,23 @@ def _run_auto_advance(*, playing: bool, seconds: float = 15.0):
     return built["selection"].step_calls
 
 
-def test_auto_advance_advances_clip_during_refresh():
-    steps = _run_auto_advance(playing=True)
+def test_an_unlocked_genau_advances_its_clip_during_refresh():
+    steps = _run_clip_advance(playing=True)
     assert len(steps) >= 1
     assert all(c == 1 for c in steps)
 
 
-def test_auto_advance_holds_the_clip_while_the_room_is_paused():
+def test_a_locked_genau_stays_on_its_clip():
+    assert _run_clip_advance(playing=True, seconds=60.0, locked=True) == []
+
+
+def test_the_clip_is_held_while_the_room_is_paused():
     """OmniPause reaches Genau as PAUSE, which clears direct_state.playing.
 
-    Auto-advance has to read that: a paused room that keeps swapping clips
+    The advance has to read that: a paused room that keeps swapping clips
     leaves the user looking at something they never chose to move to.
     """
-    assert _run_auto_advance(playing=False, seconds=60.0) == []
+    assert _run_clip_advance(playing=False, seconds=60.0) == []
 
 
 def test_broker_auto_uses_broker_bpm_for_phase():

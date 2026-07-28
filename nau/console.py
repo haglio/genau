@@ -96,11 +96,14 @@ class ConsoleModel:
     # file and Fun Time forwards it, because the console is drawn in genau mode too
     # — by a player that has no loop machine of its own to ask.
     record: str = "normal"
-    # Whether Nau is holding the video on screen rather than letting it end.  On
-    # is the primary's original behavior, so it is the default here too: a console
-    # drawn before the first panel arrives must not show the lock off when it is
-    # not.  Published the same way ``record`` is, and for the same reason — in
-    # genau mode this console is drawn by a player with no such lock to ask.
+    # Whether the player on the primary slot is holding what is on screen rather
+    # than letting it move on — Nau's video in nau and hybrid, Genau's clip in
+    # genau.  One flag for one padlock, because whichever player is showing is the
+    # one the lock holds.  On is where both players open, so it is the default
+    # here too: a console drawn before the first panel arrives must not show the
+    # lock off when it is not.  Published the same way ``record`` is, and for the
+    # same reason — the player drawing this console is not always the one it is
+    # describing.
     locked: bool = True
     # Whether the primary's own F-mode is on — its playlist narrowed to the videos
     # that have a funscript.  Nau is told the flag directly as well (its subtitle
@@ -109,16 +112,13 @@ class ConsoleModel:
     # and only one of them is the player.
     f_mode: bool = False
     cruise: bool = False
-    # The other hands-free switch: cruise varies the stroke, auto advance moves on
-    # to the next clip.  A held clip is auto advance still armed but sitting still.
-    auto_advance: bool = False
-    clip_locked: bool = False
     shape: str = "sine"
     # Nau's video playback rate, shown while Nau is on screen.  Not published —
     # Nau knows its own rate and folds it in; Genau leaves it at 1.
     playback_speed: float = 1.0
-    # Seconds between auto-advances.  Also not published — Genau owns the pace and
-    # says it on the drive readout, which whoever draws the console folds in here.
+    # Seconds an unlocked Genau leaves each clip on screen.  Also not published —
+    # Genau owns the pace and says it on the drive readout, which whoever draws
+    # the console folds in here.
     advance_interval: int = 0
 
 
@@ -143,8 +143,6 @@ def read_console(path: Path) -> ConsoleModel | None:
         record=str(raw.get("record", "normal") or "normal"),
         locked=bool(raw.get("locked", True)),
         cruise=bool(raw.get("cruise", False)),
-        auto_advance=bool(raw.get("auto_advance", False)),
-        clip_locked=bool(raw.get("clip_locked", False)),
         shape=str(raw.get("shape", "sine") or "sine"),
     )
 
@@ -209,9 +207,11 @@ def console_rows(model: ConsoleModel) -> list[list[Button]]:
     """The console's buttons, row by row, for the mode Fun Time says it is in.
 
     The mode row leads, so it holds the same place in every mode.  Then the
-    transport — Nau's video or Genau's clips — and, while Genau is driving, the
-    hands-free control row (the drive readout's amplitude/centre/speed arrows are
-    drawn on the readout itself, not here).
+    transport — Nau's video or Genau's clips — then the pace of whatever that
+    transport is stepping (the video's playback rate, or the seconds a clip holds
+    the screen), and, while Genau is driving, the hands-free control row (the
+    drive readout's amplitude/centre/speed arrows are drawn on the readout itself,
+    not here).
     """
     rows: list[list[Button]] = [
         [
@@ -223,6 +223,8 @@ def console_rows(model: ConsoleModel) -> list[list[Button]]:
     rows.append(_transport_row(model))
     if nau_displays(model.mode):
         rows.append(_playback_speed_row(model))
+    else:
+        rows.append(_clip_seconds_row(model))
     if genau_drives(model.mode):
         rows.append(_control_row(model))
     return rows
@@ -233,8 +235,12 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
 
     In nau/hybrid that is Nau's video — step it, nudge inside it, hold it against
     the end of the playlist's advance, browse for another, save a clip, record a
-    loop.  In genau it is Genau's own clips — step them and mark one weird;
-    nudge/hold/browse/clip/record have no video to act on.
+    loop.  In genau it is Genau's own clips — step them, hold one, mark one weird;
+    nudge/browse/clip/record have no video to act on.
+
+    The padlock is in both, because both players have one and it means the same
+    thing on each: hold what is on screen.  Which player it reaches is the mode's
+    business, not this row's — the same rule prev/next already follow.
     """
     if nau_displays(model.mode):
         return [
@@ -282,6 +288,12 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
     return [
         Button("genau_prev_clip", _GLYPHS["prev"], "Previous clip"),
         Button("genau_next_clip", _GLYPHS["next"], "Next clip"),
+        Button("primary_lock", _GLYPHS["lock"],
+               "Locked — this clip repeats; press to move on every "
+               f"{model.advance_interval}s" if model.locked
+               else "Unlocked — moving on every "
+                    f"{model.advance_interval}s; press to hold this clip",
+               lit=model.locked),
         Button("genau_weird_clip", _GLYPHS["trash"], "Mark weird — move it out"),
     ]
 
@@ -300,32 +312,34 @@ def _playback_speed_row(model: ConsoleModel) -> list[Button]:
     ]
 
 
-def _advance_label(model: ConsoleModel) -> str:
-    """The auto-advance control's face — with the pace it is set to, when it has
-    one.  A bare arming jitters an 8-12s default, which has no number to show."""
-    return f"aa {model.advance_interval}s" if model.advance_interval else "aa"
+def _clip_seconds_row(model: ConsoleModel) -> list[Button]:
+    """How long an unlocked Genau leaves each clip on screen: fewer, the number
+    itself, more.
+
+    Genau's clips are fractions of a second, so an unlocked Genau cannot simply
+    play through them — it would strobe — and this is the only thing that says how
+    fast it does move.  Shaped like the playback-speed row above, and named for the
+    same reason: a bare −/+ pair beside a number says "less/more" of nothing.
+
+    This used to be the face of an "auto advance" button that also armed the
+    moving, which is why the pace and the lock were two controls that could
+    disagree.  The padlock in the transport row is the only switch now; this is
+    just its speed.
+    """
+    return [
+        Button("", "Clip seconds", "", width=PLAYBACK_LABEL_W),
+        Button("genau_advance_down", _GLYPHS["minus"], "Move on sooner"),
+        Button("", f"{model.advance_interval}s", "", width=VALUE_W),
+        Button("genau_advance_up", _GLYPHS["plus"], "Leave each clip longer"),
+    ]
 
 
 def _control_row(model: ConsoleModel) -> list[Button]:
-    """The hands-free switches, the hold and the offset — everything Genau does
-    that is not a level on the readout."""
+    """The hands-free stroke switch, the waveform and the offset — everything
+    Genau does that is not a level on the readout."""
     return [
         Button("genau_toggle_cruise", "cc",
                "Cruise control: vary the stroke hands-free", lit=model.cruise),
-        # Armed is armed, whether or not a clip is being held against it: the hold
-        # is the padlock's own state and shows there, so saying it twice only cost
-        # this control a second color for something that is not about it.
-        Button("genau_toggle_auto_advance", _advance_label(model),
-               "Auto advance: move on to the next clip on a timer",
-               width=BUTTON * 2 + GAP,
-               lit=model.auto_advance),
-        # Holding a clip only means anything inside auto advance, so outside it the
-        # control is drawn faded and answers no press.  On is on, in the same white
-        # every other switch here lights in — a hold is not a third kind of state.
-        Button("genau_toggle_clip_lock", _GLYPHS["lock"],
-               "Hold this clip against auto advance" if model.auto_advance
-               else "Hold a clip — only while auto advance is armed",
-               lit=model.clip_locked, dim=not model.auto_advance),
         Button("genau_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(model.shape)}"),
         Button("quarter_button", _GLYPHS["quarter"], "Offset the stroke a ¼ cycle"),
     ]
@@ -389,12 +403,12 @@ _GENAU_CONTROLS = frozenset({"quarter_button"})
 # Recording a loop and saving what it caught: one job, two presses, and neither
 # of them the library browser they used to be spaced alongside.
 _CAPTURE_CONTROLS = frozenset({"nau_record_tap", "clipper_save"})
-# The two switches: the lock holds this video against the end of it, F-mode
+# The two switches: the lock holds what is on screen against moving on, F-mode
 # narrows what there is to play at all.  Both are states the player sits *in*,
-# where everything around them does its thing once and is over — the four marks
-# step the video, the browser and the capture pair act on files — so the pair
-# groups together and apart from both.  The lock also shares the transport's
-# command prefix, and without this would have joined its run and read as a fifth
+# where everything around them does its thing once and is over — the marks step
+# the video or the clip, the browser and the capture pair act on files — so the
+# pair groups together and apart from both.  The lock also shares the transport's
+# command prefix, and without this would have joined its run and read as another
 # step, which is the undifferentiated strip that opened these groups up.
 _SWITCH_CONTROLS = frozenset({"primary_lock", "primary_fmode"})
 

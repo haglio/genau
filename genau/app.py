@@ -188,7 +188,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     # dark instead would make a bare `python -m genau` come up black.
     display_state = {"active": True}
 
-    from .auto_advance import AutoAdvanceState
+    from .clip_advance import ClipAdvanceState
     from .cruise_control import CruiseControlState
     from .direct_control import DirectControlState, bpm_for_speed
     from player_core.tcode import UdpTCodeSink
@@ -200,7 +200,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         bpm=bpm_for_speed(50),
     )
     cruise_control = CruiseControlState()
-    auto_advance = AutoAdvanceState()
+    clip_advance = ClipAdvanceState()
     sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
     tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
     logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
@@ -275,7 +275,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         direct_state=direct_state,
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
-        auto_advance=auto_advance,
+        clip_advance=clip_advance,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
         # Named by whoever launched us when there is one: standalone this is our
         # own state dir, but under Fun Time the reader is Nau, which is told the
@@ -291,7 +291,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_blank=view.set_blank,
         display_state=display_state,
     )
-    from .auto_advance import toggle_auto_advance, toggle_clip_lock
+    from .clip_advance import toggle_lock
     from .cruise_control import toggle_cruise_control
     from .direct_control import (
         adjust_amplitude,
@@ -327,8 +327,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_adjust_center=lambda delta: adjust_center(direct_state, delta),
         on_cycle_shape=lambda: cycle_shape(direct_state),
         on_toggle_cruise=lambda: toggle_cruise_control(cruise_control),
-        on_toggle_auto_advance=lambda: toggle_auto_advance(auto_advance),
-        on_toggle_clip_lock=lambda: toggle_clip_lock(auto_advance),
+        on_toggle_lock=lambda: toggle_lock(clip_advance),
         on_weird_clip=selection.discard_current,
         on_console_press=_press_console,
         on_console_motion=view.set_console_hover,

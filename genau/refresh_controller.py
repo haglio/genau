@@ -57,7 +57,7 @@ class GenauRefreshController:
         direct_state=None,
         tcode_sender=None,
         cruise_control=None,
-        auto_advance=None,
+        clip_advance=None,
         broker_cmd_file: Path | None = None,
         drive_file: Path | None = None,
         console_file: Path | None = None,
@@ -92,7 +92,7 @@ class GenauRefreshController:
         self.direct_state = direct_state
         self.tcode_sender = tcode_sender
         self.cruise_control = cruise_control
-        self.auto_advance = auto_advance
+        self.clip_advance = clip_advance
         self.broker_cmd_file = broker_cmd_file
         self.drive_file = drive_file
         self.console_file = console_file
@@ -133,8 +133,8 @@ class GenauRefreshController:
             if self.cruise_control is not None:
                 from .cruise_control import tick_cruise_control
                 tick_cruise_control(self.direct_state, self.cruise_control, now)
-            if self.auto_advance is not None:
-                from .auto_advance import tick_auto_advance
+            if self.clip_advance is not None:
+                from .clip_advance import tick_clip_advance
                 # The interval is timed against the clip actually on screen — a
                 # decoded, rendering one — so a slow load can't make a short
                 # interval fire repeatedly and stack switches that never play.
@@ -142,8 +142,8 @@ class GenauRefreshController:
                 on_screen_clip = (
                     self.renderer.current_clip_path if entry and entry.get("frames") else None
                 )
-                tick_auto_advance(
-                    self.auto_advance,
+                tick_clip_advance(
+                    self.clip_advance,
                     now,
                     playing=self.direct_state.playing,
                     on_screen_clip=on_screen_clip,
@@ -205,7 +205,7 @@ class GenauRefreshController:
                 discard_clip=self.selection.discard_current,
                 direct_state=self.direct_state,
                 cruise_control_state=self.cruise_control,
-                auto_advance_state=self.auto_advance,
+                clip_advance_state=self.clip_advance,
                 stop_event=self.stop_event,
                 hud_state=self.hud_state,
                 display_state=self.display_state,
@@ -267,7 +267,7 @@ class GenauRefreshController:
                 status_path,
                 self.direct_state,
                 self.cruise_control,
-                auto_advance=self.auto_advance,
+                clip_advance=self.clip_advance,
                 hud_active=hud_on,
             )
 
@@ -317,9 +317,7 @@ class GenauRefreshController:
             shape=ds.shape.value,
             position=position,
             advance_interval=(
-                round(self.auto_advance.interval)
-                if self.auto_advance and self.auto_advance.interval
-                else 0
+                self.clip_advance.interval if self.clip_advance else 0
             ),
             spd_at_max=ds.speed >= MAX_SPEED,
             spd_at_min=ds.speed <= MIN_SPEED,
