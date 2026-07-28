@@ -78,9 +78,24 @@ class TestTransport:
         for mode in ("nau", "hybrid"):
             actions = _actions(ConsoleModel(mode=mode))
             for action in ("primary_prev", "primary_next", "primary_nudge_prev",
-                           "primary_nudge_next", "browse_library", "clipper_save",
-                           "nau_record_tap"):
+                           "primary_nudge_next", "primary_fmode", "browse_library",
+                           "clipper_save", "nau_record_tap"):
                 assert action in actions, (mode, action)
+
+    def test_f_mode_is_the_primarys_own_and_lights_while_it_is_on(self):
+        """Fun Time's dashboard carried one F-mode switch for the room; every
+        player carries its own now, and this is the primary's — its playlist
+        narrowed to the videos that have a funscript."""
+        off = _button(ConsoleModel(mode="nau"), "primary_fmode")
+        on = _button(ConsoleModel(mode="nau", f_mode=True), "primary_fmode")
+
+        assert off.lit is False
+        assert on.lit is True
+
+    def test_f_mode_is_not_offered_where_there_is_no_nau_playlist(self):
+        """In genau mode the primary display is Genau's, and the playlist F-mode
+        narrows is not what is playing — the same reason nudge and record go."""
+        assert "primary_fmode" not in _actions(ConsoleModel(mode="genau"))
 
     def test_record_is_there_in_hybrid_too_not_only_nau(self):
         """Nau is on screen in hybrid, so there is a loop to record — it went
@@ -99,7 +114,7 @@ class TestTransport:
         actions = _actions(ConsoleModel(mode="genau"))
 
         for action in ("primary_nudge_prev", "browse_library", "clipper_save",
-                       "nau_record_tap", "primary_lock"):
+                       "nau_record_tap", "primary_lock", "primary_fmode"):
             assert action not in actions
 
 
@@ -241,8 +256,8 @@ class TestReadConsole:
         import json
         path = tmp_path / "nau_console.json"
         path.write_text(json.dumps({
-            "mode": "hybrid", "active": True, "osr2": "genau", "broker": True,
-            "record": "looping", "locked": False, "cruise": True,
+            "mode": "hybrid", "active": True, "f_mode": True, "osr2": "genau",
+            "broker": True, "record": "looping", "locked": False, "cruise": True,
             "auto_advance": True, "clip_locked": True, "shape": "sawtooth",
         }), encoding="utf-8")
 
@@ -250,6 +265,7 @@ class TestReadConsole:
 
         assert model.mode == "hybrid"
         assert model.active is True
+        assert model.f_mode is True
         assert model.osr2 == "genau"
         assert model.broker is True
         assert model.record == "looping"

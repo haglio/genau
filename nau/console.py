@@ -100,6 +100,12 @@ class ConsoleModel:
     # not.  Published the same way ``record`` is, and for the same reason — in
     # genau mode this console is drawn by a player with no such lock to ask.
     locked: bool = True
+    # Whether the primary's own F-mode is on — its playlist narrowed to the videos
+    # that have a funscript.  Nau is told the flag directly as well (its subtitle
+    # says so), but the button lights off what Fun Time publishes, because the
+    # flag is set from three places — this button, the F key, and a spoken phrase —
+    # and only one of them is the player.
+    f_mode: bool = False
     cruise: bool = False
     # The other hands-free switch: cruise varies the stroke, auto advance moves on
     # to the next clip.  A held clip is auto advance still armed but sitting still.
@@ -129,6 +135,7 @@ def read_console(path: Path) -> ConsoleModel | None:
     return ConsoleModel(
         mode=str(raw.get("mode", "nau")),
         active=bool(raw.get("active", False)),
+        f_mode=bool(raw.get("f_mode", False)),
         osr2=str(raw.get("osr2", "off") or "off"),
         broker=bool(raw.get("broker", False)),
         record=str(raw.get("record", "normal") or "normal"),
@@ -149,6 +156,10 @@ _GLYPHS = {
     "prev": "⏮", "next": "⏭", "back": "⏪", "fwd": "⏩",
     "open": "📂", "record": "⏺", "save": "💾", "trash": "🗑",
     "lock": "🔒", "quarter": "¼", "minus": "−", "plus": "+",
+    # F-mode is the letter itself: no mark says "scripted videos only", and the
+    # mode is called F everywhere else — on the Fun Time key that toggles it, in
+    # the subtitle above, and in what a speaker says out loud.
+    "fmode": "F",
 }
 
 # The waveform control draws a curve rather than a glyph: ∿ is a small mark low
@@ -244,6 +255,14 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
                    else "Unlocked — plays on through the playlist; press to hold "
                         "this video",
                    lit=model.locked),
+            # F-mode is per player now — Fun Time's dashboard used to carry one
+            # switch for the room and every player carries its own instead.  Here
+            # it narrows the playlist to the videos that have a funscript, so it
+            # sits with the browser: both change what there is to step through,
+            # rather than acting on the video on screen or on where it ends.
+            Button("primary_fmode", _GLYPHS["fmode"],
+                   "F-Mode — play only the videos that have a funscript",
+                   lit=model.f_mode),
             Button("browse_library", _GLYPHS["open"], "Browse the library"),
             # Recording a loop and saving what it caught are one job in two
             # presses, so they sit together and apart from the browser.  The
@@ -371,6 +390,10 @@ _CAPTURE_CONTROLS = frozenset({"nau_record_tap", "clipper_save"})
 # each move the video now.  Sharing their prefix, it would have joined their run
 # and read as a fifth step, which is the undifferentiated strip above.
 _HOLD_CONTROLS = frozenset({"primary_lock"})
+# Controls named for a player that belong with the file actions rather than with
+# that player's transport: F-mode changes what there is to step through, the way
+# the browser does, so it groups with the browser and not with prev/next.
+_LIBRARY_CONTROLS = frozenset({"primary_fmode"})
 
 
 def _family(action: str) -> str:
@@ -385,6 +408,8 @@ def _family(action: str) -> str:
         return "capture"
     if action in _HOLD_CONTROLS:
         return "hold"
+    if action in _LIBRARY_CONTROLS:
+        return "file"
     # Stepping the video and nudging inside it are one run of four marks, so they
     # are one family: prev, back ten, forward ten, next, evenly spaced.
     for prefix in ("primary", "nau_speed", "genau_"):
