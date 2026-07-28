@@ -43,7 +43,7 @@ class FunscriptJumps:
             self._notices.say("no funscripting ahead")
             return
         self._session.seek_to(target)
-        self._notices.say("funscript jump", level="notice")
+        self._notices.say("funscript jump", level="favorite")
 
     def next_funscripted(self) -> None:
         """Move to the next playlist entry that has a funscript, at its action.
@@ -68,7 +68,7 @@ class FunscriptJumps:
             # None means the action starts promptly, and the video already does.
             self._session.seek_to(onset)
         logger.info("Next funscripted: %s", video.name)
-        self._notices.say("next funscripted", level="notice")
+        self._notices.say("next funscripted", level="favorite")
 
     def _next_funscripted_entry(self):
         """``(index, video)`` of the next scripted entry, or None if we are it."""

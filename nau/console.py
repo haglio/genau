@@ -28,7 +28,6 @@ Rect = tuple[int, int, int, int]  # (x, y, w, h)
 BUTTON = 18   # a square control; the wider ones are multiples plus the gaps
 VALUE_W = 22  # a value read-out between a pair of buttons (the playback rate)
 PLAYBACK_LABEL_W = 66  # the words naming that pair
-BROKER_W = 40      # the word-button on the OSR2 line
 GAP = 4       # between buttons along a row
 ROW_GAP = 5   # between rows
 GROUP_GAP = 12  # between groups of buttons that mean different things
@@ -51,8 +50,10 @@ def shape_label(shape: str) -> str:
 class Button:
     """One item on the console: what it posts, what it looks like, how it is drawn.
 
-    ``lit``, ``warn`` and ``hold`` are the live states — green for on, red for a
-    suppression that is not the same as "off", blue for armed-but-sitting-still.
+    ``lit``, ``warn`` and ``hold`` are the live states — white for on, red for a
+    suppression or a live recording, blue for armed-but-sitting-still.  On is
+    white rather than green because across this family green means the favourites
+    and the funscripts; a mode being selected or cruise being armed is neither.
     ``dim`` is a control at the end of its range or with nothing to act on: drawn
     faded and left out of the hit targets, so a press that could do nothing is not
     offered.
@@ -88,6 +89,11 @@ class ConsoleModel:
     osr2: str = "off"
     # Whether the OSR2 broker service is up — its own concern, only the primary's.
     broker: bool = False
+    # Where Nau's loop machine is: normal / recording (the record key is down and
+    # the out point has not landed yet) / looping.  Nau publishes it in its status
+    # file and Fun Time forwards it, because the console is drawn in genau mode too
+    # — by a player that has no loop machine of its own to ask.
+    record: str = "normal"
     cruise: bool = False
     # The other hands-free switch: cruise varies the stroke, auto advance moves on
     # to the next clip.  A held clip is auto advance still armed but sitting still.
@@ -119,6 +125,7 @@ def read_console(path: Path) -> ConsoleModel | None:
         active=bool(raw.get("active", False)),
         osr2=str(raw.get("osr2", "off") or "off"),
         broker=bool(raw.get("broker", False)),
+        record=str(raw.get("record", "normal") or "normal"),
         cruise=bool(raw.get("cruise", False)),
         auto_advance=bool(raw.get("auto_advance", False)),
         clip_locked=bool(raw.get("clip_locked", False)),
@@ -142,6 +149,12 @@ _GLYPHS = {
 # centring.  The painter recognises this marker and draws a trace that fills the
 # button; nothing else on the console needs a bespoke icon.
 WAVE_ICON = "\x00wave"
+
+# The broker is the room's own service rather than any player's control, and it
+# had its own mark on the dashboard: the blocky pink "B" of ``broker_icon.ico``,
+# on blue while the service is up and red while it is down.  The painter knows
+# this marker the way it knows WAVE_ICON, so the console stays free of colours.
+BROKER_ICON = "\x00broker"
 
 _MODE_BUTTONS = (
     ("nau_activate", "Nau", "nau"),
@@ -215,8 +228,18 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
             Button("primary_next", _GLYPHS["next"], "Next video"),
             Button("browse_library", _GLYPHS["open"], "Browse the library"),
             # Recording a loop and saving what it caught are one job in two
-            # presses, so they sit together and apart from the browser.
-            Button("nau_record_tap", _GLYPHS["record"], "Record loop"),
+            # presses, so they sit together and apart from the browser.  The
+            # record button carries the loop machine: red while the out point is
+            # still being marked, blue once the loop is running — the two halves
+            # of the gesture look different, so a press that is still open cannot
+            # be mistaken for one that landed.
+            Button("nau_record_tap", _GLYPHS["record"],
+                   "Stop recording — mark the loop's out point"
+                   if model.record == "recording" else
+                   "Looping — press to drop the loop" if model.record == "looping"
+                   else "Record loop",
+                   warn=model.record == "recording",
+                   hold=model.record == "looping"),
             Button("clipper_save", _GLYPHS["save"], "Save clip"),
         ]
     return [
@@ -273,13 +296,14 @@ def osr2_row(model: ConsoleModel) -> list[Button]:
 
     The broker is the service that talks to the OSR2 at all, so it acts on the
     device rather than on a player and shares the device's line.  It was a
-    dashboard button before this HUD existed and was briefly only a light.
+    dashboard button before this HUD existed and wears its dashboard face again:
+    the pink "B", blue while the service is up and red while it is down.
     """
     return [
-        Button("broker_panel", "Broker",
+        Button("broker_panel", BROKER_ICON,
                "OSR2 broker is running — press to stop it" if model.broker
                else "OSR2 broker is not running — press to start it",
-               width=BROKER_W, lit=model.broker, warn=not model.broker),
+               lit=model.broker, warn=not model.broker),
     ]
 
 

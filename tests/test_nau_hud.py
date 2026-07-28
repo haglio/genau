@@ -149,6 +149,36 @@ class TestPainter:
         green = (rgb[:, :, 1] > 130) & (rgb[:, :, 0] < 110) & (rgb[:, :, 2] < 110)
         assert green.any()
 
+    def test_a_control_that_is_on_fills_white_rather_than_green(self):
+        """Green means the favourites and the funscripts everywhere in this
+        family — the OSR2 pill says FunScript in it, and that is the only thing on
+        the console entitled to it.  The mode you are in is not one of them."""
+        painter = ConsolePainter()
+        rgb = _rgb(painter.bgra(ConsoleHud(console=ConsoleModel(mode="hybrid"))))
+        (bx, by, bw, bh), _b = next(
+            (rect, b) for rect, b in painter.buttons if b.action == "hybrid_activate")
+        box = rgb[by:by + bh, bx:bx + bw].astype(int)
+
+        shades, counts = np.unique(box.reshape(-1, 3), axis=0, return_counts=True)
+        assert tuple(shades[counts.argmax()]) == (255, 255, 255)
+        green = (box[:, :, 1] > 130) & (box[:, :, 0] < 110) & (box[:, :, 2] < 110)
+        assert not green.any()
+
+    def test_the_broker_wears_the_face_it_had_on_the_dashboard(self):
+        """A pink "B" on blue while the service is up and red while it is down —
+        the broker acts on the room's own service rather than on a player, so it
+        does not take the on/off colours the controls beside it use."""
+        for broker, fill in ((True, (48, 128, 224)), (False, (255, 60, 60))):
+            painter = ConsolePainter()
+            rgb = _rgb(painter.bgra(
+                ConsoleHud(console=ConsoleModel(mode="nau", broker=broker))))
+            (bx, by, bw, bh), _b = next(
+                (rect, b) for rect, b in painter.buttons if b.action == "broker_panel")
+            box = rgb[by:by + bh, bx:bx + bw]
+
+            assert tuple(box[bh // 2, 2]) == fill
+            assert (box == np.array((200, 80, 160), dtype=box.dtype)).all(axis=2).any()
+
 
 class TestPresses:
     @staticmethod
