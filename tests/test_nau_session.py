@@ -20,6 +20,9 @@ class FakePlayer:
         self.duration_ms = duration_ms
         self.position_ms = 0.0
         self.eof = False
+        # Constructed looping the one file, the way Nau constructs its real
+        # player; a lock toggle is what moves it.
+        self.loop_file = True
         self.paused = False
         self.ab_loop: tuple[float, float] | None = None
         self.seeks: list[float] = []
@@ -34,6 +37,9 @@ class FakePlayer:
 
     def set_paused(self, paused: bool) -> None:
         self.paused = paused
+
+    def set_loop_file(self, loop: bool) -> None:
+        self.loop_file = loop
 
     def set_speed(self, speed: float) -> None:
         self.speeds.append(speed)
@@ -258,6 +264,93 @@ class TestLoopBounds:
         session.record_up()
 
         assert session.loop_bounds == (2000, 4000)
+
+
+class TestLock:
+    """Locked, the video repeats; unlocked, the playlist plays around."""
+
+    def test_a_session_opens_locked(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path)
+
+        assert session.locked is True
+        # Nothing is driven for it: the player is already constructed looping.
+        assert player.loop_file is True
+
+    def test_unlocking_hands_the_end_of_the_file_to_the_playlist(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path)
+
+        session.set_locked(False)
+
+        assert session.locked is False
+        assert player.loop_file is False
+
+    def test_toggle_flips_it_both_ways(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path)
+
+        session.toggle_lock()
+        assert (session.locked, player.loop_file) == (False, False)
+
+        session.toggle_lock()
+        assert (session.locked, player.loop_file) == (True, True)
+
+    def test_unlocked_end_of_file_steps_to_the_next_video(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path, entries=2)
+        session.set_locked(False)
+
+        player.eof = True
+        session.advance()
+
+        assert player.opened[-1] == tmp_path / "v1.mp4"
+        assert session.index == 1
+
+    def test_the_playlist_wraps_around_at_the_bottom(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path, entries=2)
+        session.set_locked(False)
+        session.step(1)
+
+        player.eof = True
+        session.advance()
+
+        assert player.opened[-1] == tmp_path / "v0.mp4"
+        assert session.index == 0
+
+    def test_a_stale_end_of_file_does_not_step_twice(self, tmp_path):
+        """mpv keeps reporting end-of-file for a tick or two after the step is
+        issued, because loadfile is asynchronous.  Reading that again would skip
+        the video that was just opened."""
+        session, player, _tcode = _make_session(tmp_path, entries=3)
+        session.set_locked(False)
+
+        player.eof = True
+        session.advance()
+        player.eof = True  # the real player has not caught up yet
+        session.advance()
+
+        assert session.index == 1
+        assert player.opened[-1] == tmp_path / "v1.mp4"
+
+    def test_the_next_end_of_file_steps_again(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path, entries=3)
+        session.set_locked(False)
+
+        player.eof = True
+        session.advance()
+        player.eof = False  # the new video is playing
+        session.advance()
+        player.eof = True
+        session.advance()
+
+        assert session.index == 2
+
+    def test_a_paused_session_never_steps_off_the_end(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path, entries=2)
+        session.set_locked(False)
+        session.set_paused(True)
+
+        player.eof = True
+        session.advance()
+
+        assert session.index == 0
 
 
 class TestNavigation:

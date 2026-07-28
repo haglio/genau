@@ -63,6 +63,13 @@ def apply_command(
         _record_tap(session)
     elif keyword == "LOOP_CANCEL":
         session.loop_cancel()
+    elif keyword == "TOGGLE_LOCK":
+        session.toggle_lock()
+    elif keyword in ("LOCK_ON", "LOCK_OFF"):
+        # Named absolutely as well as toggled, because the spoken forms are
+        # "primary lock" and "primary unlock": a speaker asks for the state they
+        # want, not for the other one.
+        session.set_locked(keyword == "LOCK_ON")
     elif keyword == "CYCLE_VERSION":
         session.cycle_version()
     elif keyword == "PLAY_FILE" and arg:

@@ -27,6 +27,12 @@ class SpySession:
     def loop_cancel(self) -> None:
         self.calls.append(("loop_cancel",))
 
+    def toggle_lock(self) -> None:
+        self.calls.append(("toggle_lock",))
+
+    def set_locked(self, locked: bool) -> None:
+        self.calls.append(("set_locked", locked))
+
     def cycle_version(self) -> None:
         self.calls.append(("cycle_version",))
 
@@ -157,6 +163,19 @@ class TestApplyCommand:
         apply_command("LOOP_CANCEL", session)
 
         assert session.calls == [("record_down",), ("record_up",), ("loop_cancel",)]
+
+    def test_lock_commands(self):
+        """The toggle for the key and the button; the absolute pair for the two
+        spoken forms, which name the state they want."""
+        session = SpySession()
+
+        apply_command("TOGGLE_LOCK", session)
+        apply_command("LOCK_ON", session)
+        apply_command("LOCK_OFF", session)
+
+        assert session.calls == [
+            ("toggle_lock",), ("set_locked", True), ("set_locked", False),
+        ]
 
     def test_record_tap_cycles_by_state(self):
         normal = SpySession(loop_state="normal")

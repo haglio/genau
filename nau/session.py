@@ -61,6 +61,11 @@ class PlayerSession:
         self._tcode = tcode
         self._version_index = version_index or {}
         self._paused = start_paused
+        # Locked is how the primary has always played: mpv repeats the one file
+        # (``loop_file=inf``, the option the player is constructed with) and `[`/`]`
+        # are the only things that move it.  Unlocking hands the end of the file
+        # back to the playlist — see :meth:`set_locked`.
+        self._locked = True
         self._tcode_enabled = True
         self._speed = 1.0
         self._volume = MAX_VOLUME
@@ -69,6 +74,7 @@ class PlayerSession:
         self._loop_ctrl: LoopController | None = None
         self._last_pos_ms = 0.0
         self._pending_seek_ms: float | None = None
+        self._stepped_at_eof = False
         self.load(0)
 
     @property
@@ -78,6 +84,31 @@ class PlayerSession:
     @property
     def is_paused(self) -> bool:
         return self._paused
+
+    @property
+    def locked(self) -> bool:
+        """Whether the video on screen repeats rather than ending.
+
+        On is the primary's original behavior and so the default: one video plays
+        until you ask for another.  Published in the status file, because the
+        console that draws the lock is drawn by whoever holds the primary slot —
+        which in genau mode is not this player.
+        """
+        return self._locked
+
+    def set_locked(self, locked: bool) -> None:
+        """Hold the current video (repeat-one) or hand its end back to the playlist.
+
+        Locked is mpv's own ``loop_file``, so a video repeats seamlessly in place
+        the way a locked satellite's clip does.  Unlocked, the file reaches its end
+        and :meth:`advance` steps to the next entry, wrapping at the bottom — the
+        playlist plays around rather than stopping.
+        """
+        self._locked = locked
+        self._player.set_loop_file(locked)
+
+    def toggle_lock(self) -> None:
+        self.set_locked(not self._locked)
 
     @property
     def has_funscript(self) -> bool:
@@ -367,9 +398,22 @@ class PlayerSession:
                 # position rather than leave it wherever the last video left it.
                 self._tcode.park()
 
-        if self._player.eof and (
+        # The end of the file, with nothing holding it: step to the next entry,
+        # wrapping at the bottom so the playlist plays around.  Only ever reached
+        # unlocked — a lock is mpv's own loop-file, which restarts the file rather
+        # than ending it — and never mid-loop, where the A/B range owns the end.
+        #
+        # The latch is because loadfile is asynchronous: mpv goes on reporting
+        # end-of-file for a tick or two after the step is issued, and reading that
+        # again would step past a whole video before the new one had opened.  It
+        # clears on the first tick the player is playing again, so a short video
+        # ending immediately still steps off.
+        if not self._player.eof:
+            self._stepped_at_eof = False
+        elif not self._stepped_at_eof and (
             self._loop_ctrl is None or self._loop_ctrl.state == LoopState.NORMAL
         ):
+            self._stepped_at_eof = True
             self.load(self._index + 1)
 
     def close(self) -> None:
