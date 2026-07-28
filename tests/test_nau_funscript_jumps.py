@@ -77,7 +77,7 @@ class TestJumpToFunscript:
 
         assert session.seeks == [40000]
         # "favorite", not "notice": Fun Time flashes that level green, which is
-        # what it reserves for the favourites and the funscripts.
+        # what it reserves for the favorites and the funscripts.
         assert notices.said == [("funscript jump", "favorite")]
 
     def test_the_quiet_lead_in_counts_as_a_lull(self, tmp_path):

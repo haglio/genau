@@ -62,7 +62,7 @@ class TestOsr2Row:
     def test_the_broker_asks_for_its_own_icon_rather_than_the_word(self):
         """It is the room's own service, not one of the players' controls, and it
         had a mark of its own on the dashboard: the painter draws that rather than
-        giving it the on/off colours everything else here takes."""
+        giving it the on/off colors everything else here takes."""
         broker = _osr2_button(ConsoleModel(), "broker_panel")
 
         assert broker.glyph == BROKER_ICON

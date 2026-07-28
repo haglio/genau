@@ -52,7 +52,7 @@ class Button:
 
     ``lit``, ``warn`` and ``hold`` are the live states — white for on, red for a
     suppression or a live recording, blue for armed-but-sitting-still.  On is
-    white rather than green because across this family green means the favourites
+    white rather than green because across this family green means the favorites
     and the funscripts; a mode being selected or cruise being armed is neither.
     ``dim`` is a control at the end of its range or with nothing to act on: drawn
     faded and left out of the hit targets, so a press that could do nothing is not
@@ -153,7 +153,7 @@ WAVE_ICON = "\x00wave"
 # The broker is the room's own service rather than any player's control, and it
 # had its own mark on the dashboard: the blocky pink "B" of ``broker_icon.ico``,
 # on blue while the service is up and red while it is down.  The painter knows
-# this marker the way it knows WAVE_ICON, so the console stays free of colours.
+# this marker the way it knows WAVE_ICON, so the console stays free of colors.
 BROKER_ICON = "\x00broker"
 
 _MODE_BUTTONS = (
