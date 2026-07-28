@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from nau.console import (
+    BROKER_ICON,
     BUTTON,
     ConsoleModel,
     console_rows,
@@ -57,6 +58,15 @@ class TestOsr2Row:
         """The takeover switch shared it until its one trigger — the OSR2's own
         free mode — turned out to be unreachable from here."""
         assert [b.action for b in osr2_row(ConsoleModel())] == ["broker_panel"]
+
+    def test_the_broker_asks_for_its_own_icon_rather_than_the_word(self):
+        """It is the room's own service, not one of the players' controls, and it
+        had a mark of its own on the dashboard: the painter draws that rather than
+        giving it the on/off colours everything else here takes."""
+        broker = _osr2_button(ConsoleModel(), "broker_panel")
+
+        assert broker.glyph == BROKER_ICON
+        assert broker.width == BUTTON
 
 
 class TestTransport:
@@ -168,6 +178,24 @@ class TestState:
         assert armed.lit is True and armed.hold is False
         assert held.hold is True and held.lit is False
 
+    def test_the_record_button_tells_marking_from_looping(self):
+        """One key does both halves, and they look identical otherwise: the mark
+        is still open in one and the loop is running in the other.  Red while it
+        is being recorded, blue once it repeats."""
+        idle = _button(ConsoleModel(mode="nau"), "nau_record_tap")
+        marking = _button(ConsoleModel(mode="nau", record="recording"), "nau_record_tap")
+        looping = _button(ConsoleModel(mode="nau", record="looping"), "nau_record_tap")
+
+        assert (idle.warn, idle.hold) == (False, False)
+        assert (marking.warn, marking.hold) == (True, False)
+        assert (looping.warn, looping.hold) == (False, True)
+
+    def test_the_record_button_says_which_press_comes_next(self):
+        for record, wanted in (("normal", "Record"), ("recording", "out point"),
+                               ("looping", "drop the loop")):
+            button = _button(ConsoleModel(mode="nau", record=record), "nau_record_tap")
+            assert wanted in button.tooltip
+
 
 class TestModePredicates:
     def test_nau_displays_covers_nau_and_hybrid(self):
@@ -185,7 +213,7 @@ class TestReadConsole:
         path = tmp_path / "nau_console.json"
         path.write_text(json.dumps({
             "mode": "hybrid", "active": True, "osr2": "genau", "broker": True,
-            "cruise": True, "auto_advance": True,
+            "record": "looping", "cruise": True, "auto_advance": True,
             "clip_locked": True, "shape": "sawtooth",
         }), encoding="utf-8")
 
@@ -195,6 +223,7 @@ class TestReadConsole:
         assert model.active is True
         assert model.osr2 == "genau"
         assert model.broker is True
+        assert model.record == "looping"
         assert (model.cruise, model.auto_advance, model.clip_locked) == (True, True, True)
         assert model.shape == "sawtooth"
 

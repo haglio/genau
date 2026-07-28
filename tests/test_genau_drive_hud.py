@@ -104,6 +104,19 @@ class TestReadout:
 
         assert blue(_hud(amplitude=90, waveform=())) > blue(_hud(amplitude=20, waveform=()))
 
+    def test_the_speed_bar_runs_in_the_stroke_s_own_blue(self):
+        """The trace, the amplitude bar and this are all one thing — the stroke
+        Genau is sending — so they are one colour.  It was green, which across
+        these HUDs means the favourites and the funscripts."""
+        hud = _hud(speed=100, waveform=())
+        rgb = _rendered(hud).astype(int)[:, :, :3]
+        rects = {c.action: c.rect for c in controls(PAD, PAD, hud)}
+        down_x, down_y, down_w, down_h = rects["genau_speed_down"]
+        up_x = rects["genau_speed_up"][0]
+        bar = rgb[down_y + down_h // 2, down_x + down_w + 4:up_x - 4]
+
+        assert ((bar[:, 2] > 150) & (bar[:, 0] < 120)).all()
+
 
 class TestPublishing:
     """In Hybrid the readout is drawn by Nau, so Genau says it instead of drawing it."""

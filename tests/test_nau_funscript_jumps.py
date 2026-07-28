@@ -76,7 +76,9 @@ class TestJumpToFunscript:
         jumps.jump_to_funscript()
 
         assert session.seeks == [40000]
-        assert notices.said == [("funscript jump", "notice")]
+        # "favorite", not "notice": Fun Time flashes that level green, which is
+        # what it reserves for the favourites and the funscripts.
+        assert notices.said == [("funscript jump", "favorite")]
 
     def test_the_quiet_lead_in_counts_as_a_lull(self, tmp_path):
         video, script = _scripted(tmp_path, "alpha")
@@ -135,7 +137,7 @@ class TestNextFunscripted:
         jumps.next_funscripted()
 
         assert session.loads == [2]
-        assert notices.said == [("next funscripted", "notice")]
+        assert notices.said == [("next funscripted", "favorite")]
 
     def test_lands_where_the_new_video_s_action_begins(self, tmp_path):
         video0 = tmp_path / "alpha.mp4"
