@@ -165,19 +165,63 @@ class TestPainter:
         assert not green.any()
 
     def test_the_broker_wears_the_face_it_had_on_the_dashboard(self):
-        """A pink "B" on blue while the service is up and red while it is down —
-        the broker acts on the room's own service rather than on a player, so it
-        does not take the on/off colors the controls beside it use."""
+        """Its own pink mark on blue while the service is up and red while it is
+        down — the broker acts on the room's own service rather than on a player,
+        so it does not take the on/off colors the controls beside it use."""
         for broker, fill in ((True, (48, 128, 224)), (False, (255, 60, 60))):
-            painter = ConsolePainter()
-            rgb = _rgb(painter.bgra(
-                ConsoleHud(console=ConsoleModel(mode="nau", broker=broker))))
-            (bx, by, bw, bh), _b = next(
-                (rect, b) for rect, b in painter.buttons if b.action == "broker_panel")
-            box = rgb[by:by + bh, bx:bx + bw]
+            box = self._broker_box(broker)
 
-            assert tuple(box[bh // 2, 2]) == fill
+            assert tuple(box[box.shape[0] // 2, 2]) == fill
             assert (box == np.array((200, 80, 160), dtype=box.dtype)).all(axis=2).any()
+
+    def test_the_brokers_mark_is_its_icon_and_not_a_typed_letter(self):
+        """`broker_icon.ico` is a five-by-five "B" — a rectangle with two counters
+        — and a letter set in the body face is a thin thing beside it.  What has to
+        hold is the shape: three solid pink rows with two hollow ones between."""
+        box = self._broker_box(True)
+        pink = (box == np.array((200, 80, 160), dtype=box.dtype)).all(axis=2)
+        rows = [int(row.sum()) for row in pink if row.any()]
+        solid = max(rows)
+
+        # Five bands: solid, hollow, solid, hollow, solid — the hollow ones keep
+        # only their two end cells, so they carry well under half a solid row.
+        assert sorted(set(rows)) == [solid * 2 // 5, solid]
+        assert rows.count(solid) == rows.count(solid * 2 // 5) * 3 // 2
+
+    @staticmethod
+    def _broker_box(broker: bool) -> np.ndarray:
+        painter = ConsolePainter()
+        rgb = _rgb(painter.bgra(
+            ConsoleHud(console=ConsoleModel(mode="nau", broker=broker))))
+        (bx, by, bw, bh), _b = next(
+            (rect, b) for rect, b in painter.buttons if b.action == "broker_panel")
+        return rgb[by:by + bh, bx:bx + bw]
+
+    def test_f_mode_is_the_one_lit_control_that_stays_green(self):
+        """It narrows the playlist to the videos that have a funscript, and green
+        is what the funscripts and the favorites own."""
+        painter = ConsolePainter()
+        rgb = _rgb(painter.bgra(ConsoleHud(console=ConsoleModel(mode="nau", f_mode=True))))
+        (bx, by, bw, bh), _b = next(
+            (rect, b) for rect, b in painter.buttons if b.action == "primary_fmode")
+        box = rgb[by:by + bh, bx:bx + bw].astype(int)
+
+        shades, counts = np.unique(box.reshape(-1, 3), axis=0, return_counts=True)
+        assert tuple(shades[counts.argmax()]) == (48, 160, 48)
+
+    def test_a_lit_marks_ink_stays_white_over_a_colored_fill(self):
+        """The Dash's mic keeps its white glyph while the panel under it goes
+        blue.  A record button whose circle went dark while it recorded read as a
+        different button rather than as the same one recording."""
+        painter = ConsolePainter()
+        rgb = _rgb(painter.bgra(
+            ConsoleHud(console=ConsoleModel(mode="nau", record="recording"))))
+        (bx, by, bw, bh), _b = next(
+            (rect, b) for rect, b in painter.buttons if b.action == "nau_record_tap")
+        box = rgb[by:by + bh, bx:bx + bw].astype(int)
+
+        assert tuple(box[bh // 2, 2]) == (255, 60, 60)   # the fill went red …
+        assert (box > 240).all(axis=2).any()             # … and the circle did not
 
 
 class TestPresses:
