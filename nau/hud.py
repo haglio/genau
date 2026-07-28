@@ -43,6 +43,7 @@ from player_core.hud_panel import (
     WHITE,
     HudPanel,
     draw_glyph,
+    draw_icon,
     load_font,
     text_width,
     to_bgra,
@@ -51,6 +52,7 @@ from player_core.hud_panel import (
 from .console import (
     BROKER_ICON,
     BUTTON,
+    FMODE_ICON,
     GAP,
     WAVE_ICON,
     Button,
@@ -80,9 +82,11 @@ F_MODE_LABEL = "F-Mode"
 
 _SEPARATOR = " · "
 
-# The broker's mark, cell by cell: the "B" of ``broker_icon.ico``, which like
-# every icon in this family is a pink letter laid out on a five-by-five grid.
-_BROKER_GRID = ("#####", "#...#", "#####", "#...#", "#####")
+# The two controls that wear an app mark rather than a glyph, and which mark:
+# the broker's "B" and F-mode's "F", each the pink five-by-five letter its .ico
+# carries (:data:`player_core.hud_panel.ICON_GRIDS`).  Keyed by the marker the
+# console puts on the button, the way the waveform's is.
+_APP_MARKS = {BROKER_ICON: "B", FMODE_ICON: "F"}
 
 # A compilation is titled for a shelf: "various - Ultimate Example Studio Alpha
 # Collection - Volume 6 (v1)".  Everything up to the last dash is the series and
@@ -402,9 +406,10 @@ class ConsolePainter:
         On is white, except where green applies: green across this family is kept
         for the favorites and the funscripts, so F-mode — which narrows the
         playlist to what has a funscript — lights green and a mode, cruise or auto
-        advance does not.  The broker keeps the face it wore on the dashboard
-        instead, its own pink mark on blue or red, because it is the room's own
-        service and not one of these controls at all.
+        advance does not.  Two controls wear an app mark instead of a glyph and
+        keep its pink whatever the button is doing: F-mode's "F", and the broker's
+        "B" on blue or red, the face it wore on the dashboard — the broker being
+        the room's own service and not one of these controls at all.
 
         A read-out — an item with nothing to post — is bare text with no box, in
         the readout's own key/value colors: a muted word names the value beside
@@ -431,8 +436,8 @@ class ConsolePainter:
         # recorded read as a different button, not as the same one recording.
         ink = (BG_PRIMARY if fill == WHITE else WHITE if fill
                else TEXT_MUTED if button.dim else TEXT_PRIMARY)
-        if broker:
-            self._broker_mark(draw, rect)
+        if button.glyph in _APP_MARKS:
+            draw_icon(draw, rect, _APP_MARKS[button.glyph])
         elif button.glyph == WAVE_ICON:
             self._wave_icon(draw, rect, ink)
         elif len(button.glyph) == 1 and not button.glyph.isalnum():
@@ -442,28 +447,6 @@ class ConsolePainter:
         else:
             draw.text((x + w / 2, y + h / 2), button.glyph, font=self._tiny,
                       anchor="mm", fill=(*ink, 255))
-
-    @staticmethod
-    def _broker_mark(draw, rect: Rect) -> None:
-        """The broker's own icon, drawn to fill its button.
-
-        Every mark in this family is a pink letter on a 5x5 grid — the "B" of
-        ``broker_icon.ico`` is a rectangle with two counters — and the counters
-        are left unpainted so the button's blue or red shows through them,
-        exactly as the file's transparent cells let the dashboard panel through.
-        Drawn rather than loaded: the .ico lives in Fun Time's repo, which this
-        one may not reach into, and a typed "B" is a thin letterform next to the
-        chunky mark the icon actually is.
-        """
-        x, y, w, h = rect
-        cell = max(1, min(w, h) // 7)
-        left, top = x + (w - 5 * cell) / 2, y + (h - 5 * cell) / 2
-        for row, line in enumerate(_BROKER_GRID):
-            for column, painted in enumerate(line):
-                if painted != "#":
-                    continue
-                cx, cy = left + column * cell, top + row * cell
-                draw.rectangle([cx, cy, cx + cell - 1, cy + cell - 1], fill=(*PINK, 255))
 
     @staticmethod
     def _wave_icon(draw, rect: Rect, ink) -> None:

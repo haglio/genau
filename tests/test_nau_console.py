@@ -224,8 +224,18 @@ class TestState:
         for model in (armed, held):
             advance = _button(model, "genau_toggle_auto_advance")
             assert advance.lit is True and advance.hold is False
-        assert _button(armed, "genau_toggle_clip_lock").hold is False
-        assert _button(held, "genau_toggle_clip_lock").hold is True
+        assert _button(armed, "genau_toggle_clip_lock").lit is False
+        assert _button(held, "genau_toggle_clip_lock").lit is True
+
+    def test_nothing_but_the_recording_and_its_loop_takes_a_color_of_its_own(self):
+        """Every switch here lights in the same white; red and blue are left to the
+        two halves of a recording, which is the one control that has to say which
+        of two things it is doing."""
+        model = ConsoleModel(mode="genau", cruise=True, auto_advance=True, clip_locked=True)
+        colored = [b.action for row in console_rows(model) for b in row
+                   if b.warn or b.hold]
+
+        assert colored == []
 
     def test_f_mode_keeps_the_green_the_other_switches_gave_up(self):
         """It narrows the playlist to what has a funscript, and green means the
