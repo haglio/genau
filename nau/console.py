@@ -389,14 +389,14 @@ _GENAU_CONTROLS = frozenset({"quarter_button"})
 # Recording a loop and saving what it caught: one job, two presses, and neither
 # of them the library browser they used to be spaced alongside.
 _CAPTURE_CONTROLS = frozenset({"nau_record_tap", "clipper_save"})
-# The lock says what the *end* of the video does, where the four marks beside it
-# each move the video now.  Sharing their prefix, it would have joined their run
-# and read as a fifth step, which is the undifferentiated strip above.
-_HOLD_CONTROLS = frozenset({"primary_lock"})
-# Controls named for a player that belong with the file actions rather than with
-# that player's transport: F-mode changes what there is to step through, the way
-# the browser does, so it groups with the browser and not with prev/next.
-_LIBRARY_CONTROLS = frozenset({"primary_fmode"})
+# The two switches: the lock holds this video against the end of it, F-mode
+# narrows what there is to play at all.  Both are states the player sits *in*,
+# where everything around them does its thing once and is over — the four marks
+# step the video, the browser and the capture pair act on files — so the pair
+# groups together and apart from both.  The lock also shares the transport's
+# command prefix, and without this would have joined its run and read as a fifth
+# step, which is the undifferentiated strip that opened these groups up.
+_SWITCH_CONTROLS = frozenset({"primary_lock", "primary_fmode"})
 
 
 def _family(action: str) -> str:
@@ -409,10 +409,8 @@ def _family(action: str) -> str:
         return "genau_"
     if action in _CAPTURE_CONTROLS:
         return "capture"
-    if action in _HOLD_CONTROLS:
-        return "hold"
-    if action in _LIBRARY_CONTROLS:
-        return "file"
+    if action in _SWITCH_CONTROLS:
+        return "switch"
     # Stepping the video and nudging inside it are one run of four marks, so they
     # are one family: prev, back ten, forward ten, next, evenly spaced.
     for prefix in ("primary", "nau_speed", "genau_"):
