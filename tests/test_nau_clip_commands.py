@@ -25,7 +25,21 @@ def test_play_clip_jump_invokes_callback():
     assert calls == ["m"]
 
 
+def test_jump_to_funscript_invokes_callback():
+    calls: list[str] = []
+    assert apply_command("JUMP_TO_FUNSCRIPT", _Spy(), jump_to_funscript=lambda: calls.append("j"))
+    assert calls == ["j"]
+
+
+def test_next_funscripted_invokes_callback():
+    calls: list[str] = []
+    assert apply_command("NEXT_FUNSCRIPTED", _Spy(), next_funscripted=lambda: calls.append("n"))
+    assert calls == ["n"]
+
+
 def test_clip_commands_without_callbacks_return_false():
     assert apply_command("PLAY_COMPILATION", _Spy()) is False
     assert apply_command("PLAY_FULL_VID", _Spy()) is False
     assert apply_command("PLAY_CLIP_JUMP", _Spy()) is False
+    assert apply_command("JUMP_TO_FUNSCRIPT", _Spy()) is False
+    assert apply_command("NEXT_FUNSCRIPTED", _Spy()) is False

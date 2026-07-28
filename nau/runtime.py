@@ -26,6 +26,8 @@ def apply_command(
     play_compilation=None,
     play_full_vid=None,
     play_clip_jump=None,
+    jump_to_funscript=None,
+    next_funscripted=None,
     end_compilation=None,
     set_f_mode=None,
     set_volume_hud=None,
@@ -93,6 +95,16 @@ def apply_command(
         if play_clip_jump is None:
             return False
         play_clip_jump()
+    elif keyword == "JUMP_TO_FUNSCRIPT":
+        # Past the quiet stretch, to where this video's scripting starts again.
+        if jump_to_funscript is None:
+            return False
+        jump_to_funscript()
+    elif keyword == "NEXT_FUNSCRIPTED":
+        # Give up on this video for the next scripted one, at its action.
+        if next_funscripted is None:
+            return False
+        next_funscripted()
     elif keyword == "END_COMPILATION":
         # Out of a compilation without naming a length: back to the mode that was
         # feeding the playlist when it was entered.

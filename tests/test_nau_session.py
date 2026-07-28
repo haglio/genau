@@ -313,6 +313,70 @@ class TestNavigation:
         assert player.position_ms == 5_000
 
 
+class TestSeekOverAFileOpen:
+    """mpv opens a file asynchronously, so for a tick or two after a load it
+    reports no duration.  A seek issued in the same breath as the load — landing
+    on where a new video's scripting begins — has to survive that, or the ceiling
+    would read the missing duration as "zero long" and put it back at the top."""
+
+    def test_a_seek_before_the_duration_is_known_is_not_clamped_to_zero(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path)
+        player.duration_ms = 0.0
+
+        session.seek_to(60_000)
+
+        assert player.seeks == []
+
+    def test_it_lands_on_the_first_tick_the_duration_is_known(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path)
+        player.duration_ms = 0.0
+        session.seek_to(60_000)
+
+        session.advance()
+        assert player.seeks == []  # still opening
+
+        player.duration_ms = 90_000.0
+        session.advance()
+        assert player.seeks == [60_000]
+
+    def test_it_lands_even_while_paused(self, tmp_path):
+        # The room can be frozen (omnipause, or genau mode) while the file opens,
+        # and a held seek that waited it out would leave the wrong frame up for
+        # as long as the pause lasted.
+        session, player, _tcode = _make_session(tmp_path, start_paused=True)
+        player.duration_ms = 0.0
+        session.seek_to(60_000)
+        player.duration_ms = 90_000.0
+
+        session.advance()
+
+        assert player.seeks == [60_000]
+
+    def test_only_once(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path)
+        player.duration_ms = 0.0
+        session.seek_to(60_000)
+        player.duration_ms = 90_000.0
+
+        session.advance()
+        session.advance()
+
+        assert player.seeks == [60_000]
+
+    def test_navigating_away_drops_a_seek_the_old_file_never_took(self, tmp_path):
+        # The held seek was a position in the outgoing video; carrying it onto
+        # whatever replaced it would drop the new one in an arbitrary spot.
+        session, player, _tcode = _make_session(tmp_path, entries=2)
+        player.duration_ms = 0.0
+        session.seek_to(60_000)
+
+        session.step(1)
+        player.duration_ms = 90_000.0
+        session.advance()
+
+        assert player.seeks == []
+
+
 class TestPause:
     def test_set_paused_tells_player(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
