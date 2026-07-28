@@ -67,7 +67,7 @@ class TestTransport:
         for mode in ("nau", "hybrid"):
             actions = _actions(ConsoleModel(mode=mode))
             for action in ("primary_prev", "primary_next", "primary_nudge_prev",
-                           "primary_nudge_next", "open_file_dialog", "clipper_save",
+                           "primary_nudge_next", "browse_library", "clipper_save",
                            "nau_record_tap"):
                 assert action in actions, (mode, action)
 
@@ -87,7 +87,7 @@ class TestTransport:
         """Nudge, open, clip and record act on a video; Genau's clips are not one."""
         actions = _actions(ConsoleModel(mode="genau"))
 
-        for action in ("primary_nudge_prev", "open_file_dialog", "clipper_save",
+        for action in ("primary_nudge_prev", "browse_library", "clipper_save",
                        "nau_record_tap"):
             assert action not in actions
 

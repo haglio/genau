@@ -200,9 +200,10 @@ def console_rows(model: ConsoleModel) -> list[list[Button]]:
 def _transport_row(model: ConsoleModel) -> list[Button]:
     """Stepping and the actions on what is on screen.
 
-    In nau/hybrid that is Nau's video — step it, nudge inside it, open a file,
-    save a clip, record a loop.  In genau it is Genau's own clips — step them and
-    mark one weird; nudge/open/clip/record have no video to act on.
+    In nau/hybrid that is Nau's video — step it, nudge inside it, browse for
+    another, save a clip, record a loop.  In genau it is Genau's own clips —
+    step them and mark one weird; nudge/browse/clip/record have no video to
+    act on.
     """
     if nau_displays(model.mode):
         return [
@@ -212,9 +213,9 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
             Button("primary_nudge_prev", _GLYPHS["back"], "Back 10s"),
             Button("primary_nudge_next", _GLYPHS["fwd"], "Forward 10s"),
             Button("primary_next", _GLYPHS["next"], "Next video"),
-            Button("open_file_dialog", _GLYPHS["open"], "Open file browser"),
+            Button("browse_library", _GLYPHS["open"], "Browse the library"),
             # Recording a loop and saving what it caught are one job in two
-            # presses, so they sit together and apart from the file browser.
+            # presses, so they sit together and apart from the browser.
             Button("nau_record_tap", _GLYPHS["record"], "Record loop"),
             Button("clipper_save", _GLYPHS["save"], "Save clip"),
         ]
@@ -322,7 +323,7 @@ def _group_break(row: list[Button], index: int) -> bool:
 # ¼ offset fell out of the group it belongs to and opened a gap mid-row.
 _GENAU_CONTROLS = frozenset({"quarter_button"})
 # Recording a loop and saving what it caught: one job, two presses, and neither
-# of them the file browser they used to be spaced alongside.
+# of them the library browser they used to be spaced alongside.
 _CAPTURE_CONTROLS = frozenset({"nau_record_tap", "clipper_save"})
 
 
