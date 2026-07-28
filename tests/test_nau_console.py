@@ -115,7 +115,7 @@ class TestTransport:
         actions = _actions(ConsoleModel(mode="genau"))
 
         for action in ("primary_nudge_prev", "browse_library", "clipper_save",
-                       "nau_record_tap", "primary_lock", "primary_fmode"):
+                       "nau_record_tap", "primary_fmode"):
             assert action not in actions
 
 
@@ -173,6 +173,30 @@ class TestPlaybackSpeed:
         assert "1.5×" in readouts
 
 
+class TestClipSeconds:
+    """How long an unlocked Genau leaves each clip up — the only thing left of
+    what used to be the auto-advance switch."""
+
+    def test_the_pace_has_arrows_where_genau_is_on_screen(self):
+        actions = _actions(ConsoleModel(mode="genau"))
+        assert "genau_advance_down" in actions and "genau_advance_up" in actions
+
+    def test_nau_and_hybrid_show_the_video_rate_instead(self):
+        """The row is about what the transport is stepping, and in those modes
+        that is Nau's video, which has a playback rate rather than a pace."""
+        for mode in ("nau", "hybrid"):
+            actions = _actions(ConsoleModel(mode=mode))
+            assert "genau_advance_down" not in actions
+            assert "nau_speed_down" in actions
+
+    def test_the_seconds_are_shown_as_a_read_out_between_the_arrows(self):
+        rows = console_rows(ConsoleModel(mode="genau", advance_interval=7))
+        readouts = [b.glyph for row in rows for b in row if not b.action]
+
+        assert "7s" in readouts
+        assert "Clip seconds" in readouts
+
+
 class TestDriveControls:
     """The amplitude/centre/speed arrows moved onto the readout, so they are not
     console buttons any more; the hands-free switches still are."""
@@ -180,26 +204,17 @@ class TestDriveControls:
     def test_the_switch_row_is_there_while_genau_drives(self):
         for mode in ("hybrid", "genau"):
             actions = _actions(ConsoleModel(mode=mode))
-            for action in ("genau_toggle_cruise", "genau_toggle_auto_advance",
-                           "genau_toggle_clip_lock", "genau_cycle_shape", "quarter_button"):
+            for action in ("genau_toggle_cruise", "genau_cycle_shape", "quarter_button"):
                 assert action in actions, (mode, action)
 
-    def test_holding_a_clip_is_offered_only_inside_auto_advance(self):
-        """The hold exists only within auto advance, so outside it the control is
-        faded and answers no press rather than posting a command that does
-        nothing."""
-        off = _button(ConsoleModel(mode="genau"), "genau_toggle_clip_lock")
-        armed = _button(ConsoleModel(mode="genau", auto_advance=True), "genau_toggle_clip_lock")
+    def test_auto_advance_is_no_longer_a_switch_of_its_own(self):
+        """Arming it and holding a clip against it were two controls that could
+        disagree, and the padlock beside them was a second lock on a console that
+        already had Nau's.  What is left is the pace, on its own row."""
+        actions = _actions(ConsoleModel(mode="genau"))
 
-        assert off.dim is True
-        assert armed.dim is False
-
-    def test_auto_advance_wears_the_pace_it_is_set_to(self):
-        """A bare arming jitters a default with no single number, so it stays plain."""
-        assert _button(ConsoleModel(mode="genau", advance_interval=5),
-                       "genau_toggle_auto_advance").glyph == "aa 5s"
-        assert _button(ConsoleModel(mode="genau"),
-                       "genau_toggle_auto_advance").glyph == "aa"
+        assert "genau_toggle_auto_advance" not in actions
+        assert "genau_toggle_clip_lock" not in actions
 
     def test_the_axis_arrows_are_not_console_buttons(self):
         """They belong to the readout now, drawn on the bars themselves."""
@@ -214,6 +229,30 @@ class TestDriveControls:
         assert not any(a.startswith("genau_") and a != "genau_activate" for a in actions)
 
 
+class TestLockAcrossModes:
+    """One padlock on the console, whichever player is showing: it holds Nau's
+    video in nau and hybrid, and Genau's clip in genau."""
+
+    def test_every_mode_offers_exactly_one_padlock(self):
+        for mode in ("nau", "hybrid", "genau"):
+            actions = _actions(ConsoleModel(mode=mode))
+            assert actions.count("primary_lock") == 1, mode
+
+    def test_it_is_lit_while_whatever_is_showing_is_held(self):
+        for mode in ("nau", "hybrid", "genau"):
+            assert _button(ConsoleModel(mode=mode, locked=True), "primary_lock").lit is True
+            assert _button(ConsoleModel(mode=mode, locked=False), "primary_lock").lit is False
+
+    def test_in_genau_it_says_what_the_clip_does_and_how_fast(self):
+        held = _button(ConsoleModel(mode="genau", locked=True, advance_interval=7),
+                       "primary_lock")
+        loose = _button(ConsoleModel(mode="genau", locked=False, advance_interval=7),
+                        "primary_lock")
+
+        assert held.tooltip.startswith("Locked") and "every 7s" in held.tooltip
+        assert loose.tooltip.startswith("Unlocked") and "every 7s" in loose.tooltip
+
+
 class TestState:
     def test_the_mode_you_are_in_is_lit_and_the_others_are_not(self):
         model = ConsoleModel(mode="hybrid")
@@ -221,24 +260,11 @@ class TestState:
         assert _button(model, "hybrid_activate").lit is True
         assert _button(model, "nau_activate").lit is False
 
-    def test_a_held_clip_shows_on_the_padlock_and_not_on_the_arming(self):
-        """Auto advance is armed either way — the hold is the padlock's own state,
-        right beside it.  Saying it on both cost the arming a second color for
-        something that is not about it."""
-        armed = ConsoleModel(mode="genau", auto_advance=True)
-        held = ConsoleModel(mode="genau", auto_advance=True, clip_locked=True)
-
-        for model in (armed, held):
-            advance = _button(model, "genau_toggle_auto_advance")
-            assert advance.lit is True and advance.hold is False
-        assert _button(armed, "genau_toggle_clip_lock").lit is False
-        assert _button(held, "genau_toggle_clip_lock").lit is True
-
     def test_nothing_but_the_recording_and_its_loop_takes_a_color_of_its_own(self):
         """Every switch here lights in the same white; red and blue are left to the
         two halves of a recording, which is the one control that has to say which
         of two things it is doing."""
-        model = ConsoleModel(mode="genau", cruise=True, auto_advance=True, clip_locked=True)
+        model = ConsoleModel(mode="genau", cruise=True, locked=True)
         colored = [b.action for row in console_rows(model) for b in row
                    if b.warn or b.hold]
 
@@ -287,7 +313,7 @@ class TestReadConsole:
         path.write_text(json.dumps({
             "mode": "hybrid", "active": True, "f_mode": True, "osr2": "genau",
             "broker": True, "record": "looping", "locked": False, "cruise": True,
-            "auto_advance": True, "clip_locked": True, "shape": "sawtooth",
+            "shape": "sawtooth",
         }), encoding="utf-8")
 
         model = read_console(path)
@@ -299,12 +325,12 @@ class TestReadConsole:
         assert model.broker is True
         assert model.record == "looping"
         assert model.locked is False
-        assert (model.cruise, model.auto_advance, model.clip_locked) == (True, True, True)
+        assert model.cruise is True
         assert model.shape == "sawtooth"
 
     def test_a_panel_that_says_nothing_about_the_lock_reads_as_locked(self, tmp_path: Path):
-        """Which is what the primary has always done, and what a Nau too old to
-        publish the flag is still doing."""
+        """Which is where both players open, and what a Fun Time too old to
+        publish the flag is still describing."""
         import json
         path = tmp_path / "nau_console.json"
         path.write_text(json.dumps({"mode": "nau"}), encoding="utf-8")

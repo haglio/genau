@@ -18,9 +18,9 @@ def _snap_to_5(value: float) -> int:
 class CruiseControlState:
     """Hands-free variation of the stroke itself — never of which clip plays.
 
-    Moving on to another clip is :mod:`genau.auto_advance`'s job, and the two
-    are armed separately: a session can vary the stroke on one clip, or hold
-    the stroke steady while the clips change, or both.
+    Moving on to another clip is :mod:`genau.clip_advance`'s job, and the two are
+    independent: a session can vary the stroke on one held clip, or hold the
+    stroke steady while the clips change, or both.
     """
 
     active: bool = False

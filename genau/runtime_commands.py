@@ -15,11 +15,11 @@ from .cruise_control import (
     enable_cruise_control,
     toggle_cruise_control,
 )
-from .auto_advance import (
-    disable_auto_advance,
-    enable_auto_advance,
-    toggle_auto_advance,
-    toggle_clip_lock,
+from .clip_advance import (
+    adjust_interval,
+    set_interval,
+    set_locked,
+    toggle_lock,
 )
 
 
@@ -36,7 +36,7 @@ def apply_runtime_command(
     discard_clip=None,
     direct_state=None,
     cruise_control_state=None,
-    auto_advance_state=None,
+    clip_advance_state=None,
     stop_event=None,
     hud_state=None,
     display_state=None,
@@ -88,14 +88,18 @@ def apply_runtime_command(
         enable_cruise_control(cruise_control_state)
     elif normalized == "CRUISE_OFF" and cruise_control_state is not None:
         disable_cruise_control(cruise_control_state)
-    elif normalized == "TOGGLE_AUTO_ADVANCE" and auto_advance_state is not None:
-        toggle_auto_advance(auto_advance_state)
-    elif normalized == "AUTO_ADVANCE_ON" and auto_advance_state is not None:
-        enable_auto_advance(auto_advance_state)
-    elif normalized == "AUTO_ADVANCE_OFF" and auto_advance_state is not None:
-        disable_auto_advance(auto_advance_state)
-    elif normalized == "TOGGLE_CLIP_LOCK" and auto_advance_state is not None:
-        toggle_clip_lock(auto_advance_state)
+    # The lock, under the same three verbs Nau answers to, because it is the same
+    # thing on both: hold what is on screen, or let it move on.  Whichever player
+    # owns the primary slot gets them, and the one padlock on the console is what
+    # sends them.
+    elif normalized == "TOGGLE_LOCK" and clip_advance_state is not None:
+        toggle_lock(clip_advance_state)
+    elif normalized in ("LOCK_ON", "LOCK_OFF") and clip_advance_state is not None:
+        set_locked(clip_advance_state, normalized == "LOCK_ON")
+    elif normalized == "ADVANCE_DOWN" and clip_advance_state is not None:
+        adjust_interval(clip_advance_state, -1)
+    elif normalized == "ADVANCE_UP" and clip_advance_state is not None:
+        adjust_interval(clip_advance_state, 1)
     elif normalized == "HUD_ON" and hud_state is not None:
         hud_state["active"] = True
     elif normalized == "HUD_OFF" and hud_state is not None:
@@ -108,7 +112,7 @@ def apply_runtime_command(
     elif normalized == "DISPLAY_OFF" and display_state is not None:
         display_state["active"] = False
     else:
-        return _try_numeric_command(normalized, direct_state, auto_advance_state)
+        return _try_numeric_command(normalized, direct_state, clip_advance_state)
     return True
 
 
@@ -119,7 +123,7 @@ _NUMERIC_SETTERS = {
 }
 
 
-def _try_numeric_command(normalized: str, direct_state, auto_advance_state) -> bool:
+def _try_numeric_command(normalized: str, direct_state, clip_advance_state) -> bool:
     parts = normalized.split(None, 1)
     if len(parts) != 2:
         return False
@@ -129,12 +133,13 @@ def _try_numeric_command(normalized: str, direct_state, auto_advance_state) -> b
     except ValueError:
         return False
 
-    # Naming an interval arms auto-advance: "advance thirty" is an instruction
-    # to start moving, not a setting to apply the next time it happens to be on.
+    # "advance thirty" names the seconds a clip holds the screen.  It says
+    # nothing about the lock: a held clip stays held, and this is the pace it
+    # will move at once it is let go.
     if keyword == "ADVANCE":
-        if auto_advance_state is None:
+        if clip_advance_state is None:
             return False
-        enable_auto_advance(auto_advance_state, interval=float(value))
+        set_interval(clip_advance_state, value)
         return True
 
     setter = _NUMERIC_SETTERS.get(keyword)

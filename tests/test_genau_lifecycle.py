@@ -215,7 +215,7 @@ def test_o_key_triggers_center_up():
 def test_comma_key_holds_the_clip():
     calls = []
     controller, *_ = _build_controller(
-        on_toggle_clip_lock=lambda: calls.append(1),
+        on_toggle_lock=lambda: calls.append(1),
     )
 
     event = type("Event", (), {"key": pygame.K_COMMA, "mod": 0})()
@@ -224,16 +224,14 @@ def test_comma_key_holds_the_clip():
     assert calls == [1]
 
 
-def test_x_key_toggles_auto_advance():
-    calls = []
-    controller, *_ = _build_controller(
-        on_toggle_auto_advance=lambda: calls.append(1),
-    )
+def test_x_key_does_nothing_now_that_advancing_is_not_a_mode():
+    """It armed auto advance, which is no longer a switch: an unlocked Genau
+    advances and a locked one does not, and the comma key is that lock."""
+    controller, *_ = _build_controller()
 
     event = type("Event", (), {"key": pygame.K_x, "mod": 0})()
-    controller._handle_key(event)
 
-    assert calls == [1]
+    controller._handle_key(event)  # must not raise
 
 
 def test_slash_key_triggers_toggle_auto():
