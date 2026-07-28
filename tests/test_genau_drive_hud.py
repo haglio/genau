@@ -106,8 +106,8 @@ class TestReadout:
 
     def test_the_speed_bar_runs_in_the_stroke_s_own_blue(self):
         """The trace, the amplitude bar and this are all one thing — the stroke
-        Genau is sending — so they are one colour.  It was green, which across
-        these HUDs means the favourites and the funscripts."""
+        Genau is sending — so they are one color.  It was green, which across
+        these HUDs means the favorites and the funscripts."""
         hud = _hud(speed=100, waveform=())
         rgb = _rendered(hud).astype(int)[:, :, :3]
         rects = {c.action: c.rect for c in controls(PAD, PAD, hud)}

@@ -150,7 +150,7 @@ class TestPainter:
         assert green.any()
 
     def test_a_control_that_is_on_fills_white_rather_than_green(self):
-        """Green means the favourites and the funscripts everywhere in this
+        """Green means the favorites and the funscripts everywhere in this
         family — the OSR2 pill says FunScript in it, and that is the only thing on
         the console entitled to it.  The mode you are in is not one of them."""
         painter = ConsolePainter()
@@ -167,7 +167,7 @@ class TestPainter:
     def test_the_broker_wears_the_face_it_had_on_the_dashboard(self):
         """A pink "B" on blue while the service is up and red while it is down —
         the broker acts on the room's own service rather than on a player, so it
-        does not take the on/off colours the controls beside it use."""
+        does not take the on/off colors the controls beside it use."""
         for broker, fill in ((True, (48, 128, 224)), (False, (255, 60, 60))):
             painter = ConsolePainter()
             rgb = _rgb(painter.bgra(
