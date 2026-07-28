@@ -94,6 +94,12 @@ class ConsoleModel:
     # file and Fun Time forwards it, because the console is drawn in genau mode too
     # — by a player that has no loop machine of its own to ask.
     record: str = "normal"
+    # Whether Nau is holding the video on screen rather than letting it end.  On
+    # is the primary's original behavior, so it is the default here too: a console
+    # drawn before the first panel arrives must not show the lock off when it is
+    # not.  Published the same way ``record`` is, and for the same reason — in
+    # genau mode this console is drawn by a player with no such lock to ask.
+    locked: bool = True
     cruise: bool = False
     # The other hands-free switch: cruise varies the stroke, auto advance moves on
     # to the next clip.  A held clip is auto advance still armed but sitting still.
@@ -126,6 +132,7 @@ def read_console(path: Path) -> ConsoleModel | None:
         osr2=str(raw.get("osr2", "off") or "off"),
         broker=bool(raw.get("broker", False)),
         record=str(raw.get("record", "normal") or "normal"),
+        locked=bool(raw.get("locked", True)),
         cruise=bool(raw.get("cruise", False)),
         auto_advance=bool(raw.get("auto_advance", False)),
         clip_locked=bool(raw.get("clip_locked", False)),
@@ -213,10 +220,10 @@ def console_rows(model: ConsoleModel) -> list[list[Button]]:
 def _transport_row(model: ConsoleModel) -> list[Button]:
     """Stepping and the actions on what is on screen.
 
-    In nau/hybrid that is Nau's video — step it, nudge inside it, browse for
-    another, save a clip, record a loop.  In genau it is Genau's own clips —
-    step them and mark one weird; nudge/browse/clip/record have no video to
-    act on.
+    In nau/hybrid that is Nau's video — step it, nudge inside it, hold it against
+    the end of the playlist's advance, browse for another, save a clip, record a
+    loop.  In genau it is Genau's own clips — step them and mark one weird;
+    nudge/hold/browse/clip/record have no video to act on.
     """
     if nau_displays(model.mode):
         return [
@@ -226,6 +233,17 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
             Button("primary_nudge_prev", _GLYPHS["back"], "Back 10s"),
             Button("primary_nudge_next", _GLYPHS["fwd"], "Forward 10s"),
             Button("primary_next", _GLYPHS["next"], "Next video"),
+            # What the end of the video does, so it belongs with the stepping:
+            # locked (the primary's default) the video repeats and the two
+            # buttons beside it are the only way off it; unlocked it plays out
+            # into the next one and the playlist runs around.  The same padlock a
+            # satellite's HUD carries, and lit the same way when it is on.
+            Button("primary_lock", _GLYPHS["lock"],
+                   "Locked — this video repeats; press to play on through the "
+                   "playlist" if model.locked
+                   else "Unlocked — plays on through the playlist; press to hold "
+                        "this video",
+                   lit=model.locked),
             Button("browse_library", _GLYPHS["open"], "Browse the library"),
             # Recording a loop and saving what it caught are one job in two
             # presses, so they sit together and apart from the browser.  The
@@ -349,6 +367,10 @@ _GENAU_CONTROLS = frozenset({"quarter_button"})
 # Recording a loop and saving what it caught: one job, two presses, and neither
 # of them the library browser they used to be spaced alongside.
 _CAPTURE_CONTROLS = frozenset({"nau_record_tap", "clipper_save"})
+# The lock says what the *end* of the video does, where the four marks beside it
+# each move the video now.  Sharing their prefix, it would have joined their run
+# and read as a fifth step, which is the undifferentiated strip above.
+_HOLD_CONTROLS = frozenset({"primary_lock"})
 
 
 def _family(action: str) -> str:
@@ -361,6 +383,8 @@ def _family(action: str) -> str:
         return "genau_"
     if action in _CAPTURE_CONTROLS:
         return "capture"
+    if action in _HOLD_CONTROLS:
+        return "hold"
     # Stepping the video and nudging inside it are one run of four marks, so they
     # are one family: prev, back ten, forward ten, next, evenly spaced.
     for prefix in ("primary", "nau_speed", "genau_"):
