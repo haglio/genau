@@ -14,6 +14,7 @@ class StubSession:
         self.funscript_resting = False
         self.loop_state = "normal"
         self.is_paused = False
+        self.locked = True
 
 
 class TestStatusFields:
@@ -27,13 +28,14 @@ class TestStatusFields:
         assert fields["funscript_resting"] == "0"
         assert fields["state"] == "normal"
         assert fields["paused"] == "0"
+        assert fields["locked"] == "1"
 
     def test_key_order_is_the_published_file_order(self):
         # fun_time parses key=value lines, but the file's shape is Nau's
         # contract; pinning the order keeps a reordering from passing silently.
         assert list(status_fields(StubSession())) == [
             "video", "position_ms", "duration_ms",
-            "has_funscript", "funscript_resting", "state", "paused",
+            "has_funscript", "funscript_resting", "state", "paused", "locked",
         ]
 
     def test_flags_follow_the_session(self):
@@ -42,6 +44,7 @@ class TestStatusFields:
         session.funscript_resting = True
         session.is_paused = True
         session.loop_state = "recording"
+        session.locked = False
 
         fields = status_fields(session)
 
@@ -49,6 +52,7 @@ class TestStatusFields:
         assert fields["funscript_resting"] == "1"
         assert fields["paused"] == "1"
         assert fields["state"] == "recording"
+        assert fields["locked"] == "0"
 
     def test_playhead_is_truncated_to_whole_milliseconds(self):
         session = StubSession()

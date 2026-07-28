@@ -6,6 +6,7 @@ from pathlib import Path
 from nau.console import (
     BROKER_ICON,
     BUTTON,
+    GROUP_GAP,
     ConsoleModel,
     console_rows,
     genau_drives,
@@ -98,8 +99,36 @@ class TestTransport:
         actions = _actions(ConsoleModel(mode="genau"))
 
         for action in ("primary_nudge_prev", "browse_library", "clipper_save",
-                       "nau_record_tap"):
+                       "nau_record_tap", "primary_lock"):
             assert action not in actions
+
+
+class TestLock:
+    """The padlock: whether the video repeats or plays on into the playlist."""
+
+    def test_the_video_can_be_held_wherever_nau_is_on_screen(self):
+        for mode in ("nau", "hybrid"):
+            assert "primary_lock" in _actions(ConsoleModel(mode=mode))
+
+    def test_it_is_lit_while_the_video_is_held(self):
+        assert _button(ConsoleModel(mode="nau", locked=True), "primary_lock").lit is True
+        assert _button(ConsoleModel(mode="nau", locked=False), "primary_lock").lit is False
+
+    def test_it_says_which_way_a_press_goes(self):
+        held = _button(ConsoleModel(mode="nau", locked=True), "primary_lock")
+        loose = _button(ConsoleModel(mode="nau", locked=False), "primary_lock")
+
+        assert held.tooltip.startswith("Locked") and "play on" in held.tooltip
+        assert loose.tooltip.startswith("Unlocked") and "hold this video" in loose.tooltip
+
+    def test_it_stands_apart_from_the_four_marks_that_step_the_video(self):
+        """Those four each move the video now; this one says what the *end* of it
+        does.  Sharing their command prefix, it would have joined their run."""
+        placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)
+        by_action = {b.action: rect for rect, b in placed}
+        next_rect, lock_rect = by_action["primary_next"], by_action["primary_lock"]
+
+        assert lock_rect[0] - (next_rect[0] + next_rect[2]) == GROUP_GAP
 
 
 class TestPlaybackSpeed:
@@ -213,8 +242,8 @@ class TestReadConsole:
         path = tmp_path / "nau_console.json"
         path.write_text(json.dumps({
             "mode": "hybrid", "active": True, "osr2": "genau", "broker": True,
-            "record": "looping", "cruise": True, "auto_advance": True,
-            "clip_locked": True, "shape": "sawtooth",
+            "record": "looping", "locked": False, "cruise": True,
+            "auto_advance": True, "clip_locked": True, "shape": "sawtooth",
         }), encoding="utf-8")
 
         model = read_console(path)
@@ -224,8 +253,19 @@ class TestReadConsole:
         assert model.osr2 == "genau"
         assert model.broker is True
         assert model.record == "looping"
+        assert model.locked is False
         assert (model.cruise, model.auto_advance, model.clip_locked) == (True, True, True)
         assert model.shape == "sawtooth"
+
+    def test_a_panel_that_says_nothing_about_the_lock_reads_as_locked(self, tmp_path: Path):
+        """Which is what the primary has always done, and what a Nau too old to
+        publish the flag is still doing."""
+        import json
+        path = tmp_path / "nau_console.json"
+        path.write_text(json.dumps({"mode": "nau"}), encoding="utf-8")
+
+        assert read_console(path).locked is True
+        assert ConsoleModel().locked is True
 
     def test_a_torn_or_missing_file_keeps_the_console_you_have(self, tmp_path: Path):
         path = tmp_path / "nau_console.json"
