@@ -396,7 +396,7 @@ class ConsolePainter:
         """One control, in the one button shape this family's HUDs use: an outline
         when off, filled when on, faded when it cannot be pressed.
 
-        On is white: green across this family is reserved for the favourites and
+        On is white: green across this family is reserved for the favorites and
         the funscripts, and none of the things lit up here — a mode, cruise, auto
         advance — is either.  The broker keeps the face it wore on the dashboard
         instead, a pink "B" on blue or red, because it is the room's own service
@@ -422,7 +422,7 @@ class ConsolePainter:
         ink = BG_PRIMARY if fill else TEXT_MUTED if button.dim else TEXT_PRIMARY
         if broker:
             # The dashboard's icon was a pink "B" with the panel's blue or red
-            # showing through it, so the letter is what carries the colour here.
+            # showing through it, so the letter is what carries the color here.
             draw.text((x + w / 2, y + h / 2), "B", font=self._tiny, anchor="mm",
                       fill=(*PINK, 255))
         elif button.glyph == WAVE_ICON:
