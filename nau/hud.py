@@ -49,7 +49,7 @@ from player_core.hud_panel import (
     text_width,
     to_bgra,
 )
-from player_core.hud_status import SEPARATOR, status_line
+from player_core.hud_status import LATEST_LABEL, SEPARATOR, SHUFFLE_LABEL, status_line
 
 from .console import (
     BROKER_ICON,
@@ -221,18 +221,23 @@ class ConsoleHud:
             f"{compilation_label(self.modes.compilation)}"
             f"{SEPARATOR}{self.modes.position}/{self.modes.total}"
         ) if self.modes.compilation else ""
-        # Only while Genau is the one showing and is not holding: hybrid draws the
-        # drive readout too, but an unlocked Nau plays through its playlist rather
-        # than on a timer, so seconds there would describe the wrong player — and a
-        # held clip has no pace at all, since nothing is going to move it on.
-        pace = (f"{self.advance_interval}s"
-                if (not self.console.locked and self.advance_interval
-                    and not nau_displays(self.console.mode))
-                else "")
+        # The order slot says something different for each player on this slot.
+        # Under Nau it is the browse order Fun Time built the playlist in, the same
+        # Latest/Shuffle a satellite reports.  Under Genau it is the pace an unheld
+        # clip moves on at, which is the whole of how Genau walks its clips — and
+        # only when Genau is the one showing, since hybrid draws the drive readout
+        # too while an unlocked Nau plays through its playlist rather than on a
+        # timer.  A held Genau clip has no pace at all: nothing is going to move it.
+        if nau_displays(self.console.mode):
+            order = LATEST_LABEL if self.console.latest else SHUFFLE_LABEL
+        elif not self.console.locked and self.advance_interval:
+            order = f"{self.advance_interval}s"
+        else:
+            order = ""
         return status_line(
             playing_set=compilation,
             locked=self.console.locked,
-            order=pace,
+            order=order,
             f_mode=self.modes.f_mode,
             filter_label=_LENGTH_LABELS.get(self.modes.length_mode, ""),
         )

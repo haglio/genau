@@ -24,18 +24,19 @@ def _drive(**over) -> DriveHud:
                     **over)
 
 
-def _line(*, locked: bool = True, **modes) -> str:
-    """The status line for a main player in *modes* whose lock is *locked*."""
+def _line(*, locked: bool = True, order_latest: bool = False, **modes) -> str:
+    """The status line for a main player in *modes*, with that lock and order."""
     return ConsoleHud(modes=ModeHud(**modes),
-                      console=ConsoleModel(locked=locked)).status_line
+                      console=ConsoleModel(mode="nau", locked=locked,
+                                           latest=order_latest)).status_line
 
 
 class TestLine:
     def test_says_whether_the_main_player_is_holding_the_video_on_screen(self):
         """Each satellite leads its line with this word, and the main player has the
         same lock — one padlock, for whichever player holds the slot."""
-        assert _line(locked=True) == "Locked"
-        assert _line(locked=False) == "Unlocked"
+        assert _line(locked=True) == "Locked · Shuffle"
+        assert _line(locked=False) == "Unlocked · Shuffle"
 
     def test_says_which_length_mode_the_library_is_in_and_says_it_last(self):
         """The length mode is what the satellites' act filter is — a narrowing of
@@ -47,15 +48,15 @@ class TestLine:
         grown a third kind of thing, and one word for "some of each" cannot say
         which.
         """
-        assert _line(length_mode=MIXED) == "Locked"
-        assert _line(length_mode=FULL) == "Locked · Full length"
-        assert _line(length_mode=SHORTS) == "Locked · Shorts"
+        assert _line(length_mode=MIXED) == "Locked · Shuffle"
+        assert _line(length_mode=FULL) == "Locked · Shuffle · Full length"
+        assert _line(length_mode=SHORTS) == "Locked · Shuffle · Shorts"
 
     def test_claims_no_length_mode_without_a_library_behind_the_playlist(self):
         """A playlist Fun Time drives has no length filter of its own to report, so
         that slot stays empty.  The lock is still said: it belongs to the main player
         slot whatever is feeding it."""
-        assert _line(length_mode="") == "Locked"
+        assert _line(length_mode="") == "Locked · Shuffle"
 
     def test_a_genau_primary_says_its_lock_and_the_pace_it_moves_at(self):
         """Genau has no library, no compilation and no filters.  What it has is the
@@ -75,7 +76,7 @@ class TestLine:
         screen and an unlocked Nau plays through its playlist rather than moving on
         a timer, so saying seconds would describe the wrong player."""
         assert ConsoleHud(console=ConsoleModel(mode="hybrid", locked=False),
-                          drive=_drive(advance_interval=5)).status_line == "Unlocked"
+                          drive=_drive(advance_interval=5)).status_line == "Unlocked · Shuffle"
 
     def test_names_the_compilation_and_where_you_are_in_it(self):
         """A compilation is the main player's loop — a fixed set it plays through
@@ -87,16 +88,26 @@ class TestLine:
         def line(**over) -> str:
             return _line(compilation="Vol6", position=9, total=20, **over)
 
-        assert line(locked=False) == "Vol6 · 9/20"
-        assert line(locked=True) == "Vol6 · 9/20 · Locked"
-        assert line(locked=False, length_mode=SHORTS) == "Vol6 · 9/20 · Shorts"
+        assert line(locked=False) == "Vol6 · 9/20 · Shuffle"
+        assert line(locked=True) == "Vol6 · 9/20 · Locked · Shuffle"
+        assert line(locked=False, length_mode=SHORTS) == "Vol6 · 9/20 · Shuffle · Shorts"
+
+    def test_says_which_browse_order_the_main_player_is_in(self):
+        """The satellites have said Latest/Shuffle all along and the main player
+        does now too, in the same slot — between the lock and the filters, since it
+        is how the set advances rather than what is in it."""
+        assert _line(order_latest=True) == "Locked · Latest"
+        assert _line(order_latest=False) == "Locked · Shuffle"
+        assert _line(order_latest=True, length_mode=SHORTS) == (
+            "Locked · Latest · Shorts")
 
     def test_says_when_fun_time_has_narrowed_to_f_mode(self):
         """Between the lock and the length, where each satellite puts it: F-mode
         cuts the whole library to the funscripted videos and the length mode then
         narrows what is left, so the coarser filter is named first."""
-        assert _line(f_mode=True) == "Locked · F-Mode"
-        assert _line(length_mode=SHORTS, f_mode=True) == "Locked · F-Mode · Shorts"
+        assert _line(f_mode=True) == "Locked · Shuffle · F-Mode"
+        assert _line(length_mode=SHORTS, f_mode=True) == (
+            "Locked · Shuffle · F-Mode · Shorts")
 
 
 class TestCompilationLabel:
