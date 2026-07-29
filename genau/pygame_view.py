@@ -77,7 +77,7 @@ class PygameView:
         borderless: bool = False,
     ) -> None:
         pygame.init()
-        # Borderless under Fun Time, like the satellites and Nau: the primary
+        # Borderless under Fun Time, like the satellites and Nau: the main slot
         # slot's mode was readable off this window's title bar, but that moved onto
         # the in-video HUD, so the bar only took space.  With no chrome the client
         # area is the whole rect Fun Time sizes the window to — and, in Hybrid, this
@@ -107,7 +107,7 @@ class PygameView:
         self._video_size: tuple[int, int] | None = None
         self._loading_font: pygame.font.Font | None = None
         self._loading_text: str | None = None
-        # In genau mode Genau draws the whole primary console — the same one Nau
+        # In genau mode Genau draws the whole main console — the same one Nau
         # draws over its video in the other modes — into its own window, and takes
         # its clicks.  None until the refresh loop has one to show.
         self._console: ConsoleHud | None = None
@@ -214,7 +214,7 @@ class PygameView:
         texture.draw(dstrect=dest)
 
     def _draw_console(self) -> None:
-        """Blit the primary console, painted by the module every player shares.
+        """Blit the main console, painted by the module every player shares.
 
         In genau mode Genau is on screen, so it draws the console Nau draws in the
         other modes — the same painter, so the panel reads the same whichever

@@ -1,4 +1,4 @@
-"""The primary console painter: the top line, the controls, and the readout."""
+"""The main console painter: the top line, the controls, and the readout."""
 from __future__ import annotations
 
 import numpy as np
@@ -25,14 +25,14 @@ def _drive(**over) -> DriveHud:
 
 
 def _line(*, locked: bool = True, **modes) -> str:
-    """The status line for a primary in *modes* whose lock is *locked*."""
+    """The status line for a main player in *modes* whose lock is *locked*."""
     return ConsoleHud(modes=ModeHud(**modes),
                       console=ConsoleModel(locked=locked)).status_line
 
 
 class TestLine:
-    def test_says_whether_the_primary_is_holding_the_video_on_screen(self):
-        """Each satellite leads its line with this word, and the primary has the
+    def test_says_whether_the_main_player_is_holding_the_video_on_screen(self):
+        """Each satellite leads its line with this word, and the main player has the
         same lock — one padlock, for whichever player holds the slot."""
         assert _line(locked=True) == "Locked"
         assert _line(locked=False) == "Unlocked"
@@ -53,7 +53,7 @@ class TestLine:
 
     def test_claims_no_length_mode_without_a_library_behind_the_playlist(self):
         """A playlist Fun Time drives has no length filter of its own to report, so
-        that slot stays empty.  The lock is still said: it belongs to the primary
+        that slot stays empty.  The lock is still said: it belongs to the main player
         slot whatever is feeding it."""
         assert _line(length_mode="") == "Locked"
 
@@ -78,7 +78,7 @@ class TestLine:
                           drive=_drive(advance_interval=5)).status_line == "Unlocked"
 
     def test_names_the_compilation_and_where_you_are_in_it(self):
-        """A compilation is the primary's loop — a fixed set it plays through
+        """A compilation is the main player's loop — a fixed set it plays through
         rather than the browse it came from — so it leads the line the way a
         satellite's loop does, and displaces "Unlocked" there for the same reason:
         a loop is repeat-all, and nothing is being held.  "Locked" still joins it,
@@ -145,7 +145,7 @@ class TestPainter:
 
     def test_the_status_leads_and_the_file_name_is_the_muted_line_under_it(self):
         """The satellites lead with what they are showing, not with a file name, so
-        the primary does too: the length mode or compilation in the body face, the
+        the main player does too: the length mode or compilation in the body face, the
         file beneath it in the muted one."""
         painter = ConsolePainter()
         bgra = painter.bgra(ConsoleHud(modes=ModeHud(
@@ -176,7 +176,7 @@ class TestPainter:
 
         assert driving > plain
 
-    def test_the_dot_lights_only_while_the_primary_has_the_floor(self):
+    def test_the_dot_lights_only_while_the_main_has_the_floor(self):
         def dot(active: bool):
             bgra = ConsolePainter().bgra(
                 ConsoleHud(console=ConsoleModel(mode="nau", active=active)))
@@ -257,7 +257,7 @@ class TestPainter:
         shape: the grid the .ico carries, in its pink, whatever the button is
         doing underneath it."""
         for action, grid in (("broker_panel", ICON_GRIDS["B"]),
-                             ("primary_fmode", ICON_GRIDS["F"])):
+                             ("main_fmode", ICON_GRIDS["F"])):
             box = self._button_box(action, ConsoleModel(
                 mode="nau", broker=True, f_mode=True))
             pink = (box == np.array((200, 80, 160), dtype=box.dtype)).all(axis=2)
@@ -286,7 +286,7 @@ class TestPainter:
     def test_f_mode_is_the_one_lit_control_that_stays_green(self):
         """It narrows the playlist to the videos that have a funscript, and green
         is what the funscripts and the favorites own."""
-        box = self._button_box("primary_fmode",
+        box = self._button_box("main_fmode",
                                ConsoleModel(mode="nau", f_mode=True)).astype(int)
 
         shades, counts = np.unique(box.reshape(-1, 3), axis=0, return_counts=True)
@@ -324,7 +324,7 @@ class TestPresses:
     def test_a_press_on_a_button_carries_that_buttons_command(self):
         painter = self._painted()
 
-        assert painter.press_at(*self._over(painter, "primary_next")) == "primary_next"
+        assert painter.press_at(*self._over(painter, "main_next")) == "main_next"
 
     def test_a_press_that_missed_every_button_carries_nothing(self):
         assert self._painted().press_at(2000, 2000) == ""
@@ -332,7 +332,7 @@ class TestPresses:
     def test_the_panels_own_corner_is_not_read_as_the_windows(self):
         painter = self._painted()
         (bx, by, _bw, _bh), _b = next(
-            (rect, b) for rect, b in painter.buttons if b.action == "primary_prev")
+            (rect, b) for rect, b in painter.buttons if b.action == "main_prev")
 
         assert painter.press_at(bx, by) == ""
 
@@ -357,7 +357,7 @@ class TestPresses:
 
     def test_the_cursor_over_a_button_is_reported_in_panel_coordinates(self):
         painter = self._painted()
-        mx, my = self._over(painter, "primary_next")
+        mx, my = self._over(painter, "main_next")
         left, top = hud_xy()
 
         assert painter.hover_at(mx, my) == (mx - left, my - top)
@@ -445,7 +445,7 @@ class TestDrags:
         painter = self._painted()
         painter.press_at(*self._at(self._band(painter, SPEED), 0.0))
         (bx, by, bw, bh), _b = next(
-            (rect, b) for rect, b in painter.buttons if b.action == "primary_next")
+            (rect, b) for rect, b in painter.buttons if b.action == "main_next")
         left, top = hud_xy()
 
         painter.press_at(left + bx + bw // 2, top + by + bh // 2)

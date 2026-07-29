@@ -1,6 +1,6 @@
 """Whether Nau's window paints, and the black it shows when it does not.
 
-Fun Time's primary slot is one rect that Nau and Genau share, and the player
+Fun Time's main slot is one rect that Nau and Genau share, and the player
 that does not own it is *minimized*, not closed — it keeps its taskbar button
 for the whole session.  So an alt-tab or a click on that button restores a
 paused player still holding the frame it stopped on.  Genau has been told
@@ -56,7 +56,7 @@ class Display:
 
     @property
     def active(self) -> bool:
-        """Whether Nau owns the primary rect right now, and so paints."""
+        """Whether Nau owns the main slot's rect right now, and so paints."""
         return self._active
 
     def set_active(self, active: bool) -> None:

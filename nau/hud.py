@@ -1,7 +1,7 @@
-"""The primary console — the HUD the player on the primary slot draws.
+"""The main console — the HUD the player on the main slot draws.
 
 Fun Time's dashboard used to draw a schematic of the two monitors and hang the
-primary's controls off it.  The primary player draws them itself now, and the
+main player's controls off it.  The main player draws them itself now, and the
 same console is drawn whichever player holds the slot: Nau over its video in nau
 and hybrid, Genau into its own window in genau.  So the mode switch and the drive
 controls keep their places as you flip between modes — only the transport changes,
@@ -172,7 +172,7 @@ def hud_xy() -> tuple[int, int]:
 
 @dataclass(frozen=True)
 class ConsoleHud:
-    """Everything on the primary console: the top line, the room's controls, and
+    """Everything on the main console: the top line, the room's controls, and
     — while Genau is driving — the drive readout.
 
     *modes* is drawn only where it applies (nau/hybrid); *console* is what Fun
@@ -199,7 +199,7 @@ class ConsoleHud:
 
     @property
     def status_line(self) -> str:
-        """The top line's text — everything selecting what is on the primary, in
+        """The top line's text — everything selecting what is on the main slot, in
         the order each satellite's HUD says the same things.
 
         This player's words in the slots
@@ -208,7 +208,7 @@ class ConsoleHud:
         sentence, and a reader glancing between two screens is reading one sentence
         in two places.
 
-        What fills the slots is the primary's own.  The compilation is its playing
+        What fills the slots is the main player's own.  The compilation is its playing
         set — a fixed run it plays through rather than the browse it came from.
         The order slot is empty under Nau, which has no Latest/Shuffle to report,
         and carries Genau's advance pace under Genau, whose whole browse order is
@@ -239,7 +239,7 @@ class ConsoleHud:
 
 
 class ConsolePainter:
-    """Paints the primary console, and only when something on it has moved.
+    """Paints the main console, and only when something on it has moved.
 
     A player redraws its overlays every frame at 60 fps and Pillow is nowhere
     near cheap enough for that, so the bitmap is kept until the panel's contents
@@ -399,7 +399,7 @@ class ConsolePainter:
         y = _PAD
         # White while a bare, player-less command lands here, the palette's grey
         # otherwise — the same dot, in the same corner and colour, as each
-        # satellite's, so the primary reads as one of the family.
+        # satellite's, so the main player reads as one of the family.
         dot_cy = y + top_h // 2
         draw.ellipse([_PAD, dot_cy - DOT // 2, _PAD + DOT, dot_cy - DOT // 2 + DOT],
                      fill=(*(WHITE if console.active else TEXT_MUTED), 255))

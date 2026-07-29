@@ -90,7 +90,7 @@ def apply_runtime_command(
         disable_cruise_control(cruise_control_state)
     # The lock, under the same three verbs Nau answers to, because it is the same
     # thing on both: hold what is on screen, or let it move on.  Whichever player
-    # owns the primary slot gets them, and the one padlock on the console is what
+    # owns the main slot gets them, and the one padlock on the console is what
     # sends them.
     elif normalized == "TOGGLE_LOCK" and clip_advance_state is not None:
         toggle_lock(clip_advance_state)

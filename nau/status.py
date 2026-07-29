@@ -27,7 +27,7 @@ def status_fields(session) -> dict[str, str]:
         "loop_out_ms": str(int(loop_out_ms)),
         "paused": "1" if session.is_paused else "0",
         # Whether the video repeats rather than ending.  Nau's own state, but the
-        # console that draws its lock is drawn by whoever holds the primary slot —
+        # console that draws its lock is drawn by whoever holds the main slot —
         # Genau in genau mode, which has no such lock to ask — so it goes out here
         # and comes back down on the console panel, the way the loop state does.
         "locked": "1" if session.locked else "0",
