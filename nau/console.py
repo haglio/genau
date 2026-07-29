@@ -111,6 +111,11 @@ class ConsoleModel:
     # flag is set from three places — this button, the F key, and a spoken phrase —
     # and only one of them is the player.
     f_mode: bool = False
+    # Which browse order the main player is in: newest-first ("Latest") when set,
+    # else shuffled.  Published for the same reason F-mode is — the order is Fun
+    # Time's to set, and the playlist Nau is handed looks the same either way round,
+    # so nothing in the file says which order built it.
+    latest: bool = False
     cruise: bool = False
     shape: str = "sine"
     # Nau's video playback rate, shown while Nau is on screen.  Not published —
@@ -138,6 +143,7 @@ def read_console(path: Path) -> ConsoleModel | None:
         mode=str(raw.get("mode", "nau")),
         active=bool(raw.get("active", False)),
         f_mode=bool(raw.get("f_mode", False)),
+        latest=bool(raw.get("latest", False)),
         osr2=str(raw.get("osr2", "off") or "off"),
         broker=bool(raw.get("broker", False)),
         record=str(raw.get("record", "normal") or "normal"),
