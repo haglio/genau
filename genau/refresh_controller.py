@@ -269,6 +269,7 @@ class GenauRefreshController:
                 self.cruise_control,
                 clip_advance=self.clip_advance,
                 hud_active=hud_on,
+                clip=self.renderer.current_clip_path,
             )
 
     def _update_console(self, now: float) -> None:
