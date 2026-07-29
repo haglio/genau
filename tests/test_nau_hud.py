@@ -110,6 +110,26 @@ class TestCompilationLabel:
 
 
 class TestPainter:
+    def test_a_tooltip_longer_than_the_panel_is_wide_stays_on_the_panel(self):
+        """The lock button's tooltip wants 354px of box on a 238px console, so it
+        used to be drawn straight off the right edge and lose its tail.  Fitting it
+        is player_core's job — this guards that the console hands it the panel's own
+        bounds, since passing anything wider puts the box back over the edge."""
+        painter = ConsolePainter()
+        hud = ConsoleHud(console=ConsoleModel(mode="nau", locked=False))
+        plain = _rgb(painter.bgra(hud))  # also lays the buttons out, so one can be hovered
+        tiny = load_font(8)
+        (x, y, w, h), _button = max(
+            ((rect, button) for rect, button in painter.buttons if button.tooltip),
+            key=lambda pair: text_width(tiny, pair[1].tooltip))
+        tipped = _rgb(ConsolePainter().bgra(hud, hover=(x + w // 2, y + h // 2)))
+
+        def edge_ink(rgb) -> int:
+            return int((rgb[:, -2:] > 200).all(axis=2).sum())
+
+        assert not np.array_equal(plain, tipped)  # it drew something
+        assert edge_ink(tipped) == edge_ink(plain) == 0
+
     def test_the_top_line_sits_tight_to_the_top(self):
         """The old console left a tall empty band above its first line; the status
         line now heads the console within a body line-height of the slab's top, the
