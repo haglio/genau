@@ -201,6 +201,47 @@ class TestRecording:
         assert player.seeks[-1] == 2000  # jumped to loop start
         assert tcode.resets >= 2
 
+    def test_restoring_a_loop_arms_mpv_and_lands_on_its_start(self, tmp_path):
+        """Reopening on the video a loop was left running over: no gesture is
+        replayed, the finished bounds are simply put back and the playhead goes
+        to the top of them, exactly as a record-up leaves it."""
+        session, player, tcode = _make_session(tmp_path)
+
+        session.restore_loop(2000, 4000)
+
+        assert session.loop_state == "looping"
+        assert session.loop_bounds == (2000, 4000)
+        assert player.ab_loop == (2000, 4000)
+        assert player.seeks[-1] == 2000
+
+    def test_a_restored_loop_waits_for_a_file_that_is_still_opening(self, tmp_path):
+        """Startup queues this before mpv has the file, and mpv reports no
+        duration for a tick or two — a seek taken then would be clamped against
+        a zero-length video and put the playhead back at the top."""
+        session, player, tcode = _make_session(tmp_path)
+        player.duration_ms = 0.0
+        player.seeks.clear()
+
+        session.restore_loop(2000, 4000)
+
+        assert player.ab_loop == (2000, 4000), "mpv takes the range whenever it is set"
+        assert player.seeks == []
+
+        player.duration_ms = 60_000.0
+        session.advance()
+
+        assert player.seeks[-1] == 2000
+
+    def test_an_empty_range_is_no_loop_to_restore(self, tmp_path):
+        """The status file names a zero range when nothing is looping, and a
+        video is never resumed into a loop it cannot play."""
+        session, player, tcode = _make_session(tmp_path)
+
+        session.restore_loop(0, 0)
+
+        assert session.loop_state == "normal"
+        assert player.ab_loop is None
+
     def test_record_down_while_looping_cancels_and_clears_loop(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
         player.position_ms = 2500

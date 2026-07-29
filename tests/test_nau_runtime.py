@@ -27,6 +27,9 @@ class SpySession:
     def loop_cancel(self) -> None:
         self.calls.append(("loop_cancel",))
 
+    def restore_loop(self, in_ms: int, out_ms: int) -> None:
+        self.calls.append(("restore_loop", in_ms, out_ms))
+
     def toggle_lock(self) -> None:
         self.calls.append(("toggle_lock",))
 
@@ -163,6 +166,25 @@ class TestApplyCommand:
         apply_command("LOOP_CANCEL", session)
 
         assert session.calls == [("record_down",), ("record_up",), ("loop_cancel",)]
+
+    def test_set_loop_puts_a_range_back_without_replaying_the_gesture(self):
+        """How a loop survives a restart: Fun Time reads the bounds off the
+        status file, and hands them back over the video it resumed the playlist
+        onto — RECORD_DOWN/RECORD_UP could not, since they mark against wherever
+        the playhead happens to be."""
+        session = SpySession()
+
+        assert apply_command("SET_LOOP 2000 4000", session)
+
+        assert session.calls == [("restore_loop", 2000, 4000)]
+
+    def test_set_loop_reports_a_range_it_cannot_read_as_unhandled(self):
+        session = SpySession()
+
+        assert apply_command("SET_LOOP", session) is False
+        assert apply_command("SET_LOOP 2000", session) is False
+        assert apply_command("SET_LOOP 2000 later", session) is False
+        assert session.calls == []
 
     def test_lock_commands(self):
         """The toggle for the key and the button; the absolute pair for the two
