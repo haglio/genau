@@ -154,3 +154,21 @@ def test_build_status_text_reports_a_released_clip():
     text = build_status_text(DirectControlState(), CruiseControlState(), clip_advance=aa)
 
     assert "locked=0" in text
+
+
+def test_build_status_text_names_the_clip_on_screen():
+    """The one thing about Genau an orchestrator cannot work out for itself:
+    which clip is up, so a reopened session can be pointed back at it."""
+    text = build_status_text(
+        DirectControlState(), CruiseControlState(), clip=Path("C:/clips/alpha.mp4"),
+    )
+
+    assert "clip=C:\\clips\\alpha.mp4" in text or "clip=C:/clips/alpha.mp4" in text
+
+
+def test_build_status_text_names_no_clip_before_one_is_up():
+    """Genau publishes from its refresh loop, which can run a tick before the
+    first clip is decoded; an empty value reads as nothing to come back to."""
+    text = build_status_text(DirectControlState(), CruiseControlState())
+
+    assert "clip=\n" in text

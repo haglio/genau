@@ -174,3 +174,26 @@ class TestFunTimeFlag:
         args = parser.parse_args([])
 
         assert args.fun_time is False
+
+
+class TestStartClip:
+    """Where a reopened session picks Genau up: the clip it was left showing,
+    named on the command line rather than sent as a verb — the command channel
+    upper-cases every line it reads, which a path cannot survive, and a verb
+    would arrive after the wrong clip had already been decoded."""
+
+    def test_parser_takes_the_clip_to_open_on(self, cfg_path):
+        from genau.app import build_parser
+        from genau.config import load_config
+        parser = build_parser(load_config(cfg_path))
+
+        args = parser.parse_args(["--start-clip", "C:/clips/alpha.mp4"])
+
+        assert args.start_clip == "C:/clips/alpha.mp4"
+
+    def test_parser_defaults_to_no_named_clip(self, cfg_path):
+        from genau.app import build_parser
+        from genau.config import load_config
+        parser = build_parser(load_config(cfg_path))
+
+        assert parser.parse_args([]).start_clip is None

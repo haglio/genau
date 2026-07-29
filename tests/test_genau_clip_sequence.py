@@ -24,6 +24,36 @@ def test_starts_at_first_clip():
     assert controller.count == 3
 
 
+class TestStartAt:
+    """Where a reopened session picks up.  The clips are rescanned every launch
+    (and reshuffled, when that is on), so there is no order to come back to —
+    only the one clip that was on screen."""
+
+    def test_opens_on_the_named_clip(self):
+        controller = ClipSequenceController(_paths(), start_at=Path("c.mp4"))
+
+        assert controller.current_path == Path("c.mp4")
+        assert controller.current_number == 3
+
+    def test_a_clip_that_is_no_longer_there_leaves_the_order_alone(self):
+        """Deleted or condemned since, so there is nothing to open on — the scan
+        order stands, from its top, rather than the sequence refusing to build."""
+        controller = ClipSequenceController(_paths(), start_at=Path("gone.mp4"))
+
+        assert controller.current_path == Path("a.mp4")
+
+    def test_naming_no_clip_starts_at_the_top(self):
+        assert ClipSequenceController(_paths()).current_path == Path("a.mp4")
+        assert ClipSequenceController(_paths(), start_at=None).current_path == Path("a.mp4")
+
+    def test_case_alone_is_not_a_different_clip(self):
+        """The path comes back through a status file another process wrote, and
+        Windows hands the same file back in either case."""
+        controller = ClipSequenceController(_paths(), start_at=Path("B.MP4"))
+
+        assert controller.current_path == Path("b.mp4")
+
+
 def test_step_wraps_forward_and_backward():
     controller = ClipSequenceController(_paths())
 

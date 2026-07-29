@@ -79,6 +79,9 @@ def build_parser(config) -> argparse.ArgumentParser:
                     help="Where a press on the console posts its Fun Time command")
     ap.add_argument("--drive-file", default=None,
                     help="Where to publish the drive readout for Nau to draw in Hybrid")
+    ap.add_argument("--start-clip", default=None,
+                    help="Open on this clip rather than the top of the folder — how "
+                         "an orchestrator resumes the clip its last session left up")
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
     ap.add_argument(
@@ -131,7 +134,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         raise RuntimeError(f"Clips folder does not exist: {clips_folder}")
 
     clips = scan_clips(clips_folder, shuffle_on_load=config.genau.shuffle_on_load)
-    clip_sequence = ClipSequenceController(clips)
+    # Open on the clip the last session was left showing, when an orchestrator
+    # names one.  Before the preload below, so the clip that gets decoded ahead
+    # of the window is the one that will actually be on screen.
+    clip_sequence = ClipSequenceController(
+        clips, start_at=Path(args.start_clip) if args.start_clip else None,
+    )
     cache_dir = cache_dir_for_clips_folder(clips_folder)
 
     # Start decoding the first clip immediately in a background thread.
