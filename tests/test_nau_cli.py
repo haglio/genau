@@ -38,7 +38,7 @@ class TestResolvePlaylist:
     def test_playlist_file_collapses_versions_with_a_source(self, tmp_path):
         # Fun Time lists both an original and its upscale; the source's version
         # groups fold them to one slot — the larger — matching the rotation the
-        # primary player shows and the set "cycle version" walks.
+        # main player shows and the set "cycle version" walks.
         vids = tmp_path / "videos"
         scripts = tmp_path / "scripts"
         vids.mkdir()

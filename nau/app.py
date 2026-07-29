@@ -227,19 +227,19 @@ def _run(args) -> int:
     # ever comes from Fun Time saying so — and defaults off, because a session
     # that is never told is a session where nothing narrowed it.
     f_mode = False
-    # The primary display's sound, as Fun Time publishes it.  Nau's own mpv is one
+    # The main player's sound, as Fun Time publishes it.  Nau's own mpv is one
     # of two sinks it drives (Genau's clip audio is the other), so the level here
     # is drawn and reported, never decided: a press asks Fun Time and the answer
     # comes back down the same channel.
     volume_hud = VolumeHud()
     volume_painter = VolumeHudPainter()
-    # Whether this window paints at all.  Fun Time gives the primary rect to
+    # Whether this window paints at all.  Fun Time gives the main slot's rect to
     # Genau in genau mode and minimizes Nau — minimized, so it keeps its taskbar
     # button — and says so on this channel; see nau.display.
     display = Display(player, _HUD_OVERLAYS)
     heatmap = HeatmapStrip()
     console_hud = ConsolePainter()
-    # What Fun Time says about the primary slot, and what Genau says it is doing
+    # What Fun Time says about the main slot, and what Genau says it is doing
     # to the device.  Both arrive published; before the first read the console
     # still draws, with the player's own controls and nothing claimed about the
     # room around it.
@@ -329,7 +329,7 @@ def _run(args) -> int:
 
         Every control on this HUD asks rather than acts — the console's buttons
         because the verbs are the room's, not this player's, and the volume slider
-        because Fun Time holds the authority over the primary display's sound.
+        because Fun Time holds the authority over the main slot's sound.
 
         Appended, because that file carries every mouse- and voice-driven writer
         at once and the dispatch loop drains it a tick at a time.  Standalone
@@ -478,7 +478,7 @@ def _run(args) -> int:
             remembered = mode_now
             memory.write(mode_now)
 
-        # Black while Genau owns the primary rect, and none of the work below
+        # Black while Genau owns the main slot's rect, and none of the work below
         # that builds a picture nobody can see.  Everything above still runs:
         # navigation, the funscript, the status file clipper_save reads.
         display.sync(win_w, win_h)

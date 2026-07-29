@@ -2,7 +2,7 @@
 
 Nau owns the library index, so only Nau can tell that "full video" or "money
 shot" had nowhere to go. It has no text layer of its own, and Fun Time already
-flashes notices over the primary display — so the result travels as a tiny
+flashes notices over the main slot — so the result travels as a tiny
 sequenced file: Nau bumps the sequence, Fun Time notices the change and flashes
 the message once. A missed read just means a missed flash, never a stuck one.
 """

@@ -242,7 +242,7 @@ def collapse_playlist_versions(
     its first-seen position, keeping the largest member actually present in
     *pairs* (with that member's funscript from *pairs*). Videos absent from the
     index pass through unchanged. This turns Fun Time's raw per-file playlist
-    into the one-slot-per-video rotation the primary player shows, matching the
+    into the one-slot-per-video rotation the main slot player shows, matching the
     set :meth:`PlayerSession.cycle_version` walks.
     """
     funscript_by_video = {video: funscript for video, funscript in pairs}

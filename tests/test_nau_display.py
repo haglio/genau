@@ -46,7 +46,7 @@ class TestBlackBgra:
 
 class TestDisplay:
     def test_starts_on_so_a_standalone_run_paints(self):
-        """Nothing tells a bare `python -m nau` anything about a primary slot,
+        """Nothing tells a bare `python -m nau` anything about a main slot,
         so the default has to be the one that shows the video."""
         display, player = _display()
 
