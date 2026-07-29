@@ -96,9 +96,12 @@ def apply_runtime_command(
         toggle_lock(clip_advance_state)
     elif normalized in ("LOCK_ON", "LOCK_OFF") and clip_advance_state is not None:
         set_locked(clip_advance_state, normalized == "LOCK_ON")
-    elif normalized == "ADVANCE_DOWN" and clip_advance_state is not None:
+    # How long a clip holds the screen, a second at a time.  Named for the number
+    # rather than for the auto-advance that spends it, so the verb reads as what
+    # the orchestrator's reference shows and what its speaker says aloud.
+    elif normalized == "CLIP_SECONDS_DOWN" and clip_advance_state is not None:
         adjust_interval(clip_advance_state, -1)
-    elif normalized == "ADVANCE_UP" and clip_advance_state is not None:
+    elif normalized == "CLIP_SECONDS_UP" and clip_advance_state is not None:
         adjust_interval(clip_advance_state, 1)
     elif normalized == "HUD_ON" and hud_state is not None:
         hud_state["active"] = True
@@ -133,10 +136,10 @@ def _try_numeric_command(normalized: str, direct_state, clip_advance_state) -> b
     except ValueError:
         return False
 
-    # "advance thirty" names the seconds a clip holds the screen.  It says
+    # "clip seconds thirty" names the seconds a clip holds the screen.  It says
     # nothing about the lock: a held clip stays held, and this is the pace it
     # will move at once it is let go.
-    if keyword == "ADVANCE":
+    if keyword == "CLIP_SECONDS":
         if clip_advance_state is None:
             return False
         set_interval(clip_advance_state, value)

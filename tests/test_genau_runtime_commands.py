@@ -637,32 +637,42 @@ class TestClipAdvanceCommands:
         assert aa.locked is True
 
     def test_a_number_names_the_seconds_and_leaves_the_lock_alone(self):
-        """Naming a pace used to arm the moving as well, which made "advance
-        thirty" both a setting and a switch.  The padlock is the only switch."""
+        """Naming a pace used to arm the moving as well, which made it both a
+        setting and a switch.  The padlock is the only switch."""
         aa = ClipAdvanceState(locked=True)
-        assert self._apply("ADVANCE 30", aa) is True
+        assert self._apply("CLIP_SECONDS 30", aa) is True
         assert aa.interval == 30
         assert aa.locked is True
 
     def test_a_named_pace_is_clamped_to_the_usable_range(self):
         aa = ClipAdvanceState()
-        self._apply("ADVANCE 0", aa)
+        self._apply("CLIP_SECONDS 0", aa)
         assert aa.interval == MIN_INTERVAL_S
-        self._apply("ADVANCE 900", aa)
+        self._apply("CLIP_SECONDS 900", aa)
         assert aa.interval == MAX_INTERVAL_S
 
     def test_the_arrows_step_the_pace_a_second_at_a_time(self):
         aa = ClipAdvanceState(interval=10)
-        assert self._apply("ADVANCE_UP", aa) is True
+        assert self._apply("CLIP_SECONDS_UP", aa) is True
         assert aa.interval == 11
-        assert self._apply("ADVANCE_DOWN", aa) is True
+        assert self._apply("CLIP_SECONDS_DOWN", aa) is True
+        assert aa.interval == 10
+
+    def test_the_retired_advance_verbs_are_not_answered_to(self):
+        """The interval is named for the number now, not for the auto-advance
+        that spends it.  The old spelling is gone rather than kept alongside:
+        two verbs for one setting is how the two drift into meaning different
+        things."""
+        aa = ClipAdvanceState(interval=10)
+        for cmd in ("ADVANCE_UP", "ADVANCE_DOWN", "ADVANCE 30"):
+            assert self._apply(cmd, aa) is False, f"{cmd} should no longer be answered"
         assert aa.interval == 10
 
     def test_ignored_without_clip_advance_state(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         for cmd in (
             "TOGGLE_LOCK", "LOCK_ON", "LOCK_OFF",
-            "ADVANCE_UP", "ADVANCE_DOWN", "ADVANCE 30",
+            "CLIP_SECONDS_UP", "CLIP_SECONDS_DOWN", "CLIP_SECONDS 30",
         ):
             handled = apply_runtime_command(
                 cmd,
