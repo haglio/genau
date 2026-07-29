@@ -14,13 +14,14 @@ from nau.hud import (
     hud_xy,
     with_playback_speed,
 )
-from nau.hud import _PAD as PAD
+from nau.hud import _DRIVE_TIPS, _PAD as PAD
 from nau.library import FULL, MIXED, SHORTS
 
 
-def _drive(**over) -> DriveHud:
+def _drive(offset: float = 0.0, **over) -> DriveHud:
+    """A readout whose trace has scrolled *offset* along, the way Genau's does."""
     return DriveHud(speed=50, amplitude=80, center=50, shape="sine",
-                    waveform=tuple(0.5 + 0.4 * np.sin(i / 6) for i in range(80)),
+                    waveform=tuple(0.5 + 0.4 * np.sin(i / 6 + offset) for i in range(80)),
                     **over)
 
 
@@ -506,3 +507,79 @@ class TestPlacement:
 
 def _rgb(bgra: np.ndarray) -> np.ndarray:
     return bgra[:, :, [2, 1, 0]]
+
+
+class TestTraceSources:
+    """The trace is on the console in every mode, because in every mode something
+    may be driving the device — and what it is a picture of is whoever that is."""
+
+    @staticmethod
+    def _painted(mode: str, osr2: str, drive: DriveHud | None = None) -> ConsolePainter:
+        painter = ConsolePainter()
+        painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode=mode, osr2=osr2), drive=drive or _drive()))
+        return painter
+
+    def test_genau_driving_leaves_the_readout_pressable(self):
+        painter = self._painted("hybrid", "genau")
+
+        assert [t.dim for t in painter.tracks] == [False, False, False]
+
+    def test_a_funscript_driving_dims_every_control_but_keeps_the_trace(self):
+        """A stroke Genau is not sending cannot be adjusted; the picture of the
+        one that *is* being sent is still worth drawing."""
+        painter = self._painted("hybrid", "funscript")
+
+        assert all(t.dim for t in painter.tracks)
+        assert painter.tracks
+
+    def test_nau_shows_the_trace_alone(self):
+        """No Genau behind that screen: its amplitude, centre and speed describe a
+        stroke nothing is making, and no control on them could reach one."""
+        painter = self._painted("nau", "funscript")
+
+        assert painter.tracks == []
+        # The readout's own marks, not the mode row's Genau button beside them.
+        assert not [b for _rect, b in painter.buttons
+                    if b.action in _DRIVE_TIPS]
+
+    def test_a_trace_only_readout_costs_the_panel_less_room(self):
+        tall = self._painted("hybrid", "genau")
+        short = self._painted("nau", "funscript")
+
+        assert short._image.size[1] < tall._image.size[1]
+
+
+class TestNothingDriving:
+    """With the OSR2 off there is nothing being sent, so there is no motion to
+    trace — and a trace scrolling on in the middle of a readout whose every
+    control is dead is the one part still claiming to be live."""
+
+    @staticmethod
+    def _scroll(painter: ConsolePainter, offset: float) -> None:
+        painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode="hybrid", osr2="off"),
+            drive=_drive(offset)))
+
+    def test_the_trace_stops_where_it_was_when_the_device_went_quiet(self):
+        painter = ConsolePainter()
+        self._scroll(painter, 0.0)
+        first = painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode="hybrid", osr2="off"), drive=_drive(0.0))).copy()
+
+        self._scroll(painter, 3.0)
+
+        assert np.array_equal(painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode="hybrid", osr2="off"),
+            drive=_drive(3.0))), first)
+
+    def test_it_moves_again_the_moment_something_is_driving(self):
+        painter = ConsolePainter()
+        self._scroll(painter, 0.0)
+        still = painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode="hybrid", osr2="off"), drive=_drive(0.0))).copy()
+
+        moving = painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode="hybrid", osr2="genau"), drive=_drive(3.0)))
+
+        assert not np.array_equal(moving, still)
