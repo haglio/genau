@@ -184,10 +184,35 @@ class PlayerSession:
         """Close the marked loop at *out_ms* and start mpv's native A/B loop."""
         self._loop_ctrl.on_record_up(out_ms)
         if self._loop_ctrl.state == LoopState.LOOPING:
-            # mpv loops the A/B range natively (smooth, no seek stutter).
-            self._player.set_ab_loop(self._loop_ctrl.in_ms, self._loop_ctrl.out_ms)
-            self._player.seek_ms(self._loop_ctrl.in_ms)
-            self._tcode.reset()
+            self._enter_loop()
+
+    def restore_loop(self, in_ms: int, out_ms: int) -> None:
+        """Put the video back into a loop it was left running in.
+
+        The loop outlives the session that marked it: an orchestrator reads the
+        bounds off the status file this session publishes and hands them back on
+        the command channel next launch, over the video the playlist was resumed
+        onto.  The bounds are already finished ones, so no gesture is replayed
+        and nothing is snapped again.
+
+        An empty range is no loop — that is what the status file says when
+        nothing is looping — and is left alone rather than turned into a loop
+        with nothing in it.
+        """
+        if self._loop_ctrl is None or out_ms <= in_ms:
+            return
+        self._loop_ctrl.restore(in_ms, out_ms)
+        self._enter_loop()
+
+    def _enter_loop(self) -> None:
+        """Hand the settled loop to mpv and drop the playhead on its start.
+
+        mpv loops the A/B range natively (smooth, no seek stutter).  The jump
+        goes through :meth:`seek_to` so it survives a file that is still opening,
+        which is the case for a loop restored the moment a session launches.
+        """
+        self._player.set_ab_loop(self._loop_ctrl.in_ms, self._loop_ctrl.out_ms)
+        self.seek_to(self._loop_ctrl.in_ms)
 
     def loop_cancel(self) -> None:
         if self._loop_ctrl is None:

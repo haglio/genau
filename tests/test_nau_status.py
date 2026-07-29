@@ -13,6 +13,7 @@ class StubSession:
         self.has_funscript = True
         self.funscript_resting = False
         self.loop_state = "normal"
+        self.loop_bounds = None
         self.is_paused = False
         self.locked = True
 
@@ -35,8 +36,28 @@ class TestStatusFields:
         # contract; pinning the order keeps a reordering from passing silently.
         assert list(status_fields(StubSession())) == [
             "video", "position_ms", "duration_ms",
-            "has_funscript", "funscript_resting", "state", "paused", "locked",
+            "has_funscript", "funscript_resting", "state",
+            "loop_in_ms", "loop_out_ms", "paused", "locked",
         ]
+
+    def test_a_running_loop_publishes_the_range_it_holds(self):
+        """The loop is the one thing on this player that a restart cannot
+        rebuild from the playlist: it is a range inside one video, so the
+        orchestrator can only hand it back if it is told what it was."""
+        session = StubSession()
+        session.loop_state = "looping"
+        session.loop_bounds = (2000, 4000)
+
+        fields = status_fields(session)
+
+        assert (fields["loop_in_ms"], fields["loop_out_ms"]) == ("2000", "4000")
+
+    def test_no_loop_publishes_an_empty_range(self):
+        """Zeros rather than blanks, so the reader parses one shape either way —
+        and an empty range is no loop, which is what it means."""
+        fields = status_fields(StubSession())
+
+        assert (fields["loop_in_ms"], fields["loop_out_ms"]) == ("0", "0")
 
     def test_flags_follow_the_session(self):
         session = StubSession()

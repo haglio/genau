@@ -63,6 +63,8 @@ def apply_command(
         _record_tap(session)
     elif keyword == "LOOP_CANCEL":
         session.loop_cancel()
+    elif keyword == "SET_LOOP":
+        return _set_loop(session, arg)
     elif keyword == "TOGGLE_LOCK":
         session.toggle_lock()
     elif keyword in ("LOCK_ON", "LOCK_OFF"):
@@ -160,6 +162,25 @@ def _set_speed(session, arg: str) -> bool:
             session.set_speed(float(arg))
         except ValueError:
             return False
+    return True
+
+
+def _set_loop(session, arg: str) -> bool:
+    """SET_LOOP <in_ms> <out_ms> -> a loop this player was left running.
+
+    The one piece of Nau's state an orchestrator has to hand back rather than
+    rebuild: a loop is a range inside one video, so it dies with the process
+    while everything else rides in on the playlist or a flag file.  The bounds
+    come straight off the status file this player published, already snapped, so
+    they are asserted rather than marked.  Returns False on anything it cannot
+    read as two numbers, so the caller reports it unhandled.
+    """
+    in_part, _, out_part = arg.partition(" ")
+    try:
+        in_ms, out_ms = int(in_part), int(out_part)
+    except ValueError:
+        return False
+    session.restore_loop(in_ms, out_ms)
     return True
 
 
