@@ -23,23 +23,65 @@ def _drive() -> DriveHud:
                     waveform=tuple(0.5 + 0.4 * np.sin(i / 6) for i in range(80)))
 
 
+def _line(*, locked: bool = True, **modes) -> str:
+    """The status line for a primary in *modes* whose lock is *locked*."""
+    return ConsoleHud(modes=ModeHud(**modes),
+                      console=ConsoleModel(locked=locked)).status_line
+
+
 class TestLine:
-    def test_says_which_length_mode_the_library_is_in(self):
-        assert ModeHud(length_mode=MIXED).line == "Mixed"
-        assert ModeHud(length_mode=FULL).line == "Full length"
-        assert ModeHud(length_mode=SHORTS).line == "Shorts"
+    def test_says_whether_the_primary_is_holding_the_video_on_screen(self):
+        """Each satellite leads its line with this word, and the primary has the
+        same lock — one padlock, for whichever player holds the slot."""
+        assert _line(locked=True) == "Locked"
+        assert _line(locked=False) == "Unlocked"
+
+    def test_says_which_length_mode_the_library_is_in_and_says_it_last(self):
+        """The length mode is what the satellites' act filter is — a narrowing of
+        what may play — so it takes the same place, at the end of the line.
+
+        "Mixed" is every length there is, so it narrows nothing and prints nothing,
+        exactly as a satellite prints nothing where its filter would go when it has
+        none.  It also no longer says enough to be worth the room: the library has
+        grown a third kind of thing, and one word for "some of each" cannot say
+        which.
+        """
+        assert _line(length_mode=MIXED) == "Locked"
+        assert _line(length_mode=FULL) == "Locked · Full length"
+        assert _line(length_mode=SHORTS) == "Locked · Shorts"
 
     def test_claims_no_length_mode_without_a_library_behind_the_playlist(self):
-        assert ModeHud(length_mode="").line == ""
+        """A playlist Fun Time drives has no length filter of its own to report, so
+        that slot stays empty.  The lock is still said: it belongs to the primary
+        slot whatever is feeding it."""
+        assert _line(length_mode="") == "Locked"
+
+    def test_a_player_with_no_library_still_says_its_lock_after_what_it_supplied(self):
+        """Genau hands its own line in whole, and it lands in the slot Nau's
+        compilation takes — the head.  The lock is the primary's either way, so it
+        follows that line rather than being dropped with the rest of Nau's."""
+        assert _line(status="Cruising", locked=False) == "Cruising · Unlocked"
 
     def test_names_the_compilation_and_where_you_are_in_it(self):
-        hud = ModeHud(length_mode=SHORTS, compilation="Vol6", position=9, total=20)
+        """A compilation is the primary's loop — a fixed set it plays through
+        rather than the browse it came from — so it leads the line the way a
+        satellite's loop does, and displaces "Unlocked" there for the same reason:
+        a loop is repeat-all, and nothing is being held.  "Locked" still joins it,
+        being a hold at one place inside the set.  The length mode stays on behind
+        it, since ending the compilation drops you back into it."""
+        def line(**over) -> str:
+            return _line(compilation="Vol6", position=9, total=20, **over)
 
-        assert hud.line == "Vol6 · 9/20"
+        assert line(locked=False) == "Vol6 · 9/20"
+        assert line(locked=True) == "Vol6 · 9/20 · Locked"
+        assert line(locked=False, length_mode=SHORTS) == "Vol6 · 9/20 · Shorts"
 
     def test_says_when_fun_time_has_narrowed_to_f_mode(self):
-        assert ModeHud(length_mode=MIXED, f_mode=True).line == "Mixed · F-Mode"
-        assert ModeHud(f_mode=True).line == "F-Mode"
+        """Between the lock and the length, where each satellite puts it: F-mode
+        cuts the whole library to the funscripted videos and the length mode then
+        narrows what is left, so the coarser filter is named first."""
+        assert _line(f_mode=True) == "Locked · F-Mode"
+        assert _line(length_mode=SHORTS, f_mode=True) == "Locked · F-Mode · Shorts"
 
 
 class TestCompilationLabel:

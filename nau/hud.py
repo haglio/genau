@@ -67,7 +67,7 @@ from .console import (
     rows_height,
     tooltip_at,
 )
-from .library import FULL, MIXED, SHORTS
+from .library import FULL, SHORTS
 
 # The glyphs the console's buttons are drawn with come from Segoe UI Symbol;
 # Segoe UI Bold has none of them and Pillow draws tofu rather than falling back.
@@ -75,11 +75,23 @@ SYMBOL_FONT = "seguisym.ttf"
 
 # What the length modes are called on screen.  The library names them for what it
 # filters on; the HUD names them for what the user asked for.
-_LENGTH_LABELS = {MIXED: "Mixed", FULL: "Full length", SHORTS: "Shorts"}
+#
+# MIXED is deliberately absent: it applies no length filter at all, so it narrows
+# nothing and there is nothing to report — the same silence a satellite keeps where
+# its act filter would go when it has none.  It could not say much anyway now that
+# the library holds three kinds of thing rather than two: "a mix" names none of
+# them, where "Shorts" and "Full length" each name what they kept.
+_LENGTH_LABELS = {FULL: "Full length", SHORTS: "Shorts"}
 
 # What F-mode is called on screen.  One Fun Time key toggles it for every player
 # at once, so it reads the same here as on the satellites' HUD.
 F_MODE_LABEL = "F-Mode"
+
+# What the lock is called on screen.  The satellites say the same two words for
+# the same state — repeat-one on whatever is on screen — so the three players read
+# alike; Fun Time's ``lock_hud._lock_label`` is the other place this wording lives.
+LOCKED_LABEL = "Locked"
+UNLOCKED_LABEL = "Unlocked"
 
 _SEPARATOR = " · "
 
@@ -127,14 +139,16 @@ def compilation_label(title: str) -> str:
 class ModeHud:
     """Nau's own answer to "what am I playing?" — the console's top block.
 
-    *video* is the name of the clip on screen, drawn beside the active dot; it
-    used to live in a chip of its own below the console, and now it heads the
-    console instead.  *length_mode* is the library's filter, empty when there is
-    no library behind the playlist; *compilation* is the volume holding the
-    playlist, with *position*/*total* placing the current video in it; *f_mode* is
-    Fun Time's filter over whichever of those runs — together they are the muted
-    subtitle under the name.  All empty in genau mode, where there is no Nau
-    playlist to describe.
+    *video* is the name of the clip on screen, drawn as the muted line beneath the
+    status; it used to live in a chip of its own below the console, and now it
+    heads the console instead.  The rest is what the status line is built from:
+    *length_mode* is the library's filter, empty when there is no library behind
+    the playlist; *compilation* is the volume holding the playlist, with
+    *position*/*total* placing the current video in it; *f_mode* is Fun Time's
+    filter over whichever of those runs.  All empty in genau mode, where there is
+    no Nau playlist to describe — see :attr:`ConsoleHud.status_line`, which is
+    where they are put in order, since the lock they are said beside is the
+    console's rather than Nau's.
     """
 
     video: str = ""
@@ -143,25 +157,10 @@ class ModeHud:
     position: int = 0
     total: int = 0
     f_mode: bool = False
-    # A status line the drawing player supplies whole, for a player with no
-    # library behind it to say something in the same place Nau says its mode.
+    # What is selecting this playlist, supplied whole by a drawing player with no
+    # library behind it — it takes the head of the status line, the place Nau's
+    # own compilation takes.
     status: str = ""
-
-    @property
-    def line(self) -> str:
-        """The top line's text — empty when there is nothing to say."""
-        if self.status:
-            return self.status
-        parts = []
-        if self.compilation:
-            parts.append(
-                f"{compilation_label(self.compilation)}{_SEPARATOR}{self.position}/{self.total}"
-            )
-        elif self.length_mode in _LENGTH_LABELS:
-            parts.append(_LENGTH_LABELS[self.length_mode])
-        if self.f_mode:
-            parts.append(F_MODE_LABEL)
-        return _SEPARATOR.join(parts)
 
 
 # --- the panel ---------------------------------------------------------------
@@ -198,6 +197,48 @@ class ConsoleHud:
     modes: ModeHud = field(default_factory=ModeHud)
     console: ConsoleModel = field(default_factory=ConsoleModel)
     drive: DriveHud | None = None
+
+    @property
+    def status_line(self) -> str:
+        """The top line's text — everything selecting what is on the primary, in
+        the order each satellite's HUD says the same things.
+
+        The satellites read "Looping seeds · Locked · Shuffle · F-Mode · <act>":
+        the set being played, then the hold on one member of it, then the browse
+        order, then the two filters, coarse before fine.  The primary says the
+        same shape with its own words.  The compilation is its loop — a fixed set
+        it plays through rather than the browse it came from — so it leads; the
+        lock follows, being a hold at one place inside whatever leads; F-mode and
+        then the length mode close it, F-mode cutting the whole library to the
+        funscripted videos and the length narrowing what is left.
+
+        Two silences are deliberate, both of them the satellites' own.  "Unlocked"
+        is dropped inside a compilation, because a set playing through holds
+        nothing and saying so is noise — "Locked" still joins it.  And "Mixed"
+        prints nothing at all: it is every length there is, so it narrows nothing,
+        exactly as a satellite prints nothing where its act filter would go when it
+        has none.
+
+        There is no browse-order word here — the primary has no Latest/Shuffle to
+        report, so the slot the satellites give it simply does not exist.
+        """
+        parts = []
+        if self.modes.status:
+            parts.append(self.modes.status)
+        elif self.modes.compilation:
+            parts.append(
+                f"{compilation_label(self.modes.compilation)}"
+                f"{_SEPARATOR}{self.modes.position}/{self.modes.total}"
+            )
+        if self.console.locked:
+            parts.append(LOCKED_LABEL)
+        elif not self.modes.compilation:
+            parts.append(UNLOCKED_LABEL)
+        if self.modes.f_mode:
+            parts.append(F_MODE_LABEL)
+        if self.modes.length_mode in _LENGTH_LABELS:
+            parts.append(_LENGTH_LABELS[self.modes.length_mode])
+        return _SEPARATOR.join(parts)
 
 
 class ConsolePainter:
@@ -330,7 +371,7 @@ class ConsolePainter:
             # Genau is not sending is what woke it against the funscript.
             drive = replace(drive, driving=console.osr2 == OSR2_GENAU)
         rows = console_rows(console)
-        status = hud.modes.line
+        status = hud.status_line
         filename = hud.modes.video
         drive_w, drive_h = DriveSection.SIZE if drive is not None else (0, 0)
         body_ascent, body_descent = self._body.getmetrics()
