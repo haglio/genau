@@ -383,16 +383,30 @@ def _run(args) -> int:
             if ev.type == pygame.QUIT:
                 stop_event.set()
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                pressed = console_hud.command_at(*ev.pos)
+                pressed = console_hud.press_at(*ev.pos)
                 if pressed:
                     _post(pressed)
                 else:
                     # A press that missed every button falls through to the video,
                     # where it seeks or pauses as it always did.
                     _click(ev.pos[0], ev.pos[1], win_w, win_h)
+            elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
+                console_hud.release()
             elif ev.type == pygame.MOUSEMOTION:
                 hover = console_hud.hover_at(*ev.pos)
-                if ev.buttons[0]:
+                if not ev.buttons[0]:
+                    # The button came up somewhere this loop never saw it — over
+                    # another window, or off the screen — so nothing is held.
+                    console_hud.release()
+                elif console_hud.holding:
+                    # Dragging a bar on the drive readout keeps setting its level,
+                    # the way the volume slider below does.  The band a press took
+                    # hold of keeps the drag even as the pointer wanders off it,
+                    # and says nothing while the level under it has not moved.
+                    dragged = console_hud.drag_to(*ev.pos)
+                    if dragged:
+                        _post(dragged)
+                else:
                     # Dragging along the track keeps setting the level, the way
                     # every volume slider does; a drag that began elsewhere misses
                     # the chip and does nothing.
