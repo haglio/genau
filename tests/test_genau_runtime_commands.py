@@ -624,6 +624,15 @@ class TestClipAdvanceCommands:
             clip_advance_state=aa,
         )
 
+    def _apply_volume(self, command, on_volume):
+        return apply_runtime_command(
+            command,
+            engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+            rh_paused={"value": False},
+            step_clip=lambda _step: None,
+            set_volume=lambda level, muted: on_volume((level, muted)),
+        )
+
     def test_toggle_flips_the_lock(self):
         aa = ClipAdvanceState(locked=True)
         assert self._apply("TOGGLE_LOCK", aa) is True
@@ -657,6 +666,30 @@ class TestClipAdvanceCommands:
         assert aa.interval == 11
         assert self._apply("CLIP_SECONDS_DOWN", aa) is True
         assert aa.interval == 10
+
+    def test_the_published_sound_level_reaches_the_chip(self):
+        """Genau draws the primary display's volume but owns neither the level
+        nor the audio, so Fun Time tells it what to show.  The mute comes with
+        the level: a zero cannot say whether the speaker is off or turned all the
+        way down, nor what unmuting would return to."""
+        shown = []
+        assert self._apply_volume("SET_VOLUME 40 1", shown.append) is True
+        assert shown == [(40, True)]
+        assert self._apply_volume("SET_VOLUME 70 0", shown.append) is True
+        assert shown[-1] == (70, False)
+
+    def test_a_level_with_no_mute_still_moves_the_slider(self):
+        """An orchestrator that sends the level alone is answered rather than
+        ignored — the chip has a level to show either way."""
+        shown = []
+        assert self._apply_volume("SET_VOLUME 55", shown.append) is True
+        assert shown == [(55, False)]
+
+    def test_an_unreadable_level_is_ignored_rather_than_drawn(self):
+        shown = []
+        for bad in ("SET_VOLUME", "SET_VOLUME loud", "SET_VOLUME 40 up"):
+            assert self._apply_volume(bad, shown.append) is False
+        assert shown == []
 
     def test_the_retired_advance_verbs_are_not_answered_to(self):
         """The interval is named for the number now, not for the auto-advance

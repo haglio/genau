@@ -40,6 +40,7 @@ def apply_runtime_command(
     stop_event=None,
     hud_state=None,
     display_state=None,
+    set_volume=None,
 ) -> bool:
     if not command:
         return False
@@ -115,7 +116,8 @@ def apply_runtime_command(
     elif normalized == "DISPLAY_OFF" and display_state is not None:
         display_state["active"] = False
     else:
-        return _try_numeric_command(normalized, direct_state, clip_advance_state)
+        return _try_numeric_command(
+            normalized, direct_state, clip_advance_state, set_volume)
     return True
 
 
@@ -126,11 +128,39 @@ _NUMERIC_SETTERS = {
 }
 
 
-def _try_numeric_command(normalized: str, direct_state, clip_advance_state) -> bool:
+def _set_volume_command(raw: str, set_volume) -> bool:
+    """``SET_VOLUME <level> [muted]`` — the sound level Fun Time is publishing.
+
+    Genau neither owns the level (the orchestrator does, for the whole primary
+    display) nor plays the audio: a companion process carries the clip music.
+    What arrives here is only what the chip Genau draws should show, which is why
+    the mute rides alongside the level — a level of zero cannot say whether the
+    speaker is off or turned all the way down, nor what unmuting returns to.
+
+    The mute is optional so an orchestrator that sends the level alone still
+    moves the slider rather than being ignored outright.
+    """
+    if set_volume is None:
+        return False
+    parts = raw.split()
+    try:
+        level = int(parts[0])
+        muted = bool(int(parts[1])) if len(parts) > 1 else False
+    except (IndexError, ValueError):
+        return False
+    set_volume(level, muted)
+    return True
+
+
+def _try_numeric_command(
+    normalized: str, direct_state, clip_advance_state, set_volume=None
+) -> bool:
     parts = normalized.split(None, 1)
     if len(parts) != 2:
         return False
     keyword, raw_value = parts
+    if keyword == "SET_VOLUME":
+        return _set_volume_command(raw_value, set_volume)
     try:
         value = int(raw_value)
     except ValueError:
