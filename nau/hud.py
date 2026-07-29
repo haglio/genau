@@ -49,6 +49,7 @@ from player_core.hud_panel import (
     text_width,
     to_bgra,
 )
+from player_core.hud_status import SEPARATOR, status_line
 
 from .console import (
     BROKER_ICON,
@@ -83,18 +84,6 @@ SYMBOL_FONT = "seguisym.ttf"
 # the library holds three kinds of thing rather than two: "a mix" names none of
 # them, where "Shorts" and "Full length" each name what they kept.
 _LENGTH_LABELS = {FULL: "Full length", SHORTS: "Shorts"}
-
-# What F-mode is called on screen.  One Fun Time key toggles it for every player
-# at once, so it reads the same here as on the satellites' HUD.
-F_MODE_LABEL = "F-Mode"
-
-# What the lock is called on screen.  The satellites say the same two words for
-# the same state — repeat-one on whatever is on screen — so the three players read
-# alike; Fun Time's ``lock_hud._lock_label`` is the other place this wording lives.
-LOCKED_LABEL = "Locked"
-UNLOCKED_LABEL = "Unlocked"
-
-_SEPARATOR = " · "
 
 # The two controls that wear an app mark rather than a glyph, and which mark:
 # the broker's "B" and F-mode's "F", each the pink five-by-five letter its .ico
@@ -213,48 +202,40 @@ class ConsoleHud:
         """The top line's text — everything selecting what is on the primary, in
         the order each satellite's HUD says the same things.
 
-        The satellites read "Looping seeds · Locked · Shuffle · F-Mode · <act>":
-        the set being played, then the hold on one member of it, then the browse
-        order, then the two filters, coarse before fine.  The primary says the
-        same shape with its own words.  The compilation is its loop — a fixed set
-        it plays through rather than the browse it came from — so it leads; the
-        lock follows, being a hold at one place inside whatever leads; F-mode and
-        then the length mode close it, F-mode cutting the whole library to the
-        funscripted videos and the length narrowing what is left.
+        This player's words in the slots
+        :func:`player_core.hud_status.status_line` lays out, which is where the
+        grammar and the shared states' wording live — the satellites say the same
+        sentence, and a reader glancing between two screens is reading one sentence
+        in two places.
 
-        Two silences are deliberate, both of them the satellites' own.  "Unlocked"
-        is dropped inside a compilation, because a set playing through holds
-        nothing and saying so is noise — "Locked" still joins it.  And "Mixed"
-        prints nothing at all: it is every length there is, so it narrows nothing,
+        What fills the slots is the primary's own.  The compilation is its playing
+        set — a fixed run it plays through rather than the browse it came from.
+        The order slot is empty under Nau, which has no Latest/Shuffle to report,
+        and carries Genau's advance pace under Genau, whose whole browse order is
+        how long it leaves a clip up.  The length mode is the filter, and "Mixed"
+        prints nothing there: it is every length there is, so it narrows nothing —
         exactly as a satellite prints nothing where its act filter would go when it
         has none.
-
-        The browse-order slot is empty under Nau, which has no Latest/Shuffle to
-        report, and carries Genau's advance pace under Genau, whose whole browse
-        order is how long it leaves a clip up.
         """
-        parts = []
-        if self.modes.compilation:
-            parts.append(
-                f"{compilation_label(self.modes.compilation)}"
-                f"{_SEPARATOR}{self.modes.position}/{self.modes.total}"
-            )
-        if self.console.locked:
-            parts.append(LOCKED_LABEL)
-        elif not self.modes.compilation:
-            parts.append(UNLOCKED_LABEL)
-            if not nau_displays(self.console.mode) and self.advance_interval:
-                # Genau's browse order, in the slot the satellites give theirs:
-                # unheld, it moves on every so many seconds, which is the whole
-                # of how it walks its clips.  Only when Genau is the one showing
-                # — hybrid draws the readout too, but an unlocked Nau plays
-                # through its playlist rather than on a timer.
-                parts.append(f"{self.advance_interval}s")
-        if self.modes.f_mode:
-            parts.append(F_MODE_LABEL)
-        if self.modes.length_mode in _LENGTH_LABELS:
-            parts.append(_LENGTH_LABELS[self.modes.length_mode])
-        return _SEPARATOR.join(parts)
+        compilation = (
+            f"{compilation_label(self.modes.compilation)}"
+            f"{SEPARATOR}{self.modes.position}/{self.modes.total}"
+        ) if self.modes.compilation else ""
+        # Only while Genau is the one showing and is not holding: hybrid draws the
+        # drive readout too, but an unlocked Nau plays through its playlist rather
+        # than on a timer, so seconds there would describe the wrong player — and a
+        # held clip has no pace at all, since nothing is going to move it on.
+        pace = (f"{self.advance_interval}s"
+                if (not self.console.locked and self.advance_interval
+                    and not nau_displays(self.console.mode))
+                else "")
+        return status_line(
+            playing_set=compilation,
+            locked=self.console.locked,
+            order=pace,
+            f_mode=self.modes.f_mode,
+            filter_label=_LENGTH_LABELS.get(self.modes.length_mode, ""),
+        )
 
 
 class ConsolePainter:
