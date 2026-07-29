@@ -18,9 +18,10 @@ from nau.hud import _PAD as PAD
 from nau.library import FULL, MIXED, SHORTS
 
 
-def _drive() -> DriveHud:
+def _drive(**over) -> DriveHud:
     return DriveHud(speed=50, amplitude=80, center=50, shape="sine",
-                    waveform=tuple(0.5 + 0.4 * np.sin(i / 6) for i in range(80)))
+                    waveform=tuple(0.5 + 0.4 * np.sin(i / 6) for i in range(80)),
+                    **over)
 
 
 def _line(*, locked: bool = True, **modes) -> str:
@@ -56,11 +57,25 @@ class TestLine:
         slot whatever is feeding it."""
         assert _line(length_mode="") == "Locked"
 
-    def test_a_player_with_no_library_still_says_its_lock_after_what_it_supplied(self):
-        """Genau hands its own line in whole, and it lands in the slot Nau's
-        compilation takes — the head.  The lock is the primary's either way, so it
-        follows that line rather than being dropped with the rest of Nau's."""
-        assert _line(status="Cruising", locked=False) == "Cruising · Unlocked"
+    def test_a_genau_primary_says_its_lock_and_the_pace_it_moves_at(self):
+        """Genau has no library, no compilation and no filters.  What it has is the
+        same lock every player has and, while that lock is off, the seconds it
+        leaves each clip up — which is its browse order, so it sits where the
+        satellites put theirs, straight after the lock.  Held, there is no pace to
+        report: the clip stays until something moves it."""
+        def line(**over) -> str:
+            return ConsoleHud(console=ConsoleModel(mode="genau", **over),
+                              drive=_drive(advance_interval=5)).status_line
+
+        assert line(locked=False) == "Unlocked · 5s"
+        assert line(locked=True) == "Locked"
+
+    def test_the_pace_belongs_to_genau_and_is_not_claimed_while_nau_is_showing(self):
+        """Hybrid draws the readout, so the pace is there to read — but Nau is on
+        screen and an unlocked Nau plays through its playlist rather than moving on
+        a timer, so saying seconds would describe the wrong player."""
+        assert ConsoleHud(console=ConsoleModel(mode="hybrid", locked=False),
+                          drive=_drive(advance_interval=5)).status_line == "Unlocked"
 
     def test_names_the_compilation_and_where_you_are_in_it(self):
         """A compilation is the primary's loop — a fixed set it plays through

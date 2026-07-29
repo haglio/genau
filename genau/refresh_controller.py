@@ -25,10 +25,6 @@ _DRIVE_PUBLISH_INTERVAL_S = 0.04
 # minute, so the file is read far less often than the readout is rebuilt.
 _CONSOLE_READ_INTERVAL_S = 0.2
 
-# Genau's own status line, in the place Nau names its length mode or compilation.
-# A placeholder: nothing about a Genau session belongs there yet.
-_GENAU_STATUS = "(Genau states TBD)"
-
 
 class GenauRefreshController:
     def __init__(
@@ -282,14 +278,14 @@ class GenauRefreshController:
             published = read_console(self.console_file)
             if published is not None:
                 self._console_model = published
-        # Genau draws no Nau mode line — there is no Nau playlist behind its
-        # screen — so the top line is bare but for the active dot.
-        # The same top block Nau draws: a status line, and the clip on screen
-        # under it.  Genau has nothing to put on the status line yet.
+        # The same top block Nau draws: the status line, and the clip on screen
+        # under it.  Genau has no Nau playlist behind its screen and so none of
+        # the modes Nau reports — its own two states, the lock and the pace an
+        # unheld clip moves on at, are read off the console and the drive readout
+        # by ConsoleHud.status_line, so there is nothing to hand it here.
         clip = self.renderer.current_clip_path
         self.set_console(ConsoleHud(
-            modes=ModeHud(status=_GENAU_STATUS,
-                          video=Path(clip).stem if clip else ""),
+            modes=ModeHud(video=Path(clip).stem if clip else ""),
             console=self._console_model, drive=hud,
         ))
 
