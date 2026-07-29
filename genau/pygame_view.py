@@ -8,6 +8,14 @@ from PIL import Image
 from pygame._sdl2.video import Renderer, Texture, Window
 
 from nau.hud import ConsoleHud, ConsolePainter, hud_xy
+from player_core.volume import (
+    VolumeHud,
+    VolumeHudPainter,
+    chip_local,
+    chip_xy,
+    hit_part,
+    volume_at,
+)
 from .layout import compute_video_rects
 
 # Near-black magenta used as the Win32 color key for HUD transparency.
@@ -113,6 +121,12 @@ class PygameView:
         self._console: ConsoleHud | None = None
         self._console_painter = ConsolePainter()
         self._console_hover: tuple[int, int] | None = None
+        # The primary display's volume chip, in the corner Nau puts it in — this
+        # window IS the primary display in genau mode, and reaching for the sound
+        # should not mean finding a different control depending on the mode.
+        # Fun Time owns the level and tells us what it is; a press asks it.
+        self._volume = VolumeHud()
+        self._volume_painter = VolumeHudPainter()
         self.hud_active: bool = False
         # When blank, the window paints solid black and draws no clip or overlay.
         # Genau uses this while it isn't the active display (e.g. Nau mode), so an
@@ -152,6 +166,31 @@ class PygameView:
     def console_release(self) -> None:
         """Let go of whichever bar a press took hold of."""
         self._console_painter.release()
+
+    def set_volume(self, level: int, muted: bool) -> None:
+        """Show the level Fun Time is publishing for the primary display."""
+        self._volume = VolumeHud(volume=level, muted=muted)
+
+    def press_volume_at(self, mx: int, my: int) -> str:
+        """The command a press at ``(mx, my)`` posts on the volume chip, "" over none.
+
+        The new level is shown at once and asked for at the same time: Fun Time
+        holds the authority and its answer is a tick away, so a slider that waited
+        for it would drag a frame behind the pointer.  Its answer overwrites this
+        one either way, which is what corrects a press it decides to ignore.
+        """
+        win_w, win_h = self.window.size
+        cx, cy = chip_local(mx, my, win_w=win_w, win_h=win_h, timeline_h=0)
+        part = hit_part(cx, cy)
+        if part == "mute":
+            muted = not self._volume.muted
+            self._volume = VolumeHud(volume=self._volume.volume, muted=muted)
+            return "audio_mute" if muted else "audio_unmute"
+        if part == "track":
+            level = volume_at(cx)
+            self._volume = VolumeHud(volume=level, muted=False)
+            return f"audio_set_volume|{level}"
+        return ""
 
     def set_console_hover(self, mx: int, my: int) -> None:
         """Remember where the cursor is over the console, so a button under it
@@ -197,6 +236,7 @@ class PygameView:
         # video.  Drawing it here too would put the same console on screen twice.
         if not self._blank and not self.hud_active and self._console is not None:
             self._draw_console()
+            self._draw_volume()
         self.renderer.present()
 
     def _draw_loading_overlay(self) -> None:
@@ -227,6 +267,22 @@ class PygameView:
         surface = pygame.image.frombuffer(rgba, size, "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
         texture.draw(dstrect=pygame.Rect(hud_xy(), size))
+
+    def _draw_volume(self) -> None:
+        """Blit the primary display's volume chip, bottom-right.
+
+        Beside the console, and drawn under the same condition: in Hybrid this
+        window is a transparent layer over Nau's, and Nau draws both there — a
+        chip here too would put two sliders on screen disagreeing about which
+        press the level came from.  There is no timeline under it, so it sits
+        where Nau's does with the scrubber row taken away.
+        """
+        win_w, win_h = self.window.size
+        rgba, size = self._volume_painter.rgba(self._volume)
+        surface = pygame.image.frombuffer(rgba, size, "RGBA")
+        texture = Texture.from_surface(self.renderer, surface)
+        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=0)
+        texture.draw(dstrect=pygame.Rect(vx, vy, *size))
 
     def set_hud_mode(self, active: bool) -> None:
         if active == self.hud_active:

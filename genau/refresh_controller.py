@@ -64,6 +64,7 @@ class GenauRefreshController:
         set_hud_mode=None,
         set_blank=None,
         display_state=None,
+        set_volume=None,
     ):
         self.state = state
         self.loader = loader
@@ -105,6 +106,7 @@ class GenauRefreshController:
         self.set_hud_mode = set_hud_mode or (lambda _active: None)
         self.set_blank = set_blank or (lambda _blank: None)
         self.display_state = display_state
+        self.set_volume = set_volume or (lambda _level, _muted: None)
         self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
         self.window_visible = False
         self._prev_playing: bool | None = None
@@ -205,6 +207,7 @@ class GenauRefreshController:
                 stop_event=self.stop_event,
                 hud_state=self.hud_state,
                 display_state=self.display_state,
+                set_volume=self.set_volume,
             )
 
         if self.hud_state is not None:
