@@ -35,7 +35,6 @@ from genau.drive_hud import tracks as drive_tracks
 from player_core.hud_panel import (
     BG_PRIMARY,
     BLUE,
-    BORDER_PANEL,
     GREEN,
     PINK,
     RED,
@@ -45,6 +44,7 @@ from player_core.hud_panel import (
     HudPanel,
     draw_glyph,
     draw_icon,
+    draw_tooltip,
     load_font,
     text_width,
     to_bgra,
@@ -462,7 +462,9 @@ class ConsolePainter:
                 self.buttons.append((track.rect, Button("", "", track.tooltip)))
 
         if hover is not None:
-            self._tooltip(draw, width, height, tooltip_at(self.buttons, *hover), hover)
+            tip = tooltip_at(self.buttons, *hover)
+            if tip:
+                draw_tooltip(draw, self._tiny, tip, hover, (width, height))
         return panel.image
 
     @staticmethod
@@ -506,22 +508,6 @@ class ConsolePainter:
                                radius=3, outline=(*color, 255), width=1)
         draw.text((pill_x + pill_w / 2, y + _OSR2_H / 2), state, font=self._tiny,
                   anchor="mm", fill=(*color, 255))
-
-    def _tooltip(self, draw, width: int, height: int, text: str, pos: tuple[int, int]) -> None:
-        """A tooltip drawn inside the panel near the cursor — the HUD lives in the
-        video, so there is no native one, and every glyph up here is cryptic."""
-        if not text:
-            return
-        pad = 5
-        ascent, descent = self._tiny.getmetrics()
-        w = text_width(self._tiny, text) + 2 * pad
-        h = ascent + descent + 2 * pad
-        x = max(2, min(pos[0] + 14, width - w - 2))
-        y = max(2, min(pos[1] + 16, height - h - 2))
-        draw.rounded_rectangle([x, y, x + w - 1, y + h - 1], radius=4,
-                               fill=(*BG_PRIMARY, 240), outline=(*BORDER_PANEL, 255), width=1)
-        draw.text((x + w / 2, y + h / 2), text, font=self._tiny, anchor="mm",
-                  fill=(*TEXT_PRIMARY, 255))
 
     def _button(self, draw, rect: Rect, button: Button) -> None:
         """One control, in the one button shape this family's HUDs use: an outline
