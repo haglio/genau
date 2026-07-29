@@ -2,16 +2,29 @@
 from __future__ import annotations
 
 import numpy as np
-from player_core.hud_panel import HudPanel, load_font, text_width
+from player_core.hud_panel import (
+    BLUE,
+    GREEN,
+    TEXT_MUTED,
+    HudPanel,
+    load_font,
+    text_width,
+)
 
 from genau.drive_hud import (
     AMPLITUDE,
     CENTER,
+    DRIVEN_BY_FUNSCRIPT,
+    DRIVEN_BY_GENAU,
+    DRIVEN_BY_NOTHING,
     SECTION_H,
     SECTION_W,
     SPEED,
+    TRACE_ONLY_SIZE,
     DriveHud,
     DriveSection,
+    blend,
+    section_size,
     controls,
     label_pair_x,
     publish_drive,
@@ -184,7 +197,7 @@ class TestTracks:
     def test_every_band_is_dimmed_while_a_funscript_has_the_device(self):
         """A stroke Genau is not sending cannot be dragged, for the same reason
         its marks cannot be pressed."""
-        assert all(t.dim for t in tracks(0, 0, _hud(driving=False)))
+        assert all(t.dim for t in tracks(0, 0, _hud(driven=DRIVEN_BY_FUNSCRIPT)))
         assert not any(t.dim for t in tracks(0, 0, _hud()))
 
     def test_the_bands_it_offers_all_fall_on_the_block_it_draws(self):
@@ -264,3 +277,105 @@ class TestLabelPair:
 
         assert key_x == 10
         assert value_x >= key_x + text_width(font, "Speed")
+
+
+class TestWhoseStroke:
+    """The trace is a picture of what the device is being sent, so it is drawn in
+    the color of whoever is sending it — and drawn still when nobody is."""
+
+    @staticmethod
+    def _line_colors(hud: DriveHud) -> set[tuple[int, int, int]]:
+        """Every color the trace's own line is drawn in, panel and ruler aside."""
+        rgb = _rendered(hud).astype(int)[:, :, :3]
+        return {tuple(pixel) for row in rgb for pixel in row} - {(0, 0, 0)}
+
+    def test_genau_s_own_stroke_is_blue(self):
+        assert BLUE in self._line_colors(_hud(driven=DRIVEN_BY_GENAU))
+
+    def test_a_funscript_s_stroke_is_green(self):
+        """Green is what the funscripts own everywhere else on these HUDs."""
+        assert GREEN in self._line_colors(_hud(driven=DRIVEN_BY_FUNSCRIPT))
+
+    def test_a_stroke_nobody_is_sending_is_the_muted_grey_of_a_dead_control(self):
+        """The readout is switched off whole rather than a live trace sitting in
+        the middle of dead furniture."""
+        assert TEXT_MUTED in self._line_colors(_hud(driven=DRIVEN_BY_NOTHING))
+
+    def test_only_genau_s_stroke_carries_the_centre_ruler(self):
+        """The dotted line says "the stroke swings about here", which is Genau's
+        own idea — a claim about a stroke a funscript is not making."""
+        genau = _rendered(_hud(driven=DRIVEN_BY_GENAU, waveform=()))
+        script = _rendered(_hud(driven=DRIVEN_BY_FUNSCRIPT, waveform=()))
+
+        assert not np.array_equal(genau, script)
+
+    def test_only_genau_s_stroke_leaves_its_controls_live(self):
+        for driven in (DRIVEN_BY_FUNSCRIPT, DRIVEN_BY_NOTHING):
+            assert all(c.dim for c in controls(0, 0, _hud(driven=driven)))
+        assert not all(c.dim for c in controls(0, 0, _hud(driven=DRIVEN_BY_GENAU)))
+
+
+class TestTraceOnly:
+    """In Nau there is no Genau behind the screen: its levels describe a stroke
+    nothing is making, and no control on them could reach one."""
+
+    def test_it_is_only_as_big_as_the_trace(self):
+        assert section_size(trace_only=True) == TRACE_ONLY_SIZE
+        assert section_size() == (SECTION_W, SECTION_H)
+
+    def test_it_offers_no_marks_and_no_bands(self):
+        hud = _hud()
+
+        assert controls(0, 0, hud, trace_only=True) == []
+        assert tracks(0, 0, hud, trace_only=True) == []
+
+    def test_it_draws_the_trace_and_nothing_beside_it(self):
+        """Measured against the bare slab, so what counts is what the readout
+        put there rather than what the panel under it already had."""
+        bare = np.asarray(HudPanel(SECTION_W + 2 * PAD, SECTION_H + 2 * PAD).image)
+        panel = HudPanel(SECTION_W + 2 * PAD, SECTION_H + 2 * PAD)
+        DriveSection().draw(panel.draw, PAD, PAD, _hud(), trace_only=True)
+        touched = (np.asarray(panel.image) != bare).any(axis=2)
+        width, height = TRACE_ONLY_SIZE
+
+        assert touched[:, PAD + width + 2:].sum() == 0
+        assert touched[PAD + height + 2:, :].sum() == 0
+        assert touched[PAD:PAD + height, PAD:PAD + width].any()
+
+
+class TestBlend:
+    """The device glides from one driver's stroke onto the other's, and the trace
+    spends that same time on its way from one color to the other."""
+
+    def test_the_ends_are_the_two_colors_themselves(self):
+        assert blend(BLUE, GREEN, 0.0) == BLUE
+        assert blend(BLUE, GREEN, 1.0) == GREEN
+
+    def test_the_middle_is_between_them(self):
+        assert blend((0, 0, 0), (100, 200, 40), 0.5) == (50, 100, 20)
+
+    def test_it_cannot_run_past_either_end(self):
+        assert blend(BLUE, GREEN, 5.0) == GREEN
+        assert blend(BLUE, GREEN, -5.0) == BLUE
+
+
+class TestPublishedSpan:
+    def test_the_trace_s_span_travels_with_it(self, tmp_path):
+        """Nau samples a funscript over the same stretch Genau's stroke covers,
+        and has nowhere else to learn what that is — two spans would make a
+        handoff look like a jump."""
+        path = tmp_path / "genau_drive.txt"
+        publish_drive(path, _hud(trace_seconds=7.5))
+
+        assert read_drive(path).trace_seconds == 7.5
+
+    def test_a_file_from_before_it_was_published_keeps_the_default(self, tmp_path):
+        path = tmp_path / "genau_drive.txt"
+        publish_drive(path, _hud())
+        text = path.read_text(encoding="utf-8")
+        path.write_text(
+            "\n".join(line for line in text.splitlines()
+                      if not line.startswith("trace_seconds")),
+            encoding="utf-8")
+
+        assert read_drive(path).trace_seconds == DriveHud.trace_seconds

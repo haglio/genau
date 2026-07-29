@@ -9,7 +9,7 @@ from player_core.file_channel import consume_command_file
 from nau.console import ConsoleModel, read_console
 from nau.hud import ConsoleHud, ModeHud
 
-from .drive_hud import DriveHud, publish_drive
+from .drive_hud import TRACE_SAMPLES, DriveHud, publish_drive
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
@@ -182,6 +182,12 @@ class GenauRefreshController:
         )
 
         if self.tcode_sender is not None and direct_active and self.direct_state.playing:
+            # Genau taking the device back.  The flip landed in a previous tick's
+            # command batch, so this is the first tick it sends on — and it has
+            # to be told before it does, not after the edge is noticed further
+            # down, or the jump it is meant to smooth has already gone out.
+            if self._prev_playing is False:
+                self.tcode_sender.take_over()
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
         if direct_active:
@@ -223,12 +229,15 @@ class GenauRefreshController:
         display_active = self.display_state["active"] if self.display_state is not None else True
         self.set_blank(not display_active)
 
-        if self.direct_state is not None and self.broker_cmd_file is not None:
+        if self.direct_state is not None:
             now_playing = self.direct_state.playing
-            if now_playing != prev_playing:
+            if self.broker_cmd_file is not None and now_playing != prev_playing:
                 self.broker_cmd_file.write_text(
                     "RESUME" if now_playing else "PARK", encoding="utf-8",
                 )
+            # Remembered whether or not there is a broker to tell: the T-Code
+            # sender reads this edge too, to glide onto a device a funscript has
+            # been holding, and that is true with no broker file configured.
             self._prev_playing = now_playing
 
         active_entry = self.renderer.current_clip_entry()
@@ -304,9 +313,12 @@ class GenauRefreshController:
 
         phase_per_second = ds.bpm / 60.0 / self.beats_per_loop if ds.bpm > 0 else 1.0
         # Show enough time that one whole cycle is visible at the slowest speed.
+        # Published with the readout, because a funscript drawn on this same trace
+        # has to be sampled over the same stretch and Nau has nowhere else to
+        # learn it — two spans would make a handoff look like a jump.
         display_seconds = 60.0 * self.beats_per_loop / MIN_BPM
 
-        # Which arrow would do nothing — the readout greys those out.  The centre's
+        # Which arrow would do nothing — the readout dims those.  The centre's
         # range is what the amplitude leaves it (it cannot push a stroke off the
         # top or bottom of the device), the same clamp the status file uses.
         half = ds.amplitude // 2
@@ -325,8 +337,9 @@ class GenauRefreshController:
             amp_at_min=ds.amplitude <= 0,
             ctr_at_max=ds.center >= 100 - half,
             ctr_at_min=ds.center <= half,
+            trace_seconds=display_seconds,
             waveform=tuple(sample_waveform(
-                ds.shape, ds.amplitude, ds.center, 80,
+                ds.shape, ds.amplitude, ds.center, TRACE_SAMPLES,
                 start_phase=start_phase,
                 phase_range=phase_per_second * display_seconds,
             )),

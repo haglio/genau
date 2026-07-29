@@ -10,7 +10,7 @@ from __future__ import annotations
 import time
 from typing import TYPE_CHECKING
 
-from player_core.tcode import TCodeSink, format_tcode_command
+from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
 
 from .direct_control import phase_to_position
 
@@ -33,6 +33,16 @@ class RateLimitedTCodeSender:
         self._last_send_time: float = 0.0
         self._last_phase: float = 0.0
         self._stroke_phase: float = 0.0
+        # Genau does not drive the device the whole time — in Hybrid a funscript
+        # takes it for every scripted stretch — so it comes back to a device
+        # parked wherever the script left it.  Armed here and on every takeover.
+        self._glide = HandoffGlide()
+        self._glide.begin()
+
+    def take_over(self) -> None:
+        """Genau has the device again: ease onto the stroke rather than jump to
+        wherever the phase has run to while a funscript held it."""
+        self._glide.begin()
 
     def _compute_position(self) -> int:
         if self._direct_state is not None:
@@ -64,7 +74,14 @@ class RateLimitedTCodeSender:
             return
         interval_ms = max(1, min(9999, round(elapsed * 1000)))
         position = self._compute_position()
-        self._sink.send(format_tcode_command("L0", position, interval_ms))
+        # A stroke tick asks the device to be at the next phase position in the
+        # time one tick takes, which is right while Genau has been driving all
+        # along and is a slam the moment it has just taken the device back: the
+        # device is where a funscript left it, and the phase has run on without
+        # it.  The glide floors the interval for its own length, so these ticks
+        # re-aim at a target the device is always given long enough to reach.
+        self._sink.send(format_tcode_command(
+            "L0", position, self._glide.interval_ms(interval_ms, now)))
         self._last_send_time = now
 
     def close(self) -> None:

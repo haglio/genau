@@ -78,6 +78,7 @@ class FakeSelection:
 class FakeTCodeSender:
     def __init__(self):
         self.sends: list[tuple[float, float]] = []
+        self.take_overs = 0
         self.closed = False
         self._position = 5000
         self._stroke_phase = 0.0
@@ -85,6 +86,9 @@ class FakeTCodeSender:
     def maybe_send(self, phase: float, now: float) -> None:
         self.sends.append((phase, now))
         self._stroke_phase = phase
+
+    def take_over(self) -> None:
+        self.take_overs += 1
 
     def current_position(self) -> int:
         return self._position

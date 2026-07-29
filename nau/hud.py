@@ -25,13 +25,26 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from dataclasses import dataclass, field, replace
 
 import numpy as np
 from PIL import Image
-from genau.drive_hud import DriveHud, DriveSection, DriveTrack, track_command
+from genau.drive_hud import (
+    DRIVEN_BY_FUNSCRIPT,
+    DRIVEN_BY_GENAU,
+    DRIVEN_BY_NOTHING,
+    DriveHud,
+    DriveSection,
+    DriveTrack,
+    blend,
+    section_size,
+    trace_ink,
+    track_command,
+)
 from genau.drive_hud import controls as drive_controls
 from genau.drive_hud import tracks as drive_tracks
+from player_core.tcode import HANDOFF_MS
 from player_core.hud_panel import (
     BG_PRIMARY,
     BLUE,
@@ -61,6 +74,7 @@ from .console import (
     ConsoleModel,
     Rect,
     console_rows,
+    genau_drives,
     hit_test,
     nau_displays,
     osr2_row,
@@ -101,14 +115,35 @@ _REVISION = re.compile(r"\s*\(v\d+\)$")
 # it in — green when a funscript is driving, blue when Genau is, muted when
 # nothing is, and the device's own pink when it is running itself in auto.
 OSR2_GENAU = "genau"  # the one state in which the drive readout can be pressed
+OSR2_FUNSCRIPT = "funscript"
 _OSR2_LABELS = {
-    "off": "Off", "auto": "Auto", "funscript": "FunScript",
+    "off": "Off", "auto": "Auto", OSR2_FUNSCRIPT: "FunScript",
     OSR2_GENAU: "Genau", "idle": "Idle",
 }
 _OSR2_COLORS = {
     "funscript": GREEN, "genau": BLUE, "auto": PINK,
     "off": TEXT_MUTED, "idle": TEXT_MUTED,
 }
+
+# What the OSR2 state means for the trace.  Auto is the device running itself and
+# idle is nothing running at all; either way nothing here is being sent, so there
+# is no motion of ours to draw.
+_DRIVEN_BY_OSR2 = {OSR2_GENAU: DRIVEN_BY_GENAU, OSR2_FUNSCRIPT: DRIVEN_BY_FUNSCRIPT}
+
+
+def _driven_by(osr2: str) -> str:
+    return _DRIVEN_BY_OSR2.get(osr2, DRIVEN_BY_NOTHING)
+
+
+# The handoff's color change, in steps.  Quantized because the panel is repainted
+# whenever what it shows changes and a continuous fade would mean a fresh Pillow
+# pass per frame for as long as it ran; six is past what the eye separates over
+# three hundred milliseconds.
+_FADE_STEPS = 6
+
+
+def _fade_step(progress: float) -> int:
+    return round(_FADE_STEPS * max(0.0, min(1.0, progress)))
 
 # The drive readout's own arrows are drawn by the readout, but the console still
 # has to know what each posts and name it on hover.
@@ -259,7 +294,7 @@ class ConsolePainter:
         self._tiny = load_font(_SIZE_TINY)
         self._glyph = load_font(_SIZE_BODY, SYMBOL_FONT)
         self._drive = DriveSection()
-        self._painted: tuple[ConsoleHud, tuple[int, int] | None] | None = None
+        self._painted: tuple[ConsoleHud, tuple[int, int] | None, int] | None = None
         self._image: Image.Image | None = None
         self._bgra: np.ndarray | None = None
         self.buttons: list[tuple[Rect, Button]] = []
@@ -268,10 +303,17 @@ class ConsolePainter:
         # keeps setting the one it started on and only speaks when the value moves.
         self._held: DriveTrack | None = None
         self._asked = ""
+        # The trace, held still while nothing is being sent — see :meth:`_resolve`.
+        self._still: tuple[float, ...] | None = None
+        # A handoff in flight: who had the trace, the color it was leaving, and
+        # when the device started gliding onto the incoming stroke.
+        self._was_driven: str | None = None
+        self._was_from: tuple[int, int, int] | None = None
+        self._handed_over_at = 0.0
 
     def bgra(self, hud: ConsoleHud, *, hover: tuple[int, int] | None = None) -> np.ndarray:
         """*hud* as an mpv overlay bitmap — what Nau composites into its video."""
-        if self._ensure(hud, hover) or self._bgra is None:
+        if self._ensure(self._resolve(hud), hover) or self._bgra is None:
             self._bgra = to_bgra(self._image)
         return self._bgra
 
@@ -280,17 +322,68 @@ class ConsolePainter:
         """*hud* as ``(rgba_bytes, size)`` — what pygame takes, for Genau to blit
         into its own window in genau mode.  The size varies with the contents, so
         the caller sizes its blit from what comes back."""
-        self._ensure(hud, hover)
+        self._ensure(self._resolve(hud), hover)
         return self._image.tobytes(), self._image.size
+
+    def _resolve(self, hud: ConsoleHud) -> ConsoleHud:
+        """*hud* with everything the drawing player knows folded into it, before
+        anything asks whether the panel has moved.
+
+        Folded here rather than at paint time because a readout that is *not*
+        moving has to compare equal: the trace held still while nothing is being
+        sent arrives as a fresh scroll of Genau's phase every publish, and folded
+        after the comparison it would repaint the whole panel forty times a
+        second to draw the same still picture.
+        """
+        drive = hud.drive
+        if drive is None:
+            self._still, self._was_driven = None, None
+            return hud
+        # Genau cannot see the handoff, so whoever draws the console tells the
+        # readout who has the device.  Anything but Genau dims every control on
+        # it: adjusting a stroke Genau is not sending is what woke it against the
+        # funscript.
+        drive = replace(drive, driven=_driven_by(hud.console.osr2))
+        if drive.driven == DRIVEN_BY_NOTHING:
+            # Nothing is reaching the device, so there is no motion to trace.
+            # Genau goes on stroking regardless — it cannot see that the OSR2 is
+            # off — and a trace scrolling away in the middle of a readout whose
+            # every control is dead is the one part still claiming to be live.
+            if self._still is None:
+                self._still = drive.waveform
+            drive = replace(drive, waveform=self._still)
+        else:
+            self._still = None
+        return replace(hud, drive=drive)
+
+    def _handoff(self, drive: DriveHud) -> float:
+        """How far through the device's glide onto this driver we are, 0-1.
+
+        The trace changes hands over the same stretch the OSR2 does, so the line
+        is on its way from one color to the other exactly while the device is on
+        its way from one stroke to the other.
+        """
+        if self._was_driven is None:
+            self._was_driven = drive.driven
+        if drive.driven != self._was_driven:
+            self._was_from = trace_ink(self._was_driven)
+            self._was_driven, self._handed_over_at = drive.driven, time.monotonic()
+        return min(1.0, (time.monotonic() - self._handed_over_at) / (HANDOFF_MS / 1000))
 
     def _ensure(self, hud: ConsoleHud, hover: tuple[int, int] | None) -> bool:
         """Repaint if *hud*/*hover* moved; report whether it did (so a cached
         bitmap can be reused).  The panel is redrawn a few times a minute at most
         — Pillow is too slow to run every frame — so the image is kept until it
-        changes."""
-        if (hud, hover) == self._painted and self._image is not None:
+        changes.
+
+        A handoff is the exception: while the trace is between two colors it has
+        to be redrawn for each step of the fade, so the step joins what is
+        compared and the panel goes back to sitting still once it lands.
+        """
+        step = _fade_step(self._handoff(hud.drive)) if hud.drive else _FADE_STEPS
+        if (hud, hover, step) == self._painted and self._image is not None:
             return False
-        self._painted, self._image = (hud, hover), self._paint(hud, hover)
+        self._painted, self._image = (hud, hover, step), self._paint(hud, hover, step)
         return True
 
     def press_at(self, mx: int, my: int) -> str:
@@ -360,22 +453,19 @@ class ConsolePainter:
         left, top = hud_xy()
         return mx - left, my - top
 
-    def _paint(self, hud: ConsoleHud, hover: tuple[int, int] | None = None) -> "Image.Image":
-        # The pace auto advance is set to is Genau's, not Fun Time's, so it comes
-        # up on the readout and is folded in here for the control that shows it.
-        console = hud.console
-        drive = hud.drive
-        if drive is not None:
-            console = replace(console, advance_interval=hud.advance_interval)
-            # Genau cannot see the handoff, so whoever draws the console tells the
-            # readout whether Genau has the device.  While a funscript does, every
-            # control on it is greyed and answers no press — adjusting a stroke
-            # Genau is not sending is what woke it against the funscript.
-            drive = replace(drive, driving=console.osr2 == OSR2_GENAU)
+    def _paint(self, hud: ConsoleHud, hover: tuple[int, int] | None = None,
+               fade: int = 0) -> "Image.Image":
+        console, drive = hud.console, hud.drive
+        # Nau's own screen has no Genau behind it, so the readout there is the
+        # trace alone: the levels describe a stroke nothing is making and no
+        # control on them could reach one.  What is worth drawing is the picture
+        # of what the device is being sent, which is the funscript.
+        trace_only = drive is not None and not genau_drives(console.mode)
         rows = console_rows(console)
         status = hud.status_line
         filename = hud.modes.video
-        drive_w, drive_h = DriveSection.SIZE if drive is not None else (0, 0)
+        drive_w, drive_h = (
+            section_size(trace_only=trace_only) if drive is not None else (0, 0))
         body_ascent, body_descent = self._body.getmetrics()
         top_h = body_ascent + body_descent
         tiny_h = sum(self._tiny.getmetrics())
@@ -429,10 +519,11 @@ class ConsolePainter:
 
         if drive is not None:
             y += _ROW_GAP
-            self._drive.draw(draw, _PAD, y, drive)
+            self._drive.draw(draw, _PAD, y, drive,
+                             trace_only=trace_only, ink=self._trace_ink(drive, fade))
             # The readout draws its own arrows; the console only needs them as hit
             # targets, so they answer a press and name themselves on hover.
-            for control in drive_controls(_PAD, y, drive):
+            for control in drive_controls(_PAD, y, drive, trace_only=trace_only):
                 self.buttons.append((
                     control.rect,
                     Button(control.action, "", _DRIVE_TIPS.get(control.action, ""),
@@ -443,7 +534,7 @@ class ConsolePainter:
             # join the buttons as read-outs too, with no action to post, purely so
             # each one names what it sets when the cursor rests on it.  A bar that
             # can be dragged says so nowhere else on a HUD drawn into the video.
-            self.tracks = drive_tracks(_PAD, y, drive)
+            self.tracks = drive_tracks(_PAD, y, drive, trace_only=trace_only)
             for track in self.tracks:
                 self.buttons.append((track.rect, Button("", "", track.tooltip)))
 
@@ -452,6 +543,18 @@ class ConsolePainter:
             if tip:
                 draw_tooltip(draw, self._tiny, tip, hover, (width, height))
         return panel.image
+
+    def _trace_ink(self, drive: DriveHud, fade: int):
+        """The trace's color part-way through a handoff, or its own once landed.
+
+        The OSR2 is gliding from one driver's stroke onto the other's, and this
+        is that same glide drawn: a line that cut from green to blue would say
+        the device changed hands instantly, which is exactly what it no longer
+        does.
+        """
+        if fade >= _FADE_STEPS or self._was_from is None:
+            return drive.ink
+        return blend(self._was_from, drive.ink, fade / _FADE_STEPS)
 
     @staticmethod
     def _osr2_controls_width(controls: list[Button]) -> int:

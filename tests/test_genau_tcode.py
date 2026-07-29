@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from player_core.tcode import HANDOFF_MS
+
 from genau.direct_control import DirectControlState, WaveformShape
 from genau.tcode import RateLimitedTCodeSender
 
@@ -40,10 +42,67 @@ class TestRateLimitedTCodeSender:
     def test_interval_reflects_elapsed_time(self):
         sink = FakeTCodeSink()
         sender = RateLimitedTCodeSender(sink, min_interval=0.033)
+        # Past the glide a fresh sender opens with, so this is an ordinary tick
+        # rather than the ease onto a device somebody else was holding.
         sender.maybe_send(phase=0.0, now=1.0)
-        sender.maybe_send(phase=0.25, now=1.05)
-        # Second command should have I50 (50ms elapsed)
-        assert "I50" in sink.sent[1]
+        sender.maybe_send(phase=0.25, now=1.5)
+        sender.maybe_send(phase=0.5, now=1.55)
+        # Third command should have I50 (50ms elapsed)
+        assert "I50" in sink.sent[2]
+
+
+class TestTakingOver:
+    """Genau does not hold the device the whole time — in Hybrid a funscript has
+    it for every scripted stretch — so it comes back to a device parked wherever
+    that script left it, with its own phase run on without it."""
+
+    def test_a_fresh_sender_eases_onto_the_device(self):
+        """Whatever had it last — the broker's park, a funscript — it is not
+        where this stroke's phase says to be."""
+        sink = FakeTCodeSink()
+        sender = RateLimitedTCodeSender(sink, min_interval=0.033)
+
+        sender.maybe_send(phase=0.0, now=0.05)
+
+        assert f"I{HANDOFF_MS}" in sink.sent[0]
+
+    def test_taking_the_device_back_eases_onto_it_again(self):
+        sink = FakeTCodeSink()
+        sender = RateLimitedTCodeSender(sink, min_interval=0.033)
+        sender.maybe_send(phase=0.0, now=0.05)
+        sender.maybe_send(phase=0.25, now=1.0)
+
+        sender.take_over()
+        sender.maybe_send(phase=0.5, now=1.05)
+
+        assert f"I{HANDOFF_MS}" in sink.sent[2]
+
+    def test_every_tick_of_the_glide_is_stretched_not_just_the_first(self):
+        """A stroke sends thirty times a second: one stretched command would be
+        superseded a frame later by an ordinary one, and the device would cover
+        whatever was left of the gap in that frame — the jolt, moved."""
+        sink = FakeTCodeSink()
+        sender = RateLimitedTCodeSender(sink, min_interval=0.033)
+
+        sender.take_over()
+        sender.maybe_send(phase=0.0, now=0.05)
+        sender.maybe_send(phase=0.1, now=0.10)
+        sender.maybe_send(phase=0.2, now=0.15)
+
+        assert all(f"I{HANDOFF_MS}" in command for command in sink.sent)
+
+    def test_the_stroke_is_its_own_again_once_the_glide_runs_out(self):
+        """A glide, not a slowed-down stroke."""
+        sink = FakeTCodeSink()
+        sender = RateLimitedTCodeSender(sink, min_interval=0.033)
+        glide = HANDOFF_MS / 1000
+
+        sender.take_over()
+        sender.maybe_send(phase=0.0, now=0.05)
+        sender.maybe_send(phase=0.5, now=0.05 + glide + 0.01)
+        sender.maybe_send(phase=0.6, now=0.05 + glide + 0.06)
+
+        assert "I50" in sink.sent[2]
 
     def test_phase_wrap_accumulates_stroke_phase(self):
         sink = FakeTCodeSink()
