@@ -267,3 +267,48 @@ def test_default_callbacks_do_not_raise():
                 pygame.K_x]:
         event = type("Event", (), {"key": key, "mod": 0})()
         controller._handle_key(event)
+
+
+class TestConsoleMouse:
+    """A press on one of the drive readout's bars holds it, and the pointer goes
+    on setting that level until the button comes up — so a bar is dragged, not
+    only clicked."""
+
+    @staticmethod
+    def _pump(monkeypatch, events, **callbacks):
+        controller, *_ = _build_controller(**callbacks)
+        monkeypatch.setattr(pygame.event, "get", lambda: events)
+        controller.process_events()
+
+    @staticmethod
+    def _motion(pos, held: bool):
+        return type("Event", (), {"type": pygame.MOUSEMOTION, "pos": pos,
+                                  "buttons": (1 if held else 0, 0, 0)})()
+
+    def test_the_pointer_moving_with_the_button_down_drags(self, monkeypatch):
+        dragged, hovered = [], []
+        self._pump(monkeypatch, [self._motion((7, 9), held=True)],
+                   on_console_drag=lambda mx, my: dragged.append((mx, my)),
+                   on_console_motion=lambda mx, my: hovered.append((mx, my)))
+
+        assert dragged == [(7, 9)]
+        # The cursor still names whatever it is over while it drags.
+        assert hovered == [(7, 9)]
+
+    def test_the_button_coming_up_lets_go(self, monkeypatch):
+        released = []
+        self._pump(monkeypatch,
+                   [type("Event", (), {"type": pygame.MOUSEBUTTONUP, "button": 1})()],
+                   on_console_release=lambda: released.append(1))
+
+        assert released == [1]
+
+    def test_a_motion_with_the_button_already_up_lets_go_too(self, monkeypatch):
+        """It came up out of this window's sight — over another window, or off the
+        screen — so the bar it was holding is not still being dragged."""
+        released, dragged = [], []
+        self._pump(monkeypatch, [self._motion((7, 9), held=False)],
+                   on_console_release=lambda: released.append(1),
+                   on_console_drag=lambda mx, my: dragged.append((mx, my)))
+
+        assert (released, dragged) == ([1], [])

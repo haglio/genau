@@ -137,9 +137,21 @@ class PygameView:
     def set_console(self, console: ConsoleHud | None) -> None:
         self._console = console
 
-    def console_command_at(self, mx: int, my: int) -> str:
-        """The command a press at ``(mx, my)`` posts on the console, "" over none."""
-        return self._console_painter.command_at(mx, my)
+    def console_press_at(self, mx: int, my: int) -> str:
+        """The command a press at ``(mx, my)`` posts on the console, "" over none.
+
+        A press on one of the drive readout's bars takes hold of it, so the pointer
+        goes on setting that level until :meth:`console_release`.
+        """
+        return self._console_painter.press_at(mx, my)
+
+    def console_drag_to(self, mx: int, my: int) -> str:
+        """The command the pointer posts while a bar is held, "" while none is."""
+        return self._console_painter.drag_to(mx, my)
+
+    def console_release(self) -> None:
+        """Let go of whichever bar a press took hold of."""
+        self._console_painter.release()
 
     def set_console_hover(self, mx: int, my: int) -> None:
         """Remember where the cursor is over the console, so a button under it

@@ -304,13 +304,22 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     dashboard_cmd_file = Path(args.dashboard_cmd_file) if args.dashboard_cmd_file else None
 
-    def _press_console(mx: int, my: int) -> None:
-        """A press on the console Genau is drawing: post the command it carries to
-        the same channel the dashboard uses, so Fun Time routes it like any other.
-        Inert with no dashboard (standalone), where there is nowhere to ask."""
-        command = view.console_command_at(mx, my)
+    def _post_console(command: str) -> None:
+        """Ask Fun Time for what the console just said, on the same channel its
+        dashboard uses, so it is routed like any other command.  Inert with no
+        dashboard (standalone), where there is nowhere to ask."""
         if command and dashboard_cmd_file is not None:
             append_command(dashboard_cmd_file, command)
+
+    def _press_console(mx: int, my: int) -> None:
+        """A press on the console Genau is drawing — a button's own command, or
+        the level the drive readout's bar under the pointer is set to."""
+        _post_console(view.console_press_at(mx, my))
+
+    def _drag_console(mx: int, my: int) -> None:
+        """The pointer moving with the button down: a bar the press took hold of
+        goes on being set, and says nothing while its level has not moved."""
+        _post_console(view.console_drag_to(mx, my))
 
     lifecycle = GenauLifecycleController(
         view=view,
@@ -330,6 +339,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_toggle_lock=lambda: toggle_lock(clip_advance),
         on_weird_clip=selection.discard_current,
         on_console_press=_press_console,
+        on_console_drag=_drag_console,
+        on_console_release=view.console_release,
         on_console_motion=view.set_console_hover,
     )
 

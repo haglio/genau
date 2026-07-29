@@ -26,6 +26,8 @@ class GenauLifecycleController:
         on_toggle_lock=lambda: None,
         on_weird_clip=lambda: None,
         on_console_press=lambda mx, my: None,
+        on_console_drag=lambda mx, my: None,
+        on_console_release=lambda: None,
         on_console_motion=lambda mx, my: None,
     ):
         self.view = view
@@ -45,6 +47,8 @@ class GenauLifecycleController:
         self.on_toggle_lock = on_toggle_lock
         self.on_weird_clip = on_weird_clip
         self.on_console_press = on_console_press
+        self.on_console_drag = on_console_drag
+        self.on_console_release = on_console_release
         self.on_console_motion = on_console_motion
         self._resize_pending_at: float | None = None
 
@@ -58,7 +62,18 @@ class GenauLifecycleController:
                 # In genau mode Genau draws the primary console; a press on it
                 # posts the same command the dashboard would have.
                 self.on_console_press(*event.pos)
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                self.on_console_release()
             elif event.type == pygame.MOUSEMOTION:
+                # A press on one of the drive readout's bars holds it, and the
+                # pointer goes on setting that level while the button is down —
+                # so a bar is dragged and not only clicked.  A motion arriving
+                # with the button already up means it came up out of this window's
+                # sight, and lets go too.
+                if event.buttons[0]:
+                    self.on_console_drag(*event.pos)
+                else:
+                    self.on_console_release()
                 self.on_console_motion(*event.pos)
             elif event.type == pygame.VIDEORESIZE:
                 self._on_resize()

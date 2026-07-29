@@ -13,6 +13,11 @@ moves.  Amplitude sits down the right — a −/+ pair at the ends of its bar, t
 its number.  Speed sits under the trace, out of the way of the other two, with
 its own −/+ at the ends of its bar and its number beneath.
 
+The marks step an axis; the axis itself is pressable.  Each bar and the trace is
+already the picture of its own value, so a press in one asks for the value drawn
+under the pointer and a held button goes on asking as it moves — see
+:func:`tracks`.
+
 It is a Pillow block, not a panel: it hosts inside the console's slab rather than
 carrying one of its own, so the console is one HUD and not two stacked on it.
 """
@@ -121,6 +126,35 @@ class DriveControl:
     dim: bool
 
 
+# The three axes as the numeric set commands name them (``genau_amp_57``), which
+# is what a press on a band posts: Fun Time already parses these and routes them
+# to Genau, so setting a level outright needs nothing new on the way.
+AMPLITUDE, CENTER, SPEED = "amp", "center", "speed"
+
+
+@dataclass(frozen=True)
+class DriveTrack:
+    """A band of the readout that takes its value from where you press in it.
+
+    The marks beside each axis step it; these are the axis itself, and each band
+    is already the picture of its own value — so a press reads straight off what
+    is drawn.  Along the speed bar for the rate, up the amplitude bar for how far
+    the stroke reaches, anywhere in the trace for the height it swings about.
+
+    ``center`` is where the stroke sits as a 0-1 height, which the amplitude band
+    mirrors about: the blue bar is drawn out from there in both directions, so
+    grabbing either end and pulling sets how far the stroke has to reach.  ``dim``
+    is the whole readout being unpressable — a funscript has the device — the same
+    state the marks wear, and for the same reason.
+    """
+
+    rect: Rect
+    axis: str
+    tooltip: str
+    center: float = 0.5
+    dim: bool = False
+
+
 @dataclass(frozen=True)
 class _Geometry:
     """Every rect the readout draws or hit-tests, placed once from the block's
@@ -194,6 +228,53 @@ def controls(x: int, y: int, hud: DriveHud) -> list[DriveControl]:
         DriveControl(g.center_up, "genau_center_up", _MORE, idle or hud.ctr_at_max),
         DriveControl(g.center_down, "genau_center_down", _LESS, idle or hud.ctr_at_min),
     ]
+
+
+def tracks(x: int, y: int, hud: DriveHud) -> list[DriveTrack]:
+    """The readout's own bands at ``(x, y)`` — the three you press to set a level
+    outright instead of walking to it with the marks.
+
+    The console adds these to its drag targets, so a press anywhere on a bar asks
+    for exactly the value drawn under the pointer, and holding the button keeps
+    asking as the pointer moves.  None of them carries a limit flag: a band sets
+    an absolute value, so there is no end of a range to run out of.
+    """
+    center = _fraction(hud.center)
+    g = _geometry(x, y, center)
+    dim = not hud.driving
+    return [
+        DriveTrack(g.amp_bar, AMPLITUDE, "Set how far the stroke reaches", center, dim),
+        DriveTrack(g.wave, CENTER, "Set where the stroke is centered", center, dim),
+        DriveTrack(g.speed_bar, SPEED, "Set how fast the stroke goes", center, dim),
+    ]
+
+
+def track_value(track: DriveTrack, px: int, py: int) -> int:
+    """The 0-100 level a press at ``(px, py)`` asks *track* for.
+
+    Read off the drawing rather than merely off the rect, so what you point at is
+    what you get: the speed bar fills from its left edge, so a press is how far
+    along it sits; the trace puts the center's dotted line at its own height, so a
+    press is that height; and the amplitude bar is drawn out from the center in
+    both directions, so a press is how far the stroke has to reach to arrive
+    there — grab either end of the blue bar and pull.
+
+    A point outside the band reads as its nearer end, so a drag that wanders off
+    the bar goes on setting it rather than stopping dead at the edge.
+    """
+    x, y, w, h = track.rect
+    if track.axis == SPEED:
+        return _percent((px - x) / max(1, w - 1))
+    height = _clamp01(1 - (py - y) / max(1, h - 1))
+    if track.axis == CENTER:
+        return _percent(height)
+    return _percent(2 * abs(height - track.center))
+
+
+def track_command(track: DriveTrack, px: int, py: int) -> str:
+    """What a press at ``(px, py)`` on *track* posts — the numeric set command Fun
+    Time already routes to Genau."""
+    return f"genau_{track.axis}_{track_value(track, px, py)}"
 
 
 class DriveSection:
@@ -365,4 +446,13 @@ def _waveform(raw: str) -> tuple[float, ...]:
 
 def _fraction(percent: int) -> float:
     """A 0-100 control value as a 0-1 bar fill, clamped."""
-    return max(0.0, min(1.0, percent / 100))
+    return _clamp01(percent / 100)
+
+
+def _clamp01(value: float) -> float:
+    return max(0.0, min(1.0, value))
+
+
+def _percent(fraction: float) -> int:
+    """A 0-1 bar fill back as the 0-100 value that would draw it."""
+    return round(100 * _clamp01(fraction))
