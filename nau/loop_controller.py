@@ -50,6 +50,18 @@ class LoopController:
         )
         self._state = LoopState.LOOPING
 
+    def restore(self, in_ms: int, out_ms: int) -> None:
+        """Come back into a finished loop, without marking it out again.
+
+        For a loop that outlived the session it was made in: the controller a
+        newly loaded video builds is fresh, and the bounds handed to it are ones
+        a record-up already settled — snapped then, against the funscript that
+        was loaded then — so they are taken as given.
+        """
+        self._in_ms = in_ms
+        self._out_ms = out_ms
+        self._state = LoopState.LOOPING
+
     def cancel(self) -> None:
         self._in_ms = None
         self._out_ms = None
