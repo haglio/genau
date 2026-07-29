@@ -61,6 +61,7 @@ from .console import (
     Rect,
     console_rows,
     hit_test,
+    nau_displays,
     osr2_row,
     place_rows,
     row_width,
@@ -146,9 +147,9 @@ class ModeHud:
     the playlist; *compilation* is the volume holding the playlist, with
     *position*/*total* placing the current video in it; *f_mode* is Fun Time's
     filter over whichever of those runs.  All empty in genau mode, where there is
-    no Nau playlist to describe — see :attr:`ConsoleHud.status_line`, which is
-    where they are put in order, since the lock they are said beside is the
-    console's rather than Nau's.
+    no Nau playlist to describe and the line is the lock and Genau's own pace —
+    see :attr:`ConsoleHud.status_line`, which is where these are put in order,
+    since the lock they are said beside is the console's rather than Nau's.
     """
 
     video: str = ""
@@ -157,10 +158,6 @@ class ModeHud:
     position: int = 0
     total: int = 0
     f_mode: bool = False
-    # What is selecting this playlist, supplied whole by a drawing player with no
-    # library behind it — it takes the head of the status line, the place Nau's
-    # own compilation takes.
-    status: str = ""
 
 
 # --- the panel ---------------------------------------------------------------
@@ -199,6 +196,19 @@ class ConsoleHud:
     drive: DriveHud | None = None
 
     @property
+    def advance_interval(self) -> int:
+        """How long an unlocked Genau leaves each clip up.
+
+        Genau owns the pace, so it rides its own drive readout rather than the
+        console panel Fun Time publishes — and is read back off the readout
+        wherever the console needs it, which is both the auto-advance button and
+        the status line.
+        """
+        if self.drive is not None:
+            return self.drive.advance_interval
+        return self.console.advance_interval
+
+    @property
     def status_line(self) -> str:
         """The top line's text — everything selecting what is on the primary, in
         the order each satellite's HUD says the same things.
@@ -219,13 +229,12 @@ class ConsoleHud:
         exactly as a satellite prints nothing where its act filter would go when it
         has none.
 
-        There is no browse-order word here — the primary has no Latest/Shuffle to
-        report, so the slot the satellites give it simply does not exist.
+        The browse-order slot is empty under Nau, which has no Latest/Shuffle to
+        report, and carries Genau's advance pace under Genau, whose whole browse
+        order is how long it leaves a clip up.
         """
         parts = []
-        if self.modes.status:
-            parts.append(self.modes.status)
-        elif self.modes.compilation:
+        if self.modes.compilation:
             parts.append(
                 f"{compilation_label(self.modes.compilation)}"
                 f"{_SEPARATOR}{self.modes.position}/{self.modes.total}"
@@ -234,6 +243,13 @@ class ConsoleHud:
             parts.append(LOCKED_LABEL)
         elif not self.modes.compilation:
             parts.append(UNLOCKED_LABEL)
+            if not nau_displays(self.console.mode) and self.advance_interval:
+                # Genau's browse order, in the slot the satellites give theirs:
+                # unheld, it moves on every so many seconds, which is the whole
+                # of how it walks its clips.  Only when Genau is the one showing
+                # — hybrid draws the readout too, but an unlocked Nau plays
+                # through its playlist rather than on a timer.
+                parts.append(f"{self.advance_interval}s")
         if self.modes.f_mode:
             parts.append(F_MODE_LABEL)
         if self.modes.length_mode in _LENGTH_LABELS:
@@ -364,7 +380,7 @@ class ConsolePainter:
         console = hud.console
         drive = hud.drive
         if drive is not None:
-            console = replace(console, advance_interval=drive.advance_interval)
+            console = replace(console, advance_interval=hud.advance_interval)
             # Genau cannot see the handoff, so whoever draws the console tells the
             # readout whether Genau has the device.  While a funscript does, every
             # control on it is greyed and answers no press — adjusting a stroke
