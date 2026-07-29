@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 from player_core.hud_panel import ICON_GRIDS, TEXT_MUTED, WHITE, load_font, text_width
 
-from genau.drive_hud import DriveHud
+from genau.drive_hud import AMPLITUDE, CENTER, SPEED, DriveHud
 from nau.console import ConsoleModel
 from nau.hud import (
     ConsoleHud,
@@ -247,24 +247,24 @@ class TestPresses:
     def test_a_press_on_a_button_carries_that_buttons_command(self):
         painter = self._painted()
 
-        assert painter.command_at(*self._over(painter, "primary_next")) == "primary_next"
+        assert painter.press_at(*self._over(painter, "primary_next")) == "primary_next"
 
     def test_a_press_that_missed_every_button_carries_nothing(self):
-        assert self._painted().command_at(2000, 2000) == ""
+        assert self._painted().press_at(2000, 2000) == ""
 
     def test_the_panels_own_corner_is_not_read_as_the_windows(self):
         painter = self._painted()
         (bx, by, _bw, _bh), _b = next(
             (rect, b) for rect, b in painter.buttons if b.action == "primary_prev")
 
-        assert painter.command_at(bx, by) == ""
+        assert painter.press_at(bx, by) == ""
 
     def test_a_readouts_arrow_press_reaches_genau(self):
         painter = ConsolePainter()
         painter.bgra(ConsoleHud(
             console=ConsoleModel(mode="hybrid", osr2="genau"), drive=_drive()))
 
-        assert painter.command_at(*self._over(painter, "genau_amplitude_up")) == "genau_amplitude_up"
+        assert painter.press_at(*self._over(painter, "genau_amplitude_up")) == "genau_amplitude_up"
 
     def test_the_readouts_controls_are_dead_while_a_funscript_has_the_device(self):
         """Genau is paused through a funscript's stretch, so a stroke it is not
@@ -275,7 +275,7 @@ class TestPresses:
             console=ConsoleModel(mode="hybrid", osr2="funscript"), drive=_drive()))
 
         over = self._over(painter, "genau_amplitude_up")
-        assert painter.command_at(*over) == ""
+        assert painter.press_at(*over) == ""
         assert all(b.dim for _rect, b in painter.buttons if b.action.startswith("genau_amplitude"))
 
     def test_the_cursor_over_a_button_is_reported_in_panel_coordinates(self):
@@ -284,6 +284,122 @@ class TestPresses:
         left, top = hud_xy()
 
         assert painter.hover_at(mx, my) == (mx - left, my - top)
+
+
+class TestDrags:
+    """The readout's bars are set by pressing in them and dragging along them, so
+    a level is reached in one gesture rather than by walking a mark to it."""
+
+    @staticmethod
+    def _painted(osr2: str = "genau") -> ConsolePainter:
+        painter = ConsolePainter()
+        painter.bgra(ConsoleHud(
+            console=ConsoleModel(mode="hybrid", osr2=osr2), drive=_drive()))
+        return painter
+
+    @staticmethod
+    def _band(painter: ConsolePainter, axis: str):
+        return next(track for track in painter.tracks if track.axis == axis)
+
+    @staticmethod
+    def _at(track, along: float) -> tuple[int, int]:
+        """A window point that fraction of the way up (or along) *track*.
+
+        Only speed runs left to right; the trace and the amplitude bar are both
+        read as heights, the trace despite being the wider of the two.
+        """
+        x, y, w, h = track.rect
+        left, top = hud_xy()
+        if track.axis == SPEED:
+            return left + x + round(along * (w - 1)), top + y + h // 2
+        return left + x + w // 2, top + y + round((1 - along) * (h - 1))
+
+    def test_a_press_along_the_speed_bar_sets_the_speed(self):
+        painter = self._painted()
+
+        point = self._at(self._band(painter, SPEED), 1.0)
+        assert painter.press_at(*point) == "genau_speed_100"
+
+    def test_a_press_in_the_trace_moves_the_stroke_s_center(self):
+        painter = self._painted()
+
+        point = self._at(self._band(painter, CENTER), 1.0)
+        assert painter.press_at(*point) == "genau_center_100"
+
+    def test_a_press_up_the_amplitude_bar_sets_how_far_the_stroke_reaches(self):
+        painter = self._painted()
+
+        point = self._at(self._band(painter, AMPLITUDE), 1.0)
+        assert painter.press_at(*point) == "genau_amp_100"
+
+    def test_the_bar_a_press_took_hold_of_keeps_the_drag(self):
+        """A press latches its bar, so a drag that wanders off it — past its end,
+        or out over another one — goes on setting the level it started on."""
+        painter = self._painted()
+        speed = self._band(painter, SPEED)
+        painter.press_at(*self._at(speed, 1.0))
+
+        assert painter.holding is True
+        left, _top = hud_xy()
+        assert painter.drag_to(left + speed.rect[0] - 500, 0) == "genau_speed_0"
+        assert painter.drag_to(*self._at(speed, 1.0)) == "genau_speed_100"
+
+    def test_a_drag_says_nothing_while_the_level_under_it_has_not_moved(self):
+        """Every mouse motion fires, and each one that repeats the level is a line
+        in the command file for Fun Time to route to where Genau already is."""
+        painter = self._painted()
+        speed = self._band(painter, SPEED)
+        painter.press_at(*self._at(speed, 1.0))
+
+        assert painter.drag_to(*self._at(speed, 1.0)) == ""
+
+    def test_letting_go_ends_the_drag(self):
+        painter = self._painted()
+        painter.press_at(*self._at(self._band(painter, SPEED), 0.0))
+
+        painter.release()
+
+        assert painter.holding is False
+        assert painter.drag_to(*self._at(self._band(painter, SPEED), 1.0)) == ""
+
+    def test_a_press_on_a_button_leaves_no_bar_latched_behind_it(self):
+        """Otherwise the bar a previous press held would keep taking the pointer
+        long after the gesture that grabbed it was over."""
+        painter = self._painted()
+        painter.press_at(*self._at(self._band(painter, SPEED), 0.0))
+        (bx, by, bw, bh), _b = next(
+            (rect, b) for rect, b in painter.buttons if b.action == "primary_next")
+        left, top = hud_xy()
+
+        painter.press_at(left + bx + bw // 2, top + by + bh // 2)
+
+        assert painter.holding is False
+
+    def test_the_bars_are_dead_while_a_funscript_has_the_device(self):
+        """The whole readout is dimmed through a funscript's stretch — a stroke
+        Genau is not sending cannot be dragged any more than it can be stepped."""
+        painter = self._painted(osr2="funscript")
+
+        point = self._at(self._band(painter, SPEED), 1.0)
+        assert painter.press_at(*point) == ""
+        assert painter.holding is False
+
+    def test_there_are_no_bars_at_all_where_nothing_is_driving(self):
+        """In nau mode the readout is not drawn, so its bands must not linger as
+        targets over whatever the console puts in that space instead."""
+        painter = ConsolePainter()
+        painter.bgra(ConsoleHud(console=ConsoleModel(mode="nau")))
+
+        assert painter.tracks == []
+
+    def test_each_bar_names_what_it_sets_on_hover(self):
+        """Nothing else on a HUD drawn into the video says a bar can be dragged."""
+        painter = self._painted()
+        left, top = hud_xy()
+
+        for axis in (SPEED, CENTER, AMPLITUDE):
+            x, y, w, h = self._band(painter, axis).rect
+            assert painter.hover_at(left + x + w // 2, top + y + h // 2) is not None
 
 
 class TestPlaybackSpeed:

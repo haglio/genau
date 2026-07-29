@@ -29,8 +29,9 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 from PIL import Image
-from genau.drive_hud import DriveHud, DriveSection
+from genau.drive_hud import DriveHud, DriveSection, DriveTrack, track_command
 from genau.drive_hud import controls as drive_controls
+from genau.drive_hud import tracks as drive_tracks
 from player_core.hud_panel import (
     BG_PRIMARY,
     BLUE,
@@ -206,7 +207,8 @@ class ConsolePainter:
     near cheap enough for that, so the bitmap is kept until the panel's contents
     change.  The button rects from the last painting are kept beside it — the
     console's own and the drive readout's arrows — so what is clickable is exactly
-    what was drawn.
+    what was drawn, and the readout's own bands with them, so what is draggable is
+    too.
     """
 
     def __init__(self) -> None:
@@ -218,6 +220,11 @@ class ConsolePainter:
         self._image: Image.Image | None = None
         self._bgra: np.ndarray | None = None
         self.buttons: list[tuple[Rect, Button]] = []
+        self.tracks: list[DriveTrack] = []
+        # Which band a press took hold of, and what it last asked for, so a drag
+        # keeps setting the one it started on and only speaks when the value moves.
+        self._held: DriveTrack | None = None
+        self._asked = ""
 
     def bgra(self, hud: ConsoleHud, *, hover: tuple[int, int] | None = None) -> np.ndarray:
         """*hud* as an mpv overlay bitmap — what Nau composites into its video."""
@@ -243,9 +250,61 @@ class ConsolePainter:
         self._painted, self._image = (hud, hover), self._paint(hud, hover)
         return True
 
-    def command_at(self, mx: int, my: int) -> str:
-        """The command a press at *window* point ``(mx, my)`` posts, "" over none."""
-        return hit_test(self.buttons, *self._local(mx, my))
+    def press_at(self, mx: int, my: int) -> str:
+        """The command a press at *window* point ``(mx, my)`` posts, "" over none.
+
+        A press inside one of the drive readout's bands takes hold of it as well
+        as posting: :meth:`drag_to` then goes on setting that level as the pointer
+        moves, so a bar can be dragged and not only clicked.  Anything already
+        held is let go first, so a press on an ordinary button never leaves a band
+        latched behind it.
+        """
+        self.release()
+        px, py = self._local(mx, my)
+        return hit_test(self.buttons, px, py) or self._grab(px, py)
+
+    @property
+    def holding(self) -> bool:
+        """Whether a press took hold of one of the readout's bands and has not let
+        go — so the player knows a drag belongs here rather than to whatever else
+        it would have offered the pointer."""
+        return self._held is not None
+
+    def drag_to(self, mx: int, my: int) -> str:
+        """The command the pointer posts while a band is held.
+
+        "" while none is, and "" while the level under the pointer is the one
+        already asked for — a drag along a bar fires per mouse motion, and every
+        one of those that says nothing new is a line in the command file for Fun
+        Time to route to a value Genau is already on.
+        """
+        if self._held is None:
+            return ""
+        command = track_command(self._held, *self._local(mx, my))
+        if command == self._asked:
+            return ""
+        self._asked = command
+        return command
+
+    def release(self) -> None:
+        """Let go of whichever band a press took hold of."""
+        self._held, self._asked = None, ""
+
+    def _grab(self, px: int, py: int) -> str:
+        """Take hold of the band under panel point ``(px, py)`` and say what that
+        press asks of it; "" over none, holding nothing.
+
+        A dimmed band is passed over the way a dimmed button is: the readout is
+        dimmed whole while a funscript has the device, and a press that could do
+        nothing is not offered.
+        """
+        for track in self.tracks:
+            x, y, w, h = track.rect
+            if not track.dim and x <= px < x + w and y <= py < y + h:
+                self._held = track
+                self._asked = track_command(track, px, py)
+                return self._asked
+        return ""
 
     def hover_at(self, mx: int, my: int) -> tuple[int, int] | None:
         """Where to name the button under *window* point ``(mx, my)``, else None."""
@@ -317,7 +376,7 @@ class ConsolePainter:
             y += tiny_h
         y += _ROW_GAP
 
-        self.buttons = place_rows(rows, x=_PAD, y=y)
+        self.buttons, self.tracks = place_rows(rows, x=_PAD, y=y), []
         for rect, button in self.buttons:
             self._button(draw, rect, button)
         y += rows_height(rows) + _ROW_GAP
@@ -336,6 +395,14 @@ class ConsolePainter:
                     Button(control.action, "", _DRIVE_TIPS.get(control.action, ""),
                            dim=control.dim),
                 ))
+            # The bands are set by pressing in them rather than by posting a fixed
+            # command, so they are their own targets (:meth:`_grab`) — but they
+            # join the buttons as read-outs too, with no action to post, purely so
+            # each one names what it sets when the cursor rests on it.  A bar that
+            # can be dragged says so nowhere else on a HUD drawn into the video.
+            self.tracks = drive_tracks(_PAD, y, drive)
+            for track in self.tracks:
+                self.buttons.append((track.rect, Button("", "", track.tooltip)))
 
         if hover is not None:
             self._tooltip(draw, width, height, tooltip_at(self.buttons, *hover), hover)
