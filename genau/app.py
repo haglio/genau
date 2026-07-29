@@ -298,6 +298,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_hud_mode=view.set_hud_mode,
         set_blank=view.set_blank,
         display_state=display_state,
+        set_volume=view.set_volume,
     )
     from .clip_advance import toggle_lock
     from .cruise_control import toggle_cruise_control
@@ -320,8 +321,17 @@ def run_listener(args, config, logger: logging.Logger) -> int:
             append_command(dashboard_cmd_file, command)
 
     def _press_console(mx: int, my: int) -> None:
-        """A press on the console Genau is drawing — a button's own command, or
-        the level the drive readout's bar under the pointer is set to."""
+        """A press on what Genau draws over its clip — the volume chip, a console
+        button's own command, or the level the drive readout's bar under the
+        pointer is set to.
+
+        The chip is tried first: it floats in its own corner, so a press on it is
+        never also a press on the panel.
+        """
+        volume = view.press_volume_at(mx, my)
+        if volume:
+            _post_console(volume)
+            return
         _post_console(view.console_press_at(mx, my))
 
     def _drag_console(mx: int, my: int) -> None:

@@ -174,33 +174,93 @@ def test_present_scene_tiles_portrait_texture(mock_pygame):
     assert texture.draw.call_count == 2
 
 
-def test_hud_mode_leaves_the_console_to_nau(mock_pygame):
+def test_hud_mode_leaves_the_console_and_the_volume_to_nau(mock_pygame):
     """HUD mode is Hybrid: this window is a transparent layer over Nau's, and the
     readout is drawn inside Nau's console beneath the controls that move it.
-    Drawing it here as well would put the same panel on screen twice."""
+    Drawing it here as well would put the same panel on screen twice — and the
+    same goes for the volume chip, where two sliders would disagree about which
+    press the level came from."""
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
     view.hud_active = True
     view._console = MagicMock()
     view._draw_console = MagicMock()
+    view._draw_volume = MagicMock()
 
     view._present_scene()
 
     view._draw_console.assert_not_called()
+    view._draw_volume.assert_not_called()
 
 
-def test_genau_draws_the_console_itself_when_it_owns_the_screen(mock_pygame):
+def test_genau_draws_the_console_and_the_volume_when_it_owns_the_screen(mock_pygame):
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
     view.hud_active = False
     view._console = MagicMock()
     view._draw_console = MagicMock()
+    view._draw_volume = MagicMock()
 
     view._present_scene()
 
     view._draw_console.assert_called_once()
+    view._draw_volume.assert_called_once()
+
+
+def test_the_volume_chip_sits_where_naus_does_with_no_timeline_under_it(mock_pygame):
+    """Genau's window IS the primary display in genau mode, so reaching for the
+    sound must not mean finding the control somewhere else than in Nau's modes.
+    There is no scrubber row here, so the chip takes the bottom-right corner the
+    row would have sat above."""
+    from player_core.volume import CHIP_H, CHIP_W, chip_xy
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+    view.window.size = (800, 600)
+    mock_pygame.Rect.reset_mock()
+
+    view._draw_volume()
+
+    vx, vy = chip_xy(win_w=800, win_h=600, timeline_h=0)
+    assert mock_pygame.Rect.call_args.args == (vx, vy, CHIP_W, CHIP_H)
+
+
+def test_a_press_on_the_chip_asks_fun_time_and_shows_the_new_level_at_once(mock_pygame):
+    """Fun Time owns the level, so the press is a request — but its answer is a
+    tick away, and a slider that waited for it would drag a frame behind the
+    pointer.  The speaker end asks for the mute instead."""
+    from player_core.volume import CHIP_W, VolumeHud, chip_xy
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+    view.window.size = (800, 600)
+    view.set_volume(30, False)
+    vx, vy = chip_xy(win_w=800, win_h=600, timeline_h=0)
+
+    assert view.press_volume_at(vx + CHIP_W - 2, vy + 10) == "audio_set_volume|100"
+    assert view._volume == VolumeHud(volume=100, muted=False)
+
+    assert view.press_volume_at(vx + 3, vy + 10) == "audio_mute"
+    assert view._volume == VolumeHud(volume=100, muted=True)
+    assert view.press_volume_at(vx + 3, vy + 10) == "audio_unmute"
+
+    # A press nowhere near it asks for nothing, so the console behind gets it.
+    assert view.press_volume_at(10, 10) == ""
+
+
+def test_the_published_level_is_what_the_chip_shows(mock_pygame):
+    """Genau neither owns the level nor plays the sound — a companion process
+    carries the clip music — so what it draws is whatever Fun Time last said."""
+    from player_core.volume import VolumeHud
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600)
+
+    view.set_volume(45, True)
+
+    assert view._volume == VolumeHud(volume=45, muted=True)
 
 
 def test_set_hud_mode_true_enables_layered_window(mock_pygame):
