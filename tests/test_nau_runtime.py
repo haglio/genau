@@ -344,7 +344,7 @@ class TestApplyCommand:
         assert apply_command("SET_F_MODE", session, set_f_mode=lambda _f: None) is False
 
     def test_display_verbs_invoke_callback(self):
-        """Whether Nau owns the primary rect is Fun Time's to say: in genau mode
+        """Whether Nau owns the main slot's rect is Fun Time's to say: in genau mode
         it hands that rect to Genau and minimizes Nau, which keeps its taskbar
         button — so the player has to be told to go black rather than sit there
         holding the frame it was paused on."""

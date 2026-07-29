@@ -1,9 +1,9 @@
-"""The controls on the primary console, and where they sit.
+"""The controls on the main console, and where they sit.
 
 Fun Time's dashboard used to draw a schematic of the two monitors with a little
-box per player, and the primary player's box carried these controls.  The primary
+box per player, and the main player's box carried these controls.  The player on the
 player draws its own HUD now, so they live on it — and whichever player holds the
-primary slot draws that HUD: Nau in nau and hybrid, Genau in genau mode.  The
+main slot draws that HUD: Nau in nau and hybrid, Genau in genau mode.  The
 console is the same in every mode, so the mode switch and the drive controls do
 not move as you flip between them; only the transport changes, because prev/next
 step Nau's video in nau/hybrid and Genau's clips in genau.
@@ -76,7 +76,7 @@ class Button:
 
 @dataclass(frozen=True)
 class ConsoleModel:
-    """What Fun Time tells the primary player about its slot, so the console can
+    """What Fun Time tells the main player about its slot, so the console can
     draw it — none of which the player can see for itself.
 
     Everything here arrives published (``nau_console.json``) except
@@ -85,18 +85,18 @@ class ConsoleModel:
 
     mode: str = "nau"
     # The dot: whether a bare, player-less command ("next", "lock") lands on the
-    # primary rather than on a satellite.
+    # main player rather than on a satellite.
     active: bool = False
     # What is driving the OSR2 right now: off / auto / funscript / genau / idle.
     osr2: str = "off"
-    # Whether the OSR2 broker service is up — its own concern, only the primary's.
+    # Whether the OSR2 broker service is up — its own concern, only the main player's.
     broker: bool = False
     # Where Nau's loop machine is: normal / recording (the record key is down and
     # the out point has not landed yet) / looping.  Nau publishes it in its status
     # file and Fun Time forwards it, because the console is drawn in genau mode too
     # — by a player that has no loop machine of its own to ask.
     record: str = "normal"
-    # Whether the player on the primary slot is holding what is on screen rather
+    # Whether the player on the main slot is holding what is on screen rather
     # than letting it move on — Nau's video in nau and hybrid, Genau's clip in
     # genau.  One flag for one padlock, because whichever player is showing is the
     # one the lock holds.  On is where both players open, so it is the default
@@ -105,7 +105,7 @@ class ConsoleModel:
     # same reason — the player drawing this console is not always the one it is
     # describing.
     locked: bool = True
-    # Whether the primary's own F-mode is on — its playlist narrowed to the videos
+    # Whether the main player's own F-mode is on — its playlist narrowed to the videos
     # that have a funscript.  Nau is told the flag directly as well (its subtitle
     # says so), but the button lights off what Fun Time publishes, because the
     # flag is set from three places — this button, the F key, and a spoken phrase —
@@ -180,7 +180,7 @@ _MODE_BUTTONS = (
 
 
 def nau_displays(mode: str) -> bool:
-    """Whether Nau's video is on the primary screen — nau and hybrid.
+    """Whether Nau's video is on the main slot — nau and hybrid.
 
     The transport steps Nau's video then, and the nudge / open / clip / record
     that act on a video make sense; in genau mode the transport steps Genau's own
@@ -246,16 +246,16 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
         return [
             # Ordered as the video runs: back to the last one, back ten, forward
             # ten, on to the next.
-            Button("primary_prev", _GLYPHS["prev"], "Previous video"),
-            Button("primary_nudge_prev", _GLYPHS["back"], "Back 10s"),
-            Button("primary_nudge_next", _GLYPHS["fwd"], "Forward 10s"),
-            Button("primary_next", _GLYPHS["next"], "Next video"),
+            Button("main_prev", _GLYPHS["prev"], "Previous video"),
+            Button("main_nudge_prev", _GLYPHS["back"], "Back 10s"),
+            Button("main_nudge_next", _GLYPHS["fwd"], "Forward 10s"),
+            Button("main_next", _GLYPHS["next"], "Next video"),
             # What the end of the video does, so it belongs with the stepping:
-            # locked (the primary's default) the video repeats and the two
+            # locked (the main player's default) the video repeats and the two
             # buttons beside it are the only way off it; unlocked it plays out
             # into the next one and the playlist runs around.  The same padlock a
             # satellite's HUD carries, and lit the same way when it is on.
-            Button("primary_lock", _GLYPHS["lock"],
+            Button("main_lock", _GLYPHS["lock"],
                    "Locked — this video repeats; press to play on through the "
                    "playlist" if model.locked
                    else "Unlocked — plays on through the playlist; press to hold "
@@ -266,7 +266,7 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
             # it narrows the playlist to the videos that have a funscript, so it
             # sits with the browser: both change what there is to step through,
             # rather than acting on the video on screen or on where it ends.
-            Button("primary_fmode", FMODE_ICON,
+            Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the videos that have a funscript",
                    lit=model.f_mode, favorite=True),
             Button("browse_library", _GLYPHS["open"], "Browse the library"),
@@ -288,7 +288,7 @@ def _transport_row(model: ConsoleModel) -> list[Button]:
     return [
         Button("genau_prev_clip", _GLYPHS["prev"], "Previous clip"),
         Button("genau_next_clip", _GLYPHS["next"], "Next clip"),
-        Button("primary_lock", _GLYPHS["lock"],
+        Button("main_lock", _GLYPHS["lock"],
                "Locked — this clip repeats; press to move on every "
                f"{model.advance_interval}s" if model.locked
                else "Unlocked — moving on every "
@@ -410,7 +410,7 @@ _CAPTURE_CONTROLS = frozenset({"nau_record_tap", "clipper_save"})
 # pair groups together and apart from both.  The lock also shares the transport's
 # command prefix, and without this would have joined its run and read as another
 # step, which is the undifferentiated strip that opened these groups up.
-_SWITCH_CONTROLS = frozenset({"primary_lock", "primary_fmode"})
+_SWITCH_CONTROLS = frozenset({"main_lock", "main_fmode"})
 
 
 def _family(action: str) -> str:
@@ -427,7 +427,7 @@ def _family(action: str) -> str:
         return "switch"
     # Stepping the video and nudging inside it are one run of four marks, so they
     # are one family: prev, back ten, forward ten, next, evenly spaced.
-    for prefix in ("primary", "nau_speed", "genau_"):
+    for prefix in ("main_", "nau_speed", "genau_"):
         if action.startswith(prefix):
             return prefix
     return "file"

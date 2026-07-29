@@ -61,7 +61,7 @@ class PlayerSession:
         self._tcode = tcode
         self._version_index = version_index or {}
         self._paused = start_paused
-        # Locked is how the primary has always played: mpv repeats the one file
+        # Locked is how the main player has always played: mpv repeats the one file
         # (``loop_file=inf``, the option the player is constructed with) and `[`/`]`
         # are the only things that move it.  Unlocking hands the end of the file
         # back to the playlist — see :meth:`set_locked`.
@@ -89,9 +89,9 @@ class PlayerSession:
     def locked(self) -> bool:
         """Whether the video on screen repeats rather than ending.
 
-        On is the primary's original behavior and so the default: one video plays
+        On is the main player's original behavior and so the default: one video plays
         until you ask for another.  Published in the status file, because the
-        console that draws the lock is drawn by whoever holds the primary slot —
+        console that draws the lock is drawn by whoever holds the main slot —
         which in genau mode is not this player.
         """
         return self._locked

@@ -69,7 +69,7 @@ def apply_command(
         session.toggle_lock()
     elif keyword in ("LOCK_ON", "LOCK_OFF"):
         # Named absolutely as well as toggled, because the spoken forms are
-        # "primary lock" and "primary unlock": a speaker asks for the state they
+        # "main lock" and "main unlock": a speaker asks for the state they
         # want, not for the other one.
         session.set_locked(keyword == "LOCK_ON")
     elif keyword == "CYCLE_VERSION":
@@ -132,7 +132,7 @@ def apply_command(
             return False
         set_f_mode(arg != "0")
     elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
-        # Whether Nau owns the primary rect right now, which is not the same as
+        # Whether Nau owns the main slot's rect right now, which is not the same as
         # whether it is playing: Fun Time hands that rect to Genau in genau mode
         # and minimizes Nau, and a minimized window keeps its taskbar button — so
         # without this an alt-tab back lands on the frame it was paused on.  The
@@ -185,7 +185,7 @@ def _set_loop(session, arg: str) -> bool:
 
 
 def _set_volume(session, arg: str, set_volume_hud=None) -> bool:
-    """SET_VOLUME <0-100> [muted] -> the primary display's sound level.
+    """SET_VOLUME <0-100> [muted] -> the main slot's sound level.
 
     The mute comes as a flag of its own rather than as a level of zero.  Zero is
     what an audio *sink* needs and all Fun Time used to send, but a control that

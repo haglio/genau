@@ -9,7 +9,7 @@ by default, because a held clip is what Genau has always opened on.
 There is no separate "auto advance" switch any more: advancing is simply what an
 unlocked Genau does, and the interval is how fast.  The pair used to be two
 controls that could disagree (armed but held, held but disarmed), and on the
-primary console they sat next to the lock of the player sharing the slot.
+main console they sat next to the lock of the player sharing the slot.
 """
 from __future__ import annotations
 

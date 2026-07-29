@@ -1,4 +1,4 @@
-"""The primary console: the controls whichever player holds the slot draws."""
+"""The main console: the controls whichever player holds the slot draws."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -78,25 +78,25 @@ class TestTransport:
     def test_nau_and_hybrid_step_the_video_and_act_on_it(self):
         for mode in ("nau", "hybrid"):
             actions = _actions(ConsoleModel(mode=mode))
-            for action in ("primary_prev", "primary_next", "primary_nudge_prev",
-                           "primary_nudge_next", "primary_fmode", "browse_library",
+            for action in ("main_prev", "main_next", "main_nudge_prev",
+                           "main_nudge_next", "main_fmode", "browse_library",
                            "clipper_save", "nau_record_tap"):
                 assert action in actions, (mode, action)
 
-    def test_f_mode_is_the_primarys_own_and_lights_while_it_is_on(self):
+    def test_f_mode_is_the_main_players_own_and_lights_while_it_is_on(self):
         """Fun Time's dashboard carried one F-mode switch for the room; every
-        player carries its own now, and this is the primary's — its playlist
+        player carries its own now, and this is the main player's — its playlist
         narrowed to the videos that have a funscript."""
-        off = _button(ConsoleModel(mode="nau"), "primary_fmode")
-        on = _button(ConsoleModel(mode="nau", f_mode=True), "primary_fmode")
+        off = _button(ConsoleModel(mode="nau"), "main_fmode")
+        on = _button(ConsoleModel(mode="nau", f_mode=True), "main_fmode")
 
         assert off.lit is False
         assert on.lit is True
 
     def test_f_mode_is_not_offered_where_there_is_no_nau_playlist(self):
-        """In genau mode the primary display is Genau's, and the playlist F-mode
+        """In genau mode the main slot is Genau's, and the playlist F-mode
         narrows is not what is playing — the same reason nudge and record go."""
-        assert "primary_fmode" not in _actions(ConsoleModel(mode="genau"))
+        assert "main_fmode" not in _actions(ConsoleModel(mode="genau"))
 
     def test_record_is_there_in_hybrid_too_not_only_nau(self):
         """Nau is on screen in hybrid, so there is a loop to record — it went
@@ -114,8 +114,8 @@ class TestTransport:
         """Nudge, open, clip and record act on a video; Genau's clips are not one."""
         actions = _actions(ConsoleModel(mode="genau"))
 
-        for action in ("primary_nudge_prev", "browse_library", "clipper_save",
-                       "nau_record_tap", "primary_fmode"):
+        for action in ("main_nudge_prev", "browse_library", "clipper_save",
+                       "nau_record_tap", "main_fmode"):
             assert action not in actions
 
 
@@ -124,15 +124,15 @@ class TestLock:
 
     def test_the_video_can_be_held_wherever_nau_is_on_screen(self):
         for mode in ("nau", "hybrid"):
-            assert "primary_lock" in _actions(ConsoleModel(mode=mode))
+            assert "main_lock" in _actions(ConsoleModel(mode=mode))
 
     def test_it_is_lit_while_the_video_is_held(self):
-        assert _button(ConsoleModel(mode="nau", locked=True), "primary_lock").lit is True
-        assert _button(ConsoleModel(mode="nau", locked=False), "primary_lock").lit is False
+        assert _button(ConsoleModel(mode="nau", locked=True), "main_lock").lit is True
+        assert _button(ConsoleModel(mode="nau", locked=False), "main_lock").lit is False
 
     def test_it_says_which_way_a_press_goes(self):
-        held = _button(ConsoleModel(mode="nau", locked=True), "primary_lock")
-        loose = _button(ConsoleModel(mode="nau", locked=False), "primary_lock")
+        held = _button(ConsoleModel(mode="nau", locked=True), "main_lock")
+        loose = _button(ConsoleModel(mode="nau", locked=False), "main_lock")
 
         assert held.tooltip.startswith("Locked") and "play on" in held.tooltip
         assert loose.tooltip.startswith("Unlocked") and "hold this video" in loose.tooltip
@@ -145,8 +145,8 @@ class TestLock:
         have made it read as a fifth step."""
         placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)
         by_action = {b.action: rect for rect, b in placed}
-        step, lock = by_action["primary_next"], by_action["primary_lock"]
-        fmode, browse = by_action["primary_fmode"], by_action["browse_library"]
+        step, lock = by_action["main_next"], by_action["main_lock"]
+        fmode, browse = by_action["main_fmode"], by_action["browse_library"]
 
         assert lock[0] - (step[0] + step[2]) == GROUP_GAP
         assert fmode[0] - (lock[0] + lock[2]) == GAP        # the pair runs together
@@ -236,18 +236,18 @@ class TestLockAcrossModes:
     def test_every_mode_offers_exactly_one_padlock(self):
         for mode in ("nau", "hybrid", "genau"):
             actions = _actions(ConsoleModel(mode=mode))
-            assert actions.count("primary_lock") == 1, mode
+            assert actions.count("main_lock") == 1, mode
 
     def test_it_is_lit_while_whatever_is_showing_is_held(self):
         for mode in ("nau", "hybrid", "genau"):
-            assert _button(ConsoleModel(mode=mode, locked=True), "primary_lock").lit is True
-            assert _button(ConsoleModel(mode=mode, locked=False), "primary_lock").lit is False
+            assert _button(ConsoleModel(mode=mode, locked=True), "main_lock").lit is True
+            assert _button(ConsoleModel(mode=mode, locked=False), "main_lock").lit is False
 
     def test_in_genau_it_says_what_the_clip_does_and_how_fast(self):
         held = _button(ConsoleModel(mode="genau", locked=True, advance_interval=7),
-                       "primary_lock")
+                       "main_lock")
         loose = _button(ConsoleModel(mode="genau", locked=False, advance_interval=7),
-                        "primary_lock")
+                        "main_lock")
 
         assert held.tooltip.startswith("Locked") and "every 7s" in held.tooltip
         assert loose.tooltip.startswith("Unlocked") and "every 7s" in loose.tooltip
@@ -274,7 +274,7 @@ class TestState:
         """It narrows the playlist to what has a funscript, and green means the
         favorites and the funscripts — so it is the one lit control here that is
         not white."""
-        assert _button(ConsoleModel(mode="nau", f_mode=True), "primary_fmode").favorite is True
+        assert _button(ConsoleModel(mode="nau", f_mode=True), "main_fmode").favorite is True
         assert _button(ConsoleModel(mode="genau"), "genau_toggle_cruise").favorite is False
 
     def test_the_record_button_tells_marking_from_looping(self):
@@ -355,9 +355,9 @@ class TestLayout:
 
     def test_a_press_finds_the_button_under_it(self):
         placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)
-        rect, _b = next((r, b) for r, b in placed if b.action == "primary_next")
+        rect, _b = next((r, b) for r, b in placed if b.action == "main_next")
 
-        assert hit_test(placed, rect[0] + 1, rect[1] + 1) == "primary_next"
+        assert hit_test(placed, rect[0] + 1, rect[1] + 1) == "main_next"
         assert tooltip_at(placed, rect[0] + 1, rect[1] + 1) == "Next video"
 
     def test_a_press_off_every_button_posts_nothing(self):

@@ -59,7 +59,7 @@ class GenauLifecycleController:
             elif event.type == pygame.KEYDOWN:
                 self._handle_key(event)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                # In genau mode Genau draws the primary console; a press on it
+                # In genau mode Genau draws the main console; a press on it
                 # posts the same command the dashboard would have.
                 self.on_console_press(*event.pos)
             elif event.type == pygame.MOUSEBUTTONUP and event.button == 1:
