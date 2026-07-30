@@ -6,6 +6,7 @@ from player_core.hud_panel import (
     BLUE,
     GREEN,
     TEXT_MUTED,
+    TEXT_PRIMARY,
     HudPanel,
     load_font,
     text_width,
@@ -23,7 +24,6 @@ from genau.drive_hud import (
     TRACE_ONLY_SIZE,
     DriveHud,
     DriveSection,
-    blend,
     section_size,
     controls,
     label_pair_x,
@@ -343,20 +343,81 @@ class TestTraceOnly:
         assert touched[PAD:PAD + height, PAD:PAD + width].any()
 
 
-class TestBlend:
-    """The device glides from one driver's stroke onto the other's, and the trace
-    spends that same time on its way from one color to the other."""
+class TestSwitchedOff:
+    """With the OSR2 off nothing here is being sent, so no part of the readout may
+    look live: not the trace, not the bars, not the numbers, and not the marker
+    that was still bobbing after the trace had stopped."""
 
-    def test_the_ends_are_the_two_colors_themselves(self):
-        assert blend(BLUE, GREEN, 0.0) == BLUE
-        assert blend(BLUE, GREEN, 1.0) == GREEN
+    @staticmethod
+    def _colors(hud: DriveHud) -> set[tuple[int, int, int]]:
+        rgb = _rendered(hud).astype(int)[:, :, :3]
+        return {tuple(pixel) for row in rgb for pixel in row} - {(0, 0, 0)}
 
-    def test_the_middle_is_between_them(self):
-        assert blend((0, 0, 0), (100, 200, 40), 0.5) == (50, 100, 20)
+    def test_no_part_of_it_is_left_in_the_stroke_s_blue(self):
+        assert BLUE not in self._colors(_hud(driven=DRIVEN_BY_NOTHING))
+        assert BLUE in self._colors(_hud(driven=DRIVEN_BY_GENAU))
 
-    def test_it_cannot_run_past_either_end(self):
-        assert blend(BLUE, GREEN, 5.0) == GREEN
-        assert blend(BLUE, GREEN, -5.0) == BLUE
+    def test_the_bars_go_grey_with_everything_else(self):
+        """A live blue level beside a dead control says the level is doing
+        something."""
+        off = _rendered(_hud(driven=DRIVEN_BY_NOTHING, waveform=()))
+        bar = {c.action: c.rect for c in controls(PAD, PAD, _hud())}["genau_speed_up"]
+        row = off.astype(int)[bar[1] + bar[3] // 2, PAD:PAD + SECTION_W, :3]
+
+        assert not ((row[:, 2] > 150) & (row[:, 0] < 120)).any()
+
+    def test_the_numbers_go_grey_too(self):
+        """They read as the live value of a stroke otherwise."""
+        off = _rendered(_hud(driven=DRIVEN_BY_NOTHING, waveform=()))
+        on = _rendered(_hud(driven=DRIVEN_BY_GENAU, waveform=()))
+
+        assert TEXT_PRIMARY in self._colors(_hud(driven=DRIVEN_BY_GENAU, waveform=()))
+        assert not np.array_equal(off, on)
+
+    def test_the_position_marker_is_not_left_white(self):
+        """It bobbed on: Genau keeps publishing a position it cannot know is going
+        nowhere, and a dot still moving is the last thing on a stopped readout
+        claiming to be live."""
+        off = _rendered(_hud(driven=DRIVEN_BY_NOTHING, waveform=()))
+        # The marker straddles the trace's left edge, which nothing else touches.
+        edge = off.astype(int)[:, PAD - 3:PAD - 1, :3]
+
+        assert not (edge > 200).all(axis=2).any()
+
+
+class TestBorder:
+    def test_the_trace_s_edge_is_opaque_so_it_reads_the_same_over_anything(self):
+        """At part strength the video showed through it, so one quiet grey line
+        read as a bright thick one over the picture and a thin dark one over the
+        letterbox — the same border looking like two."""
+        hud = _hud()
+        x, y, w, _h = next(t.rect for t in tracks(PAD, PAD, hud) if t.axis == CENTER)
+        alpha = _rendered(hud)[..., 3]
+
+        assert (alpha[y, x:x + w] == 255).all()
+
+
+class TestRuns:
+    """One line, two drivers: the span runs forward, so a handoff that has not
+    happened yet is inside it."""
+
+    def test_with_no_marks_the_whole_line_belongs_to_whoever_has_it(self):
+        hud = _hud(driven=DRIVEN_BY_FUNSCRIPT)
+
+        assert hud.runs == ((0, len(hud.waveform) - 1, DRIVEN_BY_FUNSCRIPT),)
+
+    def test_consecutive_runs_share_a_point_so_the_line_does_not_break(self):
+        hud = _hud(segments=((0, DRIVEN_BY_FUNSCRIPT), (40, DRIVEN_BY_GENAU)))
+        first, second = hud.runs
+
+        assert (first[1], second[0]) == (40, 40)
+
+    def test_each_run_is_drawn_in_its_own_driver_s_color(self):
+        hud = _hud(segments=((0, DRIVEN_BY_FUNSCRIPT), (40, DRIVEN_BY_GENAU)))
+        rgb = _rendered(hud).astype(int)[:, :, :3]
+        colors = {tuple(pixel) for row in rgb for pixel in row}
+
+        assert {GREEN, BLUE} <= colors
 
 
 class TestPublishedSpan:

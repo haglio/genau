@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import math
 import re
-import time
 from dataclasses import dataclass, field, replace
 
 import numpy as np
@@ -37,14 +36,11 @@ from genau.drive_hud import (
     DriveHud,
     DriveSection,
     DriveTrack,
-    blend,
     section_size,
-    trace_ink,
     track_command,
 )
 from genau.drive_hud import controls as drive_controls
 from genau.drive_hud import tracks as drive_tracks
-from player_core.tcode import HANDOFF_MS
 from player_core.hud_panel import (
     BG_PRIMARY,
     BLUE,
@@ -134,16 +130,6 @@ _DRIVEN_BY_OSR2 = {OSR2_GENAU: DRIVEN_BY_GENAU, OSR2_FUNSCRIPT: DRIVEN_BY_FUNSCR
 def _driven_by(osr2: str) -> str:
     return _DRIVEN_BY_OSR2.get(osr2, DRIVEN_BY_NOTHING)
 
-
-# The handoff's color change, in steps.  Quantized because the panel is repainted
-# whenever what it shows changes and a continuous fade would mean a fresh Pillow
-# pass per frame for as long as it ran; six is past what the eye separates over
-# three hundred milliseconds.
-_FADE_STEPS = 6
-
-
-def _fade_step(progress: float) -> int:
-    return round(_FADE_STEPS * max(0.0, min(1.0, progress)))
 
 # The drive readout's own arrows are drawn by the readout, but the console still
 # has to know what each posts and name it on hover.
@@ -294,7 +280,7 @@ class ConsolePainter:
         self._tiny = load_font(_SIZE_TINY)
         self._glyph = load_font(_SIZE_BODY, SYMBOL_FONT)
         self._drive = DriveSection()
-        self._painted: tuple[ConsoleHud, tuple[int, int] | None, int] | None = None
+        self._painted: tuple[ConsoleHud, tuple[int, int] | None] | None = None
         self._image: Image.Image | None = None
         self._bgra: np.ndarray | None = None
         self.buttons: list[tuple[Rect, Button]] = []
@@ -303,13 +289,9 @@ class ConsolePainter:
         # keeps setting the one it started on and only speaks when the value moves.
         self._held: DriveTrack | None = None
         self._asked = ""
-        # The trace, held still while nothing is being sent — see :meth:`_resolve`.
-        self._still: tuple[float, ...] | None = None
-        # A handoff in flight: who had the trace, the color it was leaving, and
-        # when the device started gliding onto the incoming stroke.
-        self._was_driven: str | None = None
-        self._was_from: tuple[int, int, int] | None = None
-        self._handed_over_at = 0.0
+        # The trace and the device's position, held still while nothing is being
+        # sent — see :meth:`_resolve`.
+        self._still: tuple[tuple[float, ...], int] | None = None
 
     def bgra(self, hud: ConsoleHud, *, hover: tuple[int, int] | None = None) -> np.ndarray:
         """*hud* as an mpv overlay bitmap — what Nau composites into its video."""
@@ -337,53 +319,35 @@ class ConsolePainter:
         """
         drive = hud.drive
         if drive is None:
-            self._still, self._was_driven = None, None
+            self._still = None
             return hud
         # Genau cannot see the handoff, so whoever draws the console tells the
         # readout who has the device.  Anything but Genau dims every control on
         # it: adjusting a stroke Genau is not sending is what woke it against the
         # funscript.
         drive = replace(drive, driven=_driven_by(hud.console.osr2))
-        if drive.driven == DRIVEN_BY_NOTHING:
-            # Nothing is reaching the device, so there is no motion to trace.
-            # Genau goes on stroking regardless — it cannot see that the OSR2 is
-            # off — and a trace scrolling away in the middle of a readout whose
-            # every control is dead is the one part still claiming to be live.
+        if not drive.live:
+            # Nothing is reaching the device, so there is no motion to draw.  Genau
+            # goes on stroking regardless — it cannot see that the OSR2 is off — so
+            # both the trace and the position it publishes keep moving, and either
+            # one left running is the last thing on a dead readout still claiming
+            # to be live.
             if self._still is None:
-                self._still = drive.waveform
-            drive = replace(drive, waveform=self._still)
+                self._still = (drive.waveform, drive.position)
+            waveform, position = self._still
+            drive = replace(drive, waveform=waveform, position=position, segments=())
         else:
             self._still = None
         return replace(hud, drive=drive)
-
-    def _handoff(self, drive: DriveHud) -> float:
-        """How far through the device's glide onto this driver we are, 0-1.
-
-        The trace changes hands over the same stretch the OSR2 does, so the line
-        is on its way from one color to the other exactly while the device is on
-        its way from one stroke to the other.
-        """
-        if self._was_driven is None:
-            self._was_driven = drive.driven
-        if drive.driven != self._was_driven:
-            self._was_from = trace_ink(self._was_driven)
-            self._was_driven, self._handed_over_at = drive.driven, time.monotonic()
-        return min(1.0, (time.monotonic() - self._handed_over_at) / (HANDOFF_MS / 1000))
 
     def _ensure(self, hud: ConsoleHud, hover: tuple[int, int] | None) -> bool:
         """Repaint if *hud*/*hover* moved; report whether it did (so a cached
         bitmap can be reused).  The panel is redrawn a few times a minute at most
         — Pillow is too slow to run every frame — so the image is kept until it
-        changes.
-
-        A handoff is the exception: while the trace is between two colors it has
-        to be redrawn for each step of the fade, so the step joins what is
-        compared and the panel goes back to sitting still once it lands.
-        """
-        step = _fade_step(self._handoff(hud.drive)) if hud.drive else _FADE_STEPS
-        if (hud, hover, step) == self._painted and self._image is not None:
+        changes."""
+        if (hud, hover) == self._painted and self._image is not None:
             return False
-        self._painted, self._image = (hud, hover, step), self._paint(hud, hover, step)
+        self._painted, self._image = (hud, hover), self._paint(hud, hover)
         return True
 
     def press_at(self, mx: int, my: int) -> str:
@@ -453,8 +417,7 @@ class ConsolePainter:
         left, top = hud_xy()
         return mx - left, my - top
 
-    def _paint(self, hud: ConsoleHud, hover: tuple[int, int] | None = None,
-               fade: int = 0) -> "Image.Image":
+    def _paint(self, hud: ConsoleHud, hover: tuple[int, int] | None = None) -> "Image.Image":
         console, drive = hud.console, hud.drive
         # Nau's own screen has no Genau behind it, so the readout there is the
         # trace alone: the levels describe a stroke nothing is making and no
@@ -519,8 +482,7 @@ class ConsolePainter:
 
         if drive is not None:
             y += _ROW_GAP
-            self._drive.draw(draw, _PAD, y, drive,
-                             trace_only=trace_only, ink=self._trace_ink(drive, fade))
+            self._drive.draw(draw, _PAD, y, drive, trace_only=trace_only)
             # The readout draws its own arrows; the console only needs them as hit
             # targets, so they answer a press and name themselves on hover.
             for control in drive_controls(_PAD, y, drive, trace_only=trace_only):
@@ -543,18 +505,6 @@ class ConsolePainter:
             if tip:
                 draw_tooltip(draw, self._tiny, tip, hover, (width, height))
         return panel.image
-
-    def _trace_ink(self, drive: DriveHud, fade: int):
-        """The trace's color part-way through a handoff, or its own once landed.
-
-        The OSR2 is gliding from one driver's stroke onto the other's, and this
-        is that same glide drawn: a line that cut from green to blue would say
-        the device changed hands instantly, which is exactly what it no longer
-        does.
-        """
-        if fade >= _FADE_STEPS or self._was_from is None:
-            return drive.ink
-        return blend(self._was_from, drive.ink, fade / _FADE_STEPS)
 
     @staticmethod
     def _osr2_controls_width(controls: list[Button]) -> int:

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pygame
 
-from genau.drive_hud import POSITION_MAX, TRACE_SAMPLES, DriveHud, read_drive
+from genau.drive_hud import DriveHud, read_drive
 from genau.pygame_view import get_window_chrome_height
 from player_core.tcode import UdpTCodeSink
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
@@ -29,6 +29,7 @@ from .clip_nav import ClipNav
 from .console import ConsoleModel, genau_drives, read_console
 from .display import Display
 from .funscript_jumps import FunscriptJumps
+from .drive_trace import drive_readout
 from .hud import (
     OSR2_FUNSCRIPT,
     ConsoleHud,
@@ -335,33 +336,19 @@ def _run(args) -> int:
         return heatmap.height or TIMELINE_HEIGHT
 
     def _drive_readout(console: ConsoleModel, published: DriveHud | None) -> DriveHud:
-        """The trace to draw, and whose stroke it is a picture of.
+        """The readout to draw, with this video's funscript folded into it.
 
-        The readout is on the console in every mode now, because in every mode
-        something may be driving the device and the picture of it is worth
-        having.  What varies is where the samples come from: Genau publishes its
-        own stroke, and the funscript is sampled here — Genau cannot see it, and
-        in Nau there is no Genau behind the screen at all.
-
-        Sampled over the span Genau publishes with its own trace, scaled by the
-        playback rate: the trace covers a stretch of wall-clock time, and at
-        double speed twice as much of the script goes past in it.  Handing the
-        trace over between the two then keeps one continuous picture, which is
-        the point of drawing them both on it.
+        Genau publishes its own stroke; the script is sampled here, because Genau
+        cannot see it and in Nau there is no Genau behind the screen at all.  See
+        :mod:`nau.drive_trace` for how the two share one line.
         """
-        base = (published or DriveHud()) if genau_drives(console.mode) else DriveHud()
-        script = session.current_funscript
-        if console.osr2 != OSR2_FUNSCRIPT or script is None:
-            return base
-        at = int(session.position_ms)
-        return replace(
-            base,
-            waveform=script.trace(
-                at, round(base.trace_seconds * 1000 * session.speed), TRACE_SAMPLES),
-            # The dot down the edge is where the device is, and while a script
-            # has it that is wherever the script says — not the stroke position
-            # Genau published, which is a stroke nothing is sending.
-            position=round(script.position_at(at) / 100 * POSITION_MAX),
+        return drive_readout(
+            published if genau_drives(console.mode) else None,
+            script=session.current_funscript,
+            position_ms=int(session.position_ms),
+            speed=session.speed,
+            genau_behind=genau_drives(console.mode),
+            osr2_has_script=console.osr2 == OSR2_FUNSCRIPT,
         )
 
     def _post(command: str) -> None:
