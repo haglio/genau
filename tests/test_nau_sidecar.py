@@ -49,13 +49,13 @@ class TestReadSidecar:
 class TestReadClip:
     def test_reads_the_clip_object(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        video = _write(lib, meta, "w/Kim Lee - POV Scene 2.mp4", {
+        video = _write(lib, meta, "w/Ann Bly - POV Scene 2.mp4", {
             "video": {"action": "Alpha"},
-            "clip": {"compilation": "Vol6", "index": 9, "performer": "Kim Lee"},
+            "clip": {"compilation": "Vol6", "index": 9, "performer": "Ann Bly"},
         })
 
         assert read_clip(video, meta) == {
-            "compilation": "Vol6", "index": 9, "performer": "Kim Lee",
+            "compilation": "Vol6", "index": 9, "performer": "Ann Bly",
         }
 
     def test_a_sidecar_with_no_clip_object_is_none(self, tmp_path):
