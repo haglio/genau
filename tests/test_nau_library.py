@@ -385,8 +385,8 @@ class TestRealWorldNameGrouping:
         assert groups[0].alternates == [original]
 
     def test_different_scene_names_stay_separate(self):
-        a = _entry("Vanessa-Leon-scene-a.mp4", size=100)
-        b = _entry("vanessa-leon-scene-b-1080p.mp4", size=100)
+        a = _entry("Jane-Doe-scene-a.mp4", size=100)
+        b = _entry("jane-doe-scene-b-1080p.mp4", size=100)
 
         groups = group_versions([a, b])
 
