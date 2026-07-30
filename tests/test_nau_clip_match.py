@@ -122,7 +122,7 @@ class TestRecord:
             "video": {"action": "Alpha"},
             "clip": {"compilation": "Vol1", "index": 9, "performer": "Nora Quill"},
         }), encoding="utf-8")
-        scene = lib / "other" / "Mia-Vale_540-izB4YKFa.mp4"
+        scene = lib / "other" / "Nora-Quill_540-izB4YKFa.mp4"
 
         record(clip, scene, offset=808.25, metadata_root=meta)
 
@@ -161,8 +161,8 @@ class TestMatchLibrary:
     def _one_scene_two_clips(self, tmp_path):
         """A performer with one scene (in two versions) and two of her clips."""
         return _library(tmp_path, (
-            ("other/Mia-Vale_540-izB4YKFa.mp4", 100, {}),
-            ("other/Mia-Vale_540-izB4YKFa_apo8_iris2.mp4", 400, {}),
+            ("other/Nora-Quill_540-izB4YKFa.mp4", 100, {}),
+            ("other/Nora-Quill_540-izB4YKFa_apo8_iris2.mp4", 400, {}),
             ("w/Nora Quill - Nights of Nonsense 8.mp4", 50,
              {"clip": {"compilation": "Vol1", "index": 9, "performer": "Nora Quill"}}),
             ("w/Nora Quill - Scene Three 3.mp4", 50,
@@ -183,16 +183,16 @@ class TestMatchLibrary:
         scene_frames = _frames(400, seed=1)
 
         def sampler(video, fps):
-            if video.name.startswith("Nora Quill"):
+            if video.name.startswith("Nora-Quill"):
                 return scene_frames
-            if "Angels" in video.name:
+            if "Nights" in video.name:
                 return scene_frames[80:120]
             return _frames(40, seed=2)
 
         matched = match_library(entries, meta, fps=8.0, sampler=sampler)
 
         cut_from_it = lib / "w" / "Nora Quill - Nights of Nonsense 8.mp4"
-        scene = lib / "other" / "Mia-Vale_540-izB4YKFa.mp4"
+        scene = lib / "other" / "Nora-Quill_540-izB4YKFa.mp4"
         assert list(matched) == [scene]
         assert matched[scene].clip == cut_from_it
         assert read_clip(cut_from_it, meta)["scene_offset"] == 10.0

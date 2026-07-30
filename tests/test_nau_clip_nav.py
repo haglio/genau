@@ -90,7 +90,7 @@ class TestClipNav:
         clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
                      "Nora Quill To the Brink", "Nora Quill")
         stranger = _sidecar(lib, meta, "other/Nora Quill - 9934197-720p.mp4", {})
-        other = _sidecar(lib, meta, "other/Nora Quill-2_1080-jx3sHGzf.mp4", {})
+        other = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         nav = ClipNav.build([clip, stranger, other], meta)
         assert nav.clip_of(stranger) is None
         assert nav.full_vid_of(clip) is None
@@ -116,7 +116,7 @@ class TestClipNav:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", "Vol4", 4,
                      "Scene Five 3", "Iris Fenn")
-        scene = _sidecar(lib, meta, "other/Nina-Cole_540-fDn1L7uT.mp4", {})
+        scene = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
         nav = ClipNav.build([clip, scene], meta)
 
         assert nav.full_vid_of(clip) == scene
@@ -128,7 +128,7 @@ class TestClipNav:
         clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
                      "Nora Quill To the Brink", "Nora Quill")
         _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
-        _sidecar(lib, meta, "other/Nora Quill-2_1080-jx3sHGzf.mp4", {})
+        _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         nav = ClipNav.build([clip, *[lib / "other" / n for n in
                                      ("redacted_540-EhWGJW62.mp4", "redacted_1080-jx3sHGzf.mp4")]], meta)
 
@@ -139,8 +139,8 @@ class TestClipNav:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", "Vol4", 4,
                      "Scene Five 3", "Iris Fenn")
-        plain = _sidecar(lib, meta, "other/Nina-Cole_540-fDn1L7uT.mp4", {})
-        upscaled = _sidecar(lib, meta, "other/Nina-Cole_540-fDn1L7uT_iris2.mp4", {})
+        plain = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
+        upscaled = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT_iris2.mp4", {})
         upscaled.write_bytes(b"x" * 400)
         nav = ClipNav.build([clip, plain, upscaled], meta)
 
@@ -170,7 +170,7 @@ class TestRecordedMatch:
 
     def test_full_vid_uses_the_recorded_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        scene = _sidecar(lib, meta, "other/Nora Quill-2_1080-jx3sHGzf.mp4", {})
+        scene = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
         clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
                      "Nora Quill To the Brink", "Nora Quill",
@@ -181,7 +181,7 @@ class TestRecordedMatch:
 
     def test_clip_jump_uses_the_recorded_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        scene = _sidecar(lib, meta, "other/Nora Quill-2_1080-jx3sHGzf.mp4", {})
+        scene = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         mine = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
                      "Nora Quill To the Brink", "Nora Quill",
                      full_video=str(scene), scene_offset=808.2)
@@ -198,10 +198,10 @@ class TestRecordedMatch:
         "cycle version" can put any of them on screen — so a match recorded on
         the original has to resolve from the upscale too, in both directions."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        plain = _sidecar(lib, meta, "other/Nora Quill-1_540-izB4YKFa.mp4", {})
-        upscale = _sidecar(lib, meta, "other/Nora Quill-1_540-izB4YKFa_apo8_iris2.mp4", {})
+        plain = _sidecar(lib, meta, "other/Nora-Quill-1_540-izB4YKFa.mp4", {})
+        upscale = _sidecar(lib, meta, "other/Nora-Quill-1_540-izB4YKFa_apo8_iris2.mp4", {})
         upscale.write_bytes(b"x" * 400)
-        decoy = _sidecar(lib, meta, "other/Nora Quill-2_1080-QQ7mnbEt.mp4", {})
+        decoy = _sidecar(lib, meta, "other/Nora-Quill-2_1080-QQ7mnbEt.mp4", {})
         clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", "Vol1", 9,
                      "Nights of Nonsense 8", "Nora Quill",
                      full_video=str(plain), scene_offset=808.2)
@@ -235,8 +235,8 @@ def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", "Vol1", 9,
                  "Nights of Nonsense 8", "Nora Quill")
-    plain = _sidecar(lib, meta, "other/Mia-Vale_540-izB4YKFa.mp4", {})
-    upscale = _sidecar(lib, meta, "other/Mia-Vale_540-izB4YKFa_apo8_iris2.mp4", {})
+    plain = _sidecar(lib, meta, "other/Nora-Quill_540-izB4YKFa.mp4", {})
+    upscale = _sidecar(lib, meta, "other/Nora-Quill_540-izB4YKFa_apo8_iris2.mp4", {})
     upscale.write_bytes(b"x" * 400)
     nav = ClipNav.build([clip, plain, upscale], meta)
 
