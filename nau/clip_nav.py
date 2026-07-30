@@ -44,15 +44,15 @@ def _size(video: Path) -> int:
         return 0
 
 
-# Words too common to identify a movie ("Best of Head", "F for Francesca").
+# Words too common to identify a movie ("Best of Times", "A for Ambrose").
 _STOPWORDS = frozenset({"the", "and", "for", "of", "a", "an", "in", "to", "my", "it", "on"})
 
 
 def _distinctive(source: str, performer: str) -> set[str]:
     """Source-title words that actually identify the movie.
 
-    The performer's own name is stripped out: a title like *Mia Vale To the
-    Limit* would otherwise match every Mia Vale file in the library on her name
+    The performer's own name is stripped out: a title like *Nora Quill To the
+    Limit* would otherwise match every Nora Quill file in the library on her name
     alone. Stopwords and one/two-letter fragments go too.
     """
     perf = _tokens(performer)
@@ -63,8 +63,8 @@ def _matches(meta: dict, text: set[str]) -> bool:
     """Whether *text* (a filename's tokens) names this clip's scene.
 
     Requires every performer token to be present *and* at least one distinctive
-    source-title word — enough to pair ``Kim Lee - POV Scene 2``
-    with a ``Kim-Lee---POV-Scene-Fuckers-2-(2009)`` scene, while rejecting
+    source-title word — enough to pair ``Ann Bly - POV Scene 2``
+    with a ``Ann-Bly---POV-Scene-Deluxe-2-(2009)`` scene, while rejecting
     both a same-source scene starring someone else and an unrelated file that
     merely shares the performer.
     """
@@ -255,8 +255,8 @@ def _resolve(meta: dict, candidates: list[Path]) -> Path | None:
     """The library file *meta*'s scene was taken from, or None.
 
     Two tiers, because filenames in the wild carry wildly different detail. A
-    name that repeats the movie ("...POV-Scene-Fuckers-2-(2009)...") is matched
-    outright. A name that carries only the performer ("Nina-Cole_540-hash")
+    name that repeats the movie ("...POV-Scene-Deluxe-2-(2009)...") is matched
+    outright. A name that carries only the performer ("Iris-Fenn_540-hash")
     can still be resolved — but only when that performer has exactly one scene
     here, since with several there is no way to tell which one it was.
     """

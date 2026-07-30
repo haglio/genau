@@ -61,9 +61,9 @@ def _world(tmp_path: Path):
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     first = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1,
                   "Scene Two", "Jane Doe")
-    second = _clip(lib, meta, "w/Kim Lee - POV Scene 2.mp4", "Vol6", 9,
-                   "POV Scene 2", "Kim Lee")
-    scene = lib / "other" / "POV Scene 2 - Kim Lee 1080p.mp4"
+    second = _clip(lib, meta, "w/Ann Bly - POV Scene 2.mp4", "Vol6", 9,
+                   "POV Scene 2", "Ann Bly")
+    scene = lib / "other" / "POV Scene 2 - Ann Bly 1080p.mp4"
     scene.parent.mkdir(parents=True, exist_ok=True)
     scene.write_bytes(b"x")
     nav = ClipNav.build([first, second, scene], meta)

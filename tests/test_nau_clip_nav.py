@@ -28,12 +28,12 @@ class TestClipNav:
     def _nav(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clips = [
-            _clip(lib, meta, "w/Kim Lee - POV Scene 2.mp4", "Vol6", 9, "POV Scene 2", "Kim Lee"),
+            _clip(lib, meta, "w/Ann Bly - POV Scene 2.mp4", "Vol6", 9, "POV Scene 2", "Ann Bly"),
             _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1, "Scene Two", "Jane Doe"),
             _clip(lib, meta, "w/Ada Roe - POV Scene 2.mp4", "Vol6", 7, "POV Scene 2", "Ada Roe"),
-            _clip(lib, meta, "w/Kylee King - Taylor Rain.mp4", "Vol10", 1, "Taylor Rain's Offroad Adventure", "Kylee King"),
+            _clip(lib, meta, "w/Bryn Vance - Taylor Rain.mp4", "Vol10", 1, "Taylor Rain's Offroad Adventure", "Bryn Vance"),
         ]
-        full = _sidecar(lib, meta, "other/POV Scene 2 - Kim Lee 1080p.mp4", {})
+        full = _sidecar(lib, meta, "other/POV Scene 2 - Ann Bly 1080p.mp4", {})
         nav = ClipNav.build([*clips, full], meta)
         return nav, clips, full
 
@@ -52,10 +52,10 @@ class TestClipNav:
 
     def test_compilation_playlist_orders_by_index(self, tmp_path):
         nav, clips, _ = self._nav(tmp_path)
-        # from Kim Lee (Vol6 #9): siblings Jane(#1), Ada(#7), Kim(#9)
+        # from Ann Bly (Vol6 #9): siblings Jane(#1), Ada(#7), Kim(#9)
         order = nav.compilation_playlist(clips[0])
         names = [p.stem.split(" - ")[0] for p in order]
-        assert names == ["Jane Doe", "Ada Roe", "Kim Lee"]
+        assert names == ["Jane Doe", "Ada Roe", "Ann Bly"]
 
     def test_compilation_playlist_excludes_other_volumes(self, tmp_path):
         nav, clips, _ = self._nav(tmp_path)
@@ -69,7 +69,7 @@ class TestClipNav:
 
     def test_full_vid_of_matches_source_and_performer(self, tmp_path):
         nav, clips, full = self._nav(tmp_path)
-        # Kim Lee clip -> the "POV Scene 2 - Kim Lee" full scene
+        # Ann Bly clip -> the "POV Scene 2 - Ann Bly" full scene
         assert nav.full_vid_of(clips[0]) == full
 
     def test_full_vid_of_none_when_absent(self, tmp_path):
@@ -82,15 +82,15 @@ class TestClipNav:
         assert nav.clip_of(full) == clips[0]
 
     def test_clip_of_ignores_a_performer_with_several_scenes(self, tmp_path):
-        """A title like "Mia Vale To the Limit" must not claim every Mia Vale
+        """A title like "Nora Quill To the Brink" must not claim every Nora Quill
         file: with several of her scenes present, which one it came from is
         unknowable, so neither direction may guess. (With exactly one it is not
-        a guess — see the Nina Cole case.)"""
+        a guess — see the Iris Fenn case.)"""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Mia Vale - Mia Vale To the Limit.mp4", "Vol1", 11,
-                     "Mia Vale To the Limit", "Mia Vale")
-        stranger = _sidecar(lib, meta, "other/Mia Vale - 9934197-720p.mp4", {})
-        other = _sidecar(lib, meta, "other/Mia-Vale-2_1080-jx3sHGzf.mp4", {})
+        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
+                     "Nora Quill To the Brink", "Nora Quill")
+        stranger = _sidecar(lib, meta, "other/Nora Quill - 9934197-720p.mp4", {})
+        other = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         nav = ClipNav.build([clip, stranger, other], meta)
         assert nav.clip_of(stranger) is None
         assert nav.full_vid_of(clip) is None
@@ -102,7 +102,7 @@ class TestClipNav:
         original = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1, "Scene Two", "Jane Doe")
         upscaled = _clip(lib, meta, "w/Jane Doe - Scene Two_apo8_iris2.mp4", "Vol6", 1, "Scene Two", "Jane Doe")
         upscaled.write_bytes(b"x" * 500)  # the enhanced file is the bigger one
-        other = _clip(lib, meta, "w/Alexis Silver - POV 1.mp4", "Vol6", 2, "POV Scene 1", "Alexis Silver")
+        other = _clip(lib, meta, "w/Marlow Sterne - POV 1.mp4", "Vol6", 2, "POV Scene 1", "Marlow Sterne")
         nav = ClipNav.build([original, upscaled, other], meta)
 
         playlist = nav.compilation_playlist(original)
@@ -114,9 +114,9 @@ class TestClipNav:
         movie title at all — so a source-word match can never fire. One scene for
         that performer is unambiguous, so it resolves."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Nina Cole - Scene Five 3.mp4", "Vol4", 4,
-                     "Scene Five 3", "Nina Cole")
-        scene = _sidecar(lib, meta, "other/Nina-Cole_540-fDn1L7uT.mp4", {})
+        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", "Vol4", 4,
+                     "Scene Five 3", "Iris Fenn")
+        scene = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
         nav = ClipNav.build([clip, scene], meta)
 
         assert nav.full_vid_of(clip) == scene
@@ -125,10 +125,10 @@ class TestClipNav:
         """With several scenes by that performer there is no way to tell which one
         the clip came from, so it must not guess."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Mia Vale - Mia Vale To the Limit.mp4", "Vol1", 11,
-                     "Mia Vale To the Limit", "Mia Vale")
+        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
+                     "Nora Quill To the Brink", "Nora Quill")
         _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
-        _sidecar(lib, meta, "other/Mia-Vale-2_1080-jx3sHGzf.mp4", {})
+        _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         nav = ClipNav.build([clip, *[lib / "other" / n for n in
                                      ("redacted_540-EhWGJW62.mp4", "redacted_1080-jx3sHGzf.mp4")]], meta)
 
@@ -137,10 +137,10 @@ class TestClipNav:
     def test_re_encodes_of_one_scene_are_not_ambiguous(self, tmp_path):
         """X.mp4 and X_iris2.mp4 are the same scene; the bigger one wins."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Nina Cole - Scene Five 3.mp4", "Vol4", 4,
-                     "Scene Five 3", "Nina Cole")
-        plain = _sidecar(lib, meta, "other/Nina-Cole_540-fDn1L7uT.mp4", {})
-        upscaled = _sidecar(lib, meta, "other/Nina-Cole_540-fDn1L7uT_iris2.mp4", {})
+        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", "Vol4", 4,
+                     "Scene Five 3", "Iris Fenn")
+        plain = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
+        upscaled = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT_iris2.mp4", {})
         upscaled.write_bytes(b"x" * 400)
         nav = ClipNav.build([clip, plain, upscaled], meta)
 
@@ -149,8 +149,8 @@ class TestClipNav:
     def test_clip_jump_never_returns_the_file_you_are_on(self, tmp_path):
         """A clip matches its own name; returning it just replayed the video."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Kim Lee - POV Scene 2.mp4", "Vol6", 9,
-                     "POV Scene 2", "Kim Lee")
+        clip = _clip(lib, meta, "w/Ann Bly - POV Scene 2.mp4", "Vol6", 9,
+                     "POV Scene 2", "Ann Bly")
         nav = ClipNav.build([clip], meta)
 
         assert nav.clip_of(clip) is None
@@ -170,10 +170,10 @@ class TestRecordedMatch:
 
     def test_full_vid_uses_the_recorded_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        scene = _sidecar(lib, meta, "other/Mia-Vale-2_1080-jx3sHGzf.mp4", {})
+        scene = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
         _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
-        clip = _clip(lib, meta, "w/Mia Vale - Mia Vale To the Limit.mp4", "Vol1", 11,
-                     "Mia Vale To the Limit", "Mia Vale",
+        clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
+                     "Nora Quill To the Brink", "Nora Quill",
                      full_video=str(scene), scene_offset=808.2)
         nav = ClipNav.build([clip, scene, lib / "other" / "redacted_540-EhWGJW62.mp4"], meta)
 
@@ -181,12 +181,12 @@ class TestRecordedMatch:
 
     def test_clip_jump_uses_the_recorded_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        scene = _sidecar(lib, meta, "other/Mia-Vale-2_1080-jx3sHGzf.mp4", {})
-        mine = _clip(lib, meta, "w/Mia Vale - Mia Vale To the Limit.mp4", "Vol1", 11,
-                     "Mia Vale To the Limit", "Mia Vale",
+        scene = _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
+        mine = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
+                     "Nora Quill To the Brink", "Nora Quill",
                      full_video=str(scene), scene_offset=808.2)
-        other = _clip(lib, meta, "w/Mia Vale - Cockeyed.mp4", "Vol2", 3,
-                      "Cockeyed", "Mia Vale",
+        other = _clip(lib, meta, "w/Nora Quill - Cockeyed.mp4", "Vol2", 3,
+                      "Cockeyed", "Nora Quill",
                       full_video=str(lib / "other" / "redacted_540-EhWGJW62.mp4"),
                       scene_offset=12.0)
         nav = ClipNav.build([mine, other, scene], meta)
@@ -198,12 +198,12 @@ class TestRecordedMatch:
         "cycle version" can put any of them on screen — so a match recorded on
         the original has to resolve from the upscale too, in both directions."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        plain = _sidecar(lib, meta, "other/Mia-Vale-1_540-izB4YKFa.mp4", {})
-        upscale = _sidecar(lib, meta, "other/Mia-Vale-1_540-izB4YKFa_apo8_iris2.mp4", {})
+        plain = _sidecar(lib, meta, "other/Nora-Quill-1_540-izB4YKFa.mp4", {})
+        upscale = _sidecar(lib, meta, "other/Nora-Quill-1_540-izB4YKFa_apo8_iris2.mp4", {})
         upscale.write_bytes(b"x" * 400)
-        decoy = _sidecar(lib, meta, "other/Mia-Vale-2_1080-QQ7mnbEt.mp4", {})
-        clip = _clip(lib, meta, "w/Mia Vale - Angels of Debauchery 8.mp4", "Vol1", 9,
-                     "Angels of Debauchery 8", "Mia Vale",
+        decoy = _sidecar(lib, meta, "other/Nora-Quill-2_1080-QQ7mnbEt.mp4", {})
+        clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", "Vol1", 9,
+                     "Nights of Nonsense 8", "Nora Quill",
                      full_video=str(plain), scene_offset=808.2)
         nav = ClipNav.build([clip, plain, upscale, decoy], meta)
 
@@ -233,10 +233,10 @@ def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
     """Evolver's own output suffix was not in the quality-token list, so a scene
     and its upscale counted as two candidates and the match declined."""
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    clip = _clip(lib, meta, "w/Mia Vale - Angels of Debauchery 8.mp4", "Vol1", 9,
-                 "Angels of Debauchery 8", "Mia Vale")
-    plain = _sidecar(lib, meta, "other/Mia-Vale_540-izB4YKFa.mp4", {})
-    upscale = _sidecar(lib, meta, "other/Mia-Vale_540-izB4YKFa_apo8_iris2.mp4", {})
+    clip = _clip(lib, meta, "w/Nora Quill - Nights of Nonsense 8.mp4", "Vol1", 9,
+                 "Nights of Nonsense 8", "Nora Quill")
+    plain = _sidecar(lib, meta, "other/Nora-Quill_540-izB4YKFa.mp4", {})
+    upscale = _sidecar(lib, meta, "other/Nora-Quill_540-izB4YKFa_apo8_iris2.mp4", {})
     upscale.write_bytes(b"x" * 400)
     nav = ClipNav.build([clip, plain, upscale], meta)
 
