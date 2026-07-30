@@ -33,8 +33,8 @@ def _source(tmp_path, durations):
 
 def test_clip_tagged_long_entry_is_a_short_not_full(tmp_path):
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    clip = _clip_entry(lib, meta, "winston/1 clips/Ann Bly - POV Scene 2.mp4")
-    plain = _plain_entry(lib, "winston/0/Long Movie.mp4")
+    clip = _clip_entry(lib, meta, "larkin/1 clips/Ann Bly - POV Scene 2.mp4")
+    plain = _plain_entry(lib, "larkin/0/Long Movie.mp4")
     src = LibrarySource(
         entries=[clip, plain], clips=[],
         durations={clip.video: 120.0, plain.video: 120.0},  # both over the 60s short cutoff
