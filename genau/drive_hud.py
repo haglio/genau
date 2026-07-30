@@ -161,6 +161,13 @@ class DriveHud:
     ctr_at_max: bool = False
     ctr_at_min: bool = False
     waveform: tuple[float, ...] = ()
+    # Where the trace changes hands, as ``(sample index, who drives from there)``
+    # pairs — empty meaning the whole line is ``driven``'s.  The span runs forward
+    # from now, so a handoff that has not happened yet is *in* it: the last of a
+    # funscript's action and the stroke waiting to take over are drawn as one line
+    # that changes color at the join, which is the only way to see the seam
+    # before it arrives rather than after it is over.
+    segments: tuple[tuple[int, str], ...] = ()
 
     @property
     def driving(self) -> bool:
@@ -168,14 +175,27 @@ class DriveHud:
         return self.driven == DRIVEN_BY_GENAU
 
     @property
-    def ink(self):
-        """The trace's color: whose stroke this is.
+    def live(self) -> bool:
+        """Whether anything at all is reaching the device.
 
-        Blue is Genau's own, green belongs to the funscripts everywhere else on
-        these HUDs, and a stroke nobody is sending is the muted grey the rest of
-        a dead control wears.
+        Nothing is, with the OSR2 off or running itself, and then the whole
+        readout is a picture of a stroke nobody is making: it holds still and
+        every part of it goes the muted grey of a dead control, the trace and the
+        bars and the numbers alike.
         """
-        return _TRACE_INK[self.driven]
+        return self.driven != DRIVEN_BY_NOTHING
+
+    @property
+    def runs(self) -> tuple[tuple[int, int, str], ...]:
+        """``(start, end, driven)`` for each stretch of the trace, in order.
+
+        Each run ends *on* the next one's first sample rather than before it, so
+        consecutive runs share a point and the line is continuous across a change
+        of hands instead of breaking at it.
+        """
+        marks = self.segments or ((0, self.driven),)
+        ends = [start for start, _who in marks[1:]] + [len(self.waveform) - 1]
+        return tuple((start, end, who) for (start, who), end in zip(marks, ends))
 
 
 @dataclass(frozen=True)
@@ -348,18 +368,6 @@ def track_command(track: DriveTrack, px: int, py: int) -> str:
     return f"genau_{track.axis}_{track_value(track, px, py)}"
 
 
-def blend(start, end, progress: float):
-    """*start* on its way to *end*, *progress* of the distance.
-
-    The trace changes hands rather than changing state: the device is gliding
-    from one driver's stroke onto the other's over :data:`HANDOFF_MS`, so the
-    line spends that same time on its way from one color to the other.  A cut
-    would say the handoff was instant, which is the thing that was wrong with it.
-    """
-    progress = _clamp01(progress)
-    return tuple(round(a + (b - a) * progress) for a, b in zip(start, end))
-
-
 class DriveSection:
     """The readout itself, drawn into whatever panel is hosting it."""
 
@@ -368,26 +376,28 @@ class DriveSection:
         self._glyph = load_font(_LABEL_H - 3, "seguisym.ttf")
 
     def draw(self, draw, x: int, y: int, hud: DriveHud, *,
-             trace_only: bool = False, ink=None) -> None:
+             trace_only: bool = False) -> None:
         """Paint the readout with its top-left corner at ``(x, y)``.
 
         *trace_only* draws the picture and nothing else, which is the whole
         readout in Nau: Genau is not behind that screen, so its levels have
-        nothing to say and no control there could reach them.  *ink* overrides
-        the trace's own color, which is how a handoff is drawn part-way through
-        (see :func:`blend`).
+        nothing to say and no control there could reach them.
         """
         if trace_only:
-            self._wave(draw, (x, y, _WAVE_W, _WAVE_H), hud, ink=ink)
+            self._wave(draw, (x, y, _WAVE_W, _WAVE_H), hud)
             return
         g = _geometry(x, y, _fraction(hud.center))
+        # Blue is Genau's own stroke — the trace, the amplitude bar and the speed
+        # bar are all the same thing — and grey when nothing is reaching the
+        # device: a live blue level beside a dead control says the level is doing
+        # something.  Never the funscript's green: these are Genau's numbers, and
+        # a script driving does not make them the script's.
+        level_ink = BLUE if hud.live else TEXT_MUTED
+        value_ink = TEXT_PRIMARY if hud.live else TEXT_MUTED
 
-        self._wave(draw, g.wave, hud, ink=ink)
-        self._amp_bar(draw, g.amp_bar, hud)
-        # Blue, like the trace above it and the amplitude bar beside it: all three
-        # are Genau's own stroke, and green on this family's HUDs means the
-        # favorites and the funscripts, which the stroke has nothing to do with.
-        self._bar(draw, g.speed_bar, fill=_fraction(hud.speed), color=BLUE)
+        self._wave(draw, g.wave, hud)
+        self._amp_bar(draw, g.amp_bar, hud, color=level_ink)
+        self._bar(draw, g.speed_bar, fill=_fraction(hud.speed), color=level_ink)
         for control in controls(x, y, hud):
             self._control(draw, control)
 
@@ -395,11 +405,11 @@ class DriveSection:
         # amplitude out to the right, speed under its own row.  The two side
         # labels stack — word over number — so the columns cost half the width.
         self._stacked(draw, g.axis_label_y, "Center", str(hud.center),
-                      right=g.center_label_right)
+                      right=g.center_label_right, ink=value_ink)
         self._stacked(draw, g.axis_label_y, "Amp", str(hud.amplitude),
-                      left=g.amp_label_left)
+                      left=g.amp_label_left, ink=value_ink)
         self._value(draw, g.speed_label_y, "Speed", str(hud.speed),
-                    center=g.speed_label_x)
+                    center=g.speed_label_x, ink=value_ink)
 
     def _control(self, draw, control: DriveControl) -> None:
         """One integrated mark: an outline box with its glyph, dimmed at a limit."""
@@ -410,21 +420,22 @@ class DriveSection:
         draw_glyph(draw, x + w / 2, y + h / 2, control.glyph, self._glyph, (*ink, 255))
 
     def _stacked(self, draw, y: int, key: str, value: str, *,
-                 left: int | None = None, right: int | None = None) -> None:
-        """A muted word with its bright number under it, in one narrow column.
+                 left: int | None = None, right: int | None = None,
+                 ink=TEXT_PRIMARY) -> None:
+        """A muted word with its number under it, in one narrow column.
 
         The pair side by side cost the width of both plus a gap on each flank of
         the trace; stacked, each column is only as wide as the wider of the two.
         """
-        for line_no, (text, ink) in enumerate(((key, TEXT_MUTED), (value, TEXT_PRIMARY))):
+        for line_no, (text, text_ink) in enumerate(((key, TEXT_MUTED), (value, ink))):
             x = left if left is not None else (right or 0) - text_width(self._tiny, text)
             draw.text((x, y + line_no * _LABEL_H + _LABEL_H / 2), text, font=self._tiny,
-                      anchor="lm", fill=(*ink, 255))
+                      anchor="lm", fill=(*text_ink, 255))
 
     def _value(self, draw, y: int, key: str, value: str, *,
                left: int | None = None, right: int | None = None,
-               center: int | None = None) -> None:
-        """A muted key with its bright value, placed as one unit."""
+               center: int | None = None, ink=TEXT_PRIMARY) -> None:
+        """A muted key with its value, placed as one unit."""
         if center is not None:
             span = text_width(self._tiny, key) + _KEY_GAP + text_width(self._tiny, value)
             left = center - span // 2
@@ -432,7 +443,7 @@ class DriveSection:
         draw.text((key_x, y + _LABEL_H / 2), key, font=self._tiny, anchor="lm",
                   fill=(*TEXT_MUTED, 255))
         draw.text((value_x, y + _LABEL_H / 2), value, font=self._tiny, anchor="lm",
-                  fill=(*TEXT_PRIMARY, 255))
+                  fill=(*ink, 255))
 
     @staticmethod
     def _bar(draw, rect: Rect, *, fill: float, color) -> None:
@@ -441,21 +452,22 @@ class DriveSection:
         filled = max(1, round(fill * w))
         draw.rectangle([x, y, x + filled - 1, y + h - 1], fill=(*color, 255))
 
-    def _wave(self, draw, rect: Rect, hud: DriveHud, *, ink=None) -> None:
-        """The stroke drawn as a trace, in the color of whoever is sending it,
-        with the centre marked across it and the device's live position marked
-        down the left edge.
+    def _wave(self, draw, rect: Rect, hud: DriveHud) -> None:
+        """The stroke drawn as a trace, each stretch in the color of whoever
+        drives it, with the centre marked across it and the device's position
+        marked down the left edge.
 
         The centre's ruler is Genau's own idea and belongs to Genau's stroke, so
         a funscript's trace is drawn without it — a dotted line saying "the
         stroke swings about here" is a claim about a stroke nobody is making.
         """
         x, y, w, h = rect
-        ink = ink or hud.ink
-        # Opaque, like every other panel on this HUD.  Half-transparent, the video
-        # showed through the one place on the console you have to read a shape.
+        # Opaque, and the same grey whatever is behind it.  At part strength the
+        # video showed through the border, so the one line that is supposed to be
+        # a quiet edge read as a bright thick one over the picture and a thin dark
+        # one over the letterbox — the same border looking like two.
         draw.rectangle([x, y, x + w - 1, y + h - 1], fill=(*_TRACK, 255),
-                       outline=(*TEXT_MUTED, 160), width=1)
+                       outline=(*TEXT_MUTED, 255), width=1)
         # White, at the same part-strength it was drawn in before: the dotted line
         # is a ruler across the trace rather than a state of anything, and amber on
         # these HUDs is a warning's color, which this is not.
@@ -466,17 +478,23 @@ class DriveSection:
                           fill=(*WHITE, 150))
         points = hud.waveform
         if len(points) >= 2:
-            draw.line(
-                [(x + round(i / (len(points) - 1) * (w - 1)),
-                  y + round((1 - value) * (h - 1)))
-                 for i, value in enumerate(points)],
-                fill=(*ink, 255), width=2, joint="curve",
-            )
+            def at(index: int) -> tuple[int, int]:
+                return (x + round(index / (len(points) - 1) * (w - 1)),
+                        y + round((1 - points[index]) * (h - 1)))
+
+            for start, end, driven in hud.runs:
+                if end > start:
+                    draw.line([at(i) for i in range(start, end + 1)],
+                              fill=(*trace_ink(driven), 255), width=2, joint="curve")
+        # The device's own position, in the color of whoever is putting it there —
+        # and held with the trace while nobody is, because a dot still bobbing in
+        # a readout that has stopped is the last thing on it claiming to be live.
         dot_y = y + round((1 - hud.position / POSITION_MAX) * (h - 1))
-        draw.ellipse([x - 3, dot_y - 3, x + 3, dot_y + 3], fill=(*TEXT_PRIMARY, 255))
+        dot_ink = TEXT_PRIMARY if hud.live else TEXT_MUTED
+        draw.ellipse([x - 3, dot_y - 3, x + 3, dot_y + 3], fill=(*dot_ink, 255))
 
     @staticmethod
-    def _amp_bar(draw, rect: Rect, hud: DriveHud) -> None:
+    def _amp_bar(draw, rect: Rect, hud: DriveHud, *, color=BLUE) -> None:
         """The stroke's extent as a bar: as tall as the amplitude, sitting where
         the centre puts it, so the pair reads as the range the device travels."""
         x, y, w, h = rect
@@ -484,7 +502,7 @@ class DriveSection:
         bar_h = max(2, round(_fraction(hud.amplitude) * h))
         top = y + round((1 - _fraction(hud.center)) * h - bar_h / 2)
         top = max(y, min(y + h - bar_h, top))
-        draw.rectangle([x, top, x + w - 1, top + bar_h - 1], fill=(*BLUE, 255))
+        draw.rectangle([x, top, x + w - 1, top + bar_h - 1], fill=(*color, 255))
 
 
 # --- publishing --------------------------------------------------------------
