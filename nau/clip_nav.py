@@ -51,9 +51,9 @@ _STOPWORDS = frozenset({"the", "and", "for", "of", "a", "an", "in", "to", "my", 
 def _distinctive(source: str, performer: str) -> set[str]:
     """Source-title words that actually identify the movie.
 
-    The performer's own name is stripped out: a title like *Nora Quill To the
-    Limit* would otherwise match every Nora Quill file in the library on her name
-    alone. Stopwords and one/two-letter fragments go too.
+    The performer's own name is stripped out: a title like
+    *Nora Quill To the Brink* would otherwise match every Nora Quill file in the
+    library on her name alone. Stopwords and one/two-letter fragments go too.
     """
     perf = _tokens(performer)
     return {t for t in _tokens(source) - perf if len(t) > 2 and t not in _STOPWORDS}
