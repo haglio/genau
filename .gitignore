@@ -19,6 +19,7 @@ vendor/
 # a committed *.example.* template documenting its shape.
 /genau_config.json
 /sanitize/blocklist.local.txt
+/sanitize/library_roots.local.txt
 
 # pCloud conflict copies (this dir syncs via pCloud). Never our files; an
 # untracked one dirties main and blocks merges. '[' escaped to match literally.
