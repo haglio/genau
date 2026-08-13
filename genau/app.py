@@ -383,6 +383,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=config.genau.resize_debounce_ms,
+        dashboard_cmd_file=dashboard_cmd_file,
         quarter_offset=lambda: engine.__setattr__("phase", (engine.phase + 0.25) % 1.0),
         on_toggle_playing=lambda: toggle_playing(direct_state),
         on_pause_playing=lambda: space_action(direct_state, pause_only=args.fun_time),

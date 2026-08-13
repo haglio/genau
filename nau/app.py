@@ -10,6 +10,7 @@ import pygame
 
 from player_core.drive_readout import DriveHud, read_drive
 from genau.pygame_view import get_window_chrome_height
+from genau.session_quit import quit_gesture
 from player_core.tcode import UdpTCodeSink
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
@@ -387,6 +388,17 @@ def _run(args) -> int:
         if args.dashboard_cmd_file is not None:
             append_command(args.dashboard_cmd_file, command)
 
+    def _quit_gesture() -> None:
+        """The close box, Alt+F4, Ctrl+Q — every way this window is told to go.
+
+        Under Fun Time it is the session that goes, not this player: see
+        :mod:`genau.session_quit`.  Nau stays up until the teardown reaches it,
+        so the closing cover is what the user watches rather than the main slot
+        emptying ahead of everything else.
+        """
+        if quit_gesture(args.dashboard_cmd_file):
+            stop_event.set()
+
     def _press_volume(cx: int, cy: int) -> bool:
         """Take a press at chip-local ``(cx, cy)``; False if it missed the chip.
 
@@ -429,7 +441,7 @@ def _run(args) -> int:
         win_w, win_h = screen.get_size()
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                stop_event.set()
+                _quit_gesture()
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 pressed = console_hud.press_at(*ev.pos)
                 if pressed:
@@ -464,7 +476,7 @@ def _run(args) -> int:
                         _press_volume(cx, cy)
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
-                    stop_event.set()
+                    _quit_gesture()
                 elif ev.key == pygame.K_ESCAPE:
                     session.toggle_pause()
                 elif ev.key == pygame.K_r:
