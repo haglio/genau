@@ -5,9 +5,9 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from genau.cruise_control import CruiseControlState
+from player_core.cruise_control import CruiseControlState
 from genau.clip_advance import ClipAdvanceState
-from genau.direct_control import DirectControlState
+from player_core.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
 from genau.refresh_controller import GenauRefreshController
 from genau.state import SharedState

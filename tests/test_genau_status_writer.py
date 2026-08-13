@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genau.direct_control import DirectControlState, WaveformShape
-from genau.cruise_control import CruiseControlState
+from player_core.direct_control import DirectControlState, WaveformShape
+from player_core.cruise_control import CruiseControlState
 from genau.clip_advance import ClipAdvanceState
 from genau.status_writer import build_status_text, write_status_file
 

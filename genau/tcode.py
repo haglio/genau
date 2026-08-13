@@ -12,10 +12,10 @@ from typing import TYPE_CHECKING
 
 from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
 
-from .direct_control import phase_to_position
+from player_core.direct_control import phase_to_position
 
 if TYPE_CHECKING:
-    from .direct_control import DirectControlState
+    from player_core.direct_control import DirectControlState
 
 
 class RateLimitedTCodeSender:
