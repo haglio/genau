@@ -13,6 +13,7 @@ from genau.pygame_view import get_window_chrome_height
 from player_core.tcode import UdpTCodeSink
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
+from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.status import StatusWriter
 
 from .cli import (
@@ -162,6 +163,12 @@ def _open_window(args):
     its chrome — so the window can be dragged and closed — and its client is sized
     down to leave the video inside the rect.
     """
+    # Before the window exists, and before pygame.init(): SDL otherwise eats the
+    # click that focuses this window, so every press on the console had to be
+    # made twice — once to wake the window, once to hit the button.  See
+    # player_core.sdl_hints for the whole mechanism; the satellites have asked
+    # for this all along and the main player had not.
+    deliver_the_focusing_click()
     pygame.init()
     if args.borderless:
         pos_y, client_h, flags = args.y, args.height, pygame.NOFRAME

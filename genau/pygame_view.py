@@ -8,6 +8,7 @@ from PIL import Image
 from pygame._sdl2.video import Renderer, Texture, Window
 
 from nau.hud import ConsoleHud, ConsolePainter, hud_xy
+from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.volume import (
     VolumeHud,
     VolumeHudPainter,
@@ -84,6 +85,12 @@ class PygameView:
         hybrid_icon_path: Path | None = None,
         borderless: bool = False,
     ) -> None:
+        # Before the window exists, and before pygame.init(): SDL otherwise eats
+        # the click that focuses this window, so every press on the console had
+        # to be made twice — once to wake the window, once to hit the button.
+        # See player_core.sdl_hints for the whole mechanism; the satellites have
+        # asked for this all along and the console had not.
+        deliver_the_focusing_click()
         pygame.init()
         # Borderless under Fun Time, like the satellites and Nau: the main slot
         # slot's mode was readable off this window's title bar, but that moved onto
