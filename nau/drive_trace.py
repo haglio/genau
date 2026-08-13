@@ -11,7 +11,7 @@ That boundary is not a guess.  Fun Time hands the OSR2 over on exactly the rule
 used here — the script has it wherever it is not resting — so what the trace
 shows ahead of the seam is the seam that is coming.
 
-Kept out of :mod:`nau.app` and free of Pillow, like :mod:`nau.console` is, so the
+Kept out of :mod:`nau.app` and free of Pillow, like :mod:`player_core.console` is, so the
 shape of the picture is testable without a window or a font.
 """
 from __future__ import annotations

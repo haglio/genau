@@ -28,11 +28,11 @@ from .cli import (
 )
 from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
-from .console import ConsoleModel, genau_drives, read_console
+from player_core.console import ConsoleModel, genau_drives, read_console
 from .display import Display
 from .funscript_jumps import FunscriptJumps
 from .drive_trace import drive_readout
-from .hud import (
+from player_core.console_hud import (
     OSR2_FUNSCRIPT,
     ConsoleHud,
     ConsolePainter,
