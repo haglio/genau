@@ -275,6 +275,98 @@ class TestMatchLibrary:
              {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
         ))
 
+    def _two_cuts_in_one_family(self, tmp_path):
+        """Two different cuts saved as "X" and "X (2)", each in its own scene.
+
+        Evolver reads a version family off the name, so the two land in one —
+        but they are different footage, cut from two different scenes of the
+        same performer.
+        """
+        clip = {"compilation": "Vol3", "index": 5, "performer": "Nora Quill"}
+        return _library(tmp_path, (
+            ("other/Nora-Quill_540-izB4YKFa.mp4", 100, {}),
+            ("other/Nora-Quill-2_720-QQ7mnbEt.mp4", 100, {}),
+            ("w/Nora Quill - Brink.mp4", 60, {"clip": clip, "version": {"group": "Nora Quill - Brink"}}),
+            ("w/Nora Quill - Brink (2).mp4", 50, {"clip": clip, "version": {"group": "Nora Quill - Brink"}}),
+        ))
+
+    def test_a_family_member_is_measured_rather_than_told(self, tmp_path):
+        """The winner's answer used to go to every member of its family. Where a
+        family is two different cuts, that filed one under a scene it is not in
+        — and handed that scene the wrong cut's funscript."""
+        lib, meta, entries = self._two_cuts_in_one_family(tmp_path)
+        first, second = _frames(400, seed=21), _frames(400, seed=22)
+
+        def sampler(video, fps):
+            if video.name == "Nora-Quill_540-izB4YKFa.mp4":
+                return first
+            if video.name == "Nora-Quill-2_720-QQ7mnbEt.mp4":
+                return second
+            if video.name == "Nora Quill - Brink.mp4":
+                return first[80:120]
+            return second[200:240]
+
+        match_library(entries, meta, fps=8.0, sampler=sampler)
+
+        bigger = read_clip(lib / "w" / "Nora Quill - Brink.mp4", meta)
+        smaller = read_clip(lib / "w" / "Nora Quill - Brink (2).mp4", meta)
+        assert bigger["full_video"] == str(lib / "other" / "Nora-Quill_540-izB4YKFa.mp4")
+        assert bigger["scene_offset"] == 10.0
+        assert smaller["full_video"] == str(lib / "other" / "Nora-Quill-2_720-QQ7mnbEt.mp4")
+        assert smaller["scene_offset"] == 25.0
+
+    def test_a_member_that_is_another_encode_still_gets_the_answer(self, tmp_path):
+        """The family is worth having: a genuine re-encode holds the same
+        pictures, aligns in the same scene, and is recorded without being
+        decoded twice for the search."""
+        lib, meta, entries = _library(tmp_path, (
+            ("other/Nora-Quill_540-izB4YKFa.mp4", 100, {}),
+            ("w/Nora Quill - Brink.mp4", 60, {"clip": {"compilation": "Vol3", "index": 5,
+                                                       "performer": "Nora Quill"},
+                                              "version": {"group": "Nora Quill - Brink"}}),
+            ("w/Nora Quill - Brink_apo8_iris2.mp4", 50, {"clip": {"compilation": "Vol3", "index": 5,
+                                                                  "performer": "Nora Quill"},
+                                                         "version": {"group": "Nora Quill - Brink"}}),
+        ))
+        scene = _frames(400, seed=23)
+
+        def sampler(video, fps):
+            return scene if video.parent.name == "other" else scene[80:120]
+
+        match_library(entries, meta, fps=8.0, sampler=sampler)
+
+        for name in ("Nora Quill - Brink.mp4", "Nora Quill - Brink_apo8_iris2.mp4"):
+            assert read_clip(lib / "w" / name, meta)["full_video"] == str(
+                lib / "other" / "Nora-Quill_540-izB4YKFa.mp4"
+            )
+
+    def test_a_wrong_match_an_earlier_run_wrote_is_dropped(self, tmp_path):
+        """Self-healing: the sidecars already carry answers handed out on trust,
+        and a member proved not to be in that scene must lose the one it has
+        rather than keep pointing at it."""
+        lib, meta, entries = self._two_cuts_in_one_family(tmp_path)
+        scene_one = lib / "other" / "Nora-Quill_540-izB4YKFa.mp4"
+        stale = (meta / "w" / "Nora Quill - Brink (2).json")
+        payload = json.loads(stale.read_text(encoding="utf-8"))
+        payload["clip"].update(full_video=str(scene_one), scene_offset=10.0)
+        stale.write_text(json.dumps(payload), encoding="utf-8")
+        first, second = _frames(400, seed=21), _frames(400, seed=22)
+
+        def sampler(video, fps):
+            if video.name == "Nora-Quill_540-izB4YKFa.mp4":
+                return first
+            if video.name == "Nora-Quill-2_720-QQ7mnbEt.mp4":
+                return second
+            if video.name == "Nora Quill - Brink.mp4":
+                return first[80:120]
+            return second[200:240]
+
+        match_library(entries, meta, fps=8.0, sampler=sampler)
+
+        recorded = read_clip(lib / "w" / "Nora Quill - Brink (2).mp4", meta)
+        assert recorded["full_video"] == str(lib / "other" / "Nora-Quill-2_720-QQ7mnbEt.mp4")
+        assert recorded["compilation"] == "Vol3"
+
     def test_records_the_scene_each_clip_was_cut_from(self, tmp_path):
         lib, meta, entries = self._one_scene_two_clips(tmp_path)
         scene_frames = _frames(400, seed=1)

@@ -325,6 +325,26 @@ def record(clip: Path, scene: Path, *, offset: float, metadata_root: Path) -> No
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def forget(clip: Path, scene: Path, *, metadata_root: Path) -> None:
+    """Drop *clip*'s recorded match, if what it records is *scene*.
+
+    For a file this sweep has just proved is not in *scene* — a match written by
+    an earlier run, when the two were taken for one video. Anything else it
+    records is left alone: the sweep only ever measured this one scene, and a
+    match to some other one is not its to overrule.
+    """
+    path = sidecar_for(clip, metadata_root)
+    if path is None:
+        return
+    payload = read_sidecar(clip, metadata_root)
+    recorded = payload.get("clip")
+    if not isinstance(recorded, dict) or recorded.get("full_video") != str(scene):
+        return
+    recorded.pop("full_video", None)
+    recorded.pop("scene_offset", None)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
 def match_library(
     entries: list[LibraryEntry],
     metadata_root: Path,
@@ -338,25 +358,35 @@ def match_library(
     Works from the scenes, which are the complete set: every compilation clip
     came from one of them, while most scenes were never in a compilation and
     correctly end up with no match. Recording waits for the whole sweep, since
-    two scenes can turn out to hold one clip; the answer then goes to the
-    sidecar of every version of the winning clip, so it holds whichever one is
-    played.
+    two scenes can turn out to hold one clip; the answer then goes to each
+    version of the winning clip that is measurably in that scene too, so it
+    holds whichever one is played without being taken on trust.
 
     *on_scene* is called with each scene and what aligned to it as the sweep
     goes, since it reads every candidate video end to end and takes minutes.
     """
     metas = {entry.video: read_clip(entry.video, metadata_root) for entry in entries}
-    # One member of a group is decoded and one names the set, so the members have
-    # to be interchangeable. For clips that means the same pictures, which is
-    # what Evolver's recorded family means and what the names alone miss. For
-    # scenes it means the same timeline as well, and the recorded family does not
-    # promise that — it buckets by a title read out of the name, so unrelated
-    # scenes of a performer land in one group, where the wrong file is decoded
-    # and the wrong name gates and only the biggest is ever matched.
+    # Every clip file is looked for in its own right. Evolver reads a version
+    # family off the name, so two different cuts saved as "X" and "X (2)" are one
+    # family — and searching for a family rather than a file meant only one
+    # member was ever hashed, leaving the other unfindable however exactly its
+    # frames sit in a scene. In this library that is what every multi-member clip
+    # family turned out to be, so the family saves the sweep almost nothing: 295
+    # clips in 286 of them.
+    #
+    # Scenes still group, by the narrower name-derived family rather than the
+    # recorded one, which does not promise a shared timeline: unrelated scenes of
+    # a performer land in one recorded group, where the wrong file is decoded and
+    # the wrong name gates and only the biggest is ever matched.
     versions = partial(read_version_group, metadata_root=metadata_root)
-    clips = group_versions([e for e in entries if metas[e.video] is not None], versions)
+    clips = [e.video for e in entries if metas[e.video] is not None]
     scenes = group_versions([e for e in entries if metas[e.video] is None], _cut_of)
-    families = {_cheapest(family): family for family in clips}
+    # Kept only to carry a settled answer across to a genuine re-encode below.
+    families = {
+        member.video: family
+        for family in group_versions([e for e in entries if metas[e.video] is not None], versions)
+        for member in family.members
+    }
     hashes: dict[Path, np.ndarray] = {}
 
     def hashed(video: Path) -> np.ndarray:
@@ -368,12 +398,12 @@ def match_library(
     matched: dict[Path, Match] = {}
     for scene_family in scenes:
         scene = _cheapest(scene_family)
-        candidates = {
-            video: family for video, family in families.items()
-            if could_be_cut_from(metas[family.canonical.video], scene_family.canonical.video)
-        }
+        candidates = [
+            clip for clip in clips
+            if could_be_cut_from(metas[clip], scene_family.canonical.video)
+        ]
         found = (
-            locate(hashed(scene), {video: hashed(video) for video in candidates}, fps=fps)
+            locate(hashed(scene), {clip: hashed(clip) for clip in candidates}, fps=fps)
             if candidates else None
         )
         if found is not None:
@@ -383,8 +413,22 @@ def match_library(
 
     matched = _best_scene_per_clip(matched)
     for scene, match in matched.items():
+        record(match.clip, scene, offset=match.offset, metadata_root=metadata_root)
+        # A scene holds one clip, so a genuine re-encode of the winner cannot
+        # also win it — it has to be handed the answer to have one at all. But
+        # it is asked rather than told, since a family read off the name puts
+        # two different cuts in one: telling them filed a clip under a scene it
+        # is not in, and gave that scene the wrong clip's funscript. One that
+        # really is another encode aligns here too, at its own offset; one that
+        # does not is told nothing, and loses what an earlier run told it.
         for member in families[match.clip].members:
-            record(member.video, scene, offset=match.offset, metadata_root=metadata_root)
+            if member.video == match.clip:
+                continue
+            own = align(hashed(member.video), hashed(scene), fps=fps)
+            if own is None:
+                forget(member.video, scene, metadata_root=metadata_root)
+            else:
+                record(member.video, scene, offset=own.offset, metadata_root=metadata_root)
     return matched
 
 
