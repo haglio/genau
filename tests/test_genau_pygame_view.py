@@ -212,8 +212,9 @@ def test_genau_draws_the_console_and_the_volume_when_it_owns_the_screen(mock_pyg
 def test_the_volume_chip_sits_where_naus_does_with_no_timeline_under_it(mock_pygame):
     """Genau's window IS the primary display in genau mode, so reaching for the
     sound must not mean finding the control somewhere else than in Nau's modes.
-    There is no scrubber row here, so the chip takes the bottom-right corner the
-    row would have sat above."""
+    Measured against the row Nau draws it in rather than against Genau's own call,
+    which is what a chip nine pixels above Nau's still passed."""
+    from player_core.timeline import TIMELINE_HEIGHT
     from player_core.volume import CHIP_H, CHIP_W, chip_xy
     from genau.pygame_view import PygameView
 
@@ -223,8 +224,8 @@ def test_the_volume_chip_sits_where_naus_does_with_no_timeline_under_it(mock_pyg
 
     view._draw_volume()
 
-    vx, vy = chip_xy(win_w=800, win_h=600, timeline_h=0)
-    assert mock_pygame.Rect.call_args.args == (vx, vy, CHIP_W, CHIP_H)
+    nau_x, nau_y = chip_xy(win_w=800, win_h=600, timeline_h=TIMELINE_HEIGHT)
+    assert mock_pygame.Rect.call_args.args == (nau_x, nau_y, CHIP_W, CHIP_H)
 
 
 def test_a_press_on_the_chip_asks_fun_time_and_shows_the_new_level_at_once(mock_pygame):
