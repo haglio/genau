@@ -8,6 +8,7 @@ from nau.console import (
     BUTTON,
     GAP,
     GROUP_GAP,
+    MINIMIZE_ICON,
     ConsoleModel,
     console_rows,
     genau_drives,
@@ -351,7 +352,36 @@ class TestLayout:
         for mode in ("nau", "hybrid", "genau"):
             first = console_rows(ConsoleModel(mode=mode))[0]
             assert [b.action for b in first] == [
-                "nau_activate", "hybrid_activate", "genau_activate"]
+                "nau_activate", "hybrid_activate", "genau_activate", "main_minimize"]
+
+    def test_minimize_rides_the_row_that_never_changes(self):
+        """It parks the slot's window whatever is on it, so it must be in the row
+        that is the same in every mode — the transport moves and resizes as the
+        mode flips, which would put this button somewhere else each time."""
+        for mode in ("nau", "hybrid", "genau"):
+            placed = place_rows(console_rows(ConsoleModel(mode=mode)), x=0, y=0)
+            rect = next(r for r, b in placed if b.action == "main_minimize")
+            assert rect == next(r for r, b in place_rows(
+                console_rows(ConsoleModel(mode="nau")), x=0, y=0)
+                if b.action == "main_minimize"), mode
+
+    def test_minimize_stands_apart_from_the_modes_it_sits_beside(self):
+        """It is about the window, not about which app owns the slot, so it must
+        not read as a fourth mode: the wider group gap separates it."""
+        placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)
+        by_action = {b.action: r for r, b in placed}
+        genau, minimize = by_action["genau_activate"], by_action["main_minimize"]
+
+        assert minimize[0] - (genau[0] + genau[2]) == GROUP_GAP
+
+    def test_minimize_asks_for_a_drawn_bar_rather_than_a_font_glyph(self):
+        """Windows' own minimize mark is in a face this HUD does not load, and
+        Pillow draws tofu for what a face lacks — so the console names a marker and
+        the painter draws it, the way the waveform does."""
+        button = _button(ConsoleModel(mode="genau"), "main_minimize")
+
+        assert button.glyph == MINIMIZE_ICON
+        assert "taskbar" in button.tooltip
 
     def test_a_press_finds_the_button_under_it(self):
         placed = place_rows(console_rows(ConsoleModel(mode="nau")), x=0, y=0)

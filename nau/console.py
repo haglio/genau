@@ -178,6 +178,13 @@ WAVE_ICON = "\x00wave"
 BROKER_ICON = "\x00broker"
 FMODE_ICON = "\x00fmode"
 
+# The minimize control draws a bar rather than typing one, for the reason the
+# waveform does: Windows' own minimize mark is U+E921 of Segoe MDL2 Assets, which
+# is not the face these buttons load, and Pillow draws tofu for a codepoint a face
+# does not carry.  A bar across the button is also the one mark here nobody has to
+# be taught — it is what every title bar in Windows uses for the same gesture.
+MINIMIZE_ICON = "\x00minimize"
+
 _MODE_BUTTONS = (
     ("nau_activate", "Nau", "nau"),
     ("hybrid_activate", "Hybrid", "hybrid"),
@@ -221,9 +228,20 @@ def console_rows(model: ConsoleModel) -> list[list[Button]]:
     """
     rows: list[list[Button]] = [
         [
-            Button(action, label, f"{label} mode", width=BUTTON * 2 + GAP,
-                   lit=model.mode == mode)
-            for action, label, mode in _MODE_BUTTONS
+            *(
+                Button(action, label, f"{label} mode", width=BUTTON * 2 + GAP,
+                       lit=model.mode == mode)
+                for action, label, mode in _MODE_BUTTONS
+            ),
+            # Minimize rides the mode row because it is about the main *slot*
+            # rather than about what is playing on it — and because this row is
+            # the one that is the same in every mode, so the button holds its
+            # place as you flip between them where the transport below does not.
+            # The window it parks is borderless, like the satellites', so there is
+            # no title bar to carry this; the only other way to put it away is the
+            # dashboard's own minimize, which takes the whole room.
+            Button("main_minimize", MINIMIZE_ICON,
+                   "Minimize this player — bring it back from the taskbar"),
         ],
     ]
     rows.append(_transport_row(model))
@@ -417,6 +435,11 @@ _CAPTURE_CONTROLS = frozenset({"nau_record_tap", "clipper_save"})
 # command prefix, and without this would have joined its run and read as another
 # step, which is the undifferentiated strip that opened these groups up.
 _SWITCH_CONTROLS = frozenset({"main_lock", "main_fmode"})
+# The controls that act on the window rather than on anything inside it, so they
+# stand apart from whatever they share a row with.  Named rather than left to the
+# main_ prefix below: minimize sits beside the mode buttons and would otherwise
+# read as a fourth mode.
+_WINDOW_CONTROLS = frozenset({"main_minimize"})
 
 
 def _family(action: str) -> str:
@@ -425,6 +448,8 @@ def _family(action: str) -> str:
     # the Genau controls' prefix, which used to split the row after Hybrid.
     if action.endswith("_activate"):
         return "mode"
+    if action in _WINDOW_CONTROLS:
+        return "window"
     if action in _GENAU_CONTROLS:
         return "genau_"
     if action in _CAPTURE_CONTROLS:
