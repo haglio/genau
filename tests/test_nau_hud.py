@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 from player_core.hud_panel import ICON_GRIDS, TEXT_MUTED, WHITE, load_font, text_width
 
-from genau.drive_hud import AMPLITUDE, CENTER, SPEED, DriveHud
+from player_core.drive_readout import AMPLITUDE, CENTER, SPEED, DriveHud
 from nau.console import ConsoleModel
 from nau.hud import (
     ConsoleHud,

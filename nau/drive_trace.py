@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from genau.drive_hud import (
+from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
     DRIVEN_BY_GENAU,
     DRIVEN_BY_NOTHING,

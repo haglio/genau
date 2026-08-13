@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pygame
 
-from genau.drive_hud import DriveHud, read_drive
+from player_core.drive_readout import DriveHud, read_drive
 from genau.pygame_view import get_window_chrome_height
 from player_core.tcode import UdpTCodeSink
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
