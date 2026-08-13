@@ -4,6 +4,8 @@ import time
 
 import pygame
 
+from .session_quit import quit_gesture
+
 
 class GenauLifecycleController:
     def __init__(
@@ -15,6 +17,7 @@ class GenauLifecycleController:
         stop_event,
         notifier,
         resize_delay_ms: int,
+        dashboard_cmd_file=None,
         quarter_offset=lambda: None,
         on_toggle_playing=lambda: None,
         on_pause_playing=lambda: None,
@@ -36,6 +39,7 @@ class GenauLifecycleController:
         self.stop_event = stop_event
         self.notifier = notifier
         self.resize_delay_ms = resize_delay_ms
+        self.dashboard_cmd_file = dashboard_cmd_file
         self.quarter_offset = quarter_offset
         self.on_toggle_playing = on_toggle_playing
         self.on_pause_playing = on_pause_playing
@@ -129,6 +133,12 @@ class GenauLifecycleController:
             self.renderer.prepare_active_clip_for_current_size()
 
     def on_close(self) -> None:
+        """Every gesture that means "quit this window": the close box, Alt+F4,
+        Ctrl+Q.  In a session it is the session that quits — see
+        :mod:`genau.session_quit` — and this window stays up until the teardown
+        reaches it, so nothing goes out ahead of the closing cover."""
+        if not quit_gesture(self.dashboard_cmd_file):
+            return
         self.stop_event.set()
         self.notifier.notify_visible(False)
         self.notifier.close()

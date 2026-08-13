@@ -93,6 +93,36 @@ def test_on_close_stops_notifier():
     assert notifier.closed == 1
 
 
+def test_in_a_session_closing_asks_the_session_and_this_window_stays(tmp_path):
+    """Genau placed in a Fun Time session is one window of six.  Closing it on
+    its own leaves the session running around a hole nothing refills, so the
+    gesture goes to the dashboard's channel and this window keeps drawing until
+    the teardown reaches it."""
+    cmd_file = tmp_path / "dashboard_cmd.txt"
+    controller, _view, _renderer, _selection, notifier, stop_event = _build_controller(
+        dashboard_cmd_file=cmd_file,
+    )
+
+    controller.on_close()
+
+    assert cmd_file.read_text(encoding="utf-8").split() == ["quit"]
+    assert not stop_event.is_set()
+    assert notifier.closed == 0
+
+
+def test_in_a_session_ctrl_q_goes_the_same_way(tmp_path):
+    """Not only the close box: every gesture that means "quit this window"."""
+    cmd_file = tmp_path / "dashboard_cmd.txt"
+    controller, _view, _renderer, _selection, _notifier, stop_event = _build_controller(
+        dashboard_cmd_file=cmd_file,
+    )
+
+    controller._handle_key(type("Event", (), {"key": pygame.K_q, "mod": pygame.KMOD_CTRL})())
+
+    assert cmd_file.read_text(encoding="utf-8").split() == ["quit"]
+    assert not stop_event.is_set()
+
+
 def test_ctrl_q_triggers_close():
     controller, _view, _renderer, _selection, _notifier, stop_event = _build_controller()
 
