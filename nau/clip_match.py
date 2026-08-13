@@ -8,6 +8,13 @@ question the filenames cannot — the user's library names scenes
 :mod:`nau.clip_nav` can only pair a performer's single scene with their single
 clip and has to decline the rest.
 
+Black bars are cut off both sides before any of that. A hash reads a frame as a
+grid of cells, so it is a statement about where things sit in the picture — and
+a compilation that pillarboxed a 4:3 scene into a 16:9 frame has moved
+everything inward by an eighth without changing a pixel of it. Bars are the
+frame around a picture rather than part of it, so they come off first and the
+grid lands on the same content either side.
+
 Run as a batch (``python -m nau.clip_match``); it writes what it finds into the
 clip sidecars, where clip_nav reads it back at no cost.
 """
@@ -16,8 +23,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -58,20 +66,134 @@ MIN_SCORE = 0.25
 
 _POPCOUNT = np.array([bin(i).count("1") for i in range(256)], dtype=np.uint8)
 
+# Where in a video to look for its bars, as fractions of its runtime, and for how
+# long each time. Bars are a constant of the encode, so a few seconds anywhere
+# show them — but a fade or a dark shot reads as bars that are not there, and
+# cropping a scene its clip does not crop is how a real pair *stops* matching. So
+# several windows are unioned: the widest picture any of them saw is the one
+# really there, which makes a mistake here cost a crop rather than a match.
+PROBE_POINTS = (0.2, 0.5, 0.8)
+PROBE_SECONDS = 4.0
+
+# ffmpeg's own reading of "black" (anything this dark), and the multiple it
+# rounds the rectangle it finds to.
+_CROP_LIMIT, _CROP_ROUND = 24, 2
+
+# A picture smaller than this much of the frame is a dark scene being read as
+# bars rather than bars: no real letterbox takes half the height.
+MIN_PICTURE_FRACTION = 0.5
+
+_CROP_REPORT = re.compile(r"crop=(\d+):(\d+):(\d+):(\d+)")
+
+
+def picture_box(
+    reports: Iterable[str], width: int, height: int,
+) -> tuple[int, int, int, int] | None:
+    """The ``crop=w:h:x:y`` of the picture inside *width* x *height*, or None.
+
+    None means "use the frame as it is" — either nothing was measured, or what
+    was measured is the whole frame, or it is so small that a dark shot is the
+    likelier explanation. Every *reports* rectangle is taken in, since a window
+    can only ever find bars that are not there (see :data:`PROBE_POINTS`), and
+    the union of them all is the least-cropped reading.
+    """
+    corners = [
+        (int(x), int(y), int(x) + int(w), int(y) + int(h))
+        for report in reports
+        for w, h, x, y in _CROP_REPORT.findall(report)
+    ]
+    if not corners:
+        return None
+    left = min(corner[0] for corner in corners)
+    top = min(corner[1] for corner in corners)
+    right = max(corner[2] for corner in corners)
+    bottom = max(corner[3] for corner in corners)
+
+    # Chroma is subsampled, so an odd rectangle is one ffmpeg's crop refuses.
+    # Rounding outward keeps this the widest reading rather than the tightest.
+    left, top = max(0, left - left % 2), max(0, top - top % 2)
+    box_width = min(width - left, right - left + right % 2)
+    box_height = min(height - top, bottom - top + bottom % 2)
+    box_width, box_height = box_width - box_width % 2, box_height - box_height % 2
+
+    if box_width >= width and box_height >= height:
+        return None
+    if box_width < width * MIN_PICTURE_FRACTION or box_height < height * MIN_PICTURE_FRACTION:
+        return None
+    return box_width, box_height, left, top
+
+
+def _probe(video: Path) -> tuple[int, int, float] | None:
+    """*video*'s coded width, height and duration, or None if ffprobe cannot say."""
+    command = [
+        "ffprobe", "-v", "error", "-select_streams", "v:0",
+        "-show_entries", "stream=width,height:format=duration", "-of", "json", str(video),
+    ]
+    try:
+        probed = json.loads(subprocess.run(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True,
+            **hidden_subprocess_kwargs(),
+        ).stdout)
+        stream = probed["streams"][0]
+        return int(stream["width"]), int(stream["height"]), float(probed["format"]["duration"])
+    except (subprocess.CalledProcessError, OSError, ValueError, LookupError):
+        return None
+
+
+def _cropdetect(video: Path, at: float) -> str:
+    """What ffmpeg's cropdetect says about the seconds of *video* from *at*."""
+    command = [
+        "ffmpeg", "-nostats", "-ss", f"{at:.3f}", "-t", str(PROBE_SECONDS),
+        "-i", str(video), "-an",
+        # reset=0: the rectangle accumulates over the whole window rather than
+        # being re-measured per frame, so one dark moment cannot narrow it.
+        "-vf", f"cropdetect={_CROP_LIMIT}:{_CROP_ROUND}:0", "-f", "null", "-",
+    ]
+    try:
+        return subprocess.run(
+            command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            **hidden_subprocess_kwargs(),
+        ).stderr.decode(errors="replace")
+    except OSError as exc:
+        logger.warning("could not measure %s: %s", video.name, exc)
+        return ""
+
+
+def content_crop(video: Path) -> tuple[int, int, int, int] | None:
+    """The ``crop=w:h:x:y`` that leaves *video*'s picture without its bars.
+
+    None when it has none worth cutting, which is most videos.
+    """
+    probed = _probe(video)
+    if probed is None:
+        return None
+    width, height, duration = probed
+    reports = [_cropdetect(video, duration * point) for point in PROBE_POINTS]
+    return picture_box(reports, width, height)
+
 
 def sample_frames(video: Path, fps: float) -> np.ndarray:
     """*video* decoded to gray thumbnails, *fps* of them a second.
+
+    Its black bars are cropped off first, so the thumbnails hold the picture and
+    nothing else — a pillarboxed clip and the unpadded scene it came out of are
+    the same picture, and have to reach the hash as the same grid of cells.
 
     Empty when ffmpeg cannot read the file, which leaves that video matching
     nothing rather than stopping the batch. Files with damaged frames do decode,
     complaining on stderr the whole way — held back unless the run really fails,
     since a batch over hundreds of videos is unreadable otherwise.
     """
+    crop = content_crop(video)
+    filters = [f"fps={fps}"]
+    if crop is not None:
+        filters.append("crop={}:{}:{}:{}".format(*crop))
+    # Averaging the whole source block, rather than sampling a few pixels of it,
+    # is what makes a 4K upscale thumbnail like its 540p original.
+    filters.append(f"scale={SAMPLE_WIDTH}:{SAMPLE_HEIGHT}:flags=area")
     command = [
         "ffmpeg", "-v", "error", "-i", str(video), "-an",
-        # Averaging the whole source block, rather than sampling a few pixels of
-        # it, is what makes a 4K upscale thumbnail like its 540p original.
-        "-vf", f"fps={fps},scale={SAMPLE_WIDTH}:{SAMPLE_HEIGHT}:flags=area",
+        "-vf", ",".join(filters),
         "-pix_fmt", "gray", "-f", "rawvideo", "-",
     ]
     try:

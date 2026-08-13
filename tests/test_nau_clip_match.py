@@ -8,12 +8,14 @@ import pytest
 
 from nau import clip_match
 from nau.clip_match import (
+    MIN_PICTURE_FRACTION,
     SAMPLE_HEIGHT,
     SAMPLE_WIDTH,
     align,
     frame_hashes,
     locate,
     match_library,
+    picture_box,
     record,
 )
 from nau.clip_nav import read_clip
@@ -50,7 +52,102 @@ class TestFrameHashes:
         assert len(set(frame_hashes(frames).tolist())) == 20
 
 
+class TestPictureBox:
+    """What to crop off a frame, read out of ffmpeg's cropdetect reports."""
+
+    def _report(self, width: int, height: int, x: int = 0, y: int = 0) -> str:
+        return (
+            f"[Parsed_cropdetect_0 @ 000] x1:{x} x2:0 y1:{y} y2:0 w:{width} h:{height} "
+            f"x:{x} y:{y} pts:1 t:0.04 limit:24 crop={width}:{height}:{x}:{y}"
+        )
+
+    def test_finds_the_picture_inside_a_pillarboxed_frame(self):
+        report = self._report(1440, 1080, x=240)
+
+        assert picture_box([report], 1920, 1080) == (1440, 1080, 240, 0)
+
+    def test_a_frame_with_no_bars_is_left_alone(self):
+        report = self._report(1920, 1080)
+
+        assert picture_box([report], 1920, 1080) is None
+
+    def test_the_widest_window_wins(self):
+        """A window that lands on a fade or a dark shot reads black where there
+        is picture. Cropping a scene its own clip does not crop is how a real
+        pair stops matching, so a narrow reading never overrides a wide one."""
+        dark = self._report(600, 400, x=660, y=340)
+        lit = self._report(1440, 1080, x=240)
+
+        assert picture_box([dark, lit, dark], 1920, 1080) == (1440, 1080, 240, 0)
+
+    def test_a_video_that_reads_as_nearly_all_black_is_left_alone(self):
+        """Below this much picture the likelier story is a dark video, not a
+        letterbox — no real one takes half the frame."""
+        sliver = int(1080 * MIN_PICTURE_FRACTION) - 20
+        report = self._report(1920, sliver, y=(1080 - sliver) // 2)
+
+        assert picture_box([report], 1920, 1080) is None
+
+    def test_nothing_measured_means_nothing_cropped(self):
+        assert picture_box(["ffmpeg version 7.1", ""], 1920, 1080) is None
+
+    def test_the_rectangle_is_even_on_every_side(self):
+        """Chroma is subsampled, so ffmpeg's crop refuses an odd rectangle."""
+        box = picture_box([self._report(1437, 1077, x=241, y=1)], 1920, 1080)
+
+        assert box is not None
+        assert not any(value % 2 for value in box)
+
+
+class TestSampleFrames:
+    def _filters(self, monkeypatch, crop) -> str:
+        """The filter chain ``sample_frames`` builds for a video cropped *crop*."""
+        seen: dict[str, list[str]] = {}
+
+        class _Finished:
+            stdout = b""
+            stderr = b""
+
+        monkeypatch.setattr(clip_match, "content_crop", lambda video: crop)
+        monkeypatch.setattr(
+            clip_match.subprocess, "run",
+            lambda command, **kwargs: seen.update(command=command) or _Finished(),
+        )
+        clip_match.sample_frames(Path("scene.mp4"), 8.0)
+        command = seen["command"]
+        return command[command.index("-vf") + 1]
+
+    def test_the_bars_come_off_before_the_frame_is_scaled_down(self, monkeypatch):
+        """Scaling first would squash the bars into the thumbnail, which is the
+        whole problem — the picture has to fill the grid the hash reads."""
+        assert self._filters(monkeypatch, (1440, 1080, 240, 0)) == (
+            f"fps=8.0,crop=1440:1080:240:0,scale={SAMPLE_WIDTH}:{SAMPLE_HEIGHT}:flags=area"
+        )
+
+    def test_a_video_with_no_bars_is_scaled_whole(self, monkeypatch):
+        assert self._filters(monkeypatch, None) == (
+            f"fps=8.0,scale={SAMPLE_WIDTH}:{SAMPLE_HEIGHT}:flags=area"
+        )
+
+
 class TestAlign:
+    def test_bars_stop_a_clip_aligning_with_the_scene_it_came_from(self):
+        """Why the crop happens at all. A hash says where things sit in the
+        frame, so pillarboxing a scene into a wider one moves its whole picture
+        inward and hashes as a different video — a real excerpt then places
+        none of itself, which is what a 4:3 scene cut into a 16:9 compilation
+        did."""
+        rng = np.random.default_rng(21)
+        scene = rng.integers(40, 220, size=(60, SAMPLE_HEIGHT, SAMPLE_WIDTH), dtype=np.uint8)
+        excerpt = scene[20:50]
+        # The same pixels, squeezed into the middle of a frame of black.
+        narrow = np.linspace(0, SAMPLE_WIDTH - 1, SAMPLE_WIDTH - 8).round().astype(int)
+        pillarboxed = np.zeros_like(excerpt)
+        pillarboxed[:, :, 4:-4] = excerpt[:, :, narrow]
+
+        assert align(frame_hashes(excerpt), frame_hashes(scene), fps=8.0) is not None
+        assert align(frame_hashes(pillarboxed), frame_hashes(scene), fps=8.0) is None
+
     def test_finds_where_the_excerpt_sits(self):
         scene = _hashes(400)
         clip = scene[120:160]
