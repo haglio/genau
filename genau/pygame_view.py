@@ -274,8 +274,9 @@ class PygameView:
         Beside the console, and drawn under the same condition: in Hybrid this
         window is a transparent layer over Nau's, and Nau draws both there — a
         chip here too would put two sliders on screen disagreeing about which
-        press the level came from.  There is no timeline under it, so it sits
-        where Nau's does with the scrubber row taken away.
+        press the level came from.  ``timeline_h=0`` says there is no scrubber
+        under it, which is what this window has and Nau's does not; the chip
+        still lands in the same pixels Nau's does.
         """
         win_w, win_h = self.window.size
         rgba, size = self._volume_painter.rgba(self._volume)
