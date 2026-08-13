@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 from player_core.funscript import Funscript
 
-from genau.drive_hud import (
+from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
     DRIVEN_BY_GENAU,
     DRIVEN_BY_NOTHING,

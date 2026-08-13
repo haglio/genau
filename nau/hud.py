@@ -15,7 +15,7 @@ playlist behind the screen.  The file name used to sit in a chip of its own belo
 the console; it belongs to this block now, so there is one HUD and not a panel
 with a tag under it.  Everything else is the console the orchestrator publishes
 (:mod:`nau.console`) plus, while Genau is driving, the drive readout
-(:mod:`genau.drive_hud`) with its own controls.
+(:mod:`player_core.drive_readout`) with its own controls.
 
 The wording and shape are pure functions; the drawing goes onto the slab
 :mod:`player_core.hud_panel` owns, the same slab the satellites' HUD is drawn on,
@@ -29,7 +29,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 from PIL import Image
-from genau.drive_hud import (
+from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
     DRIVEN_BY_GENAU,
     DRIVEN_BY_NOTHING,
@@ -39,8 +39,8 @@ from genau.drive_hud import (
     section_size,
     track_command,
 )
-from genau.drive_hud import controls as drive_controls
-from genau.drive_hud import tracks as drive_tracks
+from player_core.drive_readout import controls as drive_controls
+from player_core.drive_readout import tracks as drive_tracks
 from player_core.hud_panel import (
     BG_PRIMARY,
     BLUE,

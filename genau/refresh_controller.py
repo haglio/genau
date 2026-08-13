@@ -9,7 +9,7 @@ from player_core.file_channel import consume_command_file
 from nau.console import ConsoleModel, read_console
 from nau.hud import ConsoleHud, ModeHud
 
-from .drive_hud import TRACE_SAMPLES, DriveHud, publish_drive
+from player_core.drive_readout import TRACE_SAMPLES, DriveHud, publish_drive
 from .engine import update_engine
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command

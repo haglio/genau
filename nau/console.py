@@ -10,7 +10,7 @@ step Nau's video in nau/hybrid and Genau's clips in genau.
 
 Kept free of Pillow, like ``satellite.hud`` is, so the rows, the geometry and the
 hit-testing are testable without a font.  :mod:`nau.hud` paints them; the drive
-readout's own arrows come from :mod:`genau.drive_hud`.
+readout's own arrows come from :mod:`player_core.drive_readout`.
 
 The action on each button is a Fun Time dashboard command verbatim, because that
 is where a press goes: appended to the same command file the dashboard wrote, so
