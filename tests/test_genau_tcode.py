@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from player_core.tcode import HANDOFF_MS
 
-from genau.direct_control import DirectControlState, WaveformShape
+from player_core.direct_control import DirectControlState, WaveformShape
 from genau.tcode import RateLimitedTCodeSender
 
 

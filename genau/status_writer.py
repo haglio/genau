@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from .clip_advance import ClipAdvanceState
-from .cruise_control import CruiseControlState
-from .direct_control import (
+from player_core.cruise_control import CruiseControlState
+from player_core.direct_control import (
     MAX_SPEED,
     MIN_SPEED,
     DirectControlState,

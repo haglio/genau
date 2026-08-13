@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .engine import PlaybackEngine
-from .direct_control import (
+from player_core.direct_control import (
     adjust_speed,
     adjust_amplitude,
     adjust_center,
@@ -10,7 +10,7 @@ from .direct_control import (
     set_center,
     set_speed,
 )
-from .cruise_control import (
+from player_core.cruise_control import (
     disable_cruise_control,
     enable_cruise_control,
     toggle_cruise_control,

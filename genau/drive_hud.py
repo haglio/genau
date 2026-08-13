@@ -26,6 +26,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core import drive_layout
+from player_core.direct_control import POSITION_MAX  # noqa: F401
+from player_core.drive_layout import (  # noqa: F401 — this module's public face
+    AMPLITUDE,
+    CENTER,
+    SECTION_H,
+    SECTION_W,
+    SPEED,
+    TRACE_ONLY_SIZE,
+    TRACE_SAMPLES,
+    DriveControl,
+    DriveTrack,
+    Rect,
+    section_size,
+    track_value,
+)
+from player_core.drive_layout import fraction as _fraction
 from player_core.file_channel import publish_whole
 from player_core.hud_panel import (
     BLUE,
@@ -37,8 +54,6 @@ from player_core.hud_panel import (
     load_font,
     text_width,
 )
-
-Rect = tuple[int, int, int, int]  # (x, y, w, h)
 
 # What has the device, which is what the trace is a picture of.  Genau's own
 # stroke and a video's funscript take turns in Hybrid; in Nau there is only ever
@@ -65,40 +80,13 @@ def trace_ink(driven: str):
     return _TRACE_INK[driven]
 
 _SIZE_TINY = 8
-_LABEL_H = 14        # a "key value" line
-_BAR_H = 12          # the speed track's thickness
-_CTRL = 14           # an integrated control button (square)
-_GAP = 6
-_AMP_W = 18          # the amplitude bar's width
-_WAVE_H = 96         # the trace's own height
-# The side labels stack their number under their word, so each column is only as
-# wide as the wider of the two rather than as wide as both plus a gap.
-_CTR_LABEL_W = 34    # room for "Center" down the left
-_AMP_LABEL_W = 24    # room for "Amp" down the right
-_WAVE_W = 120        # the trace, between the two axis columns
 _TRACK = (56, 56, 62)  # the unfilled part of a bar — a shade off the slab
 
-# The block: the trace's band, then the speed row and its number under it.
-SECTION_W = _CTR_LABEL_W + _GAP + _CTRL + _GAP + _WAVE_W + _GAP + _AMP_W + _GAP + _AMP_LABEL_W
-SECTION_H = _WAVE_H + _GAP + _CTRL + 2 + _LABEL_H
-
-# The trace on its own, which is the whole readout in Nau: there is no Genau
-# behind that screen, so its amplitude, centre and speed have nothing to act on
-# and only the picture of what the device is being sent is worth drawing.
-TRACE_ONLY_SIZE = (_WAVE_W, _WAVE_H)
-
-
-def section_size(*, trace_only: bool = False) -> tuple[int, int]:
-    """How much room the readout needs — the whole block, or the trace alone."""
-    return TRACE_ONLY_SIZE if trace_only else (SECTION_W, SECTION_H)
-
-# Position is a T-Code stroke position, 0 at the bottom of the range.
-POSITION_MAX = 9999
-
-# How many points the trace is drawn from.  Shared, because a funscript sampled
-# to take the trace over has to arrive at the same resolution as the stroke it
-# replaces — a coarser or finer line would read as a different kind of thing.
-TRACE_SAMPLES = 80
+_WAVE_W, _WAVE_H = TRACE_ONLY_SIZE
+_LABEL_H = drive_layout.LABEL_H
+_CTRL = drive_layout.CONTROL_SIZE
+_GAP = drive_layout.GAP
+_KEY_GAP = 6  # between a key and the value it names
 
 _KEY_GAP = 6  # between a key and the value it names
 
@@ -198,168 +186,28 @@ class DriveHud:
         return tuple((start, end, who) for (start, who), end in zip(marks, ends))
 
 
-@dataclass(frozen=True)
-class DriveControl:
-    rect: Rect
-    action: str
-    glyph: str
-    dim: bool
-
-
-# The three axes as the numeric set commands name them (``genau_amp_57``), which
-# is what a press on a band posts: Fun Time already parses these and routes them
-# to Genau, so setting a level outright needs nothing new on the way.
-AMPLITUDE, CENTER, SPEED = "amp", "center", "speed"
-
-
-@dataclass(frozen=True)
-class DriveTrack:
-    """A band of the readout that takes its value from where you press in it.
-
-    The marks beside each axis step it; these are the axis itself, and each band
-    is already the picture of its own value — so a press reads straight off what
-    is drawn.  Along the speed bar for the rate, up the amplitude bar for how far
-    the stroke reaches, anywhere in the trace for the height it swings about.
-
-    ``center`` is where the stroke sits as a 0-1 height, which the amplitude band
-    mirrors about: the blue bar is drawn out from there in both directions, so
-    grabbing either end and pulling sets how far the stroke has to reach.  ``dim``
-    is the whole readout being unpressable — a funscript has the device — the same
-    state the marks wear, and for the same reason.
-    """
-
-    rect: Rect
-    axis: str
-    tooltip: str
-    center: float = 0.5
-    dim: bool = False
-
-
-@dataclass(frozen=True)
-class _Geometry:
-    """Every rect the readout draws or hit-tests, placed once from the block's
-    top-left corner, so the trace and the mark over it cannot drift apart."""
-
-    wave: Rect
-    speed_bar: Rect
-    speed_down: Rect
-    speed_up: Rect
-    amp_bar: Rect
-    amp_up: Rect
-    amp_down: Rect
-    center_up: Rect
-    center_down: Rect
-    center_label_right: int
-    amp_label_left: int
-    axis_label_y: int
-    speed_label_y: int
-    speed_label_x: int
-
-
-def _geometry(x: int, y: int, center_frac: float) -> _Geometry:
-    ctr_ctrl_x = x + _CTR_LABEL_W + _GAP
-    wave_x = ctr_ctrl_x + _CTRL + _GAP
-    amp_x = wave_x + _WAVE_W + _GAP
-    wave = (wave_x, y, _WAVE_W, _WAVE_H)
-    wave_bottom = y + _WAVE_H
-
-    amp_up = (amp_x, y, _AMP_W, _CTRL)
-    amp_down = (amp_x, wave_bottom - _CTRL, _AMP_W, _CTRL)
-    amp_bar = (amp_x, y + _CTRL + 2, _AMP_W, _WAVE_H - 2 * (_CTRL + 2))
-
-    # The centre marks ride its dotted line, kept inside the trace's band so a
-    # centre at either end cannot push one off the block.
-    center_y = y + round((1 - center_frac) * (_WAVE_H - 1))
-    up_y = min(max(y, center_y - _CTRL - 1), wave_bottom - 2 * _CTRL - 2)
-    center_up = (ctr_ctrl_x, up_y, _CTRL, _CTRL)
-    center_down = (ctr_ctrl_x, up_y + _CTRL + 2, _CTRL, _CTRL)
-
-    speed_y = wave_bottom + _GAP
-    speed_down = (wave_x, speed_y, _CTRL, _CTRL)
-    speed_up = (amp_x + _AMP_W - _CTRL, speed_y, _CTRL, _CTRL)
-    bar_x = wave_x + _CTRL + 4
-    speed_bar = (bar_x, speed_y + (_CTRL - _BAR_H) // 2,
-                 (amp_x + _AMP_W - _CTRL - 4) - bar_x, _BAR_H)
-
-    return _Geometry(
-        wave=wave, speed_bar=speed_bar, speed_down=speed_down, speed_up=speed_up,
-        amp_bar=amp_bar, amp_up=amp_up, amp_down=amp_down,
-        center_up=center_up, center_down=center_down,
-        center_label_right=x + _CTR_LABEL_W,
-        amp_label_left=amp_x + _AMP_W + _GAP,
-        axis_label_y=y + (_WAVE_H - 2 * _LABEL_H) // 2,
-        speed_label_y=speed_y + _CTRL + 2,
-        speed_label_x=(wave_x + amp_x + _AMP_W) // 2,
-    )
-
-
 def controls(x: int, y: int, hud: DriveHud, *,
              trace_only: bool = False) -> list[DriveControl]:
-    """The readout's own marks at ``(x, y)`` — a −/+ pair for each of speed,
-    amplitude and centre — each carrying the command it posts and whether it is
-    dimmed at the end of its range.  The console adds these to its hit
-    targets, so a press on the trace's controls posts exactly what is drawn.
-
-    None at all when only the trace is drawn: in Nau there is no Genau behind the
-    screen for a mark to reach.
-    """
-    if trace_only:
-        return []
-    g = _geometry(x, y, _fraction(hud.center))
-    idle = not hud.driving
-    return [
-        DriveControl(g.speed_down, "genau_speed_down", _LESS, idle or hud.spd_at_min),
-        DriveControl(g.speed_up, "genau_speed_up", _MORE, idle or hud.spd_at_max),
-        DriveControl(g.amp_up, "genau_amplitude_up", _MORE, idle or hud.amp_at_max),
-        DriveControl(g.amp_down, "genau_amplitude_down", _LESS, idle or hud.amp_at_min),
-        DriveControl(g.center_up, "genau_center_up", _MORE, idle or hud.ctr_at_max),
-        DriveControl(g.center_down, "genau_center_down", _LESS, idle or hud.ctr_at_min),
-    ]
+    """The readout's marks at ``(x, y)``, read off *hud* — Genau's own view of
+    :func:`player_core.drive_layout.controls`, which is where the rects and the
+    dimming live.  The console adds these to its hit targets, so a press posts
+    exactly what is drawn."""
+    return drive_layout.controls(
+        x, y, hud.center,
+        drive_layout.Limits(
+            spd_at_min=hud.spd_at_min, spd_at_max=hud.spd_at_max,
+            amp_at_min=hud.amp_at_min, amp_at_max=hud.amp_at_max,
+            ctr_at_min=hud.ctr_at_min, ctr_at_max=hud.ctr_at_max,
+        ),
+        dim=not hud.driving, prefix="genau_", trace_only=trace_only)
 
 
 def tracks(x: int, y: int, hud: DriveHud, *,
            trace_only: bool = False) -> list[DriveTrack]:
-    """The readout's own bands at ``(x, y)`` — the three you press to set a level
-    outright instead of walking to it with the marks.
-
-    The console adds these to its drag targets, so a press anywhere on a bar asks
-    for exactly the value drawn under the pointer, and holding the button keeps
-    asking as the pointer moves.  None of them carries a limit flag: a band sets
-    an absolute value, so there is no end of a range to run out of.  None at all
-    when only the trace is drawn, for the same reason the marks are gone.
-    """
-    if trace_only:
-        return []
-    center = _fraction(hud.center)
-    g = _geometry(x, y, center)
-    dim = not hud.driving
-    return [
-        DriveTrack(g.amp_bar, AMPLITUDE, "Set how far the stroke reaches", center, dim),
-        DriveTrack(g.wave, CENTER, "Set where the stroke is centered", center, dim),
-        DriveTrack(g.speed_bar, SPEED, "Set how fast the stroke goes", center, dim),
-    ]
-
-
-def track_value(track: DriveTrack, px: int, py: int) -> int:
-    """The 0-100 level a press at ``(px, py)`` asks *track* for.
-
-    Read off the drawing rather than merely off the rect, so what you point at is
-    what you get: the speed bar fills from its left edge, so a press is how far
-    along it sits; the trace puts the center's dotted line at its own height, so a
-    press is that height; and the amplitude bar is drawn out from the center in
-    both directions, so a press is how far the stroke has to reach to arrive
-    there — grab either end of the blue bar and pull.
-
-    A point outside the band reads as its nearer end, so a drag that wanders off
-    the bar goes on setting it rather than stopping dead at the edge.
-    """
-    x, y, w, h = track.rect
-    if track.axis == SPEED:
-        return _percent((px - x) / max(1, w - 1))
-    height = _clamp01(1 - (py - y) / max(1, h - 1))
-    if track.axis == CENTER:
-        return _percent(height)
-    return _percent(2 * abs(height - track.center))
+    """The readout's bands at ``(x, y)``, read off *hud* — the three you press to
+    set a level outright instead of walking to it with the marks."""
+    return drive_layout.tracks(x, y, hud.center, dim=not hud.driving,
+                         trace_only=trace_only)
 
 
 def track_command(track: DriveTrack, px: int, py: int) -> str:
@@ -386,7 +234,7 @@ class DriveSection:
         if trace_only:
             self._wave(draw, (x, y, _WAVE_W, _WAVE_H), hud)
             return
-        g = _geometry(x, y, _fraction(hud.center))
+        g = drive_layout.geometry(x, y, _fraction(hud.center))
         # Blue is Genau's own stroke — the trace, the amplitude bar and the speed
         # bar are all the same thing — and grey when nothing is reaching the
         # device: a live blue level beside a dead control says the level is doing
@@ -574,17 +422,3 @@ def _waveform(raw: str) -> tuple[float, ...]:
         return tuple(float(value) for value in raw.split(",") if value)
     except ValueError:
         return ()
-
-
-def _fraction(percent: int) -> float:
-    """A 0-100 control value as a 0-1 bar fill, clamped."""
-    return _clamp01(percent / 100)
-
-
-def _clamp01(value: float) -> float:
-    return max(0.0, min(1.0, value))
-
-
-def _percent(fraction: float) -> int:
-    """A 0-1 bar fill back as the 0-100 value that would draw it."""
-    return round(100 * _clamp01(fraction))

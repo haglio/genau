@@ -11,8 +11,8 @@ from genau.runtime_commands import (
     apply_runtime_command,
 )
 from genau.engine import PlaybackEngine
-from genau.direct_control import DirectControlState, WaveformShape
-from genau.cruise_control import CruiseControlState
+from player_core.direct_control import DirectControlState, WaveformShape
+from player_core.cruise_control import CruiseControlState
 from genau.clip_advance import MAX_INTERVAL_S, MIN_INTERVAL_S, ClipAdvanceState
 
 

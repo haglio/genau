@@ -129,7 +129,7 @@ class GenauRefreshController:
 
         if direct_active:
             if self.cruise_control is not None:
-                from .cruise_control import tick_cruise_control
+                from player_core.cruise_control import tick_cruise_control
                 tick_cruise_control(self.direct_state, self.cruise_control, now)
             if self.clip_advance is not None:
                 from .clip_advance import tick_clip_advance
@@ -245,7 +245,7 @@ class GenauRefreshController:
         if active_entry and active_entry["frames"]:
             frame_count = len(active_entry["frames"])
             if direct_active:
-                from .direct_control import display_phase_for_position
+                from player_core.direct_control import display_phase_for_position
                 display_phase = display_phase_for_position(
                     self.engine.phase, self.direct_state.shape,
                 )
@@ -302,7 +302,7 @@ class GenauRefreshController:
         ))
 
     def _build_drive_hud(self) -> DriveHud:
-        from .direct_control import MAX_SPEED, MIN_BPM, MIN_SPEED, sample_waveform
+        from player_core.direct_control import MAX_SPEED, MIN_BPM, MIN_SPEED, sample_waveform
 
         ds = self.direct_state
         position = 0

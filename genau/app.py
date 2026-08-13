@@ -234,8 +234,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     display_state = {"active": True}
 
     from .clip_advance import ClipAdvanceState
-    from .cruise_control import CruiseControlState
-    from .direct_control import DirectControlState, bpm_for_speed
+    from player_core.cruise_control import CruiseControlState
+    from player_core.direct_control import DirectControlState, bpm_for_speed
     from player_core.tcode import UdpTCodeSink
 
     from .tcode import RateLimitedTCodeSender
@@ -338,8 +338,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_volume=view.set_volume,
     )
     from .clip_advance import toggle_lock
-    from .cruise_control import toggle_cruise_control
-    from .direct_control import (
+    from player_core.cruise_control import toggle_cruise_control
+    from player_core.direct_control import (
         adjust_amplitude,
         adjust_center,
         adjust_speed,
