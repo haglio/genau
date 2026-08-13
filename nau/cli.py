@@ -68,6 +68,10 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
                         "its Fun Time command")
     p.add_argument("--no-audio", action="store_true", default=False,
                    help="Never extract or play audio (silent)")
+    p.add_argument("--taskbar-identity", default=None,
+                   help="Group this window under an orchestrator's taskbar button "
+                        "instead of Nau's own; the orchestrator passes its own "
+                        "AppUserModelID.  Standalone, Nau is its own application")
     return p
 
 
