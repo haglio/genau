@@ -284,6 +284,20 @@ class TestPainter:
 
             assert drawn == list(grid), action
 
+    def test_minimize_is_drawn_as_a_bar_rather_than_left_to_a_font(self):
+        """Windows' minimize mark lives in Segoe MDL2 Assets, which this HUD does
+        not load, and Pillow draws a ".notdef" box for what a face lacks.  So the
+        painter draws it: a run of ink across the middle of the button, wider than
+        it is tall, which is the mark every Windows title bar uses."""
+        box = self._button_box("main_minimize", ConsoleModel(mode="nau"))
+        # The button's own rounded outline is its border, so only the interior
+        # holds the mark.
+        inside = box[2:-2, 2:-2]
+        ys, xs = np.nonzero((inside > 60).all(axis=2))
+
+        assert len(ys), "the minimize button drew no mark at all"
+        assert xs.max() - xs.min() > ys.max() - ys.min()
+
     @staticmethod
     def _button_box(action: str, model: ConsoleModel) -> np.ndarray:
         painter = ConsolePainter()

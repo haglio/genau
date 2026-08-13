@@ -65,6 +65,7 @@ from .console import (
     BUTTON,
     FMODE_ICON,
     GAP,
+    MINIMIZE_ICON,
     WAVE_ICON,
     Button,
     ConsoleModel,
@@ -589,6 +590,8 @@ class ConsolePainter:
             draw_icon(draw, rect, _APP_MARKS[button.glyph])
         elif button.glyph == WAVE_ICON:
             self._wave_icon(draw, rect, ink)
+        elif button.glyph == MINIMIZE_ICON:
+            self._minimize_icon(draw, rect, ink)
         elif len(button.glyph) == 1 and not button.glyph.isalnum():
             # A symbol needs the face that actually has it, and centring on its
             # own ink — the font's box would drop it toward the button's floor.
@@ -615,6 +618,21 @@ class ConsolePainter:
              for i in range(steps + 1)],
             fill=(*ink, 255), width=2, joint="curve",
         )
+
+    @staticmethod
+    def _minimize_icon(draw, rect: Rect, ink) -> None:
+        """The minimize control's face: the bar a Windows title bar puts there.
+
+        Drawn rather than typed for the reason the curve above is — the mark
+        Windows uses is U+E921 of Segoe MDL2 Assets, a face this HUD does not
+        load, and Pillow draws tofu for a codepoint a face lacks.  Two pixels
+        deep across the middle of the button: the same proportion the title bar
+        has, so it reads as that gesture and not as an underscore or a dash.
+        """
+        x, y, w, h = rect
+        pad = 5
+        cy = y + h / 2
+        draw.rectangle([x + pad, cy - 1, x + w - pad - 1, cy], fill=(*ink, 255))
 
 
 def with_playback_speed(console: ConsoleModel, speed: float) -> ConsoleModel:
