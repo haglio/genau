@@ -7,7 +7,7 @@ import pygame
 from PIL import Image
 from pygame._sdl2.video import Renderer, Texture, Window
 
-from nau.hud import ConsoleHud, ConsolePainter, hud_xy
+from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.volume import (
     VolumeHud,
