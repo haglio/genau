@@ -137,9 +137,23 @@ def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -
         player.overlay(_OV_OUT_THUMB, ox, y, out_t)
 
 
-def _set_aumid(config_path) -> None:
+def _set_aumid(config_path, taskbar_identity: str | None = None) -> None:
+    """Claim this window's place on the taskbar, before there is a window.
+
+    *taskbar_identity* is an orchestrator saying these windows are its own: run
+    under Fun Time, Nau is not an application the user launched but one window of
+    the one they did, and it belongs on that button with the rest.  Told one, Nau
+    takes it and stamps nothing — the pinned shortcut being stamped belongs to
+    whoever owns that identity, and it is theirs to keep up to date.
+
+    Standalone there is no one to say, so Nau is its own application as before.
+    """
     try:
         from genau.win32 import take_taskbar_identity
+        if taskbar_identity:
+            from player_core.taskbar import set_app_user_model_id
+            set_app_user_model_id(taskbar_identity)
+            return
         take_taskbar_identity(
             _APP_USER_MODEL_ID, include="nau", exclude="genau", config_path=config_path,
         )
@@ -187,7 +201,7 @@ def _open_window(args):
 
 
 def _run(args) -> int:
-    _set_aumid(args.config)
+    _set_aumid(args.config, getattr(args, "taskbar_identity", None))
     screen = _open_window(args)
     # mpv renders the video directly into this window; overlays go on top.  Until
     # it does, the window is the loading screen's to paint.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 import threading
 import time
 from pathlib import Path
@@ -34,6 +35,23 @@ from .weird import move_clip_to_weird, weird_dir_for_clips_folder
 
 def _preparse_config(argv: list[str] | None) -> str | None:
     return preparse_config_path(argv)
+
+
+def _preparse_taskbar_identity(argv: list[str] | None) -> str | None:
+    """The ``--taskbar-identity`` an orchestrator passed, read before the parser.
+
+    The identity has to be claimed before any window exists and the full parser
+    needs the loaded config, so this one flag is read off argv the way
+    ``--config`` is.  Only the exact spellings argparse itself accepts, so a
+    value that happens to contain the flag's name cannot be mistaken for it.
+    """
+    args = list(argv if argv is not None else sys.argv[1:])
+    for index, arg in enumerate(args):
+        if arg == "--taskbar-identity":
+            return args[index + 1] if index + 1 < len(args) else None
+        if arg.startswith("--taskbar-identity="):
+            return arg.split("=", 1)[1]
+    return None
 
 
 def _condemn_clip(path: Path, weird_dir: Path, logger: logging.Logger) -> None:
@@ -88,19 +106,38 @@ def build_parser(config) -> argparse.ArgumentParser:
         "--fun-time", action="store_true", default=False,
         help="Running under Fun Time (orchestrator owns broker handoff, suppresses voice, space pauses only)",
     )
+    ap.add_argument(
+        "--taskbar-identity", default=None,
+        help="Group this window under an orchestrator's taskbar button instead of "
+             "Genau's own; the orchestrator passes its own AppUserModelID.  "
+             "Standalone, Genau is its own application",
+    )
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
 
-    # Before any window creation, so Genau gets its own taskbar identity
-    # (icon + title) instead of inheriting python.exe's.
-    from .win32 import APP_USER_MODEL_ID, take_taskbar_identity
-    take_taskbar_identity(
-        APP_USER_MODEL_ID, include="genau", exclude="genauvr",
-        config_path=config.config_path,
-    )
+    # Before any window creation, so this window is grouped under the right
+    # taskbar button instead of inheriting the interpreter's.  An orchestrator
+    # that passes its own identity is saying these windows are its own: under Fun
+    # Time, Genau is not an application the user launched but one window of the
+    # one they did.  Told one, Genau takes it and stamps nothing — the pinned
+    # shortcut behind that identity belongs to whoever owns it.  Standalone there
+    # is nobody to say, so Genau is its own application as before.
+    identity = _preparse_taskbar_identity(argv)
+    if identity:
+        try:
+            from player_core.taskbar import set_app_user_model_id
+            set_app_user_model_id(identity)
+        except Exception:
+            pass  # Cosmetic: costs the icon, never worth failing to start over.
+    else:
+        from .win32 import APP_USER_MODEL_ID, take_taskbar_identity
+        take_taskbar_identity(
+            APP_USER_MODEL_ID, include="genau", exclude="genauvr",
+            config_path=config.config_path,
+        )
 
     logger = configure_logging("genau", config.log_file("genau_listener"))
     install_exception_logging(logger)
