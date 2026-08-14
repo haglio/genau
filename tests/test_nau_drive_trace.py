@@ -324,11 +324,15 @@ class TestPositionMarker:
 
     def test_a_script_holding_the_device_parked_rests_the_marker_on_the_park(self):
         """Through the buffer the device sits at its park; a marker riding the
-        script's interpolated line floated where nothing was."""
-        script = _script(until_ms=2_000)
+        script's interpolated line floated where nothing was.  Inside the long
+        lead-in, which is the stretch the script holds the device for without
+        moving it — the tail on the other side is only its park glide now."""
+        script = Funscript(actions=[(t, 0 if (t // 200) % 2 else 100)
+                                    for t in range(40_000, 41_001, 200)])
 
-        hud = _read(script, at=5_000)  # in the tail: parked, not yet resting
+        hud = _read(script, at=37_000)  # in the lead-in: held, parked, not risen
 
+        assert script.is_resting_at(37_000) is False
         assert hud.position == 0
 
     def test_the_dot_glides_down_with_the_device_after_the_handoff(self):

@@ -147,8 +147,18 @@ def drive_readout(
             )
         return hands_over[turn_start]
 
-    def at(sample_ms: int, planned: float) -> tuple[float, str]:
-        """One sample of the line: how high, and whose stretch it is in."""
+    def at(sample_ms: int, planned: float, column: float) -> tuple[float, str]:
+        """One sample of the line: how high, and whose stretch it is in.
+
+        *column* is how many stroke samples past the playhead this one sits,
+        which is what the stroke Genau is *currently* sending is read at.  It is
+        the column index rather than ``(sample_ms - position_ms) / step``,
+        because those differ by the sub-knot slide: the painter leaves the live
+        run unshifted — Genau's own republishing is what moves it — so reading
+        it at the shifted time rounded the index up and down as the playhead
+        crossed each half-knot, and the whole blue stroke twitched a sample
+        sideways and back, twice a knot, forever.
+        """
         turn_start, _turn_end = script.turn_bounds_at(sample_ms)
         if script.is_resting_at(sample_ms):
             # Genau's turn.  It opens with the climb out of the park, unless
@@ -161,7 +171,7 @@ def drive_readout(
             if turn_start is None:
                 # Genau has had the device since before the video began, so its
                 # stroke is simply running: sample 0 of what it published is now.
-                return stroke_at(round((sample_ms - position_ms) / step)), DRIVEN_BY_GENAU
+                return stroke_at(round(column)), DRIVEN_BY_GENAU
             since = sample_ms - turn_start
             if ramped and since < rise_ms:
                 return floor_height * max(0.0, since) / rise_ms, DRIVEN_BY_NEUTRAL
@@ -169,12 +179,12 @@ def drive_readout(
                 # The turn Genau is in the middle of: its published stroke is
                 # sampled forward from now, so the picture rides the phase it
                 # is actually on rather than one reconstructed from the start.
-                return stroke_at(round((sample_ms - position_ms) / step)), DRIVEN_BY_GENAU
+                return stroke_at(round(column)), DRIVEN_BY_GENAU
             return stroke_at(round((sample_ms - turn_start - rise_ms) / step)), DRIVEN_BY_GENAU
         # The script's turn — but only from the moment Genau lets go.
         let_go = hands_over_at(turn_start)
         if sample_ms < let_go:
-            return stroke_at(round((sample_ms - position_ms) / step)), DRIVEN_BY_GENAU
+            return stroke_at(round(column)), DRIVEN_BY_GENAU
         if ramped and sample_ms < let_go + PARK_SETTLE_MS:
             fallen = (sample_ms - let_go) / PARK_SETTLE_MS
             return floor_height * (1 - fallen), DRIVEN_BY_NEUTRAL
@@ -185,7 +195,7 @@ def drive_readout(
     values: list[float] = []
     whos: list[str] = []
     for index in range(TRACE_SAMPLES):
-        value, who = at(round(anchor_ms + index * step), scripted[index])
+        value, who = at(round(anchor_ms + index * step), scripted[index], index)
         values.append(value)
         whos.append(who)
 
@@ -196,14 +206,15 @@ def drive_readout(
     # The knot just past the right border, so the line shifted left by ``slide``
     # still reaches the box's edge — the same choice the loop would have made
     # for an eighty-first sample.
-    edge, _who = at(round(anchor_ms + TRACE_SAMPLES * step), scripted[TRACE_SAMPLES])
+    edge, _who = at(
+        round(anchor_ms + TRACE_SAMPLES * step), scripted[TRACE_SAMPLES], TRACE_SAMPLES)
     # The dot rides the line it is drawn on: while a script has the device that
     # is the plan (with whatever ramp is still playing out), and while Genau has
     # it, the position Genau published — the device's own, at its own rate,
     # rather than the line's nearest knot.
     marker = base.position
     if osr2_has_script:
-        height, _who = at(position_ms, script.planned_position_at(position_ms) / 100)
+        height, _who = at(position_ms, script.planned_position_at(position_ms) / 100, 0)
         marker = round(height * POSITION_MAX)
     return replace(
         base,
