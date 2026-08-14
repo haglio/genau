@@ -133,6 +133,36 @@ class TestTakingOver:
         assert sink.closed is True
 
 
+class TestRestingAtTheBottom:
+    """The funscript's turn leaves the device at its park, so the stroke resumes
+    from the foot of its swing — phase 0, where every shape's raw value is 0 —
+    instead of lunging to wherever the swing happened to freeze."""
+
+    def test_taking_over_resumes_at_the_foot_of_the_swing(self):
+        sink = FakeTCodeSink()
+        sender = RateLimitedTCodeSender(sink, min_interval=0.0)
+        sender.maybe_send(phase=0.5, now=1.0)   # swing at the tip when it froze
+
+        sender.take_over()
+        sender.maybe_send(phase=0.5, now=1.05)  # engine phase held through the pause
+
+        assert sink.sent[1].startswith("L00000")
+
+    def test_losing_the_device_rests_the_published_stroke_too(self):
+        """The readout Nau draws through a funscript's turn samples forward from
+        ``stroke_phase`` — rested at the bottom the moment Genau loses the
+        device, so the waiting stroke on screen is the one that will resume."""
+        sink = FakeTCodeSink()
+        sender = RateLimitedTCodeSender(sink, min_interval=0.0)
+        sender.maybe_send(phase=0.5, now=1.0)
+        assert sender.current_position() == 9999   # frozen at the tip without this
+
+        sender.rest_at_bottom()
+
+        assert sender.stroke_phase == 0.0
+        assert sender.current_position() == 0
+
+
 class TestSenderWithDirectState:
     def test_reads_amplitude_from_state(self):
         sink = FakeTCodeSink()

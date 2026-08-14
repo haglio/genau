@@ -231,6 +231,14 @@ class GenauRefreshController:
 
         if self.direct_state is not None:
             now_playing = self.direct_state.playing
+            if (self.tcode_sender is not None
+                    and prev_playing is True and not now_playing):
+                # Losing the device — Hybrid's funscript turn, or a plain
+                # pause: rest the stroke on the foot of its swing now, so the
+                # readout published through the stop shows the stroke that will
+                # actually resume, and the resume rises out of the park instead
+                # of lunging to wherever the swing froze.
+                self.tcode_sender.rest_at_bottom()
             if self.broker_cmd_file is not None and now_playing != prev_playing:
                 self.broker_cmd_file.write_text(
                     "RESUME" if now_playing else "PARK", encoding="utf-8",

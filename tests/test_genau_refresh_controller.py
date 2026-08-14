@@ -79,6 +79,7 @@ class FakeTCodeSender:
     def __init__(self):
         self.sends: list[tuple[float, float]] = []
         self.take_overs = 0
+        self.rests = 0
         self.closed = False
         self._position = 5000
         self._stroke_phase = 0.0
@@ -89,6 +90,10 @@ class FakeTCodeSender:
 
     def take_over(self) -> None:
         self.take_overs += 1
+
+    def rest_at_bottom(self) -> None:
+        self.rests += 1
+        self._stroke_phase = 0.0
 
     def current_position(self) -> int:
         return self._position
@@ -470,6 +475,33 @@ def test_resume_between_refreshes_writes_resume(tmp_path):
     # Next refresh should detect the transition
     built["controller"].refresh()
     assert broker_cmd.read_text(encoding="utf-8") == "RESUME"
+
+
+def test_losing_the_device_rests_the_stroke_at_its_bottom():
+    """The readout published through a funscript's turn (or any pause) samples
+    forward from the sender's stroke phase — rested at the swing's foot the
+    moment playback stops, so what Nau draws waiting behind the seam is the
+    stroke that will actually resume, rising out of the park."""
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
+
+    built["controller"].refresh()
+
+    assert tcode.rests == 1
+
+
+def test_staying_paused_rests_the_stroke_only_once():
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
+
+    built["controller"].refresh()
+    built["controller"].refresh()
+
+    assert tcode.rests == 1
 
 
 def test_resume_command_starts_direct_mode_playback():
