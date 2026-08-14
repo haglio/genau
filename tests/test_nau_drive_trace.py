@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 from player_core.funscript import Funscript
 
-from genau.drive_hud import (
+from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
     DRIVEN_BY_GENAU,
     DRIVEN_BY_NEUTRAL,
@@ -22,10 +22,11 @@ SPAN_S = 7.9
 
 def _stroke(**over) -> DriveHud:
     """Genau's readout as it publishes it: its own stroke, forward from now."""
-    return DriveHud(
+    base = dict(
         speed=50, amplitude=80, center=50, trace_seconds=SPAN_S,
-        waveform=tuple(0.5 + 0.4 * np.sin(i / 6) for i in range(TRACE_SAMPLES)),
-        **over)
+        waveform=tuple(0.5 + 0.4 * np.sin(i / 6) for i in range(TRACE_SAMPLES)))
+    base.update(over)
+    return DriveHud(**base)
 
 
 def _script(*, until_ms: int) -> Funscript:
@@ -127,30 +128,101 @@ class TestOneLineTwoDrivers:
             DRIVEN_BY_GENAU, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
 
     def test_genau_s_turn_ends_in_a_blue_glide_that_lands_on_the_park(self):
-        """The settle onto the park is still Genau's motion, so it wears the
-        blue: the stroke's last height carries straight into the descent, the
-        descent walks down, and the grey begins only where the line touches
-        the park — a grey that started up on the stroke read as the flatline
-        creeping up the blue."""
-        published = _stroke()
+        """The blue runs past the rest's end to the stroke's next floor-touch —
+        the arbiter really does hold the handoff for it — and the settle down
+        to the park is Genau's blue too; the grey begins only on the park."""
+        published = _stroke()  # amplitude 80: floor at 10%
         script = Funscript(actions=[(t, 0 if (t // 200) % 2 else 100)
                                     for t in range(8_000, 9_001, 200)])
 
         hud = _read(script, at=0, published=published, osr2_has_script=False)
-        rest_end = 30              # the handoff knot: 8000ms onset − 5000 buffer
         blue_run = hud.runs[0]
 
         assert [who for _s, _e, who in hud.runs] == [
             DRIVEN_BY_GENAU, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
-        # The descent opens at the stroke's floor — center 50, amplitude 80
-        # puts the swing's lowest point at 10% — and walks down from there.
-        # A stable opening: anchored to the live wave instead, the bump
-        # re-shaped itself with every publish.
-        assert hud.waveform[rest_end] == 0.1
-        assert hud.waveform[rest_end + 1] < hud.waveform[rest_end]
+        # The touch lands just past the handoff knot at 30, at the floor.
+        assert hud.waveform[30] <= 0.12
+        # The settle then walks down from the floor to the park, still blue.
+        assert hud.waveform[31] < hud.waveform[30]
+        assert hud.waveform[32] < hud.waveform[31]
         # The grey's own first sample is the park itself, nothing higher.
-        first_grey = blue_run[1]
-        assert hud.waveform[first_grey] == 0.0
+        assert hud.waveform[blue_run[1]] == 0.0
+
+    def test_at_full_amplitude_the_grey_takes_over_right_at_the_floor_touch(self):
+        """His rule: a stroke already touching the park needs no settle ramp at
+        all — the blue swings on to its touch-down and the grey flatline begins
+        there, not a sample higher."""
+        # A slow wave whose next floor-touch past the handoff knot at 30 falls
+        # near sample 32 under the shared touch tolerance.
+        published = _stroke(
+            amplitude=100,
+            waveform=tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
+        script = Funscript(actions=[(t, 0 if (t // 200) % 2 else 100)
+                                    for t in range(8_000, 9_001, 200)])
+
+        hud = _read(script, at=0, published=published, osr2_has_script=False)
+
+        assert [who for _s, _e, who in hud.runs] == [
+            DRIVEN_BY_GENAU, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
+        grey_start = hud.runs[1][0]
+        assert grey_start == 33                  # right after the touch-down...
+        assert hud.waveform[32] <= 0.06          # ...which is on the park
+        rise_start = hud.runs[2][0]
+        assert set(hud.waveform[grey_start:rise_start]) == {0.0}
+
+    def test_below_full_amplitude_the_settle_opens_at_the_floor_touch(self):
+        """The raised floor's touch, wherever the wave puts it — and from that
+        touch the blue glides down to the park before the grey begins."""
+        published = _stroke(  # amplitude 80: floor at 10%
+            waveform=tuple(0.5 + 0.4 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
+        script = Funscript(actions=[(t, 0 if (t // 200) % 2 else 100)
+                                    for t in range(8_000, 9_001, 200)])
+
+        hud = _read(script, at=0, published=published, osr2_has_script=False)
+
+        # The touch near sample 32, then the settle samples down to the park.
+        assert hud.waveform[32] <= 0.16
+        for index in range(33, 36):
+            assert hud.waveform[index + 1] < hud.waveform[index]
+        assert hud.runs[0][1] >= 37              # the settle is still Genau's blue
+        assert hud.waveform[hud.runs[0][1]] == 0.0
+
+    def test_a_playhead_inside_the_buffer_keeps_the_blue_until_the_touch(self):
+        """Once the playhead crosses the rest's end, the boundary scrolls off
+        the window's left edge — but the arbiter is still holding the handoff
+        for the stroke's touch, so the leading stretch is still Genau's blue,
+        running to its touch-down.  Going grey the moment the rest ended wiped
+        up to a full cycle of blue the device was still going to stroke."""
+        published = _stroke(
+            amplitude=100,
+            waveform=tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
+        script = Funscript(actions=[(t, 0 if (t // 200) % 2 else 100)
+                                    for t in range(8_000, 9_001, 200)])
+
+        hud = _read(script, at=4_000, published=published, osr2_has_script=False)
+
+        # Blue lead, grey to the rise, the cluster's green, the tail's grey.
+        assert [who for _s, _e, who in hud.runs] == [
+            DRIVEN_BY_GENAU, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT,
+            DRIVEN_BY_NEUTRAL]
+        touch = hud.runs[0][1]
+        assert hud.waveform[touch - 1] <= 0.06   # blue rode the wave to its floor
+        rise_start = hud.runs[2][0]
+        assert set(hud.waveform[touch:rise_start]) == {0.0}
+
+    def test_once_the_script_has_the_device_the_leading_buffer_is_grey(self):
+        """The same spot after the arbiter flips: the pause landed on the
+        touch, so nothing blue is left ahead of the playhead."""
+        published = _stroke(
+            amplitude=100,
+            waveform=tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
+        script = Funscript(actions=[(t, 0 if (t // 200) % 2 else 100)
+                                    for t in range(8_000, 9_001, 200)])
+
+        hud = _read(script, at=4_000, published=published, osr2_has_script=True)
+
+        assert [who for _s, _e, who in hud.runs] == [
+            DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT, DRIVEN_BY_NEUTRAL]
 
     def test_the_dot_glides_down_with_the_device_after_the_handoff(self):
         """The driver settles the device onto the park over half a second; a

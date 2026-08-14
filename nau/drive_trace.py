@@ -22,14 +22,16 @@ from dataclasses import replace
 
 from player_core.funscript import PARK_SETTLE_MS, QUIET_LEAD_IN_MS
 
-from genau.drive_hud import (
+from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
     DRIVEN_BY_GENAU,
     DRIVEN_BY_NEUTRAL,
     DRIVEN_BY_NOTHING,
+    FLOOR_TOUCH_TOLERANCE,
     POSITION_MAX,
     TRACE_SAMPLES,
     DriveHud,
+    stroke_floor,
 )
 
 # The window into the script slides continuously now, so read at the raw
@@ -38,6 +40,11 @@ from genau.drive_hud import (
 # stroke scrolls, the green moves exactly as smoothly as the blue, for the
 # same cost.
 _SLIDE_QUANTUM_MS = 40
+
+# A floor this close to the park needs no settle glide at all — his rule: at
+# full amplitude the grey begins right at the touch-down.  Distinct from
+# FLOOR_TOUCH_TOLERANCE, which is about *finding* a touch in sampled data.
+_PARK_EPSILON = 0.02
 
 
 def drive_readout(
@@ -100,21 +107,22 @@ def drive_readout(
     # script drives.
     # Where the stroke bottoms out — its floor, the lowest point the current
     # center and amplitude reach.  The settle onto the park opens here: it is
-    # stable (it moves only when a control does), where opening at the live
-    # wave's value beside the seam re-anchored the settle to a different phase
-    # every publish, and the bump it drew kept changing shape.  It is also
-    # where the frozen stroke rests through a funscript's turn, so the settle
-    # and the resume picture agree.
-    stroke_floor = max(0.0, (base.center - base.amplitude / 2) / 100)
+    # stable (it moves only when a control does), it is where the frozen stroke
+    # rests through a funscript's turn, and it is the same rule the arbiter
+    # uses to end Genau's turn, so the settle, the resume picture and the
+    # device agree.
+    floor_height = stroke_floor(base.center, base.amplitude)
 
     values: list[float] = []
-    marks: list[tuple[int, str]] = []
+    whos: list[str] = []
+    resting_flags: list[bool] = []
     stroked = 0
     for index in range(TRACE_SAMPLES):
         at_ms = round(anchor_ms + index * step)
-        if script.is_resting_at(at_ms):
+        resting = script.is_resting_at(at_ms)
+        if resting:
             who = idle_driver
-            taking_over = bool(marks) and marks[-1][1] != idle_driver
+            taking_over = bool(whos) and whos[-1] != idle_driver
             if taking_over:
                 # The device is wherever the plan leaves it — its park, once
                 # the script has wound down — and the takeover glide walks it
@@ -129,22 +137,59 @@ def drive_readout(
         else:
             who = (DRIVEN_BY_NEUTRAL if script.is_parked_at(at_ms)
                    else DRIVEN_BY_FUNSCRIPT)
-            value = scripted[index]
-            if who == DRIVEN_BY_NEUTRAL and genau_behind:
-                # Genau's turn ends at the handoff (the rest's end, a buffer
-                # ahead of the next cluster), and the device then glides down
-                # from the stroke's floor onto the park over the driver's own
-                # settle.  That glide is still Genau's motion, so it wears the
-                # blue — the grey is only the flat park, starting where the
-                # line touches it.
-                onset = script.next_active_ms(at_ms)
-                if onset is not None:
-                    since_handoff = at_ms - (onset - QUIET_LEAD_IN_MS)
-                    if 0 <= since_handoff < PARK_SETTLE_MS:
-                        fraction = since_handoff / PARK_SETTLE_MS
-                        value = stroke_floor * (1 - fraction) + value * fraction
-                        who = DRIVEN_BY_GENAU
-            values.append(value)
+            values.append(scripted[index])
+        whos.append(who)
+        resting_flags.append(resting)
+
+    # Genau's turn ends on its floor, and really does: the arbiter holds the
+    # handoff until the stroke touches its floor, so the blue runs PAST the
+    # rest's end to that touch — cutting it at the boundary drew a promise the
+    # device then broke, swinging on while the picture showed flat grey.  From
+    # the touch: a stroke whose floor sits above the park glides down over the
+    # driver's settle, still in blue; one already touching the park needs no
+    # glide at all, and the grey flatline begins right there — his rule.
+    if genau_behind and stroke is not None:
+        boundaries = [b for b in range(1, TRACE_SAMPLES)
+                      if resting_flags[b - 1]
+                      and whos[b - 1] == DRIVEN_BY_GENAU
+                      and not resting_flags[b]]
+        # The window can also OPEN inside the stretch Genau is still finishing:
+        # once the playhead crosses the rest's end, the boundary scrolls off the
+        # left edge while the arbiter still holds the handoff for the touch —
+        # and without this the whole leading stretch went grey the moment the
+        # rest ended, wiping up to a full cycle of blue the device was still
+        # going to stroke.  The OSR2 state is the witness: until it says the
+        # script has the device, the leading buffer is still Genau's.
+        if (not resting_flags[0] and whos[0] == DRIVEN_BY_NEUTRAL
+                and not osr2_has_script):
+            boundaries.insert(0, 0)
+        for boundary in boundaries:
+            index = boundary
+            touched = False
+            while index < TRACE_SAMPLES and whos[index] == DRIVEN_BY_NEUTRAL:
+                value = stroke[min(stroked, TRACE_SAMPLES - 1)]
+                stroked += 1
+                values[index] = value
+                whos[index] = DRIVEN_BY_GENAU
+                index += 1
+                if value <= floor_height + FLOOR_TOUCH_TOLERANCE:
+                    touched = True
+                    break
+            if not touched:
+                continue
+            touch = index - 1
+            while index < TRACE_SAMPLES and whos[index] == DRIVEN_BY_NEUTRAL:
+                elapsed = (index - touch) * step
+                if floor_height <= _PARK_EPSILON or elapsed >= PARK_SETTLE_MS:
+                    break
+                # The settle down from the floor onto the park, anchored at the
+                # touch where the pause really lands.
+                values[index] = floor_height * (1 - elapsed / PARK_SETTLE_MS)
+                whos[index] = DRIVEN_BY_GENAU
+                index += 1
+
+    marks: list[tuple[int, str]] = []
+    for index, who in enumerate(whos):
         if not marks or marks[-1][1] != who:
             marks.append((index, who))
     # The knot just past the right border, so the line shifted left by ``slide``
@@ -167,7 +212,7 @@ def drive_readout(
             since_handoff = position_ms - (onset - QUIET_LEAD_IN_MS)
             if 0 <= since_handoff < PARK_SETTLE_MS:
                 fraction = since_handoff / PARK_SETTLE_MS
-                planned = stroke_floor * 100 * (1 - fraction) + planned * fraction
+                planned = floor_height * 100 * (1 - fraction) + planned * fraction
         marker = round(planned / 100 * POSITION_MAX)
     return replace(
         base,
