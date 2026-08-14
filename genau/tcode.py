@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
 
 from player_core.direct_control import phase_to_position
-from player_core.drive_readout import TAKEOVER_RISE_MS
+from player_core.funscript import HANDOFF_RAMP_MS
 
 if TYPE_CHECKING:
     from player_core.direct_control import DirectControlState
@@ -64,7 +64,7 @@ class RateLimitedTCodeSender:
         stroke's floor can sit well above the park (amplitude under 100, a
         raised center), and starting the swing there jumped the device across
         the gap — so the swing holds while the device climbs park-to-floor over
-        :data:`~player_core.drive_readout.TAKEOVER_RISE_MS`, then begins.  A
+        :data:`~player_core.funscript.HANDOFF_RAMP_MS`, then begins.  A
         floor already on the park skips the climb; the stroke starts at once,
         as it always did at full amplitude.
         """
@@ -77,6 +77,18 @@ class RateLimitedTCodeSender:
             # leave its fraction scaling every position from here on.
             self._rise = 1.0
         self._glide.begin()
+
+    def hand_over(self) -> None:
+        """Genau is losing the device: walk it down onto the park and let go.
+
+        The driver taking over finds the device wherever this one left it, which
+        can be most of the range away — so the one leaving puts it down, over the
+        same HANDOFF_RAMP_MS the trace draws that descent as and the same one the
+        climb back out of the park takes.  Left to the arriving driver's own park
+        command the descent was a half-second drop the picture did not show.
+        """
+        self._sink.send(format_tcode_command("L0", 0, HANDOFF_RAMP_MS))
+        self.rest_at_bottom()
 
     def rest_at_bottom(self) -> None:
         """Put the stroke at the foot of its swing — phase 0, where every
@@ -118,7 +130,7 @@ class RateLimitedTCodeSender:
             # the climb has come.
             if self._rise_started is None:
                 self._rise_started = now
-            self._rise = min(1.0, (now - self._rise_started) / (TAKEOVER_RISE_MS / 1000))
+            self._rise = min(1.0, (now - self._rise_started) / (HANDOFF_RAMP_MS / 1000))
             self._last_phase = phase
         else:
             # Accumulate continuous stroke phase, detecting wraps.
