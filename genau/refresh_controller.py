@@ -109,7 +109,13 @@ class GenauRefreshController:
         self.set_volume = set_volume or (lambda _level, _muted: None)
         self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
         self.window_visible = False
-        self._prev_playing: bool | None = None
+        # Seeded from the state itself, not None: the drain now runs at the
+        # top of the tick, so a PAUSE queued before the first refresh must read
+        # as a real falling edge against the state the controller was built in —
+        # unseeded, the first tick recorded whatever the commands left and the
+        # edge they carried never fired.
+        self._prev_playing: bool | None = (
+            direct_state.playing if direct_state is not None else None)
 
     def refresh(self) -> None:
         try:
@@ -122,6 +128,29 @@ class GenauRefreshController:
         self.loader.adopt_loaded_clip_if_ready()
         self.loader.adopt_prefetch_if_ready()
         self.selection.adopt_pending_clip()
+
+        # Drained FIRST, before anything below reads the state the commands
+        # mutate.  Drained last, a PAUSE landed after this tick's stroke command
+        # had already gone out — one extra swing target mid-handoff — and the
+        # playing edge it flipped was recomputed at the bottom of the same tick,
+        # so the take-over the edge is supposed to arm never saw it: the resume
+        # ramp was dead code and the device slammed from the park onto the
+        # running swing.
+        for cmd in self.consume_command(self.command_file, logger=self.logger):
+            apply_runtime_command(
+                cmd,
+                engine=self.engine,
+                rh_paused=self.rh_paused,
+                step_clip=self.selection.step,
+                discard_clip=self.selection.discard_current,
+                direct_state=self.direct_state,
+                cruise_control_state=self.cruise_control,
+                clip_advance_state=self.clip_advance,
+                stop_event=self.stop_event,
+                hud_state=self.hud_state,
+                display_state=self.display_state,
+                set_volume=self.set_volume,
+            )
 
         shared = read_shared_state_snapshot(self.state)
 
@@ -181,40 +210,33 @@ class GenauRefreshController:
             paused=paused,
         )
 
+        if self.direct_state is not None:
+            # The device changing hands, both directions, seen the same tick the
+            # command landed (the drain above runs first).  Symmetric on purpose:
+            # the falling edge latches where the device was and rests the swing;
+            # the rising edge arms the climb out of the park — which never fired
+            # when this edge was read after a tick's sends had already gone out.
+            now_playing = self.direct_state.playing
+            prev_playing = self._prev_playing
+            if self.tcode_sender is not None and prev_playing is not None:
+                if now_playing and not prev_playing:
+                    self.tcode_sender.take_over()
+                elif prev_playing and not now_playing:
+                    self.tcode_sender.hand_over()
+            if (self.broker_cmd_file is not None and prev_playing is not None
+                    and now_playing != prev_playing):
+                self.broker_cmd_file.write_text(
+                    "RESUME" if now_playing else "PARK", encoding="utf-8",
+                )
+            self._prev_playing = now_playing
+
         if self.tcode_sender is not None and direct_active and self.direct_state.playing:
-            # Genau taking the device back.  The flip landed in a previous tick's
-            # command batch, so this is the first tick it sends on — and it has
-            # to be told before it does, not after the edge is noticed further
-            # down, or the jump it is meant to smooth has already gone out.
-            if self._prev_playing is False:
-                self.tcode_sender.take_over()
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
         if direct_active:
             self._update_console(now)
         elif self.direct_state is not None:
             self.set_console(None)
-
-        prev_playing = self._prev_playing
-        if self.direct_state is not None:
-            if prev_playing is None:
-                prev_playing = self.direct_state.playing
-
-        for cmd in self.consume_command(self.command_file, logger=self.logger):
-            apply_runtime_command(
-                cmd,
-                engine=self.engine,
-                rh_paused=self.rh_paused,
-                step_clip=self.selection.step,
-                discard_clip=self.selection.discard_current,
-                direct_state=self.direct_state,
-                cruise_control_state=self.cruise_control,
-                clip_advance_state=self.clip_advance,
-                stop_event=self.stop_event,
-                hud_state=self.hud_state,
-                display_state=self.display_state,
-                set_volume=self.set_volume,
-            )
 
         if self.hud_state is not None:
             hud_active = self.hud_state["active"]
@@ -228,26 +250,6 @@ class GenauRefreshController:
         # blanking on that hides the clip the user is looking at.
         display_active = self.display_state["active"] if self.display_state is not None else True
         self.set_blank(not display_active)
-
-        if self.direct_state is not None:
-            now_playing = self.direct_state.playing
-            if (self.tcode_sender is not None
-                    and prev_playing is True and not now_playing):
-                # Losing the device — Hybrid's funscript turn, or a plain
-                # pause: walk it down onto the park on the way out, and rest the
-                # stroke on the foot of its swing, so the readout published
-                # through the stop shows the stroke that will actually resume
-                # and the resume rises out of the park instead of lunging to
-                # wherever the swing froze.
-                self.tcode_sender.hand_over()
-            if self.broker_cmd_file is not None and now_playing != prev_playing:
-                self.broker_cmd_file.write_text(
-                    "RESUME" if now_playing else "PARK", encoding="utf-8",
-                )
-            # Remembered whether or not there is a broker to tell: the T-Code
-            # sender reads this edge too, to glide onto a device a funscript has
-            # been holding, and that is true with no broker file configured.
-            self._prev_playing = now_playing
 
         active_entry = self.renderer.current_clip_entry()
 
@@ -311,14 +313,21 @@ class GenauRefreshController:
         ))
 
     def _build_drive_hud(self) -> DriveHud:
-        from player_core.direct_control import MAX_SPEED, MIN_BPM, MIN_SPEED, sample_waveform
+        from player_core.direct_control import (
+            MAX_SPEED, MIN_BPM, MIN_SPEED, POSITION_MAX, sample_waveform,
+        )
 
         ds = self.direct_state
         position = 0
         start_phase = 0.0
+        let_go = None
         if self.tcode_sender is not None:
             position = self.tcode_sender.current_position()
             start_phase = self.tcode_sender.stroke_phase
+            if self.tcode_sender.let_go_position is not None:
+                # The height the device was handed over at, 0-1 — the one number
+                # the trace cannot recompute once the phase has rested.
+                let_go = self.tcode_sender.let_go_position / POSITION_MAX
 
         phase_per_second = ds.bpm / 60.0 / self.beats_per_loop if ds.bpm > 0 else 1.0
         # Show enough time that one whole cycle is visible at the slowest speed.
@@ -347,6 +356,7 @@ class GenauRefreshController:
             ctr_at_max=ds.center >= 100 - half,
             ctr_at_min=ds.center <= half,
             trace_seconds=display_seconds,
+            let_go=let_go,
             waveform=tuple(sample_waveform(
                 ds.shape, ds.amplitude, ds.center, TRACE_SAMPLES,
                 start_phase=start_phase,

@@ -231,6 +231,13 @@ class PlayerSession:
             return
         self._paused = paused
         self._player.set_paused(paused)
+        if not paused:
+            # While the video sat paused the last in-flight waypoint completed
+            # — the device walked on to wherever it was aimed and froze there —
+            # and under OmniPause the broker may have parked or retracted it
+            # outright.  Resuming is a takeover from wherever that left it, so
+            # the first waypoints glide instead of slamming across the range.
+            self._tcode.reset()
 
     def toggle_pause(self) -> None:
         self.set_paused(not self._paused)

@@ -5,6 +5,10 @@ the park, whatever the funscript is doing, a ramp back up to the stroke — and
 each colour means one thing: green is the script scripting, blue is Genau
 stroking, grey is a ramp or the rest between them, because through those the
 device belongs to neither driver.
+
+Who holds the device travels inside Genau's own publish: ``let_go`` is None
+while Genau strokes and the height it handed over at once it has — the one
+number the picture cannot recompute, latched at the source.
 """
 from __future__ import annotations
 
@@ -30,7 +34,8 @@ RAMP_STEPS = HANDOFF_RAMP_MS // STEP_MS
 
 
 def _stroke(**over) -> DriveHud:
-    """Genau's readout as it publishes it: its own stroke, forward from now.
+    """Genau's readout as a LIVE Genau publishes it: its own stroke, forward
+    from now, ``let_go`` unset because it still has the device.
 
     Amplitude 80 around centre 50, so the stroke's floor is at 10% — above the
     park, which is the case where the ramps have somewhere to go.
@@ -44,11 +49,9 @@ def _stroke(**over) -> DriveHud:
 
 def _stroke_at(ms: int, **over) -> DriveHud:
     """The stroke as Genau publishes it *ms* into the video: the same wave, its
-    phase advanced by however many samples have gone by.  A published readout is
-    a window forward from now, so it moves on its own — which is why the painter
-    leaves the live run unshifted, and why a fixture that held it still could not
-    show the picture sliding."""
-    steps = ms // STEP_MS
+    phase advanced by however much time has gone by — a published readout is a
+    window forward from now, so it moves on its own."""
+    steps = ms / STEP_MS
     return _stroke(
         waveform=tuple(0.5 + 0.4 * np.sin((i + steps) / 6)
                        for i in range(TRACE_SAMPLES)),
@@ -56,12 +59,15 @@ def _stroke_at(ms: int, **over) -> DriveHud:
 
 
 def _parked_stroke(**over) -> DriveHud:
-    """The same stroke as a *parked* Genau publishes it: rested at the foot of
-    its swing, so sample 0 is its floor and the wave climbs from there — which
-    is what the stroke waiting through a funscript's turn looks like."""
-    return _stroke(
-        waveform=tuple(0.5 - 0.4 * np.cos(i / 6) for i in range(TRACE_SAMPLES)),
-        **over)
+    """The stroke as a PARKED Genau publishes it, through a funscript's turn:
+    rested at the foot of its swing, so sample 0 is its floor (10%) and the
+    wave climbs from there.  ``let_go`` says where the device was handed over —
+    a real handoff always sets it."""
+    over.setdefault("let_go", 0.8)
+    over.setdefault(
+        "waveform",
+        tuple(0.5 - 0.4 * np.cos(i / 6) for i in range(TRACE_SAMPLES)))
+    return _stroke(**over)
 
 
 def _script(*, until_ms: int) -> Funscript:
@@ -77,12 +83,10 @@ def _script_ahead(*, from_ms: int = 8_000, to_ms: int = 9_000) -> Funscript:
                               for t in range(from_ms, to_ms + 1, 200)])
 
 
-def _read(script, *, at: int, published=None, genau_behind=True,
-          osr2_has_script=True, let_go_at=None) -> DriveHud:
+def _read(script, *, at: int, published=None, genau_behind=True) -> DriveHud:
     return drive_readout(
         published if published is not None else _stroke(),
-        script=script, position_ms=at, genau_behind=genau_behind,
-        osr2_has_script=osr2_has_script, let_go_at=let_go_at)
+        script=script, position_ms=at, genau_behind=genau_behind)
 
 
 def _colors(hud: DriveHud) -> list[str]:
@@ -106,19 +110,21 @@ class TestOneLineTwoDrivers:
     def test_the_end_of_a_scripted_stretch_hands_over_through_the_buffer(self):
         """Green while the script runs, grey for the buffer that belongs to
         neither driver, blue for the stroke waiting behind it."""
-        hud = _read(_script(until_ms=2_000), at=1_000)
+        hud = _read(_script(until_ms=2_000), at=1_000,
+                    published=_parked_stroke())
 
         assert _colors(hud) == [
             DRIVEN_BY_FUNSCRIPT, DRIVEN_BY_NEUTRAL, DRIVEN_BY_GENAU]
 
     def test_a_script_about_to_start_up_shows_the_stroke_handing_over(self):
-        hud = _read(_script_ahead(), at=0, osr2_has_script=False)
+        hud = _read(_script_ahead(), at=0)
 
         assert _colors(hud) == [
             DRIVEN_BY_GENAU, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
 
     def test_the_runs_touch_so_the_line_never_breaks_at_the_joins(self):
-        hud = _read(_script(until_ms=2_000), at=1_000)
+        hud = _read(_script(until_ms=2_000), at=1_000,
+                    published=_parked_stroke())
 
         for left, right in zip(hud.runs, hud.runs[1:]):
             assert left[1] == right[0]
@@ -129,7 +135,7 @@ class TestOneLineTwoDrivers:
         is not coming."""
         hud = drive_readout(
             None, script=_script(until_ms=2_000), position_ms=0,
-            genau_behind=False, osr2_has_script=True)
+            genau_behind=False)
         gap_start = hud.runs[-1][0]
 
         assert _colors(hud) == [
@@ -141,32 +147,30 @@ class TestTheRampDownOntoThePark:
     """Genau's turn ends when the script's turn opens — a time the script fixes
     — and the device walks from wherever that leaves it down onto the park.
 
-    It used to end on the stroke's next floor-touch instead, which only the live
-    stroke knew and which moved under the picture every frame: the final cycle
-    flickered in and out, and vanished outright at the moment Genau paused and
-    its published stroke froze at the floor.
+    It used to end on the stroke's next floor-touch instead, which only the
+    live stroke knew and which moved under the picture every frame: the final
+    cycle flickered in and out, and vanished outright the moment Genau paused.
     """
 
     def test_the_blue_runs_to_the_moment_the_script_turn_opens(self):
         script = _script_ahead()               # its turn opens at 3000ms
-        hud = _read(script, at=0, osr2_has_script=False)
+        hud = _read(script, at=0)
 
         assert hud.runs[0][1] == 3_000 // STEP_MS
 
-    def test_the_ramp_starts_where_the_stroke_was_and_reaches_the_park(self):
+    def test_the_ramp_starts_where_the_stroke_is_and_reaches_the_park(self):
         published = _stroke()
-        hud = _read(_script_ahead(), at=0, published=published,
-                    osr2_has_script=False)
+        hud = _read(_script_ahead(), at=0, published=published)
         opens = 3_000 // STEP_MS
 
-        assert hud.waveform[opens] == published.waveform[opens]   # where Genau was
+        assert hud.waveform[opens] == published.waveform[opens]   # where Genau will be
         descent = hud.waveform[opens:opens + RAMP_STEPS + 1]
         for left, right in zip(descent, descent[1:]):
             assert right < left
         assert hud.waveform[opens + RAMP_STEPS] == 0.0            # the park
 
     def test_the_ramp_is_the_buffer_s_grey_not_genau_s_blue(self):
-        hud = _read(_script_ahead(), at=0, osr2_has_script=False)
+        hud = _read(_script_ahead(), at=0)
 
         assert hud.runs[1][2] == DRIVEN_BY_NEUTRAL
 
@@ -175,37 +179,30 @@ class TestTheRampDownOntoThePark:
         recomputed moment to move under it."""
         script = _script_ahead()
 
-        first = _read(script, at=0, published=_stroke_at(0),
-                      osr2_has_script=False).waveform
-        later = _read(script, at=2 * STEP_MS, published=_stroke_at(2 * STEP_MS),
-                      osr2_has_script=False).waveform
+        first = _read(script, at=0, published=_stroke_at(0)).waveform
+        later = _read(script, at=2 * STEP_MS,
+                      published=_stroke_at(2 * STEP_MS)).waveform
 
         assert later[:-2] == first[2:]
 
-    def test_the_recorded_handoff_carries_the_ramp_after_the_flip(self):
-        """A paused Genau publishes the stroke it will resume with, not where it
-        stopped — so the height it let go at is recorded once, and the picture
-        goes on drawing the same descent from it."""
+    def test_the_published_let_go_carries_the_ramp_after_the_flip(self):
+        """A paused Genau publishes the stroke it will resume with, not where
+        it stopped — so the height it let go at rides the publish, latched at
+        the source, and the descent keeps drawing from it."""
         script = _script_ahead()
-        before = _read(script, at=2_800, published=_stroke_at(2_800),
-                       osr2_has_script=False)
-        was_at = float(before.waveform[2])            # the height at 3000ms
 
-        after = _read(script, at=3_000, published=_parked_stroke(),
-                      osr2_has_script=True, let_go_at=(3_000, was_at))
+        after = _read(script, at=3_000, published=_parked_stroke(let_go=0.73))
 
-        assert after.waveform[0] == was_at            # the descent opens there...
-        assert after.waveform[RAMP_STEPS] == 0.0      # ...and still lands on the park
+        assert after.waveform[0] == 0.73             # the descent opens there...
+        assert after.waveform[RAMP_STEPS] == 0.0     # ...and lands on the park
 
     def test_the_dot_walks_down_the_ramp_with_the_device(self):
         script = _script_ahead()
-        published = _parked_stroke()
-        args = dict(published=published, osr2_has_script=True,
-                    let_go_at=(3_000, 0.8))
+        published = _parked_stroke(let_go=0.8)
 
-        opened = _read(script, at=3_000, **args)
-        midway = _read(script, at=3_000 + HANDOFF_RAMP_MS // 2, **args)
-        landed = _read(script, at=3_000 + HANDOFF_RAMP_MS, **args)
+        opened = _read(script, at=3_000, published=published)
+        midway = _read(script, at=3_000 + HANDOFF_RAMP_MS // 2, published=published)
+        landed = _read(script, at=3_000 + HANDOFF_RAMP_MS, published=published)
 
         assert opened.position == round(0.8 * POSITION_MAX)
         assert landed.position == 0
@@ -214,18 +211,17 @@ class TestTheRampDownOntoThePark:
 
 class TestTheClimbBackOut:
     """The mirror: the script gives the device back a handoff ramp before the
-    quiet ends, and Genau walks it up from the park onto its stroke's floor —
-    so the stroke begins where it always did, at the far end of the quiet,
-    having climbed there across the buffer instead of lunging at the end of it.
-    """
+    quiet ends, and the buffer climbs it from the park onto the stroke's floor
+    — so the stroke begins where it always did, at the far end of the quiet,
+    having walked there instead of lunging at the end."""
 
-    def test_the_buffer_climbs_from_the_park_to_the_floor(self):
+    def test_the_buffer_climbs_from_the_park_to_the_stroke(self):
         published = _parked_stroke()
         hud = _read(_script(until_ms=2_000), at=1_000, published=published)
         blue_start = hud.runs[-1][0]
 
         assert hud.waveform[blue_start - RAMP_STEPS] == 0.0
-        rising = hud.waveform[blue_start - RAMP_STEPS:blue_start]
+        rising = hud.waveform[blue_start - RAMP_STEPS:blue_start + 1]
         for left, right in zip(rising, rising[1:]):
             assert right > left
         assert hud.waveform[blue_start] == published.waveform[0]
@@ -260,10 +256,26 @@ class TestTheClimbBackOut:
 
         assert blue_start_ms == 2_000 + 5_000
 
+    def test_a_stroke_opening_on_the_park_needs_no_climb(self):
+        """Full amplitude: the park already IS the stroke's floor.  The sender
+        skips its rise there and the blue begins the moment Genau's turn does —
+        drawn any other way, the picture waited two seconds the device did not."""
+        published = _parked_stroke(
+            amplitude=100,
+            waveform=tuple(0.5 - 0.5 * np.cos(i / 6) for i in range(TRACE_SAMPLES)))
+        script = _script(until_ms=2_000)
+        hud = _read(script, at=1_000, published=published)
+        blue_start = hud.runs[-1][0]
+
+        # The first sample past the script's turn (its end is inclusive) — by
+        # which the stroke, begun at the boundary itself, is one sample in.
+        assert 1_000 + blue_start * STEP_MS == 2_000 + 3_000 + STEP_MS
+        assert hud.waveform[blue_start] == published.waveform[1]
+
 
 class TestStillPicture:
-    """He watched the line boil, twitch and flicker in turn.  Every one of those
-    was a value that depended on something other than the playhead."""
+    """He watched the line boil, twitch and flicker in turn.  Every one of
+    those was a value that depended on something other than the playhead."""
 
     def test_the_shape_slides_along_rather_than_being_redrawn(self):
         script = _script(until_ms=120_000)
@@ -274,6 +286,9 @@ class TestStillPicture:
         assert later[:-2] == first[2:]
 
     def test_the_whole_handoff_slides_rigidly_too(self):
+        """Through a funscript's turn Genau's publish is frozen, so between two
+        frames the settle, the rest, the climb and the waiting stroke are all
+        exactly the same values, two columns to the left."""
         script = _script(until_ms=2_000)
         published = _parked_stroke()
 
@@ -295,21 +310,34 @@ class TestStillPicture:
         assert at_knot.slide == 0.0
         assert between.slide == 0.4
 
-    def test_the_live_stroke_does_not_twitch_between_knots(self):
-        """Read at the shifted clock instead of at its column, the live stroke
-        rounded up and down as the playhead crossed each half-knot, and the whole
-        blue line jumped a sample sideways and back, twice a knot."""
+    def test_the_live_stroke_reads_fixed_times_so_the_painter_slides_it(self):
+        """The live blue is read at fixed absolute sample times: as the playhead
+        moves within a knot and the publish advances in step with it, the value
+        drawn at each column compensates the publish's own motion, so the whole
+        line — blue included — slides on the painter's one shift.  Reading it by
+        column instead left the blue on a different convention from every other
+        run, and the two disagreed by the slide at each seam between them."""
         script = _script_ahead()
-        published = _stroke()
 
-        pictures = [_read(script, at=at, published=published,
-                          osr2_has_script=False).waveform[:20]
-                    for at in (0, 40, 80)]
+        # Column 0's sample time sits a fraction of a knot BEHIND the playhead,
+        # where a forward-window publish has nothing; it clamps to now and is
+        # drawn off the box's left edge — so the invariant starts at column 1.
+        pictures = [
+            _read(script, at=at, published=_stroke_at(at)).waveform[1:20]
+            for at in (0, 40, 80)
+        ]
 
-        assert pictures[0] == pictures[1] == pictures[2]
+        for later in pictures[1:]:
+            for a, b in zip(pictures[0], later):
+                assert abs(a - b) < 0.005
 
 
 class TestPositionMarker:
+    """The dot rides the drawn line, always: Genau's published position only
+    inside live blue — where it IS the line, at the device's own finer rate —
+    and the line's own value everywhere else, so it can never ride a line that
+    is not there."""
+
     def test_a_script_driving_puts_the_marker_where_the_plan_has_the_device(self):
         script = _script(until_ms=120_000)
 
@@ -323,7 +351,7 @@ class TestPositionMarker:
         script's interpolated line floated where nothing was."""
         script = _script_ahead(from_ms=40_000, to_ms=41_000)
 
-        hud = _read(script, at=37_000)
+        hud = _read(script, at=37_000, published=_parked_stroke())
 
         assert script.is_resting_at(37_000) is False
         assert hud.position == 0
@@ -332,10 +360,19 @@ class TestPositionMarker:
         """It is Genau's device then, and Genau knows where it put it."""
         published = _stroke(position=1234)
 
-        hud = _read(_script(until_ms=120_000), at=0, published=published,
-                    osr2_has_script=False)
+        hud = _read(_script_ahead(), at=0, published=published)
 
         assert hud.position == 1234
+
+    def test_the_dot_climbs_the_drawn_ramp_out_of_the_park(self):
+        script = _script(until_ms=2_000)
+        published = _parked_stroke()
+
+        resting = _read(script, at=4_500, published=published)
+        midway = _read(script, at=5_000 + HANDOFF_RAMP_MS // 2, published=published)
+
+        assert resting.position == 0
+        assert 0 < midway.position < round(0.2 * POSITION_MAX)
 
 
 class TestNothingToFoldIn:
@@ -343,7 +380,7 @@ class TestNothingToFoldIn:
         published = _stroke()
 
         assert drive_readout(published, script=None, position_ms=0,
-                             genau_behind=True, osr2_has_script=False) == published
+                             genau_behind=True) == published
 
     def test_a_single_run_still_names_its_driver(self):
         """The painter's fallback colour for empty segments is the OSR2 state,

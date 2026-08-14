@@ -52,6 +52,10 @@ class RateLimitedTCodeSender:
         # clock starts on the first send after that.
         self._rise = 1.0
         self._rise_started: float | None = None
+        # Where the device was when this sender last handed it over, in T-Code
+        # units; None while it holds the device.  Published with the readout —
+        # see :meth:`hand_over`.
+        self._let_go_position: int | None = None
 
     def take_over(self) -> None:
         """Genau has the device again: resume the stroke from the foot of its
@@ -69,6 +73,7 @@ class RateLimitedTCodeSender:
         as it always did at full amplitude.
         """
         self.rest_at_bottom()
+        self._let_go_position = None
         if self._compute_position() > _RISE_SKIP_BELOW:
             self._rise = 0.0
             self._rise_started = None
@@ -79,15 +84,17 @@ class RateLimitedTCodeSender:
         self._glide.begin()
 
     def hand_over(self) -> None:
-        """Genau is losing the device: walk it down onto the park and let go.
+        """Genau is losing the device: remember where, and let go.
 
-        The driver taking over finds the device wherever this one left it, which
-        can be most of the range away — so the one leaving puts it down, over the
-        same HANDOFF_RAMP_MS the trace draws that descent as and the same one the
-        climb back out of the park takes.  Left to the arriving driver's own park
-        command the descent was a half-second drop the picture did not show.
+        The height the swing was at is latched BEFORE the phase rests, because
+        resting destroys it — a paused sender publishes the stroke it will
+        resume with, not the position it stopped at — and it is the one number
+        the trace cannot recompute when it draws the descent.  Nothing is sent:
+        the driver taking the device owns walking it down (its first park is
+        the handoff ramp), and a second writer's glide here was superseded
+        within a tick and only bent the descent.
         """
-        self._sink.send(format_tcode_command("L0", 0, HANDOFF_RAMP_MS))
+        self._let_go_position = self.current_position()
         self.rest_at_bottom()
 
     def rest_at_bottom(self) -> None:
@@ -121,6 +128,12 @@ class RateLimitedTCodeSender:
     @property
     def stroke_phase(self) -> float:
         return self._stroke_phase
+
+    @property
+    def let_go_position(self) -> int | None:
+        """Where the device was handed over, in T-Code units — None while this
+        sender still has it."""
+        return self._let_go_position
 
     def maybe_send(self, phase: float, now: float) -> None:
         if self._rise < 1.0:

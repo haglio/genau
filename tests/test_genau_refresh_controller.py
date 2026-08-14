@@ -81,6 +81,7 @@ class FakeTCodeSender:
         self.take_overs = 0
         self.rests = 0
         self.hand_overs = 0
+        self.let_go_position: int | None = None
         self.closed = False
         self._position = 5000
         self._stroke_phase = 0.0
@@ -91,6 +92,7 @@ class FakeTCodeSender:
 
     def take_over(self) -> None:
         self.take_overs += 1
+        self.let_go_position = None
 
     def rest_at_bottom(self) -> None:
         self.rests += 1
@@ -98,6 +100,7 @@ class FakeTCodeSender:
 
     def hand_over(self) -> None:
         self.hand_overs += 1
+        self.let_go_position = self._position
         self.rest_at_bottom()
 
     def current_position(self) -> int:
