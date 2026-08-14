@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pygame
 
-from player_core.drive_readout import POSITION_MAX, DriveHud, read_drive
+from player_core.drive_readout import DriveHud, read_drive
 from genau.pygame_view import get_window_chrome_height
 from genau.session_quit import quit_gesture
 from player_core.tcode import UdpTCodeSink
@@ -33,7 +33,6 @@ from .display import Display
 from .funscript_jumps import FunscriptJumps
 from .drive_trace import drive_readout
 from player_core.console_hud import (
-    OSR2_FUNSCRIPT,
     ConsoleHud,
     ConsolePainter,
     ModeHud,
@@ -357,34 +356,38 @@ def _run(args) -> int:
         # clickable timeline.
         return heatmap.height or TIMELINE_HEIGHT
 
-    # Where the device was when Genau last handed it over: the one thing the
-    # trace cannot work out for itself, because a paused Genau publishes the
-    # stroke it will resume with rather than the position it stopped at.  Read
-    # off the readout at the moment the console changes hands, which is the last
-    # frame Genau's own position still means anything.
-    handoff: dict = {"script_has_it": False, "let_go_at": None}
+    # Genau's published let_go describes the last handoff GENAU made — which,
+    # across a video change while it sits paused, is a handoff from some other
+    # video's stroke.  A descent drawn from that height tops a ramp the device
+    # never made here, so the latch is honoured only once Genau has been seen
+    # live (let_go None) within the current video; until then the descent tops
+    # off the parked publish instead, which is where the device really is.
+    let_go_gate = {"video": None, "seen_live": False}
 
     def _drive_readout(console: ConsoleModel, published: DriveHud | None) -> DriveHud:
         """The readout to draw, with this video's funscript folded into it.
 
         Genau publishes its own stroke; the script is sampled here, because Genau
         cannot see it and in Nau there is no Genau behind the screen at all.  See
-        :mod:`nau.drive_trace` for how the two share one line.
+        :mod:`nau.drive_trace` for how the two share one line.  Who holds the
+        device travels inside the publish itself (``let_go``), so nothing here
+        watches the console for handoff edges any more.
         """
-        has_script = console.osr2 == OSR2_FUNSCRIPT
-        if has_script != handoff["script_has_it"]:
-            handoff["script_has_it"] = has_script
-            if has_script:
-                height = (published.position / POSITION_MAX) if published else 0.0
-                handoff["let_go_at"] = (int(session.position_ms), height)
+        drive = published if genau_drives(console.mode) else None
+        if drive is not None:
+            if let_go_gate["video"] != session.current_video:
+                let_go_gate["video"] = session.current_video
+                let_go_gate["seen_live"] = False
+            if drive.let_go is None:
+                let_go_gate["seen_live"] = True
+            elif not let_go_gate["seen_live"]:
+                drive = replace(drive, let_go=None)
         return drive_readout(
-            published if genau_drives(console.mode) else None,
+            drive,
             script=session.current_funscript,
             position_ms=int(session.position_ms),
             speed=session.speed,
             genau_behind=genau_drives(console.mode),
-            osr2_has_script=has_script,
-            let_go_at=handoff["let_go_at"],
         )
 
     def _post(command: str) -> None:
