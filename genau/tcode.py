@@ -40,9 +40,29 @@ class RateLimitedTCodeSender:
         self._glide.begin()
 
     def take_over(self) -> None:
-        """Genau has the device again: ease onto the stroke rather than jump to
-        wherever the phase has run to while a funscript held it."""
+        """Genau has the device again: resume the stroke from the foot of its
+        swing, and ease onto it.
+
+        The funscript's turn leaves the device at its park, and the frozen
+        phase could be anywhere in the cycle — resuming there aimed the first
+        commands at whatever height the swing happened to freeze at, a lunge
+        across most of the range.  From the bottom, the stroke rises out of
+        the rest it finds the device in.
+        """
+        self.rest_at_bottom()
         self._glide.begin()
+
+    def rest_at_bottom(self) -> None:
+        """Put the stroke at the foot of its swing — phase 0, where every
+        waveform shape's raw value is 0: the lowest point the current center
+        and amplitude reach, and the nearest the stroke comes to the park.
+
+        Called when Genau loses the device as well as when it takes it back
+        (:meth:`take_over`), so the readout published through a funscript's
+        turn shows the stroke that will actually resume, not wherever the
+        swing froze.
+        """
+        self._stroke_phase = 0.0
 
     def _compute_position(self) -> int:
         if self._direct_state is not None:
