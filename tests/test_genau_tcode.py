@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from player_core.drive_readout import TAKEOVER_RISE_MS
+from player_core.funscript import HANDOFF_RAMP_MS
 from player_core.tcode import HANDOFF_MS
 
 from player_core.direct_control import DirectControlState, WaveformShape
@@ -192,7 +192,7 @@ class TestTheRiseOutOfThePark:
 
         sender.take_over()
         sender.maybe_send(phase=0.7, now=1.0)
-        sender.maybe_send(phase=0.8, now=1.0 + TAKEOVER_RISE_MS / 2000)
+        sender.maybe_send(phase=0.8, now=1.0 + HANDOFF_RAMP_MS / 2000)
 
         halfway = int(sink.sent[1][2:6])
         assert 1600 < halfway < 1900             # about half of the 35% floor
@@ -204,7 +204,7 @@ class TestTheRiseOutOfThePark:
 
         sender.take_over()
         sender.maybe_send(phase=0.7, now=1.0)
-        sender.maybe_send(phase=0.9, now=1.0 + TAKEOVER_RISE_MS / 1000)
+        sender.maybe_send(phase=0.9, now=1.0 + HANDOFF_RAMP_MS / 1000)
 
         assert sender.stroke_phase == 0.0
         arrived = int(sink.sent[1][2:6])
@@ -215,8 +215,8 @@ class TestTheRiseOutOfThePark:
 
         sender.take_over()
         sender.maybe_send(phase=0.7, now=1.0)
-        sender.maybe_send(phase=0.9, now=1.0 + TAKEOVER_RISE_MS / 1000 + 0.1)
-        sender.maybe_send(phase=0.15, now=1.0 + TAKEOVER_RISE_MS / 1000 + 0.2)
+        sender.maybe_send(phase=0.9, now=1.0 + HANDOFF_RAMP_MS / 1000 + 0.1)
+        sender.maybe_send(phase=0.15, now=1.0 + HANDOFF_RAMP_MS / 1000 + 0.2)
 
         assert sender.stroke_phase > 0.0
         assert int(sink.sent[2][2:6]) > 3600     # off the floor, swinging
@@ -231,7 +231,7 @@ class TestTheRiseOutOfThePark:
         assert sender.current_position() == 0
 
         sender.maybe_send(phase=0.7, now=1.0)
-        sender.maybe_send(phase=0.8, now=1.0 + TAKEOVER_RISE_MS / 2000)
+        sender.maybe_send(phase=0.8, now=1.0 + HANDOFF_RAMP_MS / 2000)
 
         assert 1600 < sender.current_position() < 1900
 

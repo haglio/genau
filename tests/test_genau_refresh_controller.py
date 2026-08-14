@@ -80,6 +80,7 @@ class FakeTCodeSender:
         self.sends: list[tuple[float, float]] = []
         self.take_overs = 0
         self.rests = 0
+        self.hand_overs = 0
         self.closed = False
         self._position = 5000
         self._stroke_phase = 0.0
@@ -94,6 +95,10 @@ class FakeTCodeSender:
     def rest_at_bottom(self) -> None:
         self.rests += 1
         self._stroke_phase = 0.0
+
+    def hand_over(self) -> None:
+        self.hand_overs += 1
+        self.rest_at_bottom()
 
     def current_position(self) -> int:
         return self._position
@@ -477,7 +482,7 @@ def test_resume_between_refreshes_writes_resume(tmp_path):
     assert broker_cmd.read_text(encoding="utf-8") == "RESUME"
 
 
-def test_losing_the_device_rests_the_stroke_at_its_bottom():
+def test_losing_the_device_walks_it_down_and_rests_the_stroke():
     """The readout published through a funscript's turn (or any pause) samples
     forward from the sender's stroke phase — rested at the swing's foot the
     moment playback stops, so what Nau draws waiting behind the seam is the
@@ -492,7 +497,7 @@ def test_losing_the_device_rests_the_stroke_at_its_bottom():
     assert tcode.rests == 1
 
 
-def test_staying_paused_rests_the_stroke_only_once():
+def test_staying_paused_hands_over_only_once():
     dc = DirectControlState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
