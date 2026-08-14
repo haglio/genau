@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from player_core.funscript import PARK_SETTLE_MS, QUIET_LEAD_IN_MS
+from player_core.funscript import PARK_SETTLE_MS
 
 from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
@@ -55,6 +55,8 @@ def drive_readout(
     speed: float = 1.0,
     genau_behind: bool,
     osr2_has_script: bool,
+    script_took_over_ms: int | None = None,
+    genau_took_over_ms: int | None = None,
 ) -> DriveHud:
     """The readout to draw, folding the funscript's own shape into it.
 
@@ -62,6 +64,13 @@ def drive_readout(
     Genau behind the screen (Nau's own mode).  *genau_behind* says whether Genau
     is there to take the gaps; *osr2_has_script* is whether a script has the
     device *now*, which is what decides where the position marker comes from.
+    *script_took_over_ms* and *genau_took_over_ms* are the positions at which
+    each side last took it (the caller watches the console for those edges):
+    the first anchors the settle still playing out just after the script's
+    takeover — the pause lands at the stroke's touch, a moment only the
+    arbiter knows ahead of time, so after the flip the recorded moment
+    replaces the prediction — and the second anchors the climb out of the
+    park that opens Genau's turn.
 
     The span is Genau's own — it publishes the number with its trace — scaled by
     the playback rate, because the trace covers wall-clock time and at double
@@ -113,10 +122,26 @@ def drive_readout(
     # device agree.
     floor_height = stroke_floor(base.center, base.amplitude)
 
+    # A ramp on the LEADING run is drawn in device time, not window time: the
+    # painter leaves the live run unshifted — Genau's own republishing is what
+    # moves it — so a ramp there has to carry the sub-knot fraction itself, or
+    # it advances a whole knot at a time: a staircase, where the ramp exists
+    # precisely to be smooth.  Pushing its start back by the fraction says the
+    # same thing as shifting the line forward by it.  Ramps at a seam still
+    # ahead keep the window's own anchor; those runs DO get the shift.
+    live_shift = slide * step
+
     values: list[float] = []
     whos: list[str] = []
     resting_flags: list[bool] = []
     stroked = 0
+    # Where the climb out of the park starts.  Seeded from the recorded flip
+    # when Genau's turn has just opened — that seam is already off the window's
+    # left edge, so the loop below never sees it — and reset at every
+    # grey-to-blue seam still inside the window.
+    rise_from_ms: float | None = None
+    if not osr2_has_script and genau_took_over_ms is not None:
+        rise_from_ms = genau_took_over_ms - live_shift
     for index in range(TRACE_SAMPLES):
         at_ms = round(anchor_ms + index * step)
         resting = script.is_resting_at(at_ms)
@@ -125,19 +150,51 @@ def drive_readout(
             taking_over = bool(whos) and whos[-1] != idle_driver
             if taking_over:
                 # The device is wherever the plan leaves it — its park, once
-                # the script has wound down — and the takeover glide walks it
-                # onto the stroke from there, so the line after the seam starts
-                # at that height rather than jumping to the stroke's.
+                # the script has wound down — and the sender climbs it onto the
+                # stroke from there, so the line after the seam starts at that
+                # height rather than jumping to the stroke's.  A stroke whose
+                # floor rests on the park has no gap to climb: the sender skips
+                # the rise there, the wave begins on the next sample, and this
+                # seam sample spends its step of stroke like any other.
+                rise_from_ms = at_ms if floor_height > _PARK_EPSILON else None
                 values.append(scripted[index])
-            elif stroke is not None:
-                values.append(stroke[min(stroked, TRACE_SAMPLES - 1)])
-            else:
+                if rise_from_ms is None:
+                    stroked += 1
+            elif stroke is None:
                 values.append(0.0)
-            stroked += 1
+            elif (rise_from_ms is not None
+                  and at_ms - rise_from_ms < PARK_SETTLE_MS
+                  and floor_height > _PARK_EPSILON):
+                # The climb out of the park: the swing holds at its floor while
+                # the device rises to it, so these samples spend no stroke —
+                # the wave begins after the climb, exactly as the sender plays
+                # it.  Without this the line jumped park-to-floor in a sample,
+                # the very jump the device stopped making.  A sample can sit a
+                # hair before a freshly recorded flip; it is still at the park.
+                values.append(
+                    floor_height
+                    * (max(0, at_ms - rise_from_ms) / PARK_SETTLE_MS))
+            else:
+                values.append(stroke[min(stroked, TRACE_SAMPLES - 1)])
+                stroked += 1
         else:
             who = (DRIVEN_BY_NEUTRAL if script.is_parked_at(at_ms)
                    else DRIVEN_BY_FUNSCRIPT)
-            values.append(scripted[index])
+            value = scripted[index]
+            if (who == DRIVEN_BY_NEUTRAL and genau_behind and osr2_has_script
+                    and script_took_over_ms is not None
+                    and floor_height > _PARK_EPSILON):
+                # The settle still playing out just after the flip: the pause
+                # landed at the stroke's touch and the device is walking down
+                # from the floor — without this the ramp vanished from the
+                # picture the instant the script took the device, the last of
+                # the blue wiped mid-slide.
+                since_takeover = at_ms - (script_took_over_ms - live_shift)
+                if 0 <= since_takeover < PARK_SETTLE_MS:
+                    fraction = since_takeover / PARK_SETTLE_MS
+                    value = floor_height * (1 - fraction)
+                    who = DRIVEN_BY_GENAU
+            values.append(value)
         whos.append(who)
         resting_flags.append(resting)
 
@@ -207,11 +264,11 @@ def drive_readout(
     marker = base.position
     if osr2_has_script:
         planned = script.planned_position_at(position_ms)
-        onset = script.next_active_ms(position_ms)
-        if genau_behind and onset is not None and script.is_parked_at(position_ms):
-            since_handoff = position_ms - (onset - QUIET_LEAD_IN_MS)
-            if 0 <= since_handoff < PARK_SETTLE_MS:
-                fraction = since_handoff / PARK_SETTLE_MS
+        if (genau_behind and script_took_over_ms is not None
+                and script.is_parked_at(position_ms)):
+            since_takeover = position_ms - script_took_over_ms
+            if 0 <= since_takeover < PARK_SETTLE_MS:
+                fraction = since_takeover / PARK_SETTLE_MS
                 planned = floor_height * 100 * (1 - fraction) + planned * fraction
         marker = round(planned / 100 * POSITION_MAX)
     return replace(

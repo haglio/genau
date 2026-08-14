@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from player_core.funscript import PARK_SETTLE_MS
 from player_core.tcode import HANDOFF_MS
 
 from player_core.direct_control import DirectControlState, WaveformShape
@@ -161,6 +162,93 @@ class TestRestingAtTheBottom:
 
         assert sender.stroke_phase == 0.0
         assert sender.current_position() == 0
+
+
+class TestTheRiseOutOfThePark:
+    """At full amplitude the stroke's floor is the park and the swing starts at
+    once — but with the floor raised (amplitude under 100, a shifted center),
+    starting there jumped the device across the gap the moment Genau took the
+    device back.  The swing holds while the device climbs park-to-floor over
+    the settle, then begins."""
+
+    def _sender(self):
+        sink = FakeTCodeSink()
+        state = DirectControlState(amplitude=30, center=50)  # floor at 35%
+        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        sender.maybe_send(phase=0.5, now=0.5)   # mid-swing when the script takes it
+        sink.sent.clear()
+        return sink, sender
+
+    def test_the_takeover_starts_at_the_park_not_the_floor(self):
+        sink, sender = self._sender()
+
+        sender.take_over()
+        sender.maybe_send(phase=0.7, now=1.0)
+
+        assert sink.sent[0].startswith("L00000")
+
+    def test_the_climb_is_gradual_over_the_settle(self):
+        sink, sender = self._sender()
+
+        sender.take_over()
+        sender.maybe_send(phase=0.7, now=1.0)
+        sender.maybe_send(phase=0.8, now=1.0 + PARK_SETTLE_MS / 2000)
+
+        halfway = int(sink.sent[1][2:6])
+        assert 1600 < halfway < 1900             # about half of the 35% floor
+
+    def test_the_swing_holds_until_the_climb_ends(self):
+        """No stroke phase accumulates during the rise, so the wave begins at
+        the floor rather than part-way up its cycle."""
+        sink, sender = self._sender()
+
+        sender.take_over()
+        sender.maybe_send(phase=0.7, now=1.0)
+        sender.maybe_send(phase=0.9, now=1.0 + PARK_SETTLE_MS / 1000)
+
+        assert sender.stroke_phase == 0.0
+        arrived = int(sink.sent[1][2:6])
+        assert 3400 < arrived < 3600             # the floor, arrived at exactly
+
+    def test_the_stroke_is_its_own_again_after_the_climb(self):
+        sink, sender = self._sender()
+
+        sender.take_over()
+        sender.maybe_send(phase=0.7, now=1.0)
+        sender.maybe_send(phase=0.9, now=1.6)    # past the climb: on the floor
+        sender.maybe_send(phase=0.15, now=1.7)   # a quarter-swing later (wraps)
+
+        assert sender.stroke_phase > 0.0
+        assert int(sink.sent[2][2:6]) > 3600     # off the floor, swinging
+
+    def test_the_published_position_follows_the_climb(self):
+        """The readout's dot rides ``current_position`` — sitting on the floor
+        while the device was still down at the park would detach it from the
+        line for the whole climb."""
+        sink, sender = self._sender()
+
+        sender.take_over()
+        assert sender.current_position() == 0
+
+        sender.maybe_send(phase=0.7, now=1.0)
+        sender.maybe_send(phase=0.8, now=1.0 + PARK_SETTLE_MS / 2000)
+
+        assert 1600 < sender.current_position() < 1900
+
+    def test_at_full_amplitude_there_is_no_hold(self):
+        """His confirmed case stays exactly as it was: the wave starts the
+        moment Genau has the device again."""
+        sink = FakeTCodeSink()
+        state = DirectControlState(amplitude=100, center=50)
+        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        sender.maybe_send(phase=0.0, now=0.5)
+        sink.sent.clear()
+
+        sender.take_over()
+        sender.maybe_send(phase=0.0, now=1.0)
+        sender.maybe_send(phase=0.25, now=1.1)
+
+        assert int(sink.sent[1][2:6]) > 3000     # already swinging up
 
 
 class TestSenderWithDirectState:

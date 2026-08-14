@@ -13,9 +13,16 @@ from typing import TYPE_CHECKING
 from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
 
 from player_core.direct_control import phase_to_position
+from player_core.funscript import PARK_SETTLE_MS
 
 if TYPE_CHECKING:
     from player_core.direct_control import DirectControlState
+
+# The rise only exists when there is a gap to climb: at full amplitude the
+# stroke's floor IS the park, and holding the swing half a second there would
+# delay a resume that already starts from where the device sits.  Two percent
+# of the travel, the trace's own park epsilon.
+_RISE_SKIP_BELOW = 200
 
 
 class RateLimitedTCodeSender:
@@ -38,6 +45,13 @@ class RateLimitedTCodeSender:
         # parked wherever the script left it.  Armed here and on every takeover.
         self._glide = HandoffGlide()
         self._glide.begin()
+        # The rise out of the park: 1.0 is the stroke's own motion; anything
+        # lower scales the held phase-0 position, so the device climbs from the
+        # park to the stroke's floor over the settle before the swing begins —
+        # the mirror of the glide down that ends Genau's turn.  A takeover
+        # zeroes it; the clock starts on the first send after that.
+        self._rise = 1.0
+        self._rise_started: float | None = None
 
     def take_over(self) -> None:
         """Genau has the device again: resume the stroke from the foot of its
@@ -46,10 +60,21 @@ class RateLimitedTCodeSender:
         The funscript's turn leaves the device at its park, and the frozen
         phase could be anywhere in the cycle — resuming there aimed the first
         commands at whatever height the swing happened to freeze at, a lunge
-        across most of the range.  From the bottom, the stroke rises out of
-        the rest it finds the device in.
+        across most of the range.  From the bottom, and through the rise: the
+        stroke's floor can sit well above the park (amplitude under 100, a
+        raised center), and starting the swing there jumped the device across
+        the gap — so the swing holds while the device climbs park-to-floor
+        over the settle, then begins.  A floor already on the park skips the
+        climb; the stroke starts at once, as it always did at full amplitude.
         """
         self.rest_at_bottom()
+        if self._compute_position() > _RISE_SKIP_BELOW:
+            self._rise = 0.0
+            self._rise_started = None
+        else:
+            # No gap to climb — and a climb this takeover interrupted must not
+            # leave its fraction scaling every position from here on.
+            self._rise = 1.0
         self._glide.begin()
 
     def rest_at_bottom(self) -> None:
@@ -75,25 +100,38 @@ class RateLimitedTCodeSender:
         return phase_to_position(self._stroke_phase)
 
     def current_position(self) -> int:
-        return self._compute_position()
+        """Where the device is being sent right now — scaled by the rise while
+        it is still climbing out of the park, so the published readout and the
+        dot riding it follow the climb rather than sitting on the floor."""
+        return round(self._compute_position() * self._rise)
 
     @property
     def stroke_phase(self) -> float:
         return self._stroke_phase
 
     def maybe_send(self, phase: float, now: float) -> None:
-        # Accumulate continuous stroke phase, detecting wraps.
-        delta = phase - self._last_phase
-        if delta < -0.5:
-            delta += 1.0
-        self._stroke_phase += max(0.0, delta)
-        self._last_phase = phase
+        if self._rise < 1.0:
+            # Climbing out of the park: the swing holds at the floor (phase 0)
+            # while the device rises to it, so the phase is tracked but not
+            # advanced, and the sent position is the floor scaled by how far
+            # the climb has come.
+            if self._rise_started is None:
+                self._rise_started = now
+            self._rise = min(1.0, (now - self._rise_started) / (PARK_SETTLE_MS / 1000))
+            self._last_phase = phase
+        else:
+            # Accumulate continuous stroke phase, detecting wraps.
+            delta = phase - self._last_phase
+            if delta < -0.5:
+                delta += 1.0
+            self._stroke_phase += max(0.0, delta)
+            self._last_phase = phase
 
         elapsed = now - self._last_send_time
         if elapsed < self._min_interval:
             return
         interval_ms = max(1, min(9999, round(elapsed * 1000)))
-        position = self._compute_position()
+        position = round(self._compute_position() * self._rise)
         # A stroke tick asks the device to be at the next phase position in the
         # time one tick takes, which is right while Genau has been driving all
         # along and is a slam the moment it has just taken the device back: the
