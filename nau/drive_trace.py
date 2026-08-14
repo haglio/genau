@@ -2,16 +2,30 @@
 
 The drive readout draws one line across a stretch of time running forward from
 the playhead.  Who is driving over that stretch is not one answer: a funscript
-drives while it is scripting, Genau drives the true rests, and around each
-handoff sits a neutral buffer where the device rests at its park — the script
-technically holds it, but is sending nothing but the rest.  This walks the span
-deciding per sample, so the line is green where the script strokes, light grey
-through the neutral buffers, and blue where Genau's stroke runs, joined at the
-moments the device changes hands.
+drives while it is scripting, Genau drives the true rests, and between them the
+device changes hands.  This walks the span deciding per sample, so the line is
+green where the script strokes, blue where Genau's stroke runs, and light grey
+through the buffer between them.
 
-That boundary is not a guess.  Fun Time hands the OSR2 over on exactly the rule
-used here — the script has it wherever it is not resting — so what the trace
-shows ahead of the seam is the seam that is coming.
+The buffer is a shape of its own, not a gap: the device glides down from the
+stroke's floor onto its park, waits there, and climbs back up to the floor
+before the next swing.  Both of those ramps belong to the buffer rather than to
+either driver — nobody is stroking through them, the device is being handed
+over — so they are drawn in the buffer's grey, and Genau's blue is only ever
+Genau's actual stroke.
+
+One rule builds the whole line: for each sample, whose turn it is, and where in
+that turn it falls.  It replaces a picture that was assembled from a prediction
+plus a forward-extension pass plus a patch for the moment the console caught up
+— three constructions that had to agree exactly and did not, so the seam jumped
+whenever they disagreed.
+
+The one thing that cannot be read off the script is when Genau's turn *ends*:
+the arbiter holds the handoff until the stroke touches its floor, so it ends on
+a moment only the live stroke knows.  That is why the touch is interpolated
+rather than read off the nearest sample — see
+:func:`player_core.drive_readout.floor_touch_ms` — and why, once the handoff
+has happened, the recorded flip stands in for the prediction.
 
 Kept out of :mod:`nau.app` and free of Pillow, like :mod:`nau.console` is, so the
 shape of the picture is testable without a window or a font.
@@ -27,10 +41,12 @@ from player_core.drive_readout import (
     DRIVEN_BY_GENAU,
     DRIVEN_BY_NEUTRAL,
     DRIVEN_BY_NOTHING,
-    FLOOR_TOUCH_TOLERANCE,
+    FLOOR_WAIT_CAP_MS,
     POSITION_MAX,
+    TAKEOVER_RISE_MS,
     TRACE_SAMPLES,
     DriveHud,
+    floor_touch_ms,
     stroke_floor,
 )
 
@@ -41,9 +57,9 @@ from player_core.drive_readout import (
 # same cost.
 _SLIDE_QUANTUM_MS = 40
 
-# A floor this close to the park needs no settle glide at all — his rule: at
-# full amplitude the grey begins right at the touch-down.  Distinct from
-# FLOOR_TOUCH_TOLERANCE, which is about *finding* a touch in sampled data.
+# A floor this close to the park needs no ramp at all — his rule: at full
+# amplitude the grey begins right at the touch-down and the stroke resumes
+# straight out of the park, because the two heights are the same height.
 _PARK_EPSILON = 0.02
 
 
@@ -56,28 +72,21 @@ def drive_readout(
     genau_behind: bool,
     osr2_has_script: bool,
     script_took_over_ms: int | None = None,
-    genau_took_over_ms: int | None = None,
 ) -> DriveHud:
     """The readout to draw, folding the funscript's own shape into it.
 
     *published* is Genau's readout as it last said it, or None where there is no
     Genau behind the screen (Nau's own mode).  *genau_behind* says whether Genau
     is there to take the gaps; *osr2_has_script* is whether a script has the
-    device *now*, which is what decides where the position marker comes from.
-    *script_took_over_ms* and *genau_took_over_ms* are the positions at which
-    each side last took it (the caller watches the console for those edges):
-    the first anchors the settle still playing out just after the script's
-    takeover — the pause lands at the stroke's touch, a moment only the
-    arbiter knows ahead of time, so after the flip the recorded moment
-    replaces the prediction — and the second anchors the climb out of the
-    park that opens Genau's turn.
+    device *now*; *script_took_over_ms* is the playhead position at which it
+    took it, which the caller reads off the console's own handoff edge.
 
     The span is Genau's own — it publishes the number with its trace — scaled by
     the playback rate, because the trace covers wall-clock time and at double
     speed twice as much of the script goes past in it.  Sampling the script on
-    its own fixed grid (:meth:`player_core.funscript.Funscript.trace`) is what
-    keeps the shape still: resampled from the playhead every frame, every peak
-    landed somewhere slightly different and the line boiled in place.
+    its own fixed grid (:meth:`player_core.funscript.Funscript.planned_trace`)
+    is what keeps the shape still: resampled from the playhead every frame,
+    every peak landed somewhere slightly different and the line boiled in place.
     """
     base = published or DriveHud()
     if script is None:
@@ -86,164 +95,99 @@ def drive_readout(
     span_ms = round(base.trace_seconds * 1000 * speed)
     step = span_ms / max(1, TRACE_SAMPLES - 1)
     # The device's *plan*, not the script's interpolated line: through the
-    # handed-over buffers around each handoff the driver rests the device at
-    # its park and rises only to meet the next cluster, and a green line that
-    # held the last position across those stretches was a picture the device
-    # visibly contradicted.  The window sits on whole knots — the script never
-    # changes while it plays, so its picture is computed once and only reread —
-    # and the leftover fraction of a knot rides along as ``slide`` for the
-    # painter to shift the stable shape by.
+    # buffers around each handoff the driver rests the device at its park and
+    # rises only to meet the next cluster, and a green line that held the last
+    # position across those stretches was a picture the device visibly
+    # contradicted.  The window sits on whole knots — the script never changes
+    # while it plays, so its picture is computed once and only reread — and the
+    # leftover fraction of a knot rides along as ``slide`` for the painter to
+    # shift the stable shape by.
     scripted, slide = script.planned_trace_window(position_ms, span_ms, TRACE_SAMPLES)
     if len(scripted) != TRACE_SAMPLES + 1:
         return base
     # Sample times anchored to the window's own knots, so what each sample says
     # never depends on where inside a knot the playhead sits.
     anchor_ms = position_ms - slide * step
-    # Whoever has the device where the script does not.  In Hybrid that is Genau's
-    # own stroke, drawn forward from the phase it is parked on — the very stroke it
-    # will resume with.  In Nau nobody does: the script's driver rests the device,
-    # so the picture is the floor rather than a stroke that is not coming.
-    idle_driver = DRIVEN_BY_GENAU if genau_behind else DRIVEN_BY_NOTHING
     stroke = base.waveform if len(base.waveform) == TRACE_SAMPLES else None
-
-    # The published stroke is a run of *stroke time* — sample 0 is the phase it
-    # is on (or parked on), each later sample one step of stroking after that —
-    # so it is spent per stroking sample rather than read by screen position.
-    # Anchored that way, the picture the stretch after a seam shows is pinned to
-    # the seam and slides left with it; read by screen position it sat still
-    # while the seam swept over it, revealed rather than approaching.  Scripted
-    # stretches spend none of it, which is the phase holding still while the
-    # script drives.
+    if not genau_behind:
+        stroke = None
     # Where the stroke bottoms out — its floor, the lowest point the current
-    # center and amplitude reach.  The settle onto the park opens here: it is
-    # stable (it moves only when a control does), it is where the frozen stroke
-    # rests through a funscript's turn, and it is the same rule the arbiter
-    # uses to end Genau's turn, so the settle, the resume picture and the
-    # device agree.
-    floor_height = stroke_floor(base.center, base.amplitude)
+    # centre and amplitude reach.  Both ramps run between here and the park, it
+    # is where the frozen stroke waits through a funscript's turn, and it is the
+    # same rule the arbiter ends Genau's turn on, so the picture, the resume and
+    # the device agree.
+    floor_height = stroke_floor(base.center, base.amplitude) if stroke else 0.0
+    ramped = floor_height > _PARK_EPSILON
+    rise_ms = TAKEOVER_RISE_MS if ramped else 0
 
-    # A ramp on the LEADING run is drawn in device time, not window time: the
-    # painter leaves the live run unshifted — Genau's own republishing is what
-    # moves it — so a ramp there has to carry the sub-knot fraction itself, or
-    # it advances a whole knot at a time: a staircase, where the ramp exists
-    # precisely to be smooth.  Pushing its start back by the fraction says the
-    # same thing as shifting the line forward by it.  Ramps at a seam still
-    # ahead keep the window's own anchor; those runs DO get the shift.
-    live_shift = slide * step
+    def stroke_at(index: int) -> float:
+        return stroke[min(max(index, 0), TRACE_SAMPLES - 1)]
+
+    hands_over: dict[int | None, float] = {}
+
+    def hands_over_at(turn_start: int | None) -> float:
+        """When Genau really lets go, for the script turn opening at *turn_start*.
+
+        Its own rest ends there, but the arbiter holds the device until the
+        stroke comes down onto its floor, so that is where the blue ends.  Once
+        the handoff has actually happened the recorded flip says it outright —
+        the frozen stroke can no longer be asked when it would have come down.
+        """
+        if turn_start is None:
+            return float("-inf")
+        if turn_start not in hands_over:
+            hands_over[turn_start] = _genau_lets_go(
+                turn_start,
+                now_ms=position_ms,
+                stroke=stroke,
+                floor=floor_height,
+                pitch_ms=step,
+                recorded=script_took_over_ms,
+                genau_has_device=not osr2_has_script,
+            )
+        return hands_over[turn_start]
+
+    def at(sample_ms: int, planned: float) -> tuple[float, str]:
+        """One sample of the line: how high, and whose stretch it is in."""
+        turn_start, _turn_end = script.turn_bounds_at(sample_ms)
+        if script.is_resting_at(sample_ms):
+            # Genau's turn.  It opens with the climb out of the park, unless
+            # the stroke's floor already rests there.
+            if stroke is None:
+                # Nobody is going to take these stretches: in Nau's own mode
+                # there is no Genau behind the screen, and the script's driver
+                # rests the device through them.
+                return 0.0, DRIVEN_BY_NOTHING
+            if turn_start is None:
+                # Genau has had the device since before the video began, so its
+                # stroke is simply running: sample 0 of what it published is now.
+                return stroke_at(round((sample_ms - position_ms) / step)), DRIVEN_BY_GENAU
+            since = sample_ms - turn_start
+            if ramped and since < rise_ms:
+                return floor_height * max(0.0, since) / rise_ms, DRIVEN_BY_NEUTRAL
+            if turn_start <= position_ms:
+                # The turn Genau is in the middle of: its published stroke is
+                # sampled forward from now, so the picture rides the phase it
+                # is actually on rather than one reconstructed from the start.
+                return stroke_at(round((sample_ms - position_ms) / step)), DRIVEN_BY_GENAU
+            return stroke_at(round((sample_ms - turn_start - rise_ms) / step)), DRIVEN_BY_GENAU
+        # The script's turn — but only from the moment Genau lets go.
+        let_go = hands_over_at(turn_start)
+        if sample_ms < let_go:
+            return stroke_at(round((sample_ms - position_ms) / step)), DRIVEN_BY_GENAU
+        if ramped and sample_ms < let_go + PARK_SETTLE_MS:
+            fallen = (sample_ms - let_go) / PARK_SETTLE_MS
+            return floor_height * (1 - fallen), DRIVEN_BY_NEUTRAL
+        who = (DRIVEN_BY_NEUTRAL if script.is_parked_at(sample_ms)
+               else DRIVEN_BY_FUNSCRIPT)
+        return planned, who
 
     values: list[float] = []
     whos: list[str] = []
-    resting_flags: list[bool] = []
-    stroked = 0
-    # Where the climb out of the park starts.  Seeded from the recorded flip
-    # when Genau's turn has just opened — that seam is already off the window's
-    # left edge, so the loop below never sees it — and reset at every
-    # grey-to-blue seam still inside the window.
-    rise_from_ms: float | None = None
-    if not osr2_has_script and genau_took_over_ms is not None:
-        rise_from_ms = genau_took_over_ms - live_shift
     for index in range(TRACE_SAMPLES):
-        at_ms = round(anchor_ms + index * step)
-        resting = script.is_resting_at(at_ms)
-        if resting:
-            who = idle_driver
-            taking_over = bool(whos) and whos[-1] != idle_driver
-            if taking_over:
-                # The device is wherever the plan leaves it — its park, once
-                # the script has wound down — and the sender climbs it onto the
-                # stroke from there, so the line after the seam starts at that
-                # height rather than jumping to the stroke's.  A stroke whose
-                # floor rests on the park has no gap to climb: the sender skips
-                # the rise there, the wave begins on the next sample, and this
-                # seam sample spends its step of stroke like any other.
-                rise_from_ms = at_ms if floor_height > _PARK_EPSILON else None
-                values.append(scripted[index])
-                if rise_from_ms is None:
-                    stroked += 1
-            elif stroke is None:
-                values.append(0.0)
-            elif (rise_from_ms is not None
-                  and at_ms - rise_from_ms < PARK_SETTLE_MS
-                  and floor_height > _PARK_EPSILON):
-                # The climb out of the park: the swing holds at its floor while
-                # the device rises to it, so these samples spend no stroke —
-                # the wave begins after the climb, exactly as the sender plays
-                # it.  Without this the line jumped park-to-floor in a sample,
-                # the very jump the device stopped making.  A sample can sit a
-                # hair before a freshly recorded flip; it is still at the park.
-                values.append(
-                    floor_height
-                    * (max(0, at_ms - rise_from_ms) / PARK_SETTLE_MS))
-            else:
-                values.append(stroke[min(stroked, TRACE_SAMPLES - 1)])
-                stroked += 1
-        else:
-            who = (DRIVEN_BY_NEUTRAL if script.is_parked_at(at_ms)
-                   else DRIVEN_BY_FUNSCRIPT)
-            value = scripted[index]
-            if (who == DRIVEN_BY_NEUTRAL and genau_behind and osr2_has_script
-                    and script_took_over_ms is not None
-                    and floor_height > _PARK_EPSILON):
-                # The settle still playing out just after the flip: the pause
-                # landed at the stroke's touch and the device is walking down
-                # from the floor — without this the ramp vanished from the
-                # picture the instant the script took the device, the last of
-                # the blue wiped mid-slide.
-                since_takeover = at_ms - (script_took_over_ms - live_shift)
-                if 0 <= since_takeover < PARK_SETTLE_MS:
-                    fraction = since_takeover / PARK_SETTLE_MS
-                    value = floor_height * (1 - fraction)
-                    who = DRIVEN_BY_GENAU
-            values.append(value)
+        value, who = at(round(anchor_ms + index * step), scripted[index])
+        values.append(value)
         whos.append(who)
-        resting_flags.append(resting)
-
-    # Genau's turn ends on its floor, and really does: the arbiter holds the
-    # handoff until the stroke touches its floor, so the blue runs PAST the
-    # rest's end to that touch — cutting it at the boundary drew a promise the
-    # device then broke, swinging on while the picture showed flat grey.  From
-    # the touch: a stroke whose floor sits above the park glides down over the
-    # driver's settle, still in blue; one already touching the park needs no
-    # glide at all, and the grey flatline begins right there — his rule.
-    if genau_behind and stroke is not None:
-        boundaries = [b for b in range(1, TRACE_SAMPLES)
-                      if resting_flags[b - 1]
-                      and whos[b - 1] == DRIVEN_BY_GENAU
-                      and not resting_flags[b]]
-        # The window can also OPEN inside the stretch Genau is still finishing:
-        # once the playhead crosses the rest's end, the boundary scrolls off the
-        # left edge while the arbiter still holds the handoff for the touch —
-        # and without this the whole leading stretch went grey the moment the
-        # rest ended, wiping up to a full cycle of blue the device was still
-        # going to stroke.  The OSR2 state is the witness: until it says the
-        # script has the device, the leading buffer is still Genau's.
-        if (not resting_flags[0] and whos[0] == DRIVEN_BY_NEUTRAL
-                and not osr2_has_script):
-            boundaries.insert(0, 0)
-        for boundary in boundaries:
-            index = boundary
-            touched = False
-            while index < TRACE_SAMPLES and whos[index] == DRIVEN_BY_NEUTRAL:
-                value = stroke[min(stroked, TRACE_SAMPLES - 1)]
-                stroked += 1
-                values[index] = value
-                whos[index] = DRIVEN_BY_GENAU
-                index += 1
-                if value <= floor_height + FLOOR_TOUCH_TOLERANCE:
-                    touched = True
-                    break
-            if not touched:
-                continue
-            touch = index - 1
-            while index < TRACE_SAMPLES and whos[index] == DRIVEN_BY_NEUTRAL:
-                elapsed = (index - touch) * step
-                if floor_height <= _PARK_EPSILON or elapsed >= PARK_SETTLE_MS:
-                    break
-                # The settle down from the floor onto the park, anchored at the
-                # touch where the pause really lands.
-                values[index] = floor_height * (1 - elapsed / PARK_SETTLE_MS)
-                whos[index] = DRIVEN_BY_GENAU
-                index += 1
 
     marks: list[tuple[int, str]] = []
     for index, who in enumerate(whos):
@@ -252,39 +196,62 @@ def drive_readout(
     # The knot just past the right border, so the line shifted left by ``slide``
     # still reaches the box's edge — the same choice the loop would have made
     # for an eighty-first sample.
-    if script.is_resting_at(round(anchor_ms + TRACE_SAMPLES * step)):
-        edge = (stroke[min(stroked, TRACE_SAMPLES - 1)]
-                if stroke is not None else 0.0)
-    else:
-        edge = scripted[TRACE_SAMPLES]
-    # The dot down the edge glides with the device: right after the handoff the
-    # driver is still settling the device onto the park, and a dot that
-    # teleported to the floor while the OSR2 was visibly easing down called the
-    # picture a liar.
+    edge, _who = at(round(anchor_ms + TRACE_SAMPLES * step), scripted[TRACE_SAMPLES])
+    # The dot rides the line it is drawn on: while a script has the device that
+    # is the plan (with whatever ramp is still playing out), and while Genau has
+    # it, the position Genau published — the device's own, at its own rate,
+    # rather than the line's nearest knot.
     marker = base.position
     if osr2_has_script:
-        planned = script.planned_position_at(position_ms)
-        if (genau_behind and script_took_over_ms is not None
-                and script.is_parked_at(position_ms)):
-            since_takeover = position_ms - script_took_over_ms
-            if 0 <= since_takeover < PARK_SETTLE_MS:
-                fraction = since_takeover / PARK_SETTLE_MS
-                planned = floor_height * 100 * (1 - fraction) + planned * fraction
-        marker = round(planned / 100 * POSITION_MAX)
+        height, _who = at(position_ms, script.planned_position_at(position_ms) / 100)
+        marker = round(height * POSITION_MAX)
     return replace(
         base,
         waveform=tuple(values),
         slide=slide,
         edge=edge,
-        # Always said, even for a single run: the painter's fallback color for
+        # Always said, even for a single run: the painter's fallback colour for
         # an empty ``segments`` is the OSR2 state, and that state trails the
         # arbiter by a beat at every handoff — the whole stroke flashed the
         # script's green for a frame each time the device changed hands.  The
         # marks are stable while the picture is, so the readout still compares
         # equal to itself between repaints.
         segments=tuple(marks),
-        # The dot down the edge is where the device is: the plan (with its
-        # settle glide) while a script has it, the stroke position Genau
-        # published while Genau does.
         position=marker,
     )
+
+
+def _genau_lets_go(
+    turn_start: int,
+    *,
+    now_ms: int,
+    stroke,
+    floor: float,
+    pitch_ms: float,
+    recorded: int | None,
+    genau_has_device: bool,
+) -> float:
+    """When Genau's turn really ends, for a script turn opening at *turn_start*.
+
+    Its rest ends at *turn_start*, but the arbiter holds the device until the
+    stroke comes down onto its floor — so while Genau still has it, this asks
+    the published stroke the same question, with the same cap.  Interpolated
+    rather than snapped to the nearest sample: the stroke is re-rendered from a
+    moving phase every publish, and an answer that jumped a whole sample frame
+    to frame took the end of the blue with it.
+
+    Once the script has the device the question is settled and the frozen
+    stroke can no longer answer it, so the flip the caller recorded stands —
+    or, with none recorded yet, the rest's own end.
+    """
+    if not genau_has_device:
+        if recorded is not None and turn_start <= recorded <= now_ms:
+            return recorded
+        return turn_start
+    if stroke is None:
+        return turn_start
+    ahead = max(0.0, turn_start - now_ms)
+    touch = floor_touch_ms(stroke, floor, pitch_ms=pitch_ms, start_ms=ahead)
+    if touch is None:
+        return now_ms + ahead + FLOOR_WAIT_CAP_MS
+    return now_ms + min(touch, ahead + FLOOR_WAIT_CAP_MS)

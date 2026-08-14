@@ -13,15 +13,15 @@ from typing import TYPE_CHECKING
 from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
 
 from player_core.direct_control import phase_to_position
-from player_core.funscript import PARK_SETTLE_MS
+from player_core.drive_readout import TAKEOVER_RISE_MS
 
 if TYPE_CHECKING:
     from player_core.direct_control import DirectControlState
 
 # The rise only exists when there is a gap to climb: at full amplitude the
-# stroke's floor IS the park, and holding the swing half a second there would
-# delay a resume that already starts from where the device sits.  Two percent
-# of the travel, the trace's own park epsilon.
+# stroke's floor IS the park, and holding the swing there would delay a resume
+# that already starts from where the device sits.  Two percent of the travel,
+# the trace's own park epsilon.
 _RISE_SKIP_BELOW = 200
 
 
@@ -47,9 +47,9 @@ class RateLimitedTCodeSender:
         self._glide.begin()
         # The rise out of the park: 1.0 is the stroke's own motion; anything
         # lower scales the held phase-0 position, so the device climbs from the
-        # park to the stroke's floor over the settle before the swing begins —
-        # the mirror of the glide down that ends Genau's turn.  A takeover
-        # zeroes it; the clock starts on the first send after that.
+        # park to the stroke's floor before the swing begins — the mirror of
+        # the glide down that ends Genau's turn.  A takeover zeroes it; the
+        # clock starts on the first send after that.
         self._rise = 1.0
         self._rise_started: float | None = None
 
@@ -63,9 +63,10 @@ class RateLimitedTCodeSender:
         across most of the range.  From the bottom, and through the rise: the
         stroke's floor can sit well above the park (amplitude under 100, a
         raised center), and starting the swing there jumped the device across
-        the gap — so the swing holds while the device climbs park-to-floor
-        over the settle, then begins.  A floor already on the park skips the
-        climb; the stroke starts at once, as it always did at full amplitude.
+        the gap — so the swing holds while the device climbs park-to-floor over
+        :data:`~player_core.drive_readout.TAKEOVER_RISE_MS`, then begins.  A
+        floor already on the park skips the climb; the stroke starts at once,
+        as it always did at full amplitude.
         """
         self.rest_at_bottom()
         if self._compute_position() > _RISE_SKIP_BELOW:
@@ -117,7 +118,7 @@ class RateLimitedTCodeSender:
             # the climb has come.
             if self._rise_started is None:
                 self._rise_started = now
-            self._rise = min(1.0, (now - self._rise_started) / (PARK_SETTLE_MS / 1000))
+            self._rise = min(1.0, (now - self._rise_started) / (TAKEOVER_RISE_MS / 1000))
             self._last_phase = phase
         else:
             # Accumulate continuous stroke phase, detecting wraps.

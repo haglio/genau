@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from player_core.funscript import PARK_SETTLE_MS
+from player_core.drive_readout import TAKEOVER_RISE_MS
 from player_core.tcode import HANDOFF_MS
 
 from player_core.direct_control import DirectControlState, WaveformShape
@@ -168,8 +168,8 @@ class TestTheRiseOutOfThePark:
     """At full amplitude the stroke's floor is the park and the swing starts at
     once — but with the floor raised (amplitude under 100, a shifted center),
     starting there jumped the device across the gap the moment Genau took the
-    device back.  The swing holds while the device climbs park-to-floor over
-    the settle, then begins."""
+    device back.  The swing holds while the device climbs park-to-floor, then
+    begins."""
 
     def _sender(self):
         sink = FakeTCodeSink()
@@ -187,12 +187,12 @@ class TestTheRiseOutOfThePark:
 
         assert sink.sent[0].startswith("L00000")
 
-    def test_the_climb_is_gradual_over_the_settle(self):
+    def test_the_climb_is_gradual(self):
         sink, sender = self._sender()
 
         sender.take_over()
         sender.maybe_send(phase=0.7, now=1.0)
-        sender.maybe_send(phase=0.8, now=1.0 + PARK_SETTLE_MS / 2000)
+        sender.maybe_send(phase=0.8, now=1.0 + TAKEOVER_RISE_MS / 2000)
 
         halfway = int(sink.sent[1][2:6])
         assert 1600 < halfway < 1900             # about half of the 35% floor
@@ -204,7 +204,7 @@ class TestTheRiseOutOfThePark:
 
         sender.take_over()
         sender.maybe_send(phase=0.7, now=1.0)
-        sender.maybe_send(phase=0.9, now=1.0 + PARK_SETTLE_MS / 1000)
+        sender.maybe_send(phase=0.9, now=1.0 + TAKEOVER_RISE_MS / 1000)
 
         assert sender.stroke_phase == 0.0
         arrived = int(sink.sent[1][2:6])
@@ -215,8 +215,8 @@ class TestTheRiseOutOfThePark:
 
         sender.take_over()
         sender.maybe_send(phase=0.7, now=1.0)
-        sender.maybe_send(phase=0.9, now=1.6)    # past the climb: on the floor
-        sender.maybe_send(phase=0.15, now=1.7)   # a quarter-swing later (wraps)
+        sender.maybe_send(phase=0.9, now=1.0 + TAKEOVER_RISE_MS / 1000 + 0.1)
+        sender.maybe_send(phase=0.15, now=1.0 + TAKEOVER_RISE_MS / 1000 + 0.2)
 
         assert sender.stroke_phase > 0.0
         assert int(sink.sent[2][2:6]) > 3600     # off the floor, swinging
@@ -231,7 +231,7 @@ class TestTheRiseOutOfThePark:
         assert sender.current_position() == 0
 
         sender.maybe_send(phase=0.7, now=1.0)
-        sender.maybe_send(phase=0.8, now=1.0 + PARK_SETTLE_MS / 2000)
+        sender.maybe_send(phase=0.8, now=1.0 + TAKEOVER_RISE_MS / 2000)
 
         assert 1600 < sender.current_position() < 1900
 

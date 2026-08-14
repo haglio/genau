@@ -357,12 +357,13 @@ def _run(args) -> int:
         # clickable timeline.
         return heatmap.height or TIMELINE_HEIGHT
 
-    # The positions at which the device last changed hands, one per direction.
-    # The settle out of Genau's turn is still playing when the console flips to
-    # the script, and the climb out of the park is still playing when it flips
-    # back — each ramp is anchored at its own flip, and only these edges say
-    # where that was.
-    handoff_edges = {"script_has_it": False, "script_at_ms": None, "genau_at_ms": None}
+    # The position at which the script last took the device.  Genau's turn ends
+    # on its stroke's floor-touch, a moment the frozen stroke can no longer be
+    # asked about once it has happened — so the console's own handoff edge is
+    # what the buffer's opening ramp is anchored to from then on.  Genau's side
+    # needs no such record: it takes the device exactly where the script's rest
+    # begins, which the script itself says.
+    handoff = {"script_has_it": False, "script_at_ms": None}
 
     def _drive_readout(console: ConsoleModel, published: DriveHud | None) -> DriveHud:
         """The readout to draw, with this video's funscript folded into it.
@@ -372,10 +373,10 @@ def _run(args) -> int:
         :mod:`nau.drive_trace` for how the two share one line.
         """
         has_script = console.osr2 == OSR2_FUNSCRIPT
-        if has_script != handoff_edges["script_has_it"]:
-            key = "script_at_ms" if has_script else "genau_at_ms"
-            handoff_edges[key] = int(session.position_ms)
-            handoff_edges["script_has_it"] = has_script
+        if has_script != handoff["script_has_it"]:
+            handoff["script_has_it"] = has_script
+            if has_script:
+                handoff["script_at_ms"] = int(session.position_ms)
         return drive_readout(
             published if genau_drives(console.mode) else None,
             script=session.current_funscript,
@@ -383,8 +384,7 @@ def _run(args) -> int:
             speed=session.speed,
             genau_behind=genau_drives(console.mode),
             osr2_has_script=has_script,
-            script_took_over_ms=handoff_edges["script_at_ms"] if has_script else None,
-            genau_took_over_ms=handoff_edges["genau_at_ms"] if not has_script else None,
+            script_took_over_ms=handoff["script_at_ms"] if has_script else None,
         )
 
     def _post(command: str) -> None:
