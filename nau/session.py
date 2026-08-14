@@ -271,9 +271,14 @@ class PlayerSession:
 
         In Hybrid mode Genau drives the OSR2, so Nau must stop emitting its own
         funscript-derived T-Code or the two fight over the broker's UDP inlet.
-        Muting just skips the per-tick update; re-enabling resumes from the live
-        position, since the driver re-sends a waypoint on its next tick.
+        Muting just skips the per-tick update.  Re-enabling is a takeover — the
+        device is wherever Genau's stroke left it — so the driver is reset the
+        way every takeover resets it: the next tick re-sends a waypoint at once,
+        with the handoff glide, rather than snapping the device to a waypoint
+        that may be milliseconds away.
         """
+        if enabled and not self._tcode_enabled:
+            self._tcode.reset()
         self._tcode_enabled = enabled
 
     @property
