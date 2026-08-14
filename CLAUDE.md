@@ -59,6 +59,16 @@ already uses. The near miss that still counts: taking a real filename and
 changing a character or two — it is still that clip, still that performer. Make
 it up from scratch, don't lightly edit a real one.
 
+## Showing him a branch before it lands
+
+A genau branch can be judged in a real session first: fun_time's
+branch-verification flow (fun_time/CLAUDE.md, "Get his eyes on the branch") runs
+Genau and Nau out of the checkouts a fun_time worktree names in its own
+`state/genau_project_dirs.txt`. The laws about that chain live there — prove the
+chain at handoff time (`--shortcut` prints the checkouts the next launch will
+carry), never write checkout pins into his real config, and name a player_core
+checkout beside yours only when that repo changed too.
+
 ## Landing — GitHub merge queue, not local ff-merge
 
 This repo is public at `github.com/haglio/genau` with a merge-queue ruleset on
