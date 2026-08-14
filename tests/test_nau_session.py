@@ -603,6 +603,29 @@ class TestAdvance:
 
         assert tcode.updates and tcode.updates[-1][0] == 1600
 
+    def test_re_enabling_tcode_resets_the_driver_for_the_takeover(self, tmp_path):
+        # SET_TCODE_ENABLED 1 is the hybrid handoff taking the device back from
+        # Genau: the driver is reset like any other takeover, so its next tick
+        # sends at once and with the handoff glide, instead of snapping the
+        # device to a waypoint that may be milliseconds away.
+        session, player, tcode = _make_session(tmp_path)
+        session.set_tcode_enabled(False)
+        resets_before = tcode.resets
+
+        session.set_tcode_enabled(True)
+
+        assert tcode.resets == resets_before + 1
+
+    def test_enabling_tcode_already_enabled_does_not_reset(self, tmp_path):
+        # Only the mute→drive edge is a takeover; repeating "1" must not keep
+        # re-arming the glide under a script that is already driving.
+        session, player, tcode = _make_session(tmp_path)
+        resets_before = tcode.resets
+
+        session.set_tcode_enabled(True)
+
+        assert tcode.resets == resets_before
+
     def test_advance_while_paused_skips_tcode(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
         session.set_paused(True)
