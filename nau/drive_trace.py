@@ -66,6 +66,15 @@ _PARK_EPSILON = 0.02
 # the first touch after it, so they take the same one.
 _TOUCH_LAG_MS = 350
 
+# How close the boundary must be before a descent's choice is latched.  The
+# published wave is a projection from the CURRENT phase and pace, and over ten
+# seconds the real engine drifts off it (sync nudges the pace continuously) —
+# a touch latched the moment its turn scrolled into view arrived a whole
+# swing wrong by the time the playhead reached it.  Inside this horizon the
+# projection is as fresh as the one the arbiter will use, so the two agree;
+# outside it the choice stays live, a forecast refining as it approaches.
+_TOUCH_FREEZE_AHEAD_MS = 3000
+
 
 def drive_readout(
     published: DriveHud | None,
@@ -155,50 +164,52 @@ def drive_readout(
     if stroke is not None and stroke_at(resume_base) > _PARK_EPSILON:
         climb_ms = ramp_ms
 
-    def genau_height(sample_ms: int) -> float:
-        """The blue line's height at *sample_ms* — the one place stroke reads
-        happen, so every seam that needs the blue's value reads the same one.
+    def genau_height(sample_ms: int, began: int | None) -> float:
+        """The blue line's height at *sample_ms*, for the Genau stretch that
+        opened at *began* (None: held since before the video).
 
-        Two anchors, one per state of the publish.  A stroke Genau is RUNNING
-        republishes from its advancing phase, so reading it at the time offset
-        (sample - now) returns the stroke's value at that fixed absolute time,
-        frame after frame — the whole line then shifts on the painter's one
-        slide like everything else.  A stroke still WAITING (a turn ahead, or a
-        climb still running) is frozen at phase 0, and its own start — the top
-        of the climb — is the anchor instead.
+        The stretch is the CALLER's to name, because the blue is read in two
+        places with different neighbours: its own resting samples, and the
+        extension past a park-floored boundary, whose samples sit inside the
+        SCRIPT's turn — resolved from the sample itself, those picked up the
+        script turn's bounds and re-anchored the live wave as if it were a
+        future resumed one, and the drawn ending landed a whole swing wrong.
+
+        Two anchors, one per state of the publish: a RUNNING stroke is read at
+        the time offset (sample - now), which returns the value at that fixed
+        absolute time frame after frame; a WAITING one (a turn ahead, a climb
+        still running) is frozen at phase 0 and anchored at its own start.
         """
         if stroke is None:
             return 0.0
-        probe = sample_ms if script.is_resting_at(sample_ms) else max(sample_ms - 1, 0)
-        began, _ = script.turn_bounds_at(probe)
         if began is None or began + climb_ms <= position_ms:
             return stroke_at((sample_ms - position_ms) / step)
         return stroke_at(resume_base + (sample_ms - began - climb_ms) / step)
 
-    def park_touch_after(turn_start: int) -> tuple[int | None, bool]:
+    def park_touch_after(turn_start: int, began: int | None) -> int | None:
         """The blue's first touch-down on the park at-or-after *turn_start*
-        (plus the arbiter's lag window), and whether the answer is final.
+        (plus the arbiter's lag window), for the stretch that opened at *began*.
 
         Only a stroke whose floor rests ON the park has one — that is the case
         with no ramp: the blue swings on to this touch and the grey runs flat
-        from there, exactly where the arbiter sets the device down.  (None,
-        True) means the ramp case (a raised floor, or a stroke too slow to come
-        down inside the shared cap).  (turn_start, False) means the touch lies
-        beyond the published horizon still — a provisional boundary cut, not to
-        be latched, refined once the horizon reaches it.
+        from there, exactly where the arbiter sets the device down.  None means
+        the ramp case (a raised floor, or a stroke too slow to come down inside
+        the shared cap).  A touch beyond the published horizon reads as a cut
+        at the boundary itself for now; the freeze horizon guarantees it is
+        recomputed before it is ever latched.
         """
         if stroke is None or min(stroke) > _PARK_EPSILON:
-            return None, True
-        start = turn_start + round(_TOUCH_LAG_MS * speed)
-        end = start + round(PARK_TOUCH_WAIT_CAP_MS * speed)
-        if end > position_ms + span_ms:
-            return turn_start, False
-        t = float(start)
-        while t <= end:
-            if genau_height(round(t)) <= _PARK_EPSILON:
-                return round(t), True
-            t += step / 4
-        return None, True
+            return None
+        scan_from = turn_start + round(_TOUCH_LAG_MS * speed)
+        scan_to = scan_from + round(PARK_TOUCH_WAIT_CAP_MS * speed)
+        if scan_to > position_ms + span_ms:
+            return turn_start
+        at_ms = float(scan_from)
+        while at_ms <= scan_to:
+            if genau_height(round(at_ms), began) <= _PARK_EPSILON:
+                return round(at_ms)
+            at_ms += step / 4
+        return None
 
     def descent_entry(turn_start: int) -> tuple[float, int | None]:
         """How the blue leaves the device at *turn_start*: ``(ramp top,
@@ -207,30 +218,33 @@ def drive_readout(
         With a touch-down, there is no ramp — the blue runs to the touch and
         the grey is flat.  Without one, the grey ramps down from the top: the
         published ``let_go`` once the handoff has happened, the drawn blue's
-        own boundary value before it.  Either way the choice is SELECTED once
-        per (turn, controls, publish-state) and held in the caller's latch —
-        re-read live every frame, it breathed with the beat between Genau's
-        publish cadence and the frame clock, and the seam flickered.
+        own boundary value before it.  The choice stays LIVE while the
+        boundary is far — a forecast off a projection that drifts — and is
+        latched once inside the freeze horizon, where the projection is as
+        fresh as the arbiter's own; from there it cannot move again.
         """
         latched = descent_tops.get(turn_start) if descent_tops is not None else None
         key = (base.center, base.amplitude, base.speed, base.let_go)
         if latched is not None and latched[0] == key:
             return latched[1], latched[2]
+        prev_began, _ = script.turn_bounds_at(max(turn_start - 1, 0))
         if base.let_go is not None and position_ms >= turn_start:
             top = base.let_go
         else:
-            top = genau_height(turn_start)
+            top = genau_height(turn_start, prev_began)
         if latched is not None:
             # Re-keyed (a handoff, an OmniPause, a control) — the MOMENT was
             # already chosen, and the frozen wave could not re-answer it anyway.
-            touch, final = latched[2], True
+            touch = latched[2]
         else:
-            touch, final = park_touch_after(turn_start)
-        if descent_tops is not None and final:
+            touch = park_touch_after(turn_start, prev_began)
+        frozen = position_ms >= turn_start - round(_TOUCH_FREEZE_AHEAD_MS * speed)
+        if descent_tops is not None and (frozen or latched is not None):
             descent_tops[turn_start] = (key, top, touch)
             if len(descent_tops) > 16:
-                for stale in [t for t in descent_tops
-                              if t + PARK_TOUCH_WAIT_CAP_MS + _TOUCH_LAG_MS < position_ms]:
+                for stale in [turn for turn in descent_tops
+                              if turn + PARK_TOUCH_WAIT_CAP_MS + _TOUCH_LAG_MS
+                              < position_ms]:
                     del descent_tops[stale]
         return top, touch
 
@@ -251,7 +265,7 @@ def drive_readout(
                     # Genau holds its swing through it, so it costs no stroke.
                     top = stroke_at(resume_base)
                     return top * max(0, since) / climb_ms, DRIVEN_BY_NEUTRAL
-            return genau_height(sample_ms), DRIVEN_BY_GENAU
+            return genau_height(sample_ms, began), DRIVEN_BY_GENAU
         # The script's stretch — opening with the blue's exit.  A stroke whose
         # floor rests on the park needs no ramp: the blue swings on past the
         # boundary to its touch-down and the grey runs flat from there — his
@@ -262,7 +276,10 @@ def drive_readout(
             top, touch = descent_entry(turn_start)
             if touch is not None:
                 if sample_ms <= touch:
-                    return genau_height(sample_ms), DRIVEN_BY_GENAU
+                    # The extension belongs to the stretch ENDING here, not to
+                    # the script turn these samples sit inside.
+                    prev_began, _ = script.turn_bounds_at(max(turn_start - 1, 0))
+                    return genau_height(sample_ms, prev_began), DRIVEN_BY_GENAU
             else:
                 since = sample_ms - turn_start
                 if since < ramp_ms:
