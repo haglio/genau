@@ -67,6 +67,7 @@ def drive_readout(
     position_ms: int,
     speed: float = 1.0,
     genau_behind: bool,
+    descent_tops: dict | None = None,
 ) -> DriveHud:
     """The readout to draw, folding the funscript's own shape into it.
 
@@ -76,6 +77,14 @@ def drive_readout(
     publish itself — ``let_go`` is set exactly while Genau has handed it over —
     rather than off the console's round-tripped state, which trails the arbiter
     by a couple of publish intervals and lied to the picture at every seam.
+
+    *descent_tops* is the caller's latch, one entry per approaching turn: a
+    descent's top is SELECTED once and then held, re-selected only when
+    something real moves it (the controls, a handoff, the wave realigning
+    after an OmniPause).  Re-read live every frame instead, the top breathed
+    with the beat between Genau's publish cadence and the frame clock, and the
+    seam flickered between "blue ends on the park" and a slightly diagonal
+    ramp, frame to frame.
 
     The span is Genau's own — it publishes the number with its trace — scaled by
     the playback rate, because the trace covers wall-clock time and at double
@@ -164,12 +173,26 @@ def drive_readout(
         *turn_start*: where the blue leaves the device.
 
         Once the handoff has happened Genau's publish says it outright — the
-        latched ``let_go`` — and before that it is the drawn blue's own value at
-        the boundary, so the ramp meets the line it descends from either way.
+        latched ``let_go``.  Before that it is a prediction read off the blue,
+        selected ONCE per (turn, controls, publish-state) and held in the
+        caller's latch: the live read moves a hair with every publish, and a
+        top re-read per frame flickered the whole ramp between flat and
+        diagonal.  The publish-state key is ``let_go`` itself, so a handoff,
+        an OmniPause park, and the wave coming live again after its climb each
+        re-select the top from the wave as it then stands.
         """
         if base.let_go is not None and position_ms >= turn_start:
             return base.let_go
-        return genau_height(turn_start)
+        if descent_tops is None:
+            return genau_height(turn_start)
+        key = (base.center, base.amplitude, base.speed, base.let_go)
+        held = descent_tops.get(turn_start)
+        if held is None or held[0] != key:
+            descent_tops[turn_start] = (key, genau_height(turn_start))
+        if len(descent_tops) > 16:
+            for stale in [t for t in descent_tops if t + ramp_ms < position_ms]:
+                del descent_tops[stale]
+        return descent_tops[turn_start][1]
 
     def at(sample_ms: int, planned: float) -> tuple[float, str]:
         """One sample of the line: how high, and whose stretch it is in."""

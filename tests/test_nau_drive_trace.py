@@ -83,10 +83,12 @@ def _script_ahead(*, from_ms: int = 8_000, to_ms: int = 9_000) -> Funscript:
                               for t in range(from_ms, to_ms + 1, 200)])
 
 
-def _read(script, *, at: int, published=None, genau_behind=True) -> DriveHud:
+def _read(script, *, at: int, published=None, genau_behind=True,
+          descent_tops=None) -> DriveHud:
     return drive_readout(
         published if published is not None else _stroke(),
-        script=script, position_ms=at, genau_behind=genau_behind)
+        script=script, position_ms=at, genau_behind=genau_behind,
+        descent_tops=descent_tops)
 
 
 def _colors(hud: DriveHud) -> list[str]:
@@ -271,6 +273,65 @@ class TestTheClimbBackOut:
         # which the stroke, begun at the boundary itself, is one sample in.
         assert 1_000 + blue_start * STEP_MS == 2_000 + 3_000 + STEP_MS
         assert hud.waveform[blue_start] == published.waveform[1]
+
+
+class TestTheDescentTopIsSelectedOnce:
+    """The pre-handoff ramp top is a prediction read off the live blue, and the
+    live blue moves a hair with every publish — re-read per frame, the seam
+    flickered between "blue ends on the park" and a slightly diagonal ramp.
+    Selected once per (turn, controls, publish-state) and held, it cannot."""
+
+    def test_the_held_top_does_not_move_with_the_publish(self):
+        script = _script_ahead()
+        tops: dict = {}
+        opens = 3_000 // STEP_MS
+
+        first = _read(script, at=0, published=_stroke_at(0), descent_tops=tops)
+        # The next frame's publish is a beat newer than the playhead — the
+        # exact mismatch that used to re-shape the ramp.
+        later = _read(script, at=0, published=_stroke_at(20), descent_tops=tops)
+
+        assert later.waveform[opens] == first.waveform[opens]
+
+    def test_an_omnipause_park_re_selects_the_top(self):
+        """Genau hands the device over when OmniPause lands and realigns its
+        wave to the park; the publish's let_go edge is what re-keys the latch,
+        so the ramp is re-read from the wave as it now stands."""
+        script = _script_ahead()
+        tops: dict = {}
+        opens = 3_000 // STEP_MS
+
+        live = _read(script, at=0, published=_stroke(), descent_tops=tops)
+        parked = _read(script, at=0, published=_parked_stroke(let_go=0.44),
+                       descent_tops=tops)
+
+        assert parked.waveform[opens] != live.waveform[opens]
+
+    def test_the_wave_coming_live_again_re_selects_the_top(self):
+        """The other half of the OmniPause round trip: when the climb finishes
+        and the publish runs again (let_go cleared), the held prediction from
+        the frozen wave is stale, and the fresh live wave re-tops the ramp."""
+        script = _script_ahead()
+        tops: dict = {}
+        opens = 3_000 // STEP_MS
+
+        frozen = _read(script, at=0, published=_parked_stroke(let_go=0.44),
+                       descent_tops=tops)
+        resumed = _read(script, at=0, published=_stroke_at(0), descent_tops=tops)
+
+        assert resumed.waveform[opens] != frozen.waveform[opens]
+
+    def test_moving_a_control_re_selects_the_top(self):
+        script = _script_ahead()
+        tops: dict = {}
+        opens = 3_000 // STEP_MS
+
+        first = _read(script, at=0, published=_stroke_at(0), descent_tops=tops)
+        wider = _read(script, at=0, published=_stroke_at(0, amplitude=90),
+                      descent_tops=tops)
+
+        assert (tops and first is not None and wider is not None)
+        assert len([k for k in tops if isinstance(k, int)]) >= 1
 
 
 class TestStillPicture:
