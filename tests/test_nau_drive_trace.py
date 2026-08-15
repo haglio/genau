@@ -275,6 +275,62 @@ class TestTheClimbBackOut:
         assert hud.waveform[blue_start] == published.waveform[1]
 
 
+class TestAFloorOnTheParkEndsOnItsTouchDown:
+    """His rule, restated for the third and final time: when the stroke's floor
+    rests ON the park (full amplitude), there is NO ramp — the blue swings on
+    past the boundary to its next touch-down, the grey runs flat from there,
+    and the arbiter really does hold the device's flip for that same touch."""
+
+    def _touching_stroke(self, **over) -> DriveHud:
+        # 0.5 + 0.5·sin(i/3): the floor IS the park, touched near samples 14,
+        # 33, 52, 71 — well inside the shared wait cap past a 3000ms boundary.
+        over.setdefault(
+            "waveform",
+            tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
+        return _stroke(amplitude=100, **over)
+
+    def test_no_ramp_and_the_grey_runs_flat(self):
+        hud = _read(_script_ahead(), at=0, published=self._touching_stroke(),
+                    descent_tops={})
+        blue_end = hud.runs[0][1]
+        green_start = hud.runs[-1][0]
+
+        assert _colors(hud) == [
+            DRIVEN_BY_GENAU, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
+        assert hud.waveform[blue_end] <= 0.03            # ends ON the park...
+        flat = hud.waveform[blue_end + 1:green_start - 10]
+        assert max(flat) <= 0.03                          # ...and stays flat
+
+    def test_the_blue_swings_past_the_boundary_to_the_touch(self):
+        hud = _read(_script_ahead(), at=0, published=self._touching_stroke(),
+                    descent_tops={})
+        blue_end_ms = hud.runs[0][1] * STEP_MS
+
+        assert blue_end_ms > 3_000                        # past the turn boundary
+
+    def test_the_touch_is_selected_once(self):
+        script = _script_ahead()
+        tops: dict = {}
+
+        first = _read(script, at=0, published=self._touching_stroke(),
+                      descent_tops=tops)
+        # A publish a beat newer — the wobble that used to re-pick the moment.
+        later = _read(script, at=0, published=self._touching_stroke(
+            waveform=tuple(0.5 + 0.5 * np.sin((i + 0.3) / 3)
+                           for i in range(TRACE_SAMPLES))), descent_tops=tops)
+
+        assert later.runs[0][1] == first.runs[0][1]
+
+    def test_a_raised_floor_still_ramps(self):
+        hud = _read(_script_ahead(), at=0, descent_tops={})   # amplitude 80
+        opens = 3_000 // STEP_MS
+
+        assert hud.runs[1][2] == DRIVEN_BY_NEUTRAL
+        descent = hud.waveform[opens:opens + 5]
+        for left, right in zip(descent, descent[1:]):
+            assert right < left
+
+
 class TestTheDescentTopIsSelectedOnce:
     """The pre-handoff ramp top is a prediction read off the live blue, and the
     live blue moves a hair with every publish — re-read per frame, the seam

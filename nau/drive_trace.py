@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from player_core.funscript import HANDOFF_RAMP_MS
+from player_core.funscript import HANDOFF_RAMP_MS, PARK_TOUCH_WAIT_CAP_MS
 
 from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
@@ -58,6 +58,13 @@ _SLIDE_QUANTUM_MS = 40
 # and the blue begins the moment Genau's turn does.  The same two percent the
 # sender uses, so the picture and the device skip together.
 _PARK_EPSILON = 0.02
+
+# How far past a turn boundary the touch-down scan starts.  The arbiter only
+# learns the boundary through the status file and its own tick, so it cannot
+# stop the device at a touch inside that lag — a touch the picture chose there
+# would be one the device sails past.  Both sides skip the lag window and take
+# the first touch after it, so they take the same one.
+_TOUCH_LAG_MS = 350
 
 
 def drive_readout(
@@ -168,31 +175,64 @@ def drive_readout(
             return stroke_at((sample_ms - position_ms) / step)
         return stroke_at(resume_base + (sample_ms - began - climb_ms) / step)
 
-    def let_go_height(turn_start: int) -> float:
-        """The top of the descent ramp for the script turn opening at
-        *turn_start*: where the blue leaves the device.
+    def park_touch_after(turn_start: int) -> tuple[int | None, bool]:
+        """The blue's first touch-down on the park at-or-after *turn_start*
+        (plus the arbiter's lag window), and whether the answer is final.
 
-        Once the handoff has happened Genau's publish says it outright — the
-        latched ``let_go``.  Before that it is a prediction read off the blue,
-        selected ONCE per (turn, controls, publish-state) and held in the
-        caller's latch: the live read moves a hair with every publish, and a
-        top re-read per frame flickered the whole ramp between flat and
-        diagonal.  The publish-state key is ``let_go`` itself, so a handoff,
-        an OmniPause park, and the wave coming live again after its climb each
-        re-select the top from the wave as it then stands.
+        Only a stroke whose floor rests ON the park has one — that is the case
+        with no ramp: the blue swings on to this touch and the grey runs flat
+        from there, exactly where the arbiter sets the device down.  (None,
+        True) means the ramp case (a raised floor, or a stroke too slow to come
+        down inside the shared cap).  (turn_start, False) means the touch lies
+        beyond the published horizon still — a provisional boundary cut, not to
+        be latched, refined once the horizon reaches it.
         """
-        if base.let_go is not None and position_ms >= turn_start:
-            return base.let_go
-        if descent_tops is None:
-            return genau_height(turn_start)
+        if stroke is None or min(stroke) > _PARK_EPSILON:
+            return None, True
+        start = turn_start + round(_TOUCH_LAG_MS * speed)
+        end = start + round(PARK_TOUCH_WAIT_CAP_MS * speed)
+        if end > position_ms + span_ms:
+            return turn_start, False
+        t = float(start)
+        while t <= end:
+            if genau_height(round(t)) <= _PARK_EPSILON:
+                return round(t), True
+            t += step / 4
+        return None, True
+
+    def descent_entry(turn_start: int) -> tuple[float, int | None]:
+        """How the blue leaves the device at *turn_start*: ``(ramp top,
+        touch-down)``.
+
+        With a touch-down, there is no ramp — the blue runs to the touch and
+        the grey is flat.  Without one, the grey ramps down from the top: the
+        published ``let_go`` once the handoff has happened, the drawn blue's
+        own boundary value before it.  Either way the choice is SELECTED once
+        per (turn, controls, publish-state) and held in the caller's latch —
+        re-read live every frame, it breathed with the beat between Genau's
+        publish cadence and the frame clock, and the seam flickered.
+        """
+        latched = descent_tops.get(turn_start) if descent_tops is not None else None
         key = (base.center, base.amplitude, base.speed, base.let_go)
-        held = descent_tops.get(turn_start)
-        if held is None or held[0] != key:
-            descent_tops[turn_start] = (key, genau_height(turn_start))
-        if len(descent_tops) > 16:
-            for stale in [t for t in descent_tops if t + ramp_ms < position_ms]:
-                del descent_tops[stale]
-        return descent_tops[turn_start][1]
+        if latched is not None and latched[0] == key:
+            return latched[1], latched[2]
+        if base.let_go is not None and position_ms >= turn_start:
+            top = base.let_go
+        else:
+            top = genau_height(turn_start)
+        if latched is not None:
+            # Re-keyed (a handoff, an OmniPause, a control) — the MOMENT was
+            # already chosen, and the frozen wave could not re-answer it anyway.
+            touch, final = latched[2], True
+        else:
+            touch, final = park_touch_after(turn_start)
+        if descent_tops is not None and final:
+            descent_tops[turn_start] = (key, top, touch)
+            if len(descent_tops) > 16:
+                for stale in [t for t in descent_tops
+                              if t + PARK_TOUCH_WAIT_CAP_MS + _TOUCH_LAG_MS < position_ms]:
+                    del descent_tops[stale]
+        return top, touch
 
     def at(sample_ms: int, planned: float) -> tuple[float, str]:
         """One sample of the line: how high, and whose stretch it is in."""
@@ -212,14 +252,21 @@ def drive_readout(
                     top = stroke_at(resume_base)
                     return top * max(0, since) / climb_ms, DRIVEN_BY_NEUTRAL
             return genau_height(sample_ms), DRIVEN_BY_GENAU
-        # The script's stretch — opening with the ramp down from wherever the
-        # blue left the device onto the park, where the script's plan begins.
+        # The script's stretch — opening with the blue's exit.  A stroke whose
+        # floor rests on the park needs no ramp: the blue swings on past the
+        # boundary to its touch-down and the grey runs flat from there — his
+        # rule, and where the arbiter really sets the device down.  A raised
+        # floor ramps down from wherever the blue leaves the device.
         turn_start, _turn_end = script.turn_bounds_at(sample_ms)
-        if turn_start is not None:
-            since = sample_ms - turn_start
-            if since < ramp_ms:
-                return (let_go_height(turn_start)
-                        * (1 - max(0, since) / ramp_ms)), DRIVEN_BY_NEUTRAL
+        if turn_start is not None and stroke is not None:
+            top, touch = descent_entry(turn_start)
+            if touch is not None:
+                if sample_ms <= touch:
+                    return genau_height(sample_ms), DRIVEN_BY_GENAU
+            else:
+                since = sample_ms - turn_start
+                if since < ramp_ms:
+                    return top * (1 - max(0, since) / ramp_ms), DRIVEN_BY_NEUTRAL
         who = (DRIVEN_BY_NEUTRAL if script.is_parked_at(sample_ms)
                else DRIVEN_BY_FUNSCRIPT)
         return planned, who
