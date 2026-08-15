@@ -321,6 +321,37 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
 
         assert later.runs[0][1] == first.runs[0][1]
 
+    def test_the_extension_is_the_published_wave_itself(self):
+        """The samples past the boundary belong to the stretch ENDING there:
+        they must read the live wave's own continuation.  Resolved from the
+        sample's own bounds they picked up the SCRIPT turn's and re-anchored
+        the wave as a future resumed one — the drawn ending landed a whole
+        swing away from the park it claimed to touch."""
+        published = self._touching_stroke()
+        hud = _read(_script_ahead(), at=0, published=published, descent_tops={})
+        blue_end = hud.runs[0][1]
+
+        # The run's end column is the grey's first sample (runs share their
+        # boundary), so the wave comparison stops one short of it.
+        for column in range(3_000 // STEP_MS, blue_end):
+            assert hud.waveform[column] == published.waveform[column]
+
+    def test_a_far_boundary_stays_a_live_forecast(self):
+        """The published wave is a projection that drifts over ten seconds —
+        a touch latched the moment its turn scrolled into view arrived a whole
+        swing wrong.  The choice is latched only inside the freeze horizon,
+        where the projection is as fresh as the arbiter's own."""
+        script = _script_ahead(from_ms=18_000, to_ms=19_000)  # boundary 13000
+        tops: dict = {}
+
+        _read(script, at=2_000, published=self._touching_stroke(),
+              descent_tops=tops)
+        assert tops == {}                       # too far: still a forecast
+
+        _read(script, at=10_040, published=self._touching_stroke(),
+              descent_tops=tops)
+        assert 13_000 in tops                   # inside the horizon: latched
+
     def test_a_raised_floor_still_ramps(self):
         hud = _read(_script_ahead(), at=0, descent_tops={})   # amplitude 80
         opens = 3_000 // STEP_MS
