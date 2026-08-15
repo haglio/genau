@@ -73,14 +73,21 @@ class RateLimitedTCodeSender:
         as it always did at full amplitude.
         """
         self.rest_at_bottom()
-        self._let_go_position = None
         if self._compute_position() > _RISE_SKIP_BELOW:
             self._rise = 0.0
             self._rise_started = None
+            # let_go stays published through the climb: it means "my published
+            # wave is the frozen phase-0 one, not yet running", and through the
+            # rise that is still true.  Cleared when the climb completes and
+            # the wave actually starts — the readers that re-anchor on that
+            # edge (the trace's descent top after an OmniPause realign) need
+            # the edge to land when the realigned wave is finally live.
         else:
-            # No gap to climb — and a climb this takeover interrupted must not
-            # leave its fraction scaling every position from here on.
+            # No gap to climb — the stroke starts at once, so the publish is
+            # live from this tick — and a climb this takeover interrupted must
+            # not leave its fraction scaling every position from here on.
             self._rise = 1.0
+            self._let_go_position = None
         self._glide.begin()
 
     def hand_over(self) -> None:
@@ -144,6 +151,10 @@ class RateLimitedTCodeSender:
             if self._rise_started is None:
                 self._rise_started = now
             self._rise = min(1.0, (now - self._rise_started) / (HANDOFF_RAMP_MS / 1000))
+            if self._rise >= 1.0:
+                # The climb is done and the wave runs from here: the publish is
+                # live again, which is what clearing let_go announces.
+                self._let_go_position = None
             self._last_phase = phase
         else:
             # Accumulate continuous stroke phase, detecting wraps.

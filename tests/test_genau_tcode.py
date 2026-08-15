@@ -251,6 +251,59 @@ class TestTheRiseOutOfThePark:
         assert int(sink.sent[1][2:6]) > 3000     # already swinging up
 
 
+class TestLetGoThroughTheRoundTrip:
+    """let_go means "my published wave is the frozen phase-0 one, not yet
+    running" — so it holds from the hand-over through the whole climb back, and
+    clears only when the wave actually starts.  Readers re-anchor on that edge
+    (the trace re-selects its descent top), so an edge that fired at the climb's
+    START re-read a wave still two seconds from being true."""
+
+    def _sender(self):
+        sink = FakeTCodeSink()
+        state = DirectControlState(amplitude=30, center=50)  # floor at 35%
+        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        sender.maybe_send(phase=0.5, now=0.5)
+        return sender
+
+    def test_handing_over_latches_where_the_device_was(self):
+        sender = self._sender()
+
+        sender.hand_over()
+
+        assert sender.let_go_position == 6499                   # the swing's tip
+
+    def test_the_latch_survives_the_climb(self):
+        sender = self._sender()
+        sender.hand_over()
+
+        sender.take_over()
+        sender.maybe_send(phase=0.7, now=1.0)                   # climb starts
+        sender.maybe_send(phase=0.8, now=1.0 + HANDOFF_RAMP_MS / 2000)
+
+        assert sender.let_go_position is not None
+
+    def test_the_latch_clears_when_the_wave_comes_live(self):
+        sender = self._sender()
+        sender.hand_over()
+
+        sender.take_over()
+        sender.maybe_send(phase=0.7, now=1.0)
+        sender.maybe_send(phase=0.9, now=1.0 + HANDOFF_RAMP_MS / 1000)
+
+        assert sender.let_go_position is None
+
+    def test_a_skipped_climb_clears_it_at_once(self):
+        sink = FakeTCodeSink()
+        state = DirectControlState(amplitude=100, center=50)    # floor on the park
+        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        sender.maybe_send(phase=0.5, now=0.5)
+        sender.hand_over()
+
+        sender.take_over()
+
+        assert sender.let_go_position is None
+
+
 class TestSenderWithDirectState:
     def test_reads_amplitude_from_state(self):
         sink = FakeTCodeSink()

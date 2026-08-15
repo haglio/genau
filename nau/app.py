@@ -363,6 +363,10 @@ def _run(args) -> int:
     # live (let_go None) within the current video; until then the descent tops
     # off the parked publish instead, which is where the device really is.
     let_go_gate = {"video": None, "seen_live": False}
+    # The per-turn descent tops, selected once and held — see drive_readout's
+    # own account.  Cleared with the video: its turn times mean nothing in the
+    # next one's clock.
+    descent_tops: dict = {}
 
     def _drive_readout(console: ConsoleModel, published: DriveHud | None) -> DriveHud:
         """The readout to draw, with this video's funscript folded into it.
@@ -378,6 +382,7 @@ def _run(args) -> int:
             if let_go_gate["video"] != session.current_video:
                 let_go_gate["video"] = session.current_video
                 let_go_gate["seen_live"] = False
+                descent_tops.clear()
             if drive.let_go is None:
                 let_go_gate["seen_live"] = True
             elif not let_go_gate["seen_live"]:
@@ -388,6 +393,7 @@ def _run(args) -> int:
             position_ms=int(session.position_ms),
             speed=session.speed,
             genau_behind=genau_drives(console.mode),
+            descent_tops=descent_tops,
         )
 
     def _post(command: str) -> None:
