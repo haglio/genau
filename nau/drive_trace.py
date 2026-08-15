@@ -232,19 +232,30 @@ def drive_readout(
             top = base.let_go
         else:
             top = genau_height(turn_start, prev_began)
-        if latched is not None:
-            # Re-keyed (a handoff, an OmniPause, a control) — the MOMENT was
-            # already chosen, and the frozen wave could not re-answer it anyway.
+        if (latched is not None and latched[0][3] is None
+                and base.let_go is not None):
+            # The flip itself: the moment was chosen from the live wave, and
+            # the now-frozen one cannot re-answer it — carried.  Every OTHER
+            # re-key (the wave realigning after a resume, a control moving the
+            # floor) is a real change of plan, and the touch is re-chosen with
+            # it: carried across a resume, the old wave's touch cut the new
+            # wave anywhere.
             touch = latched[2]
         else:
             touch = park_touch_after(turn_start, prev_began)
-        frozen = position_ms >= turn_start - round(_TOUCH_FREEZE_AHEAD_MS * speed)
+        # Never latched off a parked publish before its turn: right after a
+        # rewind the publish is still the frozen pre-rewind wave for a beat,
+        # and a forecast latched from it froze the stale wave's touch.  The
+        # live publish arrives within a tick; until then the choice stays a
+        # forecast.
+        frozen = (position_ms >= turn_start - round(_TOUCH_FREEZE_AHEAD_MS * speed)
+                  and (base.let_go is None or position_ms >= turn_start))
         if descent_tops is not None and (frozen or latched is not None):
             descent_tops[turn_start] = (key, top, touch)
             if len(descent_tops) > 16:
+                horizon = round((PARK_TOUCH_WAIT_CAP_MS + _TOUCH_LAG_MS) * speed)
                 for stale in [turn for turn in descent_tops
-                              if turn + PARK_TOUCH_WAIT_CAP_MS + _TOUCH_LAG_MS
-                              < position_ms]:
+                              if turn + horizon < position_ms]:
                     del descent_tops[stale]
         return top, touch
 
@@ -275,9 +286,13 @@ def drive_readout(
         if turn_start is not None and stroke is not None:
             top, touch = descent_entry(turn_start)
             if touch is not None:
-                if sample_ms <= touch:
+                if sample_ms <= touch and base.let_go is None:
                     # The extension belongs to the stretch ENDING here, not to
-                    # the script turn these samples sit inside.
+                    # the script turn these samples sit inside — and it is only
+                    # drawn while Genau really still has the device.  Drawn off
+                    # a parked publish (a rewind landing just past a boundary),
+                    # it was a stroke nobody was making, re-anchoring under the
+                    # playhead into a cliff.
                     prev_began, _ = script.turn_bounds_at(max(turn_start - 1, 0))
                     return genau_height(sample_ms, prev_began), DRIVEN_BY_GENAU
             else:
@@ -318,6 +333,12 @@ def drive_readout(
         marker = round(height * POSITION_MAX)
     return replace(
         base,
+        # Who has the device AT THE PLAYHEAD, from the same function that drew
+        # the line under the dot — the console's pill reads this, so the pill
+        # and the line cannot disagree.  The round-tripped osr2 state flipped
+        # the pill at the arbiter's decision, seconds before the dot finished
+        # riding the blue it was still drawn on.
+        driven=who_now,
         waveform=tuple(values),
         slide=slide,
         edge=edge,

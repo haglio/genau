@@ -362,7 +362,7 @@ def _run(args) -> int:
     # never made here, so the latch is honoured only once Genau has been seen
     # live (let_go None) within the current video; until then the descent tops
     # off the parked publish instead, which is where the device really is.
-    let_go_gate = {"video": None, "seen_live": False}
+    let_go_gate = {"video": None, "seen_live": False, "position": 0, "stalled": 0}
     # The per-turn descent tops, selected once and held — see drive_readout's
     # own account.  Cleared with the video: its turn times mean nothing in the
     # next one's clock.
@@ -378,19 +378,48 @@ def _run(args) -> int:
         watches the console for handoff edges any more.
         """
         drive = published if genau_drives(console.mode) else None
+        position = int(session.position_ms)
+        if drive is None:
+            # A stint without Genau behind the screen: the wave keeps moving
+            # while nothing here watches it, so every held forecast is void by
+            # the time it could be read again.
+            descent_tops.clear()
         if drive is not None:
             if let_go_gate["video"] != session.current_video:
                 let_go_gate["video"] = session.current_video
                 let_go_gate["seen_live"] = False
                 descent_tops.clear()
+            # Any seek voids every held descent choice: the latch's carry rules
+            # are written for one continuous approach, and a rewind approaches
+            # the SAME boundary again with a realigned wave — the old choice's
+            # touch then cuts the new wave anywhere, which is how the blue once
+            # overran its own drawn ending by a whole cycle after a few taps of
+            # rewind.  Forward frames move ~tens of ms; anything else is a jump.
+            moved = position - let_go_gate["position"]
+            if moved < -250 or moved > 400:
+                # Real frames advance tens of ms (and the 40ms quantum makes
+                # some read as zero); anything bigger is a seek.
+                descent_tops.clear()
+                let_go_gate["stalled"] = 0
+            elif moved == 0:
+                let_go_gate["stalled"] += 1
+            else:
+                if let_go_gate["stalled"] > 25:
+                    # A real pause just ended: the media clock stood while
+                    # Genau's wave kept moving in wall time, so every
+                    # media-anchored forecast slid off the wave it was cut
+                    # from.
+                    descent_tops.clear()
+                let_go_gate["stalled"] = 0
             if drive.let_go is None:
                 let_go_gate["seen_live"] = True
             elif not let_go_gate["seen_live"]:
                 drive = replace(drive, let_go=None)
+        let_go_gate["position"] = position
         return drive_readout(
             drive,
             script=session.current_funscript,
-            position_ms=int(session.position_ms),
+            position_ms=position,
             speed=session.speed,
             genau_behind=genau_drives(console.mode),
             descent_tops=descent_tops,

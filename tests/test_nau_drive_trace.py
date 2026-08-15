@@ -523,6 +523,85 @@ class TestPositionMarker:
         assert 0 < midway.position < round(0.2 * POSITION_MAX)
 
 
+class TestForecastsDieWithTheirWave:
+    """A held choice is only as good as the wave it was cut from.  The rewind
+    class: after any realignment, the old wave's touch cuts the new wave
+    anywhere — so a re-key that is not the flip itself re-chooses, a parked
+    publish never seeds a pre-turn latch, and no blue extension is drawn off a
+    wave nobody is stroking."""
+
+    def _touching(self, phase: float = 0.0, **over) -> DriveHud:
+        over.setdefault(
+            "waveform",
+            tuple(0.5 + 0.5 * np.sin((i + phase) / 3) for i in range(TRACE_SAMPLES)))
+        return _stroke(amplitude=100, **over)
+
+    def test_a_resume_re_chooses_the_touch_for_the_new_wave(self):
+        """let_go set (a handoff, an OmniPause) then cleared (the wave running
+        again) re-keys twice; the second re-key must re-scan — carried through,
+        the old alignment's touch cut the realigned wave mid-swing."""
+        script = _script_ahead()
+        tops: dict = {}
+
+        first = _read(script, at=0, published=self._touching(), descent_tops=tops)
+        _read(script, at=0, published=self._touching(let_go=0.0), descent_tops=tops)
+        moved = _read(script, at=0, published=self._touching(phase=9.4),
+                      descent_tops=tops)
+
+        assert first.runs[0][1] != moved.runs[0][1]   # the new wave's own touch
+
+    def test_a_parked_publish_never_seeds_a_pre_turn_latch(self):
+        """Right after a rewind the publish is still the frozen pre-rewind wave
+        for a beat; a forecast latched from it froze the stale touch."""
+        script = _script_ahead()
+        tops: dict = {}
+
+        _read(script, at=0, published=self._touching(let_go=0.0), descent_tops=tops)
+
+        assert tops == {}
+
+    def test_no_extension_is_drawn_off_a_parked_wave(self):
+        """A rewind landing just past a boundary finds the script holding the
+        device (let_go published): the drawn line is the buffer and the plan,
+        never a blue stroke nobody is making."""
+        script = _script_ahead()
+        tops: dict = {}
+        _read(script, at=2_800, published=self._touching(), descent_tops=tops)
+
+        landed = _read(script, at=3_120, published=self._touching(let_go=0.0),
+                       descent_tops=tops)
+
+        assert DRIVEN_BY_GENAU not in _colors(landed)
+
+
+class TestThePillFollowsTheLine:
+    """The console's OSR2 pill reads ``driven`` off the returned readout — set
+    here from the same function that drew the line under the dot — so the pill
+    flips exactly when the line changes hands, and says Buffer through the
+    grey.  Keyed on the round-tripped console state it flipped at the
+    arbiter's decision, seconds before the dot finished riding the blue."""
+
+    def test_genau_while_the_dot_rides_the_extension(self):
+        published = _stroke(
+            amplitude=100,
+            waveform=tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
+        # 3320ms is past the boundary (3000) but before the touch-down.
+        hud = _read(_script_ahead(), at=3_320, published=published,
+                    descent_tops={})
+
+        assert hud.driven == DRIVEN_BY_GENAU
+
+    def test_buffer_through_the_grey(self):
+        hud = _read(_script_ahead(), at=4_500, published=_parked_stroke())
+
+        assert hud.driven == DRIVEN_BY_NEUTRAL
+
+    def test_funscript_through_the_cluster(self):
+        hud = _read(_script(until_ms=120_000), at=1_000)
+
+        assert hud.driven == DRIVEN_BY_FUNSCRIPT
+
+
 class TestNothingToFoldIn:
     def test_an_unscripted_video_leaves_the_readout_alone(self):
         published = _stroke()

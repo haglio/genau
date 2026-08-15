@@ -426,6 +426,12 @@ class PlayerSession:
                 # mpv's A/B loop wraps B->A by rewinding the clock; resend the
                 # T-Code waypoint from the loop start so the OSR2 restarts cleanly.
                 self._tcode.reset()
+            elif rewound:
+                # The plain locked wrap (loop-file), same story: a seek to the
+                # start in all but name.  Without the reset, a clip scripted to
+                # its edges aimed an un-glided waypoint from the last action's
+                # height to the first action's, a full-range slam every pass.
+                self._tcode.reset()
 
         if self._tcode_enabled:
             if self._funscript is not None:
