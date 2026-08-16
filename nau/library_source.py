@@ -39,6 +39,23 @@ def next_length_mode(mode: str) -> str:
         return DEFAULT_MODE
     return LENGTH_MODES[(LENGTH_MODES.index(mode) + 1) % len(LENGTH_MODES)]
 
+
+def length_mode_rebuilds(requested: str, current: str, *, in_compilation: bool) -> bool:
+    """Whether asking for *requested* while running *current* has work to do.
+
+    Naming the mode already running asks for nothing, and the rebuild it would
+    trigger is not nothing: the playlist is reshuffled and landed on at entry 0,
+    so saying "mixed" twice puts two different videos on screen.  Fun Time's reset
+    says it on every press, which made a control meaning "put it back" the
+    quickest way to keep changing what was playing.
+
+    Inside a compilation the same words do have work, and are the point:
+    PLAY_COMPILATION swaps the playlist for one volume's clips without touching
+    the mode, so naming a length is the way back out — there an unchanged mode is
+    exactly the case that must rebuild.
+    """
+    return requested != current or in_compilation
+
 # The two waits a caller can put a loading screen behind.  Walking the library
 # tree has no count to report until it finishes, so it reports (0, 0); probing
 # durations counts entries, and is the phase that can run to tens of seconds on
