@@ -237,6 +237,24 @@ class AudioPlayer:
 VR_APP_USER_MODEL_ID = "GenauVR.App"
 
 
+def _name_this_process() -> None:
+    """Leave ``launch_vr.vbs`` an interpreter that says "Genau VR" next time.
+
+    Windows takes what it shows about a process from the file it was started
+    from, so a plain ``pythonw.exe`` puts GenauVR in the task list as one more
+    anonymous "Python", beside the two housemates that share this venv.  Naming
+    this process on the way in is the one thing that cannot be done -- writing
+    the copy takes the interpreter being named -- so each run makes it for the
+    run after and the launcher picks it up.
+    """
+    try:
+        from app_support.process_identity import ProcessNamer
+        icon = Path(__file__).resolve().parent.parent / "genau_vr_icon.ico"
+        ProcessNamer("Genau VR", icon=icon).prepare_launcher("GenauVR")
+    except Exception:
+        pass  # Cosmetic: costs a name in the task list, never a launch.
+
+
 def main(argv: list[str] | None = None) -> None:
     """Start GenauVR, or say on screen why it could not start.
 
@@ -244,6 +262,7 @@ def main(argv: list[str] | None = None) -> None:
     hidden-launched process that just exits is indistinguishable from a crash.
     """
     log, fault_fp = _configure_logging()
+    _name_this_process()
     try:
         _start(argv)
     except Exception as exc:
