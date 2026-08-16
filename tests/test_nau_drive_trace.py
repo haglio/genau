@@ -332,9 +332,14 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
         blue_end = hud.runs[0][1]
 
         # The run's end column is the grey's first sample (runs share their
-        # boundary), so the wave comparison stops one short of it.
-        for column in range(3_000 // STEP_MS, blue_end):
+        # boundary), and the final approach eases onto the park so the seam
+        # cannot flicker — so the exact-wave comparison stops short of both,
+        # and the feathered tail must sit between the wave and the park.
+        feather_columns = 300 // STEP_MS
+        for column in range(3_000 // STEP_MS, blue_end - feather_columns):
             assert hud.waveform[column] == published.waveform[column]
+        for column in range(blue_end - feather_columns, blue_end):
+            assert 0.0 <= hud.waveform[column] <= published.waveform[column] + 1e-9
 
     def test_a_far_boundary_stays_a_live_forecast(self):
         """The published wave is a projection that drifts over ten seconds —
@@ -521,6 +526,27 @@ class TestPositionMarker:
 
         assert resting.position == 0
         assert 0 < midway.position < round(0.2 * POSITION_MAX)
+
+
+class TestTheSeamCannotFlicker:
+    """The live blue breathes a hair with every publish; feathered onto the
+    latched seam value, the join's neighbourhood converges to a constant — the
+    residual indecision he watched at the blue-to-grey point."""
+
+    def test_the_last_blue_column_sits_on_the_latched_top(self):
+        tops: dict = {}
+        published = _stroke()                        # amplitude 80: the ramp case
+        hud = _read(_script_ahead(), at=1_000, published=published,
+                    descent_tops=tops)
+        seam = hud.runs[0][1]                        # the grey's first column
+
+        top = tops[3_000][1]
+        assert abs(hud.waveform[seam - 1] - top) < 0.12
+        # A publish a beat older — the wobble that used to flap the join —
+        # moves the seam-adjacent column almost nothing.
+        aged = _read(_script_ahead(), at=1_000, published=_stroke_at(20),
+                     descent_tops=tops)
+        assert abs(aged.waveform[seam - 1] - hud.waveform[seam - 1]) < 0.02
 
 
 class TestForecastsDieWithTheirWave:
