@@ -115,8 +115,31 @@ def build_parser(config) -> argparse.ArgumentParser:
     return ap
 
 
+def _name_this_process(project_dir) -> None:
+    """Leave ``launch.vbs`` an interpreter that says "Genau" next time.
+
+    Windows takes what it shows about a process from the file it was started
+    from, so a plain ``pythonw.exe`` puts Genau in the task list as one more
+    anonymous "Python" -- indistinguishable from Nau, which shares this venv.
+
+    Naming this process on the way in is the one thing that cannot be done:
+    writing the copy takes the very interpreter being named.  So each run makes
+    it for the run after and the launcher picks it up.  Under Fun Time it is Fun
+    Time's own copy that is running instead -- Genau is one of its windows then,
+    not an application the user opened -- and this still prepares the standalone
+    one, which is about Genau's own shortcut rather than about who started this
+    run.
+    """
+    try:
+        from app_support.process_identity import ProcessNamer
+        ProcessNamer("Genau", icon=project_dir / "genau_icon.ico").prepare_launcher("Genau")
+    except Exception:
+        pass  # Cosmetic: costs a name in the task list, never a launch.
+
+
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
+    _name_this_process(config.project_dir)
 
     # Before any window creation, so this window is grouped under the right
     # taskbar button instead of inheriting the interpreter's.  An orchestrator

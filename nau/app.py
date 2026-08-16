@@ -101,6 +101,7 @@ def _load_icon_surface():
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    _name_this_process()
     config = load_config(DEFAULT_CONFIG)
     args = build_parser(config).parse_args(argv)
 
@@ -109,6 +110,29 @@ def main(argv: list[str] | None = None) -> int:
         args = build_parser(config).parse_args(argv)
 
     return _run(args)
+
+
+def _name_this_process() -> None:
+    """Leave ``launch_nau.vbs`` an interpreter that says "Nau" next time.
+
+    Windows takes what it shows about a process from the file it was started
+    from, so a plain ``pythonw.exe`` puts Nau in the task list as one more
+    anonymous "Python" -- indistinguishable from Genau, which shares this venv,
+    and from everything else the machine is running.
+
+    Naming this process on the way in is the one thing that cannot be done:
+    writing the copy takes the very interpreter being named.  So each run makes
+    it for the run after and the launcher picks it up, which costs one launch,
+    once.  Under Fun Time it is Fun Time's own copy that is running instead --
+    Nau is one of its windows then, not an application the user opened -- and
+    this still prepares the standalone one, which is about Nau's own shortcut
+    rather than about who started this run.
+    """
+    try:
+        from app_support.process_identity import ProcessNamer
+        ProcessNamer("Nau", icon=_ICON_PATH).prepare_launcher("Nau")
+    except Exception:
+        pass  # Cosmetic: costs a name in the task list, never a launch.
 
 
 def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -> None:
