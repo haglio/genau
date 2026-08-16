@@ -40,7 +40,12 @@ from player_core.console_hud import (
     with_playback_speed,
 )
 from .notice import NoticeWriter
-from .library_source import DEFAULT_MODE, LENGTH_MODES, next_length_mode
+from .library_source import (
+    DEFAULT_MODE,
+    LENGTH_MODES,
+    length_mode_rebuilds,
+    next_length_mode,
+)
 from .mode_memory import RememberedMode
 from .loading import LoadingCancelled, LoadingScreen
 from .overlay import (
@@ -338,9 +343,9 @@ def _run(args) -> int:
         mode = mode.strip().lower()
         if mode not in LENGTH_MODES:
             return
-        # Rebuild even when the mode is unchanged: PLAY_COMPILATION swaps the
-        # playlist for one volume's clips, and asking for a length again is how
-        # you get back out of it.
+        if not length_mode_rebuilds(mode, length_mode,
+                                    in_compilation=bool(jumps.compilation)):
+            return
         length_mode = mode
         jumps.leave_compilation()
         logger.info("Length mode: %s", length_mode)

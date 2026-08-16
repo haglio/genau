@@ -13,6 +13,7 @@ from nau.library_source import (
     PHASE_DURATIONS,
     build_library_source,
     discover_clips,
+    length_mode_rebuilds,
     next_length_mode,
 )
 
@@ -32,6 +33,26 @@ class TestLengthModeCycle:
         """Nothing sets one, but the toggle must land somewhere real rather than
         raise into the run loop."""
         assert next_length_mode("") == DEFAULT_MODE
+
+
+class TestLengthModeRebuilds:
+    """Naming a length reshuffles the playlist and lands on entry 0, so asking
+    for one that is already running is not free — it changes the video."""
+
+    def test_a_different_mode_always_rebuilds(self):
+        assert length_mode_rebuilds(SHORTS, MIXED, in_compilation=False) is True
+        assert length_mode_rebuilds(MIXED, FULL, in_compilation=True) is True
+
+    def test_the_mode_already_running_asks_for_nothing(self):
+        """Fun Time's reset says "mixed" on every press, and each rebuild landed
+        on a different video — so a control meaning "put it back" was the
+        quickest way to keep changing what played."""
+        assert length_mode_rebuilds(MIXED, MIXED, in_compilation=False) is False
+
+    def test_inside_a_compilation_the_same_mode_is_the_way_out(self):
+        """PLAY_COMPILATION swaps the playlist for one volume's clips and leaves
+        the mode alone, so naming that same length is what leaves it."""
+        assert length_mode_rebuilds(MIXED, MIXED, in_compilation=True) is True
 
 
 def _make_video(path: Path, body: str = "x") -> Path:
