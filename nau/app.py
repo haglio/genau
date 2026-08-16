@@ -63,7 +63,7 @@ from player_core.volume import (
     volume_at,
 )
 from .session import PlayerSession
-from .status import status_fields
+from .status import next_handoff_touch, status_fields
 from player_core.tcode_driver import FunscriptTCodeDriver
 
 logger = logging.getLogger(__name__)
@@ -280,7 +280,23 @@ def _run(args) -> int:
     # Where the cursor is over the console, so a button can name itself on hover.
     hover: tuple[int, int] | None = None
     loop_thumbs = LoopThumbCapture()
-    status_writer = StatusWriter(args.status_file, status_fields) if args.status_file else None
+    # The per-turn descent forecasts, selected once and held — drive_readout's
+    # own account says when.  Defined before the status writer's closure below,
+    # which publishes the chosen touch out of it.
+    descent_tops: dict = {}
+
+    def _status_fields(published_session) -> dict[str, str]:
+        fields = status_fields(published_session)
+        # The touch-down the trace chose for the boundary in play — see
+        # nau.status.next_handoff_touch.  Sent with every status so the
+        # arbiter ends Genau's turn where the picture drew it ending.
+        touch = next_handoff_touch(
+            published_session.current_funscript,
+            int(published_session.position_ms), descent_tops)
+        fields["handoff_touch_ms"] = "" if touch is None else str(int(touch))
+        return fields
+
+    status_writer = StatusWriter(args.status_file, _status_fields) if args.status_file else None
     stop_event = threading.Event()
 
     # Clip navigation: a clip carved from a compilation records its siblings,
@@ -363,11 +379,6 @@ def _run(args) -> int:
     # live (let_go None) within the current video; until then the descent tops
     # off the parked publish instead, which is where the device really is.
     let_go_gate = {"video": None, "seen_live": False, "position": 0, "stalled": 0}
-    # The per-turn descent tops, selected once and held — see drive_readout's
-    # own account.  Cleared with the video: its turn times mean nothing in the
-    # next one's clock.
-    descent_tops: dict = {}
-
     def _drive_readout(console: ConsoleModel, published: DriveHud | None) -> DriveHud:
         """The readout to draw, with this video's funscript folded into it.
 

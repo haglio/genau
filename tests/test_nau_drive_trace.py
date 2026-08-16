@@ -602,6 +602,43 @@ class TestThePillFollowsTheLine:
         assert hud.driven == DRIVEN_BY_FUNSCRIPT
 
 
+class TestThePublishedTouch:
+    """Nau tells the arbiter which touch-down it drew the blue ending on, so
+    the device is set down exactly there — one chooser.  When each side chose
+    from its own read of the wave, the arbiter could take an earlier touch,
+    and the leftover drawn blue vanished the moment the dot reached it."""
+
+    def test_the_latched_touch_is_what_gets_published(self):
+        from nau.status import next_handoff_touch
+        script = _script_ahead()
+        tops: dict = {}
+        published = _stroke(
+            amplitude=100,
+            waveform=tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
+        hud = _read(script, at=1_000, published=published, descent_tops=tops)
+        blue_end_ms = 1_000 + hud.runs[0][1] * STEP_MS
+
+        # Approaching the boundary (resting) and inside the extension (not
+        # resting) both name the same turn's touch.
+        assert next_handoff_touch(script, 1_000, tops) == tops[3_000][2]
+        assert next_handoff_touch(script, 3_200, tops) == tops[3_000][2]
+        assert abs(next_handoff_touch(script, 1_000, tops) - blue_end_ms) <= STEP_MS
+
+    def test_a_ramp_boundary_publishes_no_touch(self):
+        from nau.status import next_handoff_touch
+        script = _script_ahead()
+        tops: dict = {}
+        _read(script, at=1_000, descent_tops=tops)          # amplitude 80: ramp
+
+        assert next_handoff_touch(script, 1_000, tops) is None
+
+    def test_nothing_latched_publishes_no_touch(self):
+        from nau.status import next_handoff_touch
+
+        assert next_handoff_touch(_script_ahead(), 1_000, {}) is None
+        assert next_handoff_touch(None, 1_000, {}) is None
+
+
 class TestNothingToFoldIn:
     def test_an_unscripted_video_leaves_the_readout_alone(self):
         published = _stroke()

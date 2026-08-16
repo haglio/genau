@@ -9,6 +9,31 @@ other player publishes them.
 from __future__ import annotations
 
 
+def next_handoff_touch(script, position_ms: int, descent_tops: dict) -> int | None:
+    """The touch-down the trace has chosen for the boundary ahead (or the one
+    just crossed), in media ms — None when there is none (a raised floor, no
+    script, nothing latched yet).
+
+    Published so the arbiter can END Genau's turn exactly where the picture
+    drew the blue ending.  When each side chose its own touch from its own read
+    of the wave, they could pick different troughs — the arbiter stopped the
+    device one touch early, and the leftover drawn blue vanished the moment
+    the dot reached it.  One chooser, the picture; the arbiter follows it.
+    """
+    if script is None:
+        return None
+    if script.is_resting_at(position_ms):
+        _, boundary = script.turn_bounds_at(position_ms)
+    else:
+        boundary, _ = script.turn_bounds_at(position_ms)
+    if boundary is None:
+        return None
+    entry = descent_tops.get(boundary)
+    if entry is None:
+        return None
+    return entry[2]
+
+
 def status_fields(session) -> dict[str, str]:
     loop_in_ms, loop_out_ms = session.loop_bounds or (0, 0)
     return {
