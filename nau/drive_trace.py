@@ -66,6 +66,15 @@ _PARK_EPSILON = 0.02
 # the first touch after it, so they take the same one.
 _TOUCH_LAG_MS = 350
 
+# The blue's final approach to its seam eases onto the seam's own value over
+# this long.  The live blue breathes a hair with every publish (the read's age
+# varies by a beat), which is invisible mid-wave — the whole line breathes
+# together — but at the seam the latched grey amplifies it into a tiny
+# indecision about where the join sits.  Feathered onto the latched value, the
+# seam's neighbourhood converges to a constant and cannot flicker, at the cost
+# of a few percent of bend across the last two or three columns.
+_SEAM_FEATHER_MS = 300
+
 # How close the boundary must be before a descent's choice is latched.  The
 # published wave is a projection from the CURRENT phase and pace, and over ten
 # seconds the real engine drifts off it (sync nudges the pace continuously) —
@@ -268,7 +277,7 @@ def drive_readout(
                 # there is no Genau behind the screen, and the script's driver
                 # rests the device through them.
                 return 0.0, DRIVEN_BY_NOTHING
-            began, _ = script.turn_bounds_at(sample_ms)
+            began, ends_at = script.turn_bounds_at(sample_ms)
             if began is not None and climb_ms:
                 since = sample_ms - began
                 if since < climb_ms:
@@ -276,7 +285,16 @@ def drive_readout(
                     # Genau holds its swing through it, so it costs no stroke.
                     top = stroke_at(resume_base)
                     return top * max(0, since) / climb_ms, DRIVEN_BY_NEUTRAL
-            return genau_height(sample_ms, began), DRIVEN_BY_GENAU
+            value = genau_height(sample_ms, began)
+            feather_ms = round(_SEAM_FEATHER_MS * speed)
+            if ends_at is not None and ends_at - sample_ms < feather_ms:
+                seam_top, seam_touch = descent_entry(ends_at)
+                if seam_touch is None:
+                    # Eased onto the ramp's latched top so the join cannot
+                    # flicker — see _SEAM_FEATHER_MS.
+                    weight = 1 - (ends_at - sample_ms) / feather_ms
+                    value = value * (1 - weight) + seam_top * weight
+            return value, DRIVEN_BY_GENAU
         # The script's stretch — opening with the blue's exit.  A stroke whose
         # floor rests on the park needs no ramp: the blue swings on past the
         # boundary to its touch-down and the grey runs flat from there — his
@@ -294,7 +312,14 @@ def drive_readout(
                     # it was a stroke nobody was making, re-anchoring under the
                     # playhead into a cliff.
                     prev_began, _ = script.turn_bounds_at(max(turn_start - 1, 0))
-                    return genau_height(sample_ms, prev_began), DRIVEN_BY_GENAU
+                    value = genau_height(sample_ms, prev_began)
+                    feather_ms = round(_SEAM_FEATHER_MS * speed)
+                    if touch - sample_ms < feather_ms:
+                        # Eased onto the park it is about to touch, so the join
+                        # with the flat grey cannot flicker.
+                        weight = 1 - (touch - sample_ms) / feather_ms
+                        value = value * (1 - weight)
+                    return value, DRIVEN_BY_GENAU
             else:
                 since = sample_ms - turn_start
                 if since < ramp_ms:
