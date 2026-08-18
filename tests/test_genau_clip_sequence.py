@@ -62,6 +62,38 @@ def test_step_wraps_forward_and_backward():
     assert controller.step(-1) == Path("c.mp4")
 
 
+class TestTakeUp:
+    """A rescanned folder in a fresh browse order, which is what "latest" and
+    "shuffle" hand Genau — it has no playlist file to be rewritten."""
+
+    def test_browses_the_new_list_from_its_top(self):
+        controller = ClipSequenceController(_paths())
+        controller.step(1)
+
+        assert controller.take_up([Path("newest.mp4"), Path("older.mp4")]) == Path("newest.mp4")
+        assert controller.current_path == Path("newest.mp4")
+        assert controller.current_number == 1
+        assert controller.count == 2
+
+    def test_stepping_walks_the_new_list(self):
+        """The old list is gone, not merely reordered around the index."""
+        controller = ClipSequenceController(_paths())
+        controller.take_up([Path("one.mp4"), Path("two.mp4")])
+
+        assert controller.step(1) == Path("two.mp4")
+        assert controller.step(1) == Path("one.mp4")
+
+    def test_an_empty_scan_is_refused(self):
+        """Genau always has something on screen, so a folder that scanned to
+        nothing leaves the sequence it already has rather than emptying it."""
+        controller = ClipSequenceController(_paths())
+
+        with pytest.raises(ValueError):
+            controller.take_up([])
+
+        assert controller.current_path == Path("a.mp4")
+
+
 def test_nearby_candidates_prefers_next_then_previous():
     controller = ClipSequenceController(_paths())
     controller.step(1)

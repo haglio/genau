@@ -65,6 +65,7 @@ class GenauRefreshController:
         set_blank=None,
         display_state=None,
         set_volume=None,
+        reorder_clips=None,
     ):
         self.state = state
         self.loader = loader
@@ -107,6 +108,7 @@ class GenauRefreshController:
         self.set_blank = set_blank or (lambda _blank: None)
         self.display_state = display_state
         self.set_volume = set_volume or (lambda _level, _muted: None)
+        self.reorder_clips = reorder_clips
         self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
         self.window_visible = False
         # Seeded from the state itself, not None: the drain now runs at the
@@ -150,6 +152,7 @@ class GenauRefreshController:
                 hud_state=self.hud_state,
                 display_state=self.display_state,
                 set_volume=self.set_volume,
+                reorder_clips=self.reorder_clips,
             )
 
         shared = read_shared_state_snapshot(self.state)

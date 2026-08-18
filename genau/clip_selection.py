@@ -48,6 +48,16 @@ class ClipSelectionController:
         if path in self.clip_store.clip_cache:
             self._prepare_active_clip()
 
+    def reorder(self, clips: list[Path]) -> None:
+        """Browse *clips* — the folder rescanned in a new order — from the top.
+
+        Unlike :meth:`step` the switch is never deferred: the point of asking for
+        an order is to be shown what it puts first, so the new head takes the
+        screen at once and decodes there, exactly as a condemned clip's successor
+        does.
+        """
+        self.set_current_clip(self.sequence.take_up(clips))
+
     def step(self, delta: int) -> None:
         """Advance to next/prev clip.  If the clip is cached, switch
         immediately.  Otherwise keep the current clip playing and defer

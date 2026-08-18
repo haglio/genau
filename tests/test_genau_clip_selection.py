@@ -208,6 +208,37 @@ def test_request_nearby_prefetch_is_empty_for_single_clip():
     assert loader.prefetch_requests == []
 
 
+class TestReorder:
+    def test_takes_the_head_of_the_new_order_at_once(self):
+        """Never deferred the way a step is: the point of asking for an order is
+        to be shown what it puts first, so the head takes the screen and decodes
+        there rather than behind the clip that was up."""
+        controller, _store, loader, renderer, notifier = _build_controller("a.mp4", "b.mp4")
+        renderer.current_clip_path = Path("a.mp4")
+
+        controller.reorder([Path("newest.mp4"), Path("older.mp4")])
+
+        assert renderer.current_clip_path == Path("newest.mp4")
+        assert notifier.clip_notifications == [Path("newest.mp4")]
+        assert loader.load_requests == [Path("newest.mp4")]
+        assert controller.pending_clip_name is None
+        assert controller.count == 2
+
+    def test_drops_a_switch_that_was_still_waiting_to_load(self):
+        """The deferred clip belongs to the order just replaced, so adopting it
+        afterwards would put the old browse back on screen."""
+        controller, clip_store, _loader, renderer, _notifier = _build_controller("a.mp4", "b.mp4")
+        renderer.current_clip_path = Path("a.mp4")
+        controller.step(1)
+        assert controller.pending_clip_name == "b.mp4"
+
+        controller.reorder([Path("newest.mp4")])
+        clip_store.clip_cache[Path("b.mp4")] = {"frames": ["f0"]}
+
+        assert controller.adopt_pending_clip() is False
+        assert renderer.current_clip_path == Path("newest.mp4")
+
+
 class TestDiscardCurrent:
     def test_condemns_the_clip_and_moves_on_to_the_next(self):
         condemned: list[Path] = []

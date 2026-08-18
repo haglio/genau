@@ -11,10 +11,29 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
 
 
-def scan_clips(folder: Path, *, shuffle_on_load: bool = True) -> list[Path]:
+def _modified_at(path: Path) -> float:
+    """*path*'s modification time; one we cannot stat sorts oldest."""
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def scan_clips(
+    folder: Path, *, shuffle_on_load: bool = True, recent: bool = False,
+) -> list[Path]:
+    """Every clip in *folder*, in the browse order asked for.
+
+    *recent* is Latest — newest-first, so the clips that have just arrived head
+    the sequence — and it outranks *shuffle_on_load*: an order named outright is
+    not then randomized away.  Without it the folder's own order stands,
+    shuffled when the config says to.
+    """
     files = [path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_VIDEO_EXTS]
     if not files:
         raise RuntimeError(f"No video clips found in: {folder}")
+    if recent:
+        return sorted(files, key=_modified_at, reverse=True)
     if shuffle_on_load:
         random.shuffle(files)
     return files
