@@ -17,7 +17,10 @@ siblings installed editable into this venv, and a change to any of it belongs
 there, not here: `../player_core` (playback engine, playlist format, the
 orchestrator's command/paused file channel, the status writer), `../app_support`
 (logging setup and exception hooks, `start_daemon_thread`,
-`preparse_config_path`, `hidden_subprocess_kwargs`), `../shared_ui` (Qt widgets).
+`preparse_config_path`, `hidden_subprocess_kwargs`), `../shared_ui` (design
+tokens, Qt widgets, and the family's icon geometry -- which the HUDs draw
+through its Pillow renderer, so a mark on a HUD is the same mark the desktop
+apps paint; importing it brings no Qt into a player).
 
 **Install each with `--config-settings editable_mode=compat`**, and this repo the
 same way:

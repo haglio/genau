@@ -7,9 +7,13 @@ name: merge gate (full suite)
 #
 # Runs on windows-latest: the suite covers Windows-only behaviour (win32 window
 # handling, hidden-subprocess flags) that does not exist off-Windows. genau
-# imports two sibling packages -- app_support and player_core -- installed
-# editable from local paths and never published, so CI checks them out adjacent
-# and installs them the same way. Every editable install uses compat mode (see
+# imports three sibling packages -- app_support, shared_ui and player_core --
+# installed editable from local paths and never published, so CI checks them out
+# adjacent and installs them the same way. shared_ui is here because the HUD
+# chrome in player_core draws the family's marks from it; importing it pulls in
+# no Qt (the geometry and its Pillow renderer import neither), though pip does
+# fetch PyQt6 alongside it, which costs a wheel on the runner and nothing at run
+# time. Every editable install uses compat mode (see
 # CLAUDE.md): setuptools' default editable finder would otherwise shadow the
 # repo's own genau/nau/genau_vr packages. pygame runs headless through the dummy
 # SDL video driver. No libmpv is provisioned: nothing the suite imports reaches
@@ -42,6 +46,11 @@ jobs:
         with:
           repository: haglio/app_support
           path: app_support
+      - name: Check out shared_ui (sibling, editable dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: haglio/shared_ui
+          path: shared_ui
       - name: Check out player_core (sibling, editable dependency)
         uses: actions/checkout@v4
         with:
@@ -55,6 +64,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ./app_support --config-settings editable_mode=compat
+          pip install -e ./shared_ui --config-settings editable_mode=compat
           pip install -e ./player_core --config-settings editable_mode=compat
           pip install -e "./genau[dev,voice,vr]" --config-settings editable_mode=compat
       - name: Run the suite
