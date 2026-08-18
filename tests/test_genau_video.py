@@ -1,6 +1,7 @@
 """Tests for genau.video."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -68,3 +69,34 @@ class TestScanClips:
         result = scan_clips(tmp_path, shuffle_on_load=True)
         assert len(result) == 3
         assert {p.name for p in result} == {"x.mp4", "y.mp4", "z.mp4"}
+
+
+class TestLatestOrder:
+    """Newest-first — the order "latest" asks for, so a clip that landed in the
+    folder minutes ago heads the sequence instead of sitting somewhere in it."""
+
+    @staticmethod
+    def _aged(tmp_path: Path, name: str, mtime: float) -> Path:
+        path = tmp_path / name
+        path.touch()
+        os.utime(path, (mtime, mtime))
+        return path
+
+    def test_newest_clip_comes_first(self, tmp_path: Path):
+        self._aged(tmp_path, "old.mp4", 1_000)
+        self._aged(tmp_path, "newest.mp4", 3_000)
+        self._aged(tmp_path, "middle.mp4", 2_000)
+
+        result = scan_clips(tmp_path, recent=True)
+
+        assert [path.name for path in result] == ["newest.mp4", "middle.mp4", "old.mp4"]
+
+    def test_the_named_order_outranks_the_shuffle(self, tmp_path: Path):
+        """Shuffling an order that was asked for outright would undo it, and
+        ``shuffle_on_load`` is a config default rather than this session's word."""
+        self._aged(tmp_path, "old.mp4", 1_000)
+        self._aged(tmp_path, "new.mp4", 2_000)
+
+        result = scan_clips(tmp_path, shuffle_on_load=True, recent=True)
+
+        assert [path.name for path in result] == ["new.mp4", "old.mp4"]

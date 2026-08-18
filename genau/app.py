@@ -321,6 +321,31 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         discard_clip=lambda path: _condemn_clip(path, weird_dir, logger),
     )
 
+    def _reorder_clips(recent: bool) -> None:
+        """Rescan the clips folder and browse it newest-first, or reshuffled.
+
+        The rescan is half the point: clips arrive in that folder while a session
+        runs, and until now the only way into the sequence was to launch again.
+        The lock is deliberately left alone — it holds whatever is on screen, and
+        after this that is the head of the order just asked for.
+
+        A folder that scanned to nothing keeps the sequence already loaded rather
+        than taking Genau's picture away; :func:`scan_clips` says so by raising.
+        """
+        try:
+            clips = scan_clips(
+                clips_folder,
+                shuffle_on_load=config.genau.shuffle_on_load,
+                recent=recent,
+            )
+        except (OSError, RuntimeError):
+            logger.warning("Could not rescan %s; keeping the sequence", clips_folder,
+                           exc_info=True)
+            return
+        selection.reorder(clips)
+        logger.info("Browsing %s (%d clips)",
+                    "newest-first" if recent else "reshuffled", len(clips))
+
     refresh_controller = GenauRefreshController(
         state=state,
         loader=loader,
@@ -359,6 +384,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_blank=view.set_blank,
         display_state=display_state,
         set_volume=view.set_volume,
+        reorder_clips=_reorder_clips,
     )
     from .clip_advance import toggle_lock
     from player_core.cruise_control import toggle_cruise_control

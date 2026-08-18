@@ -44,6 +44,23 @@ class ClipSequenceController:
     def current_path(self) -> Path:
         return self._clips[self._index]
 
+    def take_up(self, clips: list[Path]) -> Path:
+        """Browse a freshly scanned, freshly ordered list, from its top.
+
+        From the top rather than from wherever the clip on screen now sits: a
+        reorder is asked for to see what the new order puts first — the arrivals,
+        under Latest — and holding position would apply the order only *behind*
+        the clip that is up, so those arrivals would never come round.
+
+        Refuses an empty list for the same reason building one does: Genau has to
+        keep something on screen.
+        """
+        if not clips:
+            raise ValueError("ClipSequenceController requires at least one clip")
+        self._clips = list(clips)
+        self._index = 0
+        return self.current_path
+
     def step(self, delta: int) -> Path:
         self._index = (self._index + delta) % len(self._clips)
         return self.current_path

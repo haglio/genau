@@ -740,3 +740,48 @@ class TestWeirdCommand:
         )
 
         assert handled is False
+
+
+class TestBrowseOrderCommands:
+    """The two orders every player in the room browses in.  Genau owns its own
+    sequence rather than being handed a playlist file, so the order arrives as a
+    verb and the answer is a rescan of the clips folder."""
+
+    def test_latest_asks_for_newest_first(self):
+        asked: list[bool] = []
+
+        handled = apply_runtime_command(
+            "LATEST",
+            engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+            rh_paused={"value": False},
+            step_clip=lambda _step: None,
+            reorder_clips=asked.append,
+        )
+
+        assert handled is True
+        assert asked == [True]
+
+    def test_shuffle_asks_for_a_reshuffle(self):
+        asked: list[bool] = []
+
+        handled = apply_runtime_command(
+            "SHUFFLE",
+            engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+            rh_paused={"value": False},
+            step_clip=lambda _step: None,
+            reorder_clips=asked.append,
+        )
+
+        assert handled is True
+        assert asked == [False]
+
+    def test_ignored_without_a_way_to_reorder(self):
+        for cmd in ("LATEST", "SHUFFLE"):
+            handled = apply_runtime_command(
+                cmd,
+                engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+                rh_paused={"value": False},
+                step_clip=lambda _step: None,
+            )
+
+            assert handled is False, f"{cmd} should be ignored without reorder_clips"

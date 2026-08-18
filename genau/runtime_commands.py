@@ -41,6 +41,7 @@ def apply_runtime_command(
     hud_state=None,
     display_state=None,
     set_volume=None,
+    reorder_clips=None,
 ) -> bool:
     if not command:
         return False
@@ -57,6 +58,13 @@ def apply_runtime_command(
         step_clip(1)
     elif normalized == "WEIRD" and discard_clip is not None:
         discard_clip()
+    # The two browse orders every player in the room has, said to the one player
+    # with no playlist file to hand it: Genau owns its own sequence, so the order
+    # is a verb rather than a rewritten list, and answering it rescans the clips
+    # folder — which is most of what Latest is for, since a clip that arrived
+    # after launch was in no sequence at all until now.
+    elif normalized in ("LATEST", "SHUFFLE") and reorder_clips is not None:
+        reorder_clips(normalized == "LATEST")
     elif normalized in {QUARTER_CYCLE_OFFSET_COMMAND, LEGACY_QUARTER_CYCLE_OFFSET_COMMAND}:
         engine.phase = (engine.phase + 0.25) % 1.0
     elif normalized == "PAUSE":
