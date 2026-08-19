@@ -831,3 +831,58 @@ def test_hud_state_included_in_status_file(tmp_path):
     assert status_path.exists()
     text = status_path.read_text(encoding="utf-8")
     assert "hud=1" in text
+
+
+def test_the_frame_shown_is_where_the_device_is():
+    # The clip is the picture of the device: half way up the axis is half way
+    # through the half of the clip that is showing. Eight frames, so the front
+    # half is the last four of them and 5000 of 9999 lands in the middle of it.
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    tcode._position = 5000
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+
+    built["controller"].refresh()
+
+    assert built["renderer"].display_calls[-1] == 5
+
+
+def test_turning_at_the_top_puts_the_other_half_of_the_clip_on_the_way_down():
+    # The one place the halves may be swapped is an end, where they show the
+    # same frame — so the way down is the back half, and the height that showed
+    # frame 5 climbing shows its opposite number in the loop coming back.
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    tcode._position = 5000
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    controller = built["controller"]
+
+    controller.refresh()
+    tcode._position = 9999           # at B
+    controller.refresh()
+    tcode._position = 9000           # and turning back
+    controller.refresh()
+    tcode._position = 5000
+    controller.refresh()
+
+    assert built["renderer"].display_calls[-1] == 2
+
+
+def test_a_stroke_that_never_reaches_an_end_keeps_the_half_it_is_in():
+    # Working the middle of the axis shows the middle of the one half, up and
+    # back down it, rather than rolling on into the other.
+    dc = DirectControlState(playing=True, bpm=120.0)
+    tcode = FakeTCodeSender()
+    tcode._position = 3000
+    entry = {"frames": [object() for _ in range(8)]}
+    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    controller = built["controller"]
+
+    for position in (3000, 6000, 8000, 6000, 3000, 6000):
+        tcode._position = position
+        controller.refresh()
+
+    assert built["controller"]._scrub.back_half is False
+    assert built["renderer"].display_calls[-1] == 5
