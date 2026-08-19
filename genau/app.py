@@ -270,7 +270,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     cruise_control = CruiseControlState()
     clip_advance = ClipAdvanceState()
     sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
-    tcode_sender = RateLimitedTCodeSender(sink, direct_state=direct_state)
+    tcode_sender = RateLimitedTCodeSender(
+        sink, direct_state=direct_state, cruise=cruise_control)
     logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
 
     if config.voice is not None and not args.fun_time:

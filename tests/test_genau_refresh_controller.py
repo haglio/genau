@@ -98,6 +98,9 @@ class FakeTCodeSender:
         self.rests += 1
         self._stroke_phase = 0.0
 
+    def set_stroke_phase(self, phase: float) -> None:
+        self._stroke_phase = phase
+
     def hand_over(self) -> None:
         self.hand_overs += 1
         self.let_go_position = self._position
