@@ -118,6 +118,10 @@ class GenauRefreshController:
         # edge they carried never fired.
         self._prev_playing: bool | None = (
             direct_state.playing if direct_state is not None else None)
+        # Where the clip has got to, and where the device was when it last got
+        # there — see :meth:`_scrub_the_clip`.
+        self._display_phase = 0.0
+        self._scrubbed_from: int | None = None
 
     def refresh(self) -> None:
         try:
@@ -147,6 +151,10 @@ class GenauRefreshController:
                 discard_clip=self.selection.discard_current,
                 direct_state=self.direct_state,
                 cruise_control_state=self.cruise_control,
+                set_stroke_phase=(
+                    self.tcode_sender.set_stroke_phase
+                    if self.tcode_sender is not None else None
+                ),
                 clip_advance_state=self.clip_advance,
                 stop_event=self.stop_event,
                 hud_state=self.hud_state,
@@ -162,7 +170,14 @@ class GenauRefreshController:
         if direct_active:
             if self.cruise_control is not None:
                 from player_core.cruise_control import tick_cruise_control
-                tick_cruise_control(self.direct_state, self.cruise_control, now)
+                # The phase is only read on the tick that draws the waves: they
+                # all start where the stroke already is, so taking over cannot
+                # be felt.
+                tick_cruise_control(
+                    self.direct_state, self.cruise_control, now,
+                    phase=(self.tcode_sender.stroke_phase
+                           if self.tcode_sender is not None else 0.0),
+                )
             if self.clip_advance is not None:
                 from .clip_advance import tick_clip_advance
                 # The interval is timed against the clip actually on screen — a
@@ -259,10 +274,7 @@ class GenauRefreshController:
         if active_entry and active_entry["frames"]:
             frame_count = len(active_entry["frames"])
             if direct_active:
-                from player_core.direct_control import display_phase_for_position
-                display_phase = display_phase_for_position(
-                    self.engine.phase, self.direct_state.shape,
-                )
+                display_phase = self._scrub_the_clip()
             else:
                 display_phase = self.engine.phase
             display_index = display_index_for_phase(
@@ -315,9 +327,39 @@ class GenauRefreshController:
             console=self._console_model, drive=hud,
         ))
 
+    def _scrub_the_clip(self) -> float:
+        """How far through the clip to be, carried on by how far the stroke has
+        actually moved since the last frame.
+
+        The clip is a loop the stroke scrubs: it plays through while the device
+        climbs, and on through the rest while it comes back down. Asking where
+        the stroke is *in its cycle* only works while it has one — a stroke
+        cruise control has stacked turns around wherever the sum of its waves
+        turns around. Asking how far it moved needs no cycle at all, and for a
+        single wave it is the same answer to the same question
+        (:func:`player_core.direct_control.display_phase_advanced`), so nothing
+        changes about how a clip plays when nothing is stacked.
+        """
+        from player_core.direct_control import (
+            POSITION_MAX, display_phase_advanced,
+        )
+
+        if self.tcode_sender is None:
+            return self.engine.phase
+        where = self.tcode_sender.current_position()
+        was, self._scrubbed_from = self._scrubbed_from, where
+        if was is None:
+            return self._display_phase
+        # The travel is the whole stroke's, which is what the amplitude dial
+        # reads under cruise control as much as under a hand.
+        travel = self.direct_state.amplitude / 100 * POSITION_MAX
+        self._display_phase = display_phase_advanced(
+            self._display_phase, where - was, travel)
+        return self._display_phase
+
     def _build_drive_hud(self) -> DriveHud:
         from player_core.direct_control import (
-            MAX_SPEED, MIN_BPM, MIN_SPEED, POSITION_MAX, sample_waveform,
+            MAX_SPEED, MIN_BPM, MIN_SPEED, POSITION_MAX,
         )
 
         ds = self.direct_state
@@ -360,11 +402,31 @@ class GenauRefreshController:
             ctr_at_min=ds.center <= half,
             trace_seconds=display_seconds,
             let_go=let_go,
-            waveform=tuple(sample_waveform(
-                ds.shape, ds.amplitude, ds.center, TRACE_SAMPLES,
-                start_phase=start_phase,
-                phase_range=phase_per_second * display_seconds,
-            )),
+            waveform=tuple(self._trace(
+                display_seconds, start_phase, phase_per_second)),
+        )
+
+    def _trace(self, display_seconds: float, start_phase: float,
+               phase_per_second: float) -> list[float]:
+        """The stroke sampled forward as the readout draws it — and as Nau
+        draws a funscript over it, which is why both are the same span.
+
+        Cruise control's stroke cannot be sampled by walking one phase: its
+        waves each run at their own speed, and every parameter of every one of
+        them is moving over a span this long. It is walked in time instead.
+        """
+        from player_core import wave_stack
+        from player_core.direct_control import sample_waveform
+
+        if self.cruise_control is not None and self.cruise_control.stack:
+            return wave_stack.trace(
+                self.cruise_control.stack, self.cruise_control.clock,
+                TRACE_SAMPLES, display_seconds)
+        ds = self.direct_state
+        return sample_waveform(
+            ds.shape, ds.amplitude, ds.center, TRACE_SAMPLES,
+            start_phase=start_phase,
+            phase_range=phase_per_second * display_seconds,
         )
 
     def _publish_drive(self, hud: DriveHud, now: float) -> None:

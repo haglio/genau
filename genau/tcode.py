@@ -12,7 +12,8 @@ from typing import TYPE_CHECKING
 
 from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
 
-from player_core.direct_control import phase_to_position
+from player_core import wave_stack
+from player_core.direct_control import POSITION_MAX, phase_to_position
 from player_core.funscript import HANDOFF_RAMP_MS
 
 if TYPE_CHECKING:
@@ -31,11 +32,17 @@ class RateLimitedTCodeSender:
         sink: TCodeSink,
         *,
         direct_state: DirectControlState | None = None,
+        cruise=None,
         min_interval: float = 1.0 / 30.0,
         now_source=time.monotonic,
     ) -> None:
         self._sink = sink
         self._direct_state = direct_state
+        # Cruise control's own stroke, when it has one: several waves summed,
+        # each at its own speed, so there is no one phase to read it off — the
+        # stack is asked where it is instead.  None, or holding no waves, and
+        # the stroke is the single wave this has always sent.
+        self._cruise = cruise
         self._min_interval = min_interval
         self._last_send_time: float = 0.0
         self._last_phase: float = 0.0
@@ -115,8 +122,19 @@ class RateLimitedTCodeSender:
         swing froze.
         """
         self._stroke_phase = 0.0
+        if self._cruise is not None:
+            wave_stack.rest_at_bottom(self._cruise.stack)
+
+    def set_stroke_phase(self, phase: float) -> None:
+        """Put the single wave at *phase* — what cruise control hands back when
+        it lets go, so the stroke carries on from the wave that had most of the
+        travel rather than from wherever the free-running phase had got to."""
+        self._stroke_phase = phase
 
     def _compute_position(self) -> int:
+        if self._cruise is not None and self._cruise.stack:
+            return round(POSITION_MAX * wave_stack.position(
+                self._cruise.stack, self._cruise.clock) / 100)
         if self._direct_state is not None:
             return phase_to_position(
                 self._stroke_phase,

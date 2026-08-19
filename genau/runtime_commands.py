@@ -36,6 +36,7 @@ def apply_runtime_command(
     discard_clip=None,
     direct_state=None,
     cruise_control_state=None,
+    set_stroke_phase=None,
     clip_advance_state=None,
     stop_event=None,
     hud_state=None,
@@ -92,11 +93,13 @@ def apply_runtime_command(
     elif normalized == "CYCLE_SHAPE_PREV" and direct_state is not None:
         cycle_shape(direct_state, -1)
     elif normalized == "TOGGLE_CRUISE" and cruise_control_state is not None:
-        toggle_cruise_control(cruise_control_state)
+        _handed_back(toggle_cruise_control(cruise_control_state),
+                     set_stroke_phase)
     elif normalized == "CRUISE_ON" and cruise_control_state is not None:
         enable_cruise_control(cruise_control_state)
     elif normalized == "CRUISE_OFF" and cruise_control_state is not None:
-        disable_cruise_control(cruise_control_state)
+        _handed_back(disable_cruise_control(cruise_control_state),
+                     set_stroke_phase)
     # The lock, under the same three verbs Nau answers to, because it is the same
     # thing on both: hold what is on screen, or let it move on.  Whichever player
     # owns the main slot gets them, and the one padlock on the console is what
@@ -188,3 +191,12 @@ def _try_numeric_command(
         return False
     setter(direct_state, value)
     return True
+
+
+def _handed_back(phase, set_stroke_phase) -> None:
+    """Cruise control letting go says where the single wave should pick up — at
+    the phase of the wave that had most of the travel, which is the one the
+    device was mostly following. Nowhere to put it (a caller with no sender) and
+    the stroke simply resumes on its own free-running phase."""
+    if phase is not None and set_stroke_phase is not None:
+        set_stroke_phase(phase)
