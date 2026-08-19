@@ -4,6 +4,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.clip_scrub import ClipScrub, scrub_clip
 from player_core.file_channel import consume_command_file
 
 from player_core.console import ConsoleModel, read_console
@@ -118,10 +119,9 @@ class GenauRefreshController:
         # edge they carried never fired.
         self._prev_playing: bool | None = (
             direct_state.playing if direct_state is not None else None)
-        # Where the clip has got to, and where the device was when it last got
-        # there — see :meth:`_scrub_the_clip`.
-        self._display_phase = 0.0
-        self._scrubbed_from: int | None = None
+        # Which half of the clip is showing, and what is known about the end
+        # the stroke is at — see :meth:`_scrub_the_clip`.
+        self._scrub = ClipScrub()
 
     def refresh(self) -> None:
         try:
@@ -274,7 +274,7 @@ class GenauRefreshController:
         if active_entry and active_entry["frames"]:
             frame_count = len(active_entry["frames"])
             if direct_active:
-                display_phase = self._scrub_the_clip()
+                display_phase = self._scrub_the_clip(frame_count)
             else:
                 display_phase = self.engine.phase
             display_index = display_index_for_phase(
@@ -327,35 +327,25 @@ class GenauRefreshController:
             console=self._console_model, drive=hud,
         ))
 
-    def _scrub_the_clip(self) -> float:
-        """How far through the clip to be, carried on by how far the stroke has
-        actually moved since the last frame.
+    def _scrub_the_clip(self, frame_count: int) -> float:
+        """How far through the clip to be: exactly as far as the device is up
+        its own axis.
 
-        The clip is a loop the stroke scrubs: it plays through while the device
-        climbs, and on through the rest while it comes back down. Asking where
-        the stroke is *in its cycle* only works while it has one — a stroke
-        cruise control has stacked turns around wherever the sum of its waves
-        turns around. Asking how far it moved needs no cycle at all, and for a
-        single wave it is the same answer to the same question
-        (:func:`player_core.direct_control.display_phase_advanced`), so nothing
-        changes about how a clip plays when nothing is stacked.
+        The frame is the picture of where the device is, which is the same
+        number the readout's dot draws — so the two cannot drift apart, and a
+        stroke that only works part of the axis only ever shows that part of the
+        clip. :mod:`player_core.clip_scrub` is the whole rule, including which
+        half is showing and when that may change.
         """
-        from player_core.direct_control import (
-            POSITION_MAX, display_phase_advanced,
-        )
+        from player_core.direct_control import POSITION_MAX
 
         if self.tcode_sender is None:
             return self.engine.phase
-        where = self.tcode_sender.current_position()
-        was, self._scrubbed_from = self._scrubbed_from, where
-        if was is None:
-            return self._display_phase
-        # The travel is the whole stroke's, which is what the amplitude dial
-        # reads under cruise control as much as under a hand.
-        travel = self.direct_state.amplitude / 100 * POSITION_MAX
-        self._display_phase = display_phase_advanced(
-            self._display_phase, where - was, travel)
-        return self._display_phase
+        return scrub_clip(
+            self._scrub,
+            self.tcode_sender.current_position() / POSITION_MAX,
+            frame_count,
+        )
 
     def _build_drive_hud(self) -> DriveHud:
         from player_core.direct_control import (
