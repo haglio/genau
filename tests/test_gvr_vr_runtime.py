@@ -4,8 +4,6 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import xr
-
 from genau_vr.vr_runtime import (
     Probe,
     Readiness,
@@ -15,6 +13,21 @@ from genau_vr.vr_runtime import (
     launcher_for_runtime,
     probe,
 )
+
+
+def _xr():
+    """The real loader, asked for by the cases that need its own exception types.
+
+    Not imported at module scope: doing that made every case in this file --
+    including the ones about the registry, the launcher and the popup wording,
+    which never touch OpenXR -- a collection error on a machine without the
+    loader, and a collection error is a file dropped from the run rather than a
+    test that failed.  The stubs below carry the real exception hierarchy on
+    purpose, so a rename in pyopenxr cannot pass here silently.
+    """
+    import xr  # noqa: PLC0415 — only the cases that need the loader should load it
+
+    return xr
 
 
 def _pimax_tree(root, *, with_client: bool = True):
@@ -32,7 +45,7 @@ def _pimax_tree(root, *, with_client: bool = True):
 def _xr_stub(*, create_error=None, system_error=None) -> MagicMock:
     """A stand-in for the ``xr`` module that fails where we tell it to."""
     stub = MagicMock()
-    stub.exception = xr.exception
+    stub.exception = _xr().exception
     if create_error is not None:
         stub.create_instance.side_effect = create_error
     if system_error is not None:
@@ -46,13 +59,13 @@ def test_probe_reports_ready_when_a_headset_answers():
 
 
 def test_probe_reports_no_runtime_when_the_loader_finds_none():
-    error = xr.exception.RuntimeUnavailableError()
+    error = _xr().exception.RuntimeUnavailableError()
     with patch("genau_vr.vr_runtime.xr", _xr_stub(create_error=error)):
         assert probe().readiness is Readiness.NO_RUNTIME
 
 
 def test_probe_reports_no_headset_when_the_device_is_off():
-    error = xr.exception.FormFactorUnavailableError()
+    error = _xr().exception.FormFactorUnavailableError()
     with patch("genau_vr.vr_runtime.xr", _xr_stub(system_error=error)):
         assert probe().readiness is Readiness.NO_HEADSET
 
@@ -65,7 +78,7 @@ def test_probe_reports_failed_and_keeps_the_detail_of_an_unexpected_error():
 
 
 def test_probe_releases_the_instance_when_no_headset_answers():
-    stub = _xr_stub(system_error=xr.exception.FormFactorUnavailableError())
+    stub = _xr_stub(system_error=_xr().exception.FormFactorUnavailableError())
     with patch("genau_vr.vr_runtime.xr", stub):
         probe()
     stub.destroy_instance.assert_called_once_with(stub.create_instance.return_value)
