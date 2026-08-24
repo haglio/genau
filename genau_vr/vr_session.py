@@ -8,8 +8,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import glfw
-import xr
 from OpenGL import GL
+
+# Bound here, at the same point in this module as before, where the loader is
+# there.  Where it is not the name stays bound — to None — so this module still
+# imports and a session says which loader it wanted rather than dying at the
+# import of anything that names it.  Nothing in here can run without one, and
+# its own tests hand it a stand-in under this same name.
+_OPENXR_IMPORT_ERROR = ""
+try:
+    import xr
+except Exception as _exc:  # pyopenxr raises NotImplementedError off Windows, not ImportError
+    xr = None  # type: ignore[assignment]
+    _OPENXR_IMPORT_ERROR = str(_exc)
+
+OPENXR_AVAILABLE: bool = xr is not None
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +39,11 @@ class VRSession:
     """Manages the OpenXR instance, session, reference space, swapchains, and input."""
 
     def __init__(self, *, app_name: str = "GenauVR") -> None:
+        if xr is None:
+            raise RuntimeError(
+                "genau_vr.vr_session needs the OpenXR loader, which did not import here "
+                f"({_OPENXR_IMPORT_ERROR or 'reason unrecorded'}).  GenauVR runs on Windows."
+            )
         self.running = True
         self._window = None
         self._instance = None
