@@ -1,12 +1,44 @@
 """Tests for genau.win32 taskbar identity helpers."""
 from __future__ import annotations
 
+import ctypes
+import os
+import subprocess
+import sys
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from genau import win32_loader
 from genau.config import DEFAULT_CONFIG_PATH
 from genau.win32 import stamp_pinned_shortcuts, take_taskbar_identity
+
+REPO_DIR = Path(__file__).resolve().parent.parent
+
+# The names ``ctypes`` grows only on Windows, and that this module reaches for
+# while it is being imported.
+_WIN32_CTYPES_NAMES = ("windll", "oledll", "WinDLL", "OleDLL", "WINFUNCTYPE", "HRESULT")
+
+_STRIP_WIN32_FROM_CTYPES = f"""
+import ctypes, ctypes.wintypes
+for _name in {_WIN32_CTYPES_NAMES!r}:
+    if hasattr(ctypes, _name):
+        delattr(ctypes, _name)
+"""
+
+
+def _run_without_the_win32_ctypes_surface(body):
+    """Run *body* in a child whose ``ctypes`` has had its Windows half removed.
+
+    ``PYTHONPATH`` is dropped so the child cannot pick up a shim that fakes that
+    surface back in, the way a run on a developer's non-Windows machine does.
+    """
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    return subprocess.run(
+        [sys.executable, "-c", _STRIP_WIN32_FROM_CTYPES + body],
+        cwd=str(REPO_DIR), env=env, capture_output=True, text=True, timeout=180,
+    )
 
 
 @pytest.fixture
@@ -127,3 +159,46 @@ class TestTakeTaskbarIdentity:
             take_taskbar_identity("Genau.App", include="genau", config_path=DEFAULT_CONFIG_PATH)
 
         mock_stamp.assert_called_once()
+
+
+class TestWhereWin32CannotBeBound:
+    """What this module does on a machine whose ctypes has no Windows half.
+
+    It bound shell32 and ole32 while it was being imported, so off Windows the
+    import raised — and ``genau_vr/app.py`` names it, so this file was not a set
+    of Windows tests failing, it was a collection error that took every test in
+    it out of the run.
+
+    The child interpreters below delete that half of ``ctypes`` before importing
+    anything, so these ask the same question on Windows as anywhere else.
+    """
+
+    def test_the_module_imports_where_ctypes_has_no_windll(self):
+        result = _run_without_the_win32_ctypes_surface(
+            "import genau.win32\n"
+            "from genau.win32_loader import WIN32_AVAILABLE\n"
+            "assert WIN32_AVAILABLE is False, WIN32_AVAILABLE\n"
+        )
+
+        assert result.returncode == 0, result.stderr
+
+    def test_the_flag_says_whether_this_ctypes_can_bind_a_dll(self):
+        assert win32_loader.WIN32_AVAILABLE is hasattr(ctypes, "windll")
+
+    def test_a_call_that_reaches_an_unbound_entry_point_names_it(self):
+        """The stand-in must never pass for a call that worked."""
+        with patch.object(win32_loader, "WIN32_AVAILABLE", False):
+            shell32 = win32_loader.load_dll("shell32")
+
+            with pytest.raises(
+                win32_loader.Win32Unavailable,
+                match=r"shell32\.SetCurrentProcessExplicitAppUserModelID",
+            ):
+                shell32.SetCurrentProcessExplicitAppUserModelID("Genau.App")
+
+    def test_an_unbound_entry_point_is_the_same_object_every_time(self):
+        """A test that patches one has to be patching what the code will call."""
+        with patch.object(win32_loader, "WIN32_AVAILABLE", False):
+            ole32 = win32_loader.load_dll("ole32")
+
+            assert ole32.CoCreateInstance is ole32.CoCreateInstance

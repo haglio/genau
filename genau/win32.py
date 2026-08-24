@@ -8,8 +8,10 @@ import os
 import uuid
 from pathlib import Path
 
-_shell32 = ctypes.windll.shell32  # type: ignore[attr-defined]
-_ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
+from genau.win32_loader import load_dll
+
+_shell32 = load_dll("shell32")
+_ole32 = load_dll("ole32")
 
 APP_USER_MODEL_ID = "Genau.App"
 
