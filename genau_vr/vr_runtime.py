@@ -10,11 +10,13 @@ from __future__ import annotations
 import logging
 import subprocess
 import time
-from dataclasses import dataclass
-from enum import Enum
 from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+
+# Re-exported: the answer this module reaches for lives in a module with no
+# platform in it, so the popup path can be read -- and tested -- without one.
+from genau_vr.vr_readiness import APP_NAME, Probe, Readiness, explain  # noqa: F401
 
 # Where the registry and the OpenXR loader are, they are bound here, at the same
 # point in this module as before.  Where they are not, the name stays bound — to
@@ -50,8 +52,6 @@ def _require(module: object, name: str) -> None:
             f"({_MISSING.get(name) or 'reason unrecorded'}).  GenauVR runs on Windows."
         )
 
-APP_NAME = "GenauVR"
-
 # A cold VR runtime takes its time: the client starts, brings up its service,
 # and only then does the headset answer. Poll rather than guess at a fixed wait.
 STARTUP_TIMEOUT_S = 45.0
@@ -66,38 +66,6 @@ _OPENXR_KEY = r"SOFTWARE\Khronos\OpenXR\1"
 _LAUNCHER_RELATIVE_PATHS = (
     Path("PimaxClient") / "pimaxui" / "PimaxClient.exe",
 )
-
-_UNKNOWN_FAILURE = "VR could not be started."
-
-_EXPLANATIONS = {
-    "no_headset": (
-        "No VR headset is answering.\n\n"
-        "Power the headset on and connect it, then start GenauVR again."
-    ),
-    "no_runtime": (
-        "No OpenXR runtime is available.\n\n"
-        "Install or start your VR runtime (PimaxXR, SteamVR), then start "
-        "GenauVR again."
-    ),
-}
-
-
-class Readiness(Enum):
-    """How far the OpenXR stack got before it stopped answering."""
-
-    READY = "ready"
-    NO_RUNTIME = "no_runtime"
-    NO_HEADSET = "no_headset"
-    FAILED = "failed"
-
-
-@dataclass(frozen=True)
-class Probe:
-    """What a single look at the OpenXR stack found."""
-
-    readiness: Readiness
-    detail: str = ""
-
 
 def probe() -> Probe:
     """Ask OpenXR for a head-mounted display, without opening a window."""
@@ -206,13 +174,3 @@ def ensure_ready(*, timeout_s: float = STARTUP_TIMEOUT_S, poll_s: float = POLL_S
         "VR runtime did not come up within %.0fs (%s)", timeout_s, result.readiness.value
     )
     return result
-
-
-def explain(result: Probe) -> str:
-    """The popup text for a probe that did not end in a headset.
-
-    Falls back rather than raising on a readiness it has no wording for: this
-    runs on the error path, and a crash here is the silent failure it replaces.
-    """
-    lead = _EXPLANATIONS.get(result.readiness.value, _UNKNOWN_FAILURE)
-    return f"{lead}\n\nDetail: {result.detail}"

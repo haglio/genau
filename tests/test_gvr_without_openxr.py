@@ -58,6 +58,31 @@ def _run_without(names: tuple[str, ...], body: str) -> subprocess.CompletedProce
     )
 
 
+def test_the_readiness_answer_needs_no_platform_at_all():
+    """What the user is shown when VR is missing must not need VR to exist.
+
+    Not even the registry: this child refuses ``winreg`` as well, which is
+    stdlib on Windows and so cannot be missing there — the point is that this
+    module never reaches for it, on any machine.
+    """
+    result = _run_without(
+        ("xr", "winreg"),
+        "from genau_vr.vr_readiness import Probe, Readiness, explain\n"
+        "assert explain(Probe(Readiness.NO_HEADSET, 'powered off')).startswith('No VR headset')\n",
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_the_runtime_answers_with_the_platform_free_types():
+    """One set of types, so app.py and the popup tests share them."""
+    from genau_vr import vr_readiness
+
+    assert vr_runtime.Probe is vr_readiness.Probe
+    assert vr_runtime.Readiness is vr_readiness.Readiness
+    assert vr_runtime.explain is vr_readiness.explain
+
+
 def test_the_vr_modules_import_where_there_is_no_openxr():
     result = _run_without(
         ("xr",),
