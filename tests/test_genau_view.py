@@ -1,19 +1,5 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-
-@pytest.fixture
-def mock_pygame():
-    with patch.dict("sys.modules", {
-        "pygame": MagicMock(),
-        "pygame._sdl2": MagicMock(),
-        "pygame._sdl2.video": MagicMock(),
-    }) as mocked:
-        yield mocked["pygame"]
-
 
 def test_pygame_view_creates_window_and_renderer(mock_pygame):
     from genau.pygame_view import PygameView
