@@ -10,15 +10,45 @@ from __future__ import annotations
 import logging
 import subprocess
 import time
-import winreg
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-import xr
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+# Where the registry and the OpenXR loader are, they are bound here, at the same
+# point in this module as before.  Where they are not, the name stays bound — to
+# None — so the module still imports, the two flags say plainly that it did not
+# get them, and the two functions that need them name which one they wanted
+# rather than reading an answer out of nothing.  Without this, one import
+# decided whether four of this unit's seven test files existed at all.
+_MISSING: dict[str, str] = {}
+
+try:
+    import winreg
+except ImportError as _exc:
+    winreg = None  # type: ignore[assignment]
+    _MISSING["winreg"] = str(_exc)
+
+try:
+    import xr
+except Exception as _exc:  # pyopenxr raises NotImplementedError off Windows, not ImportError
+    xr = None  # type: ignore[assignment]
+    _MISSING["xr"] = str(_exc)
+
+WINREG_AVAILABLE: bool = winreg is not None
+OPENXR_AVAILABLE: bool = xr is not None
+
 logger = logging.getLogger(__name__)
+
+
+def _require(module: object, name: str) -> None:
+    """Refuse, naming what this machine lacks, rather than read a stand-in."""
+    if module is None:
+        raise RuntimeError(
+            f"genau_vr.vr_runtime needs {name}, which did not import here "
+            f"({_MISSING.get(name) or 'reason unrecorded'}).  GenauVR runs on Windows."
+        )
 
 APP_NAME = "GenauVR"
 
@@ -71,6 +101,7 @@ class Probe:
 
 def probe() -> Probe:
     """Ask OpenXR for a head-mounted display, without opening a window."""
+    _require(xr, "xr")
     try:
         instance = xr.create_instance(
             xr.InstanceCreateInfo(
@@ -98,6 +129,7 @@ def probe() -> Probe:
 
 def active_runtime_json() -> Path | None:
     """Where Windows says the current OpenXR runtime is registered."""
+    _require(winreg, "winreg")
     try:
         with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, _OPENXR_KEY) as key:
             value, _ = winreg.QueryValueEx(key, "ActiveRuntime")
