@@ -8,6 +8,7 @@ import shutil
 import sys
 import uuid
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -79,6 +80,29 @@ def _cleanup_tmp_root():
             TMP_ROOT.rmdir()
     except OSError:
         pass
+
+
+@pytest.fixture()
+def mock_pygame(monkeypatch):
+    """Stand in for the pygame names ``genau.pygame_view`` binds, and return the
+    fake ``pygame`` module itself.
+
+    Patch the *view*, not ``sys.modules``.  The view does its imports at module
+    scope -- ``import pygame`` and ``from pygame._sdl2.video import Renderer,
+    Texture, Window`` -- so swapping the entries in ``sys.modules`` reaches those
+    names only while the view has never been imported.  Once anything has
+    imported it (``nau.app`` does), the bindings are already the real SDL ones
+    and the swap is inert: the tests behind this fixture then build real windows
+    on the machine that also runs the live players.  Patching the attributes the
+    view holds asks nothing about what has been imported, or when.
+    """
+    import genau.pygame_view as pygame_view
+
+    pygame = MagicMock()
+    monkeypatch.setattr(pygame_view, "pygame", pygame)
+    for name in ("Window", "Renderer", "Texture"):
+        monkeypatch.setattr(pygame_view, name, MagicMock())
+    return pygame
 
 
 def _write_genau_config(tmp_path: Path, overrides: dict | None = None) -> Path:
