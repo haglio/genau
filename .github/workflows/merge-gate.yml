@@ -71,3 +71,16 @@ jobs:
         shell: bash
         working-directory: genau
         run: python -m pytest -q
+      # Again, back to front. Twenty-three view tests used to pass only because
+      # alphabetical collection put them ahead of the first module that imports
+      # the real one; reversing inverts every "this runs before that" the suite
+      # has, so the next test that leans on its neighbours goes red on the commit
+      # that introduces the lean. TEST_COLLECTION_SEED with
+      # TEST_COLLECTION_ORDER=shuffle is the deeper local check (see
+      # tests/conftest.py); the gate takes the deterministic one.
+      - name: Run the suite back to front
+        shell: bash
+        working-directory: genau
+        env:
+          TEST_COLLECTION_ORDER: reverse
+        run: python -m pytest -q
