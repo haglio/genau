@@ -51,6 +51,14 @@ def _pin_this_tree() -> None:
 
 _pin_this_tree()
 
+# Drive SDL headless for the whole suite. Agents run these tests on every commit,
+# on the machine that also runs the live players; anything that builds a view
+# without the mock -- a fixture that stops reaching it, a new test that skips it
+# -- would otherwise throw a real window onto that screen. The merge gate sets
+# this in its own env, which does nothing for a run started by hand. setdefault
+# lets a developer override it to watch something on a real display.
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+
 
 TMP_ROOT = Path(
     os.environ.get(
