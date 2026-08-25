@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pygame
 
-from player_core.drive_readout import DriveHud, read_drive
 from genau.pygame_view import get_window_chrome_height
 from player_core.tcode import UdpTCodeSink
 from player_core.file_channel import consume_command_file, read_paused_state
@@ -32,9 +31,9 @@ from .drive_gate import DriveGate
 from .keys import Keys
 from .modes import Modes, reload_playlist
 from .pointer import Pointer
+from .published import Published
 from .volume_control import VolumeControl
 from .clip_nav import ClipNav
-from player_core.console import ConsoleModel, genau_drives, read_console
 from .display import Display
 from .funscript_jumps import FunscriptJumps
 from player_core.console_hud import (
@@ -274,14 +273,9 @@ def _run(args) -> int:
     heatmap = HeatmapStrip()
     console_hud = ConsolePainter()
     # What Fun Time says about the main slot, and what Genau says it is doing
-    # to the device.  Both arrive published; before the first read the console
-    # still draws, with the player's own controls and nothing claimed about the
-    # room around it.
-    console = ConsoleModel()
-    # Genau's own readout as it last published it, kept between frames the way
-    # the console is: a torn or missing read means "keep what you have", and in
-    # Nau there is nothing publishing one at all.
-    published: DriveHud | None = None
+    # to the device.  Both arrive published, and a torn read keeps what was
+    # there; see nau.published.
+    room = Published(args.console_file, args.drive_file)
     loop_thumbs = LoopThumbCapture()
     # What of Genau's publish this video's picture believes: the descent
     # forecasts it is holding, and whether Genau has been seen live here.  Above
@@ -431,18 +425,15 @@ def _run(args) -> int:
         # is driving the device, and every control Fun Time's dashboard used to
         # hold for this slot.  The name heads it now rather than sitting in a chip
         # of its own beneath.
-        if args.console_file is not None:
-            console = read_console(args.console_file) or console
-        if args.drive_file is not None and genau_drives(console.mode):
-            published = read_drive(args.drive_file) or published
-        drive = drive_gate.readout(published, genau_behind=genau_drives(console.mode))
+        room.refresh()
+        drive = drive_gate.readout(room.drive, genau_behind=room.genau_drives)
         left, top = hud_xy()
         panel = console_hud.bgra(ConsoleHud(
             modes=modes.hud,
             # Nau knows its own playback rate; Fun Time does not publish it, so it
             # is folded in here.  The dot's `active` and everything else came down
             # in the console file.
-            console=with_playback_speed(console, session.speed),
+            console=with_playback_speed(room.console, session.speed),
             drive=drive,
         ), hover=pointer.hover)
         player.overlay(_OV_CONSOLE, left, top, panel)
