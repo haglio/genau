@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+from functools import partial
 from dataclasses import replace
 from pathlib import Path
 
@@ -28,7 +29,7 @@ from .cli import (
 from .clip_jumps import ClipJumps
 from .dashboard import Dashboard
 from .library_source import DEFAULT_MODE
-from .modes import Modes
+from .modes import Modes, reload_playlist
 from .pointer import Pointer
 from .volume_control import VolumeControl
 from .clip_nav import ClipNav
@@ -342,11 +343,13 @@ def _run(args) -> int:
     # The length filter, the volume and Fun Time's own narrowing, as the console
     # draws them and the memory keeps them.  See nau.modes.
     modes = Modes(source, session, jumps, remembered=remembered.length_mode)
-
-    def _reload_playlist() -> None:
-        if args.playlist is not None:
-            session.replace_playlist(resolve_playlist(args, source=source))
-            jumps.leave_compilation()
+    # RELOAD_PLAYLIST: Fun Time owns the playlist file when it passes one, and
+    # rewrites it whenever the room's selection changes.  Standalone there is
+    # nobody writing one, so there is nothing to take up.
+    take_up_playlist = partial(
+        reload_playlist, session, jumps,
+        partial(resolve_playlist, args, source=source)
+        if args.playlist is not None else None)
 
     # Genau's published let_go describes the last handoff GENAU made — which,
     # across a video change while it sits paused, is a handoff from some other
@@ -473,7 +476,7 @@ def _run(args) -> int:
                 apply_command(
                     cmd, session,
                     stop_event=stop_event,
-                    reload_playlist=_reload_playlist,
+                    reload_playlist=take_up_playlist,
                     toggle_length_mode=modes.toggle_length,
                     set_length_mode=modes.set_length,
                     play_compilation=jumps.play_compilation,

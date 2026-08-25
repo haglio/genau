@@ -12,7 +12,7 @@ import pytest
 
 from nau.library_source import FULL, MIXED, SHORTS
 from nau.mode_memory import RememberedMode
-from nau.modes import Modes
+from nau.modes import Modes, reload_playlist
 
 FIRST = Path("videos/Jane Doe - scene one.mp4")
 SECOND = Path("videos/Ann Bly - scene two.mp4")
@@ -48,9 +48,14 @@ class FakeSession:
         self.index = 0
         self.playlist: list[tuple[Path, Path | None]] = [(FIRST, None), (SECOND, None)]
         self.loaded: list[list[tuple[Path, Path | None]]] = []
+        self.replaced: list[list[tuple[Path, Path | None]]] = []
 
     def load_playlist(self, playlist) -> None:
         self.loaded.append(list(playlist))
+        self.playlist = list(playlist)
+
+    def replace_playlist(self, playlist) -> None:
+        self.replaced.append(list(playlist))
         self.playlist = list(playlist)
 
 
@@ -280,3 +285,36 @@ class TestWhatIsWrittenDownForTheNextSession:
         modes.toggle_length()
 
         assert modes.remembered.length_mode == SHORTS
+
+
+class TestTakingUpAPlaylistFunTimeRewrote:
+    """RELOAD_PLAYLIST: the room's selection changed and the file under this
+    player is a different list now."""
+
+    def test_the_new_list_arrives_without_interrupting_the_video(self):
+        """Replaced rather than loaded: only what "next" reaches has changed,
+        so the clip on screen carries on."""
+        session, jumps = FakeSession(), FakeJumps()
+
+        reload_playlist(session, jumps, lambda: _built_for(FULL))
+
+        assert session.replaced == [_built_for(FULL)]
+        assert session.loaded == []
+
+    def test_the_volume_is_left_behind(self):
+        """The playlist is no longer the one a compilation put there, so what
+        the HUD says about being inside one would be a lie."""
+        session, jumps = FakeSession(), FakeJumps("Vol6")
+
+        reload_playlist(session, jumps, lambda: _built_for(FULL))
+
+        assert jumps.left == 1
+
+    def test_a_player_that_builds_its_own_playlist_has_nothing_to_take_up(self):
+        """Standalone there is no file anyone else writes, so the verb means
+        nothing rather than rebuilding the list under the user."""
+        session, jumps = FakeSession(), FakeJumps("Vol6")
+
+        reload_playlist(session, jumps, None)
+
+        assert (session.replaced, jumps.left) == ([], 0)
