@@ -24,6 +24,7 @@ voice = [
 ]
 dev = [
     "pytest",
+    "pytest-timeout",
     "ruff",
     "vulture",
 ]
@@ -41,5 +42,11 @@ vr = [
 include = ["genau*", "nau*", "genau_vr*"]
 
 [tool.pytest.ini_options]
-addopts = "-p no:cacheprovider"
+# The timeout is a ceiling, not a target: the slowest test here is the
+# tracked-tree content scan at ~14 s, so 90 s clears it six times over and can
+# only bite on a hang. This suite binds real UDP sockets and joins reader
+# threads, which is exactly the shape that hangs. The thread method prints the
+# hung stack, which is what turns a stalled required check into a one-line
+# diagnosis. tests/test_timeouts.py holds both halves of it.
+addopts = "-p no:cacheprovider --timeout=90 --timeout-method=thread"
 testpaths = ["tests"]
