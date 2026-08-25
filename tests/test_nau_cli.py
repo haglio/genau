@@ -3,9 +3,18 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from nau.cli import audio_muted, build_parser, library_source, resolve_playlist
+import pytest
+
+from nau.cli import (
+    audio_muted,
+    build_parser,
+    library_source,
+    mode_memory,
+    resolve_playlist,
+)
 from nau.library import SHORTS
 from nau.library_source import PHASE_DISCOVER
+from nau.mode_memory import RememberedMode
 
 
 class TestResolvePlaylist:
@@ -214,3 +223,164 @@ class TestAudioMuted:
         monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
         args = build_parser({}).parse_args([])
         assert audio_muted(args) is True
+
+
+# The command line Fun Time builds for `python -m nau`, flag for flag, with
+# fabricated paths.  argparse exits 2 on any flag it does not know, so a rename
+# on either side of this list is a player that will not launch under Fun Time --
+# and the list is written out here rather than derived so the rename shows up as
+# a diff in both repos.
+FUN_TIME_ARGV = [
+    "--config", "C:/example/genau_config.json",
+    "--playlist", "C:/example/state/nau_playlist.tsv",
+    "--command-file", "C:/example/state/nau_cmd.txt",
+    "--paused-file", "C:/example/state/nau_paused.txt",
+    "--status-file", "C:/example/state/nau_status.txt",
+    "--console-file", "C:/example/state/console.json",
+    "--drive-file", "C:/example/state/drive.txt",
+    "--dashboard-cmd-file", "C:/example/state/dashboard_cmd.txt",
+    "--x", "1920",
+    "--y", "0",
+    "--width", "1280",
+    "--height", "1024",
+    "--borderless",
+    "--taskbar-identity", "Example.Orchestrator",
+    "--metadata-dir", "C:/example/library/metadata",
+]
+
+# What each of those has to land as.  The type matters as much as the value:
+# a Path flag that came through as a str reaches Path(...) somewhere later and
+# a str flag that came through as a Path reaches an argparse default nobody set.
+LANDS_AS = {
+    "config": Path("C:/example/genau_config.json"),
+    "playlist": Path("C:/example/state/nau_playlist.tsv"),
+    "command_file": Path("C:/example/state/nau_cmd.txt"),
+    "paused_file": Path("C:/example/state/nau_paused.txt"),
+    "status_file": Path("C:/example/state/nau_status.txt"),
+    "console_file": Path("C:/example/state/console.json"),
+    "drive_file": Path("C:/example/state/drive.txt"),
+    "dashboard_cmd_file": Path("C:/example/state/dashboard_cmd.txt"),
+    "metadata_dir": Path("C:/example/library/metadata"),
+    "x": 1920,
+    "y": 0,
+    "width": 1280,
+    "height": 1024,
+    "borderless": True,
+    "taskbar_identity": "Example.Orchestrator",
+}
+
+
+class TestTheCommandLineFunTimeLaunchesNauWith:
+    @pytest.mark.parametrize("name, expected", sorted(LANDS_AS.items()))
+    def test_each_flag_lands_on_the_namespace_as_itself(self, name, expected):
+        args = build_parser({}).parse_args(FUN_TIME_ARGV)
+
+        landed = getattr(args, name)
+
+        assert landed == expected
+        assert type(landed) is type(expected), f"--{name.replace('_', '-')} changed type"
+
+    def test_the_whole_line_parses_without_argparse_walking_out(self):
+        """argparse exits 2 on an unknown flag, and a player that exits 2 under
+        Fun Time never opens its window for the orchestrator to wait on."""
+        assert build_parser({}).parse_args(FUN_TIME_ARGV) is not None
+
+    def test_metadata_dir_is_optional_and_the_rest_still_parses(self):
+        """Fun Time appends it only when the library has a sidecar root."""
+        without = [a for a in FUN_TIME_ARGV
+                   if a not in ("--metadata-dir", "C:/example/library/metadata")]
+
+        args = build_parser({}).parse_args(without)
+
+        assert args.metadata_dir is None
+
+
+class TestTheStandaloneFlags:
+    """What Nau's own shortcut passes, which Fun Time never does."""
+
+    def test_the_library_directories_and_the_silent_run(self, tmp_path):
+        args = build_parser({}).parse_args([
+            "--videos-dir", str(tmp_path / "videos"),
+            "--scripts-dir", str(tmp_path / "scripts"),
+            "--clips-dir", str(tmp_path / "clips"),
+            "--state-dir", str(tmp_path / "state"),
+            "--notice-file", str(tmp_path / "notice.txt"),
+            "--no-audio",
+        ])
+
+        assert args.videos_dir == tmp_path / "videos"
+        assert args.scripts_dir == tmp_path / "scripts"
+        assert args.clips_dir == tmp_path / "clips"
+        assert args.state_dir == tmp_path / "state"
+        assert args.notice_file == tmp_path / "notice.txt"
+        assert audio_muted(args) is True
+
+
+class TestTheConfigsOwnDefaults:
+    """The nau section of the config stands in for flags nobody passes."""
+
+    CONFIG = {
+        "clips_dir": "C:/example/library/clips",
+        "state_dir": "C:/example/state",
+        "nau": {
+            "videos_dir": "C:/example/library/videos",
+            "scripts_dir": "C:/example/library/scripts",
+            "metadata_dir": "C:/example/library/metadata",
+            "notice_file": "C:/example/state/notice.txt",
+            "tcode_udp_host": "10.0.0.7",
+            "tcode_udp_port": 51000,
+        },
+    }
+
+    @pytest.mark.parametrize("name, expected", [
+        ("videos_dir", Path("C:/example/library/videos")),
+        ("scripts_dir", Path("C:/example/library/scripts")),
+        ("metadata_dir", Path("C:/example/library/metadata")),
+        ("notice_file", Path("C:/example/state/notice.txt")),
+        ("clips_dir", Path("C:/example/library/clips")),
+        ("state_dir", Path("C:/example/state")),
+        ("tcode_host", "10.0.0.7"),
+        ("tcode_port", 51000),
+    ])
+    def test_a_configured_value_is_what_the_flag_would_have_said(self, name, expected):
+        args = build_parser(self.CONFIG).parse_args([])
+
+        assert getattr(args, name) == expected
+
+    def test_the_device_defaults_to_the_port_the_family_listens_on(self):
+        """50557 is the broker's, and Genau's, and GenauVR's."""
+        args = build_parser({}).parse_args([])
+
+        assert (args.tcode_host, args.tcode_port) == ("127.0.0.1", 50557)
+
+    def test_a_flag_beats_the_configured_value(self):
+        args = build_parser(self.CONFIG).parse_args(["--tcode-port", "50999"])
+
+        assert args.tcode_port == 50999
+
+    def test_the_clips_dir_falls_back_to_the_shared_one(self):
+        """Nau's own section may not name one, and the library's top-level
+        clips_dir is what every app in the family reads."""
+        args = build_parser({"clips_dir": "C:/example/library/clips"}).parse_args([])
+
+        assert args.clips_dir == Path("C:/example/library/clips")
+
+
+class TestWhereNauKeepsItsState:
+    def test_the_state_dir_holds_the_mode_it_was_last_in(self, tmp_path):
+        args = build_parser({}).parse_args(["--state-dir", str(tmp_path)])
+
+        mode_memory(args).write(RememberedMode(length_mode=SHORTS))
+
+        assert (tmp_path / "nau_mode.txt").exists()
+
+    def test_with_no_state_dir_it_falls_back_beside_its_config(self, tmp_path):
+        """Standalone there is no orchestrator to hand one, and writing into the
+        working directory would put it wherever the shortcut was started from."""
+        config = tmp_path / "genau_config.json"
+        config.write_text("{}", encoding="utf-8")
+        args = build_parser({}).parse_args(["--config", str(config)])
+
+        mode_memory(args).write(RememberedMode(length_mode=SHORTS))
+
+        assert (tmp_path / "nau_mode.txt").exists()
