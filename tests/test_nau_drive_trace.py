@@ -106,8 +106,8 @@ class TestOneLineTwoDrivers:
         hud = _read(script, at=0)
 
         assert hud.segments == ((0, DRIVEN_BY_FUNSCRIPT),)
-        assert hud.waveform == script.planned_trace(
-            0, round(SPAN_S * 1000), TRACE_SAMPLES)
+        assert hud.waveform == script.planned_trace_window(
+            0, round(SPAN_S * 1000), TRACE_SAMPLES)[0][:TRACE_SAMPLES]
 
     def test_the_end_of_a_scripted_stretch_hands_over_through_the_buffer(self):
         """Green while the script runs, grey for the buffer that belongs to
