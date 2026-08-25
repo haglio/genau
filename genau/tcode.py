@@ -7,7 +7,6 @@ commands, shaped by the direct-control state.
 """
 from __future__ import annotations
 
-import time
 from typing import TYPE_CHECKING
 
 from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
@@ -34,7 +33,6 @@ class RateLimitedTCodeSender:
         direct_state: DirectControlState | None = None,
         cruise=None,
         min_interval: float = 1.0 / 30.0,
-        now_source=time.monotonic,
     ) -> None:
         self._sink = sink
         self._direct_state = direct_state
