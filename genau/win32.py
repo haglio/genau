@@ -107,8 +107,20 @@ def _query_interface(obj_addr: int, iid: GUID) -> int:
 
 
 def set_shortcut_app_user_model_id(lnk_path: str, app_id: str) -> None:
-    """Set the AppUserModelID property on a .lnk shortcut file."""
-    _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+    """Set the AppUserModelID property on a .lnk shortcut file.
+
+    Only an initialisation that succeeded gets undone.  ``CoInitializeEx``
+    answers ``S_OK`` when it opened the apartment and ``S_FALSE`` when the thread
+    already had one — both took a reference this thread owes back — and a failure
+    HRESULT when it took none, which here means ``RPC_E_CHANGED_MODE``: something
+    else put this thread in the other concurrency model first.  Uninitialising
+    anyway would decrement *that* initialisation's count, and the apartment its
+    owner is holding objects in can close under them -- while the stamping below
+    would be asking for a shell link with no apartment of its own.
+    """
+    hr = _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+    if hr < 0:
+        raise OSError(f"CoInitializeEx failed: HRESULT 0x{hr & 0xFFFFFFFF:08x}")
     try:
         _set_lnk_aumid(lnk_path, app_id)
     finally:
