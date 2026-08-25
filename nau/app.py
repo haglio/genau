@@ -4,7 +4,6 @@ import logging
 import os
 import threading
 from functools import partial
-from dataclasses import replace
 from pathlib import Path
 
 import pygame
@@ -29,6 +28,7 @@ from .cli import (
 from .clip_jumps import ClipJumps
 from .dashboard import Dashboard
 from .library_source import DEFAULT_MODE
+from .drive_gate import DriveGate
 from .modes import Modes, reload_playlist
 from .pointer import Pointer
 from .volume_control import VolumeControl
@@ -36,7 +36,6 @@ from .clip_nav import ClipNav
 from player_core.console import ConsoleModel, genau_drives, read_console
 from .display import Display
 from .funscript_jumps import FunscriptJumps
-from .drive_trace import drive_readout
 from player_core.console_hud import (
     ConsoleHud,
     ConsolePainter,
@@ -58,7 +57,7 @@ from .overlay import (
 from .runtime import SEEK_STEP_MS, apply_command
 from player_core.volume import VolumeHudPainter, chip_xy
 from .session import PlayerSession
-from .status import next_handoff_touch, status_fields
+from .status import status_fields
 from player_core.tcode_driver import FunscriptTCodeDriver
 
 logger = logging.getLogger(__name__)
@@ -285,19 +284,17 @@ def _run(args) -> int:
     # Where the cursor is over the console, so a button can name itself on hover.
     hover: tuple[int, int] | None = None
     loop_thumbs = LoopThumbCapture()
-    # The per-turn descent forecasts, selected once and held — drive_readout's
-    # own account says when.  Defined before the status writer's closure below,
-    # which publishes the chosen touch out of it.
-    descent_tops: dict = {}
+    # What of Genau's publish this video's picture believes: the descent
+    # forecasts it is holding, and whether Genau has been seen live here.  Above
+    # the status writer's closure below, which publishes the touch it chose.
+    drive_gate = DriveGate(session)
 
     def _status_fields(published_session) -> dict[str, str]:
         fields = status_fields(published_session)
         # The touch-down the trace chose for the boundary in play — see
         # nau.status.next_handoff_touch.  Sent with every status so the
         # arbiter ends Genau's turn where the picture drew it ending.
-        touch = next_handoff_touch(
-            published_session.current_funscript,
-            int(published_session.position_ms), descent_tops)
+        touch = drive_gate.handoff_touch()
         fields["handoff_touch_ms"] = "" if touch is None else str(int(touch))
         return fields
 
@@ -350,70 +347,6 @@ def _run(args) -> int:
         reload_playlist, session, jumps,
         partial(resolve_playlist, args, source=source)
         if args.playlist is not None else None)
-
-    # Genau's published let_go describes the last handoff GENAU made — which,
-    # across a video change while it sits paused, is a handoff from some other
-    # video's stroke.  A descent drawn from that height tops a ramp the device
-    # never made here, so the latch is honoured only once Genau has been seen
-    # live (let_go None) within the current video; until then the descent tops
-    # off the parked publish instead, which is where the device really is.
-    let_go_gate = {"video": None, "seen_live": False, "position": 0, "stalled": 0}
-    def _drive_readout(console: ConsoleModel, published: DriveHud | None) -> DriveHud:
-        """The readout to draw, with this video's funscript folded into it.
-
-        Genau publishes its own stroke; the script is sampled here, because Genau
-        cannot see it and in Nau there is no Genau behind the screen at all.  See
-        :mod:`nau.drive_trace` for how the two share one line.  Who holds the
-        device travels inside the publish itself (``let_go``), so nothing here
-        watches the console for handoff edges any more.
-        """
-        drive = published if genau_drives(console.mode) else None
-        position = int(session.position_ms)
-        if drive is None:
-            # A stint without Genau behind the screen: the wave keeps moving
-            # while nothing here watches it, so every held forecast is void by
-            # the time it could be read again.
-            descent_tops.clear()
-        if drive is not None:
-            if let_go_gate["video"] != session.current_video:
-                let_go_gate["video"] = session.current_video
-                let_go_gate["seen_live"] = False
-                descent_tops.clear()
-            # Any seek voids every held descent choice: the latch's carry rules
-            # are written for one continuous approach, and a rewind approaches
-            # the SAME boundary again with a realigned wave — the old choice's
-            # touch then cuts the new wave anywhere, which is how the blue once
-            # overran its own drawn ending by a whole cycle after a few taps of
-            # rewind.  Forward frames move ~tens of ms; anything else is a jump.
-            moved = position - let_go_gate["position"]
-            if moved < -250 or moved > 400:
-                # Real frames advance tens of ms (and the 40ms quantum makes
-                # some read as zero); anything bigger is a seek.
-                descent_tops.clear()
-                let_go_gate["stalled"] = 0
-            elif moved == 0:
-                let_go_gate["stalled"] += 1
-            else:
-                if let_go_gate["stalled"] > 25:
-                    # A real pause just ended: the media clock stood while
-                    # Genau's wave kept moving in wall time, so every
-                    # media-anchored forecast slid off the wave it was cut
-                    # from.
-                    descent_tops.clear()
-                let_go_gate["stalled"] = 0
-            if drive.let_go is None:
-                let_go_gate["seen_live"] = True
-            elif not let_go_gate["seen_live"]:
-                drive = replace(drive, let_go=None)
-        let_go_gate["position"] = position
-        return drive_readout(
-            drive,
-            script=session.current_funscript,
-            position_ms=position,
-            speed=session.speed,
-            genau_behind=genau_drives(console.mode),
-            descent_tops=descent_tops,
-        )
 
     while not stop_event.is_set():
         win_w, win_h = screen.get_size()
@@ -543,7 +476,7 @@ def _run(args) -> int:
             console = read_console(args.console_file) or console
         if args.drive_file is not None and genau_drives(console.mode):
             published = read_drive(args.drive_file) or published
-        drive = _drive_readout(console, published)
+        drive = drive_gate.readout(published, genau_behind=genau_drives(console.mode))
         left, top = hud_xy()
         panel = console_hud.bgra(ConsoleHud(
             modes=modes.hud,
