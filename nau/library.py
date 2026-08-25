@@ -16,6 +16,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from .video_kind import EXCERPT, FULL_LENGTH, GENAU_CLIP, SHORT
 
 # Tunable heuristic: tokens dropped anywhere in a title because they mark a
 # quality/upscaler/codec/resolution/container variant rather than content.
@@ -277,9 +278,19 @@ def canonical_playlist(
     return canonicals
 
 
-# A "short" is anything this long or shorter; longer videos are full-length.
-# Compilations are long, so they are never shorts — the split is duration-only.
-SHORT_MAX_S = 60.0
+# Which kinds each length mode plays.  A delivered loop and a scene carved out
+# of a longer one are shorts however long they run: the loop is a couple of
+# seconds by construction, and a carved scene is an excerpt of something, which
+# is what "full length" means the absence of.
+_MODE_KINDS = {
+    "shorts": frozenset({SHORT, EXCERPT, GENAU_CLIP}),
+    "full": frozenset({FULL_LENGTH}),
+}
+
+# What "short" means for a video Evolver has not recorded yet, and the same
+# number it records by — one line through the family instead of this player's
+# old 60 seconds and the phone's 10.
+SHORT_MAX_S = 10.0
 
 # The three length modes.  MIXED applies no length filter at all — it is what a
 # playlist looks like before anyone asks for a length, and so what the player
@@ -289,6 +300,32 @@ FULL = "full"
 SHORTS = "shorts"
 
 
+def kind_of_video(
+    video: Path,
+    *,
+    kind_of: Callable[[Path], str] | None,
+    durations: dict[Path, float],
+    genau_clips: set[Path],
+) -> str:
+    """What *video* is: what Evolver recorded, or what can be told without it.
+
+    The record is the answer wherever there is one.  The fallbacks are for a
+    video Evolver has not reached — a library it has never run over, or a file
+    that arrived since its last run: a loop is known by the folder it was
+    delivered to, and everything else by its running time.  ``""`` is a video
+    nothing could classify, which both length modes drop.
+    """
+    recorded = kind_of(video) if kind_of is not None else ""
+    if recorded:
+        return recorded
+    if video in genau_clips:
+        return GENAU_CLIP
+    seconds = durations.get(video)
+    if seconds is None:
+        return ""
+    return SHORT if seconds <= SHORT_MAX_S else FULL_LENGTH
+
+
 def select_library(
     entries: list[LibraryEntry],
     *,
@@ -296,23 +333,19 @@ def select_library(
     durations: dict[Path, float],
     clips: list[LibraryEntry],
     scripted_only: bool = False,
-    is_clip: Callable[[Path], bool] | None = None,
+    kind_of: Callable[[Path], str] | None = None,
 ) -> list[LibraryEntry]:
     """Filter *entries* by length *mode*, then version-dedup the survivors.
 
     Mixed mode applies no length filter: every entry and every clip survives,
-    including entries whose duration was never probed, since nothing here has to
-    classify them. Full-length mode keeps entries whose probed duration exceeds
-    :data:`SHORT_MAX_S`; shorts mode keeps entries at or under it *and* always
-    includes *clips* (saved clip videos, treated as shorts regardless of
-    length). Entries with no probed duration cannot be classified and are
-    dropped by both of those. When *clips* is empty, shorts mode is purely
-    duration-driven.
+    including the ones nothing has classified, since nothing here has to.  The
+    other two keep the kinds :data:`_MODE_KINDS` gives them —
+    :func:`kind_of_video` says what each video's kind is, and a video with no
+    kind at all is dropped by both.
 
-    *is_clip* marks a main entry as a clip (a scene Evolver carved out of a
-    compilation, recorded in its sidecar): it is a short regardless of runtime,
-    so it joins shorts and is held out of full-length even when it runs long.
-    Without the predicate the split stays duration-only.
+    *kind_of* reads what Evolver recorded (``nau.sidecar.read_video_type``); the
+    *durations* are the fallback for what it has not reached, and *clips* — the
+    videos discovered in Genau's own folder — are loops by where they came from.
 
     *scripted_only* (the standalone default — Nau standalone is the funscript
     loop tool) drops main entries with no funscript so the R gesture always
@@ -324,21 +357,15 @@ def select_library(
     if scripted_only:
         entries = [e for e in entries if e.funscript is not None]
 
-    def marked(entry: LibraryEntry) -> bool:
-        return is_clip is not None and is_clip(entry.video)
-
     if mode == MIXED:
         kept = [*entries, *clips]
-    elif mode == SHORTS:
-        kept = [
-            e for e in entries
-            if durations.get(e.video, float("inf")) <= SHORT_MAX_S or marked(e)
-        ]
-        kept += clips
     else:
+        wanted = _MODE_KINDS[mode]
+        genau_clips = {clip.video for clip in clips}
         kept = [
-            e for e in entries
-            if durations.get(e.video, 0.0) > SHORT_MAX_S and not marked(e)
+            entry for entry in (*entries, *clips)
+            if kind_of_video(entry.video, kind_of=kind_of, durations=durations,
+                             genau_clips=genau_clips) in wanted
         ]
     return [group.canonical for group in group_versions(kept)]
 
@@ -374,7 +401,7 @@ def library_playlist(
     clips: list[LibraryEntry],
     rng: random.Random,
     scripted_only: bool = False,
-    is_clip: Callable[[Path], bool] | None = None,
+    kind_of: Callable[[Path], str] | None = None,
 ) -> list[tuple[Path, Path | None]]:
     """Full standalone build: filter by *mode*, version-dedup, shuffle, pair.
 
@@ -384,6 +411,6 @@ def library_playlist(
     """
     selected = select_library(
         entries, mode=mode, durations=durations, clips=clips,
-        scripted_only=scripted_only, is_clip=is_clip,
+        scripted_only=scripted_only, kind_of=kind_of,
     )
     return entries_to_pairs(canonical_playlist(selected, rng))

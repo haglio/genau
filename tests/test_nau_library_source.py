@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import random
 from pathlib import Path
 
@@ -154,6 +155,32 @@ class TestBuildProgress:
         assert [s for s in seen if s[0] == PHASE_DURATIONS] == [
             (PHASE_DURATIONS, 0, 3), (PHASE_DURATIONS, 1, 3), (PHASE_DURATIONS, 2, 3),
         ]
+
+    def test_a_video_whose_kind_is_on_file_is_never_measured(self, tmp_path):
+        """The probe is startup's whole wait, and a recorded kind removes the
+        reason for it — a backfilled library opens without one ffprobe."""
+        vids = tmp_path / "videos" / "videos"
+        scripts = tmp_path / "scripts"
+        metadata = tmp_path / "videos" / "metadata"
+        vids.mkdir(parents=True)
+        scripts.mkdir()
+        metadata.mkdir(parents=True)
+        _make_video(vids / "recorded.mp4")
+        _make_video(vids / "unrecorded.mp4")
+        (metadata / "recorded.json").write_text(
+            json.dumps({"video": {"type": "full_length"}}), encoding="utf-8",
+        )
+        probed: list[Path] = []
+
+        source = build_library_source(
+            vids, scripts, None, rng=random.Random(0), metadata_root=metadata,
+            duration_cache=DurationCache(
+                tmp_path / "cache.json", prober=lambda p: probed.append(p) or 300.0,
+            ),
+        )
+
+        assert [p.name for p in probed] == ["unrecorded.mp4"]
+        assert vids / "recorded.mp4" not in source.durations
 
     def test_a_raising_callback_stops_the_probing(self, tmp_path):
         """Closing the window mid-probe has to end the wait, not be noticed once

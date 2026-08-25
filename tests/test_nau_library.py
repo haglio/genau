@@ -10,6 +10,9 @@ from nau.library import (
     canonical_playlist,
     collapse_playlist_versions,
     group_versions,
+    EXCERPT,
+    FULL_LENGTH,
+    SHORT_MAX_S,
     library_playlist,
     normalize_title,
     select_library,
@@ -164,7 +167,7 @@ class TestSelectLibrary:
             _entry("long-1080p.mp4", 100),
             _entry("clip-1080p.mp4", 100),
         ]
-        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 12.0})
+        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 6.0})
 
         result = select_library(entries, mode="full", durations=durations, clips=[])
 
@@ -175,7 +178,7 @@ class TestSelectLibrary:
             _entry("long-1080p.mp4", 100),
             _entry("clip-1080p.mp4", 100),
         ]
-        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 12.0})
+        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 6.0})
 
         result = select_library(entries, mode="shorts", durations=durations, clips=[])
 
@@ -185,7 +188,7 @@ class TestSelectLibrary:
         """The mode the player opens in: no length filter at all, which is what
         Fun Time's own playlist has always been."""
         entries = [_entry("long-1080p.mp4", 100), _entry("clip-1080p.mp4", 100)]
-        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 12.0})
+        durations = self._durations({"long-1080p.mp4": 300.0, "clip-1080p.mp4": 6.0})
         saved = [_entry("saved-clip.mp4", 100)]
 
         result = select_library(entries, mode=MIXED, durations=durations, clips=saved)
@@ -203,9 +206,9 @@ class TestSelectLibrary:
         assert not select_library(entries, mode="shorts", durations={}, clips=[])
         assert not select_library(entries, mode="full", durations={}, clips=[])
 
-    def test_boundary_60s_is_short(self):
-        entries = [_entry("exactly-60-1080p.mp4", 100)]
-        durations = self._durations({"exactly-60-1080p.mp4": 60.0})
+    def test_the_boundary_second_is_short(self):
+        entries = [_entry("exactly-at-the-line-1080p.mp4", 100)]
+        durations = self._durations({"exactly-at-the-line-1080p.mp4": SHORT_MAX_S})
 
         assert select_library(entries, mode="shorts", durations=durations, clips=[])
         assert not select_library(entries, mode="full", durations=durations, clips=[])
@@ -250,6 +253,42 @@ class TestSelectLibrary:
 
         assert select_library(entries, mode="full", durations={}, clips=[]) == []
         assert select_library(entries, mode="shorts", durations={}, clips=[]) == []
+
+    def test_the_recorded_kind_decides_before_any_running_time(self):
+        """Evolver settles this for the whole library; the player reads it."""
+        entries = [_entry("carved-scene-1080p.mp4", 100)]
+        durations = self._durations({"carved-scene-1080p.mp4": 300.0})
+        kinds = {Path("carved-scene-1080p.mp4"): EXCERPT}
+
+        assert select_library(entries, mode="shorts", durations=durations, clips=[],
+                              kind_of=kinds.get)
+        assert not select_library(entries, mode="full", durations=durations, clips=[],
+                                  kind_of=kinds.get)
+
+    def test_a_long_scene_recorded_as_full_length_is_never_measured(self):
+        entries = [_entry("whole-scene-1080p.mp4", 100)]
+        kinds = {Path("whole-scene-1080p.mp4"): FULL_LENGTH}
+
+        assert select_library(entries, mode="full", durations={}, clips=[],
+                              kind_of=kinds.get)
+        assert not select_library(entries, mode="shorts", durations={}, clips=[],
+                                  kind_of=kinds.get)
+
+    def test_a_video_evolver_has_not_reached_falls_back_to_its_running_time(self):
+        entries = [_entry("unrecorded-1080p.mp4", 100)]
+        durations = self._durations({"unrecorded-1080p.mp4": 4.0})
+
+        assert select_library(entries, mode="shorts", durations=durations, clips=[],
+                              kind_of=lambda _video: "")
+
+    def test_a_genau_loop_is_a_short_whether_or_not_its_record_says_so(self):
+        """The folder it was delivered to is the fallback for the loops."""
+        clips = [_entry("saved-clip.mp4", 50)]
+
+        kept = select_library([], mode="shorts", durations={}, clips=clips,
+                              kind_of=lambda _video: "")
+
+        assert [e.video for e in kept] == [Path("saved-clip.mp4")]
 
     def test_applies_version_dedup(self):
         entries = [
@@ -349,7 +388,7 @@ class TestScriptedOnly:
         scripted_short = _entry("Cee-topaz.mp4", size=100, funscript="Cee.funscript")
         unscripted_short = _entry("Dee-1080p.mp4", size=100)
         clip = _entry("saved-clip.mp4", size=50)
-        durations = {scripted_short.video: 30.0, unscripted_short.video: 30.0}
+        durations = {scripted_short.video: 6.0, unscripted_short.video: 6.0}
 
         kept = select_library(
             [scripted_short, unscripted_short], mode=SHORTS, durations=durations,
