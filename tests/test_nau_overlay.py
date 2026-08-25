@@ -5,9 +5,11 @@ import numpy as np
 from player_core.funscript import Funscript
 from nau.heatmap import build_heatmap
 from nau.overlay import (
+    TIMELINE_HEIGHT,
     HeatmapStrip,
     ZoomWindow,
     time_to_x,
+    timeline_height,
 )
 
 
@@ -17,6 +19,38 @@ def _frame(fill: int, w: int = 160, h: int = 90) -> np.ndarray:
 
 def _funscript():
     return Funscript(actions=[(0, 0), (1000, 100), (2000, 0)])
+
+
+class TestTheHeightOfTheTimelineRow:
+    """How tall the bottom of the window is, whatever is drawn there.
+
+    Every video has a clickable timeline — the heatmap where there is a
+    funscript, a plain progress bar where there is not — so the row is never
+    absent, and the two things measured against it (where a press lands, where
+    the volume chip sits) can ask one question instead of two.
+    """
+
+    def test_a_scripted_video_is_measured_by_its_strip(self):
+        strip = HeatmapStrip()
+        strip.update("v0.mp4", _funscript(), 4000.0, width=40)
+
+        assert timeline_height(strip) == strip.height == 24
+
+    def test_an_unscripted_video_still_leaves_the_row_the_bar_needs(self):
+        """The strip is 0 there, and a row of no height would put the whole
+        timeline outside the window and the chip on its bottom edge."""
+        strip = HeatmapStrip()
+        strip.update("plain.mp4", None, 4000.0, width=40)
+
+        assert strip.height == 0
+        assert timeline_height(strip) == TIMELINE_HEIGHT
+
+    def test_a_strip_that_grew_to_record_takes_the_row_with_it(self):
+        strip = HeatmapStrip()
+        strip.update("v0.mp4", _funscript(), 4000.0, width=40,
+                     loop_state="recording", record_in_ms=1000.0, position_ms=1200.0)
+
+        assert timeline_height(strip) == 48
 
 
 class TestHeatmapStrip:

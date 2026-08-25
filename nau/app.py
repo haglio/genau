@@ -49,7 +49,6 @@ from .library_source import (
 from .mode_memory import RememberedMode
 from .loading import LoadingCancelled, LoadingScreen
 from .overlay import (
-    TIMELINE_HEIGHT,
     HeatmapStrip,
     LoopThumbCapture,
     bar_track_x,
@@ -57,6 +56,7 @@ from .overlay import (
     label_xs,
     progress_bar_bgra,
     time_to_x,
+    timeline_height,
 )
 from .runtime import SEEK_STEP_MS, apply_command
 from player_core.volume import (
@@ -157,7 +157,7 @@ def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -
     iw = in_t.shape[1] if in_t is not None else 1
     ow = out_t.shape[1] if out_t is not None else 1
     ix, ox = label_xs(in_x, out_x, iw, ow, win_w)
-    strip_h = heatmap.height or TIMELINE_HEIGHT
+    strip_h = timeline_height(heatmap)
     if in_t is not None:
         y = win_h - strip_h - in_t.shape[0] - 2
         player.overlay(_OV_IN_THUMB, ix, y, in_t)
@@ -395,12 +395,6 @@ def _run(args) -> int:
         nonlocal volume_hud
         volume_hud = VolumeHud(volume=level, muted=muted)
 
-    def _timeline_h() -> int:
-        # The heatmap strip when scripted (may be taller while recording),
-        # else the plain progress bar — always present so every video has a
-        # clickable timeline.
-        return heatmap.height or TIMELINE_HEIGHT
-
     # Genau's published let_go describes the last handoff GENAU made — which,
     # across a video change while it sits paused, is a handoff from some other
     # video's stroke.  A descent drawn from that height tops a ramp the device
@@ -514,10 +508,10 @@ def _run(args) -> int:
         # The volume control first — it floats over the video, so a press on it is
         # never also a press on what is behind it.
         if _press_volume(*chip_local(mx, my, win_w=win_w, win_h=win_h,
-                                     timeline_h=_timeline_h())):
+                                     timeline_h=timeline_height(heatmap))):
             return
         # Click on the timeline seeks there; a click on the video toggles pause.
-        if my >= win_h - _timeline_h():
+        if my >= win_h - timeline_height(heatmap):
             start_ms, end_ms = heatmap.window
             if end_ms <= start_ms:
                 end_ms = start_ms + session.duration_ms
@@ -563,7 +557,7 @@ def _run(args) -> int:
                     # every volume slider does; a drag that began elsewhere misses
                     # the chip and does nothing.
                     cx, cy = chip_local(*ev.pos, win_w=win_w, win_h=win_h,
-                                        timeline_h=_timeline_h())
+                                        timeline_h=timeline_height(heatmap))
                     if hit_part(cx, cy) == "track":
                         _press_volume(cx, cy)
             elif ev.type == pygame.KEYDOWN:
@@ -687,7 +681,7 @@ def _run(args) -> int:
 
         # The volume control, at the right-hand end of the row above the timeline —
         # beside the transport, where a player's has always been.
-        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=_timeline_h())
+        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=timeline_height(heatmap))
         player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume_hud))
 
         _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h)
