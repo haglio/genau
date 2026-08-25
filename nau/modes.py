@@ -27,6 +27,25 @@ from .mode_memory import RememberedMode
 logger = logging.getLogger(__name__)
 
 
+def reload_playlist(session, jumps, resolve) -> None:
+    """Take up a playlist that was rewritten under this player.
+
+    Fun Time owns the playlist file when it passes one and rewrites it whenever
+    the room's selection changes; RELOAD_PLAYLIST is it saying so.  *resolve* is
+    called to read the new list, and is None where this player builds its own —
+    standalone the verb means nothing, rather than rebuilding the list under the
+    user.
+
+    Replaced rather than loaded, so the video on screen carries on: only what
+    "next" reaches has changed.  The volume is left behind with it, because the
+    playlist is no longer the one a compilation put there.
+    """
+    if resolve is None:
+        return
+    session.replace_playlist(resolve())
+    jumps.leave_compilation()
+
+
 class Modes:
     """What this player is playing, as the console says it and the memory keeps it."""
 
