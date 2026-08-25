@@ -13,6 +13,7 @@ number the picture cannot recompute, latched at the source.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from player_core.funscript import HANDOFF_RAMP_MS, Funscript
 
 from player_core.drive_readout import (
@@ -413,17 +414,26 @@ class TestTheDescentTopIsSelectedOnce:
 
         assert resumed.waveform[opens] != frozen.waveform[opens]
 
-    def test_moving_a_control_re_selects_the_top(self):
+    @pytest.mark.parametrize("control, moved_to", [
+        ("amplitude", 90), ("center", 60), ("speed", 70),
+    ])
+    def test_moving_a_control_re_selects_the_top(self, control, moved_to):
+        """Every field of the latch's key, one case each.
+
+        The held choice is carried while the controls stand still -- which is
+        what the sibling above pins -- so the newer publish below can only reach
+        the ramp if moving the control re-keyed the latch.  Dropping any one of
+        the three from the key leaves that field's case carrying instead.
+        """
         script = _script_ahead()
-        tops: dict = {}
         opens = 3_000 // STEP_MS
+        tops: dict = {}
 
         first = _read(script, at=0, published=_stroke_at(0), descent_tops=tops)
-        wider = _read(script, at=0, published=_stroke_at(0, amplitude=90),
+        moved = _read(script, at=0, published=_stroke_at(20, **{control: moved_to}),
                       descent_tops=tops)
 
-        assert (tops and first is not None and wider is not None)
-        assert len([k for k in tops if isinstance(k, int)]) >= 1
+        assert moved.waveform[opens] != first.waveform[opens]
 
 
 class TestStillPicture:
