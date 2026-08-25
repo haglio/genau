@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import math
 import socket
-import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
@@ -240,12 +239,10 @@ class RateLimitedTCodeSender:
         *,
         direct_state: DirectControlState | None = None,
         min_interval: float = 1.0 / 30.0,
-        now_source=time.monotonic,
     ) -> None:
         self._sink = sink
         self._direct_state = direct_state
         self._min_interval = min_interval
-        self._now_source = now_source
         self._last_send_time: float = 0.0
         self._last_phase: float = 0.0
         self._stroke_phase: float = 0.0
