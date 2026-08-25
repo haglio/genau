@@ -1,14 +1,21 @@
-"""Where a press on Nau's window lands, once the console has had its turn.
+"""What the mouse does to Nau's window.
 
-Three zones, all measured up from the bottom edge: the volume chip at the
-right-hand end of the timeline row, the rest of that row, and the video above
-it.  The console's own buttons are hit-tested before any of this — they are the
-shared HUD's, and a press they take never reaches here.
+Four things are under the pointer, and they are asked in this order because each
+floats over the one behind it: the console's own buttons at the top left, the
+volume chip at the right-hand end of the timeline row, the rest of that row, and
+the video everywhere else.
 
-Lived as a closure inside ``nau.app``'s run loop, so the one thing this decides
-— whether a press seeks or pauses — could only be exercised by opening a window
-and clicking in it.  Inverting the test, so a click on the video seeked and a
-click on the timeline paused, left the whole suite green.
+A press that a console button takes never reaches the video; a press on the chip
+is never also a press on what is behind it.  A drag is different again — the
+console's bands keep a drag that wanders off them, and the volume slider takes
+one only along its own track — so a held pointer is offered to whoever grabbed
+it rather than to whatever it happens to be over.
+
+Lived as a closure and a chain of event branches inside ``nau.app``'s run loop,
+so the one thing it decides — whether a press seeks or pauses — could only be
+exercised by opening a window and clicking in it.  Inverting the test, so a click
+on the video seeked and a click on the timeline paused, left the whole suite
+green.
 """
 from __future__ import annotations
 
@@ -16,18 +23,28 @@ from .overlay import bar_track_x, timeline_height
 
 
 class Pointer:
-    """The video under the pointer, and what a press or a drag on it does."""
+    """The window under the pointer, and what a press or a drag on it does."""
 
-    def __init__(self, session, heatmap, volume) -> None:
+    def __init__(self, session, heatmap, volume, console_hud, dashboard) -> None:
         self._session = session
         self._heatmap = heatmap
         self._volume = volume
+        self._console_hud = console_hud
+        self._dashboard = dashboard
+        self._hover: tuple[int, int] | None = None
+
+    @property
+    def hover(self) -> tuple[int, int] | None:
+        """Where to name the console button under the pointer, else None."""
+        return self._hover
 
     def press(self, mx: int, my: int, *, win_w: int, win_h: int) -> None:
         """Take a press at window ``(mx, my)``."""
+        asked = self._console_hud.press_at(mx, my)
+        if asked:
+            self._dashboard.post(asked)
+            return
         row_h = timeline_height(self._heatmap)
-        # The volume chip first — it floats over the video, so a press on it is
-        # never also a press on what is behind it.
         if self._volume.press_at(mx, my, win_w=win_w, win_h=win_h, timeline_h=row_h):
             return
         if my >= win_h - row_h:
@@ -35,14 +52,33 @@ class Pointer:
         else:
             self._session.toggle_pause()
 
-    def drag(self, mx: int, my: int, *, win_w: int, win_h: int) -> None:
-        """Take a drag at window ``(mx, my)`` with the button still held.
+    def release(self) -> None:
+        """Let go of whatever a press took hold of."""
+        self._console_hud.release()
 
-        Only the volume slider answers one; dragging across the video is how a
-        pointer crosses the window, not a control being moved.
+    def motion(self, mx: int, my: int, *, held: bool,
+               win_w: int, win_h: int) -> None:
+        """Follow the pointer to window ``(mx, my)``, with the button *held* or not.
+
+        A pointer that is not held is only ever naming a button.  A held one
+        belongs to whichever control took hold of it: a band on the drive
+        readout keeps the drag even as the pointer wanders off it, and says
+        nothing while the level under it has not moved.  Held over nothing, the
+        volume slider gets its turn, and a drag that began elsewhere misses the
+        chip and does nothing.
         """
-        self._volume.drag_at(mx, my, win_w=win_w, win_h=win_h,
-                             timeline_h=timeline_height(self._heatmap))
+        self._hover = self._console_hud.hover_at(mx, my)
+        if not held:
+            # The button came up somewhere this loop never saw it — over another
+            # window, or off the screen — so nothing is held.
+            self._console_hud.release()
+        elif self._console_hud.holding:
+            dragged = self._console_hud.drag_to(mx, my)
+            if dragged:
+                self._dashboard.post(dragged)
+        else:
+            self._volume.drag_at(mx, my, win_w=win_w, win_h=win_h,
+                                 timeline_h=timeline_height(self._heatmap))
 
     def _time_at(self, mx: int, win_w: int) -> float:
         """The media time the timeline puts under *mx*.
