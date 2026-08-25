@@ -27,6 +27,7 @@ from .cli import (
 )
 from .clip_jumps import ClipJumps
 from .dashboard import Dashboard
+from .volume_control import VolumeControl
 from .clip_nav import ClipNav
 from player_core.console import ConsoleModel, genau_drives, read_console
 from .display import Display
@@ -59,14 +60,7 @@ from .overlay import (
     timeline_height,
 )
 from .runtime import SEEK_STEP_MS, apply_command
-from player_core.volume import (
-    VolumeHud,
-    VolumeHudPainter,
-    chip_local,
-    chip_xy,
-    hit_part,
-    volume_at,
-)
+from player_core.volume import VolumeHudPainter, chip_xy
 from .session import PlayerSession
 from .status import next_handoff_touch, status_fields
 from player_core.tcode_driver import FunscriptTCodeDriver
@@ -285,11 +279,6 @@ def _run(args) -> int:
     # ever comes from Fun Time saying so — and defaults off, because a session
     # that is never told is a session where nothing narrowed it.
     f_mode = False
-    # The main player's sound, as Fun Time publishes it.  Nau's own mpv is one
-    # of two sinks it drives (Genau's clip audio is the other), so the level here
-    # is drawn and reported, never decided: a press asks Fun Time and the answer
-    # comes back down the same channel.
-    volume_hud = VolumeHud()
     volume_painter = VolumeHudPainter()
     # Whether this window paints at all.  Fun Time gives the main slot's rect to
     # Genau in genau mode and minimizes Nau — minimized, so it keeps its taskbar
@@ -330,6 +319,10 @@ def _run(args) -> int:
     # Every control on this HUD asks Fun Time rather than acting; so does
     # the close box.  See nau.dashboard.
     dashboard = Dashboard(args.dashboard_cmd_file)
+    # The main player's sound, as Fun Time publishes it.  Nau's own mpv is one
+    # of two sinks it drives (Genau's clip audio is the other), so the level
+    # here is drawn and reported, never decided; see nau.volume_control.
+    volume = VolumeControl(dashboard)
 
     # Clip navigation: a clip carved from a compilation records its siblings,
     # order, and source scene in its sidecar (see nau.clip_nav). Built once over
@@ -393,10 +386,6 @@ def _run(args) -> int:
     def _set_f_mode(on: bool) -> None:
         nonlocal f_mode
         f_mode = on
-
-    def _set_volume_hud(level: int, muted: bool) -> None:
-        nonlocal volume_hud
-        volume_hud = VolumeHud(volume=level, muted=muted)
 
     # Genau's published let_go describes the last handoff GENAU made — which,
     # across a video change while it sits paused, is a handoff from some other
@@ -462,30 +451,11 @@ def _run(args) -> int:
             descent_tops=descent_tops,
         )
 
-    def _press_volume(cx: int, cy: int) -> bool:
-        """Take a press at chip-local ``(cx, cy)``; False if it missed the chip.
-
-        The new level is shown at once and asked for at the same time: Fun Time
-        holds the authority and its answer is a tick away, and a slider that waits
-        for it drags a frame behind the pointer.  Its answer overwrites this one
-        either way, so an ignored press corrects itself rather than sticking.
-        """
-        nonlocal volume_hud
-        part = hit_part(cx, cy)
-        if part == "mute":
-            volume_hud = replace(volume_hud, muted=not volume_hud.muted)
-            dashboard.post("audio_unmute" if not volume_hud.muted else "audio_mute")
-        elif part == "track":
-            level = volume_at(cx)
-            volume_hud = VolumeHud(volume=level, muted=False)
-            dashboard.post(f"audio_set_volume|{level}")
-        return bool(part)
-
     def _click(mx: int, my: int, win_w: int, win_h: int) -> None:
         # The volume control first — it floats over the video, so a press on it is
         # never also a press on what is behind it.
-        if _press_volume(*chip_local(mx, my, win_w=win_w, win_h=win_h,
-                                     timeline_h=timeline_height(heatmap))):
+        if volume.press_at(mx, my, win_w=win_w, win_h=win_h,
+                           timeline_h=timeline_height(heatmap)):
             return
         # Click on the timeline seeks there; a click on the video toggles pause.
         if my >= win_h - timeline_height(heatmap):
@@ -530,13 +500,8 @@ def _run(args) -> int:
                     if dragged:
                         dashboard.post(dragged)
                 else:
-                    # Dragging along the track keeps setting the level, the way
-                    # every volume slider does; a drag that began elsewhere misses
-                    # the chip and does nothing.
-                    cx, cy = chip_local(*ev.pos, win_w=win_w, win_h=win_h,
-                                        timeline_h=timeline_height(heatmap))
-                    if hit_part(cx, cy) == "track":
-                        _press_volume(cx, cy)
+                    volume.drag_at(*ev.pos, win_w=win_w, win_h=win_h,
+                                   timeline_h=timeline_height(heatmap))
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
                     dashboard.take_quit_gesture(stop_event)
@@ -577,7 +542,7 @@ def _run(args) -> int:
                     next_funscripted=funscript_jumps.next_funscripted,
                     end_compilation=_end_compilation,
                     set_f_mode=_set_f_mode,
-                    set_volume_hud=_set_volume_hud,
+                    set_volume_hud=volume.set,
                     set_display=display.set_active,
                 )
 
@@ -659,7 +624,7 @@ def _run(args) -> int:
         # The volume control, at the right-hand end of the row above the timeline —
         # beside the transport, where a player's has always been.
         vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=timeline_height(heatmap))
-        player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume_hud))
+        player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume.hud))
 
         _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h)
 
