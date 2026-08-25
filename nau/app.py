@@ -27,6 +27,7 @@ from .cli import (
 )
 from .clip_jumps import ClipJumps
 from .dashboard import Dashboard
+from .pointer import Pointer
 from .volume_control import VolumeControl
 from .clip_nav import ClipNav
 from player_core.console import ConsoleModel, genau_drives, read_console
@@ -323,6 +324,9 @@ def _run(args) -> int:
     # of two sinks it drives (Genau's clip audio is the other), so the level
     # here is drawn and reported, never decided; see nau.volume_control.
     volume = VolumeControl(dashboard)
+    # A press the console's buttons did not take: the chip, the timeline, or the
+    # video.  See nau.pointer.
+    pointer = Pointer(session, heatmap, volume)
 
     # Clip navigation: a clip carved from a compilation records its siblings,
     # order, and source scene in its sidecar (see nau.clip_nav). Built once over
@@ -451,25 +455,6 @@ def _run(args) -> int:
             descent_tops=descent_tops,
         )
 
-    def _click(mx: int, my: int, win_w: int, win_h: int) -> None:
-        # The volume control first — it floats over the video, so a press on it is
-        # never also a press on what is behind it.
-        if volume.press_at(mx, my, win_w=win_w, win_h=win_h,
-                           timeline_h=timeline_height(heatmap)):
-            return
-        # Click on the timeline seeks there; a click on the video toggles pause.
-        if my >= win_h - timeline_height(heatmap):
-            start_ms, end_ms = heatmap.window
-            if end_ms <= start_ms:
-                end_ms = start_ms + session.duration_ms
-            # Both the heatmap strip and the plain bar are inset to the same
-            # track, so a click maps onto it the same way.
-            x0, x1 = bar_track_x(win_w)
-            frac = min(1.0, max(0.0, (mx - x0) / max(1, x1 - x0)))
-            session.seek_to(start_ms + frac * (end_ms - start_ms))
-        else:
-            session.toggle_pause()
-
     while not stop_event.is_set():
         win_w, win_h = screen.get_size()
         for ev in pygame.event.get():
@@ -482,7 +467,7 @@ def _run(args) -> int:
                 else:
                     # A press that missed every button falls through to the video,
                     # where it seeks or pauses as it always did.
-                    _click(ev.pos[0], ev.pos[1], win_w, win_h)
+                    pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
             elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
                 console_hud.release()
             elif ev.type == pygame.MOUSEMOTION:
@@ -500,8 +485,7 @@ def _run(args) -> int:
                     if dragged:
                         dashboard.post(dragged)
                 else:
-                    volume.drag_at(*ev.pos, win_w=win_w, win_h=win_h,
-                                   timeline_h=timeline_height(heatmap))
+                    pointer.drag(*ev.pos, win_w=win_w, win_h=win_h)
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
                     dashboard.take_quit_gesture(stop_event)
