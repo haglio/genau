@@ -27,6 +27,8 @@ from .cli import (
 )
 from .clip_jumps import ClipJumps
 from .dashboard import Dashboard
+from .library_source import DEFAULT_MODE
+from .modes import Modes
 from .pointer import Pointer
 from .volume_control import VolumeControl
 from .clip_nav import ClipNav
@@ -37,18 +39,10 @@ from .drive_trace import drive_readout
 from player_core.console_hud import (
     ConsoleHud,
     ConsolePainter,
-    ModeHud,
     hud_xy,
     with_playback_speed,
 )
 from .notice import NoticeWriter
-from .library_source import (
-    DEFAULT_MODE,
-    LENGTH_MODES,
-    length_mode_rebuilds,
-    next_length_mode,
-)
-from .mode_memory import RememberedMode
 from .loading import LoadingCancelled, LoadingScreen
 from .overlay import (
     HeatmapStrip,
@@ -271,15 +265,6 @@ def _run(args) -> int:
         start_paused=start_paused,
         version_index=source.version_index if source is not None else None,
     )
-    # Empty when there is no library behind the playlist (Fun Time can hand Nau
-    # one without library dirs): no length filter is running, so the HUD has no
-    # mode to name and the toggle has nothing to rebuild.
-    length_mode = (remembered.length_mode or DEFAULT_MODE) if source is not None else ""
-    # Fun Time's F-mode narrows the playlist it writes to the scripted videos.
-    # The result is indistinguishable from any other playlist here, so this only
-    # ever comes from Fun Time saying so — and defaults off, because a session
-    # that is never told is a session where nothing narrowed it.
-    f_mode = False
     volume_painter = VolumeHudPainter()
     # Whether this window paints at all.  Fun Time gives the main slot's rect to
     # Genau in genau mode and minimizes Nau — minimized, so it keeps its taskbar
@@ -354,42 +339,14 @@ def _run(args) -> int:
         remembered.compilation,
         Path(remembered.video) if remembered.video else None,
     )
+    # The length filter, the volume and Fun Time's own narrowing, as the console
+    # draws them and the memory keeps them.  See nau.modes.
+    modes = Modes(source, session, jumps, remembered=remembered.length_mode)
 
     def _reload_playlist() -> None:
         if args.playlist is not None:
             session.replace_playlist(resolve_playlist(args, source=source))
             jumps.leave_compilation()
-
-    def _set_length_mode(mode: str) -> None:
-        nonlocal length_mode
-        if source is None:
-            return
-        mode = mode.strip().lower()
-        if mode not in LENGTH_MODES:
-            return
-        if not length_mode_rebuilds(mode, length_mode,
-                                    in_compilation=bool(jumps.compilation)):
-            return
-        length_mode = mode
-        jumps.leave_compilation()
-        logger.info("Length mode: %s", length_mode)
-        session.load_playlist(source.playlist_for(length_mode))
-
-    def _toggle_length_mode() -> None:
-        _set_length_mode(next_length_mode(length_mode))
-
-    def _end_compilation() -> None:
-        """Out of a compilation without naming a length: the mode that was
-        feeding the playlist when it was entered is the one still held here,
-        since PLAY_COMPILATION replaces the playlist but not the mode.  The clip
-        on screen keeps playing — leaving is about what "next" reaches."""
-        if source is None:
-            return
-        jumps.end_compilation(source.playlist_for(length_mode))
-
-    def _set_f_mode(on: bool) -> None:
-        nonlocal f_mode
-        f_mode = on
 
     # Genau's published let_go describes the last handoff GENAU made — which,
     # across a video change while it sits paused, is a handoff from some other
@@ -504,7 +461,7 @@ def _run(args) -> int:
                 elif ev.key == pygame.K_v:
                     session.cycle_version()
                 elif ev.key == pygame.K_l:
-                    _toggle_length_mode()
+                    modes.toggle_length()
             elif ev.type == pygame.KEYUP:
                 if ev.key == pygame.K_r:
                     session.record_up()
@@ -517,15 +474,15 @@ def _run(args) -> int:
                     cmd, session,
                     stop_event=stop_event,
                     reload_playlist=_reload_playlist,
-                    toggle_length_mode=_toggle_length_mode,
-                    set_length_mode=_set_length_mode,
+                    toggle_length_mode=modes.toggle_length,
+                    set_length_mode=modes.set_length,
                     play_compilation=jumps.play_compilation,
                     play_full_vid=jumps.play_full_vid,
                     play_clip_jump=jumps.play_clip_jump,
                     jump_to_funscript=funscript_jumps.jump_to_funscript,
                     next_funscripted=funscript_jumps.next_funscripted,
-                    end_compilation=_end_compilation,
-                    set_f_mode=_set_f_mode,
+                    end_compilation=modes.end_compilation,
+                    set_f_mode=modes.set_f_mode,
                     set_volume_hud=volume.set,
                     set_display=display.set_active,
                 )
@@ -540,12 +497,7 @@ def _run(args) -> int:
         # blanked Nau still navigates: in genau mode the `[`/`]` keys drive it in
         # the background, and where they leave it is what the next session opens
         # on whether or not anyone was looking.
-        mode_now = RememberedMode(
-            length_mode=length_mode, compilation=jumps.compilation,
-            # Only while inside one: the clip is remembered as the volume's
-            # anchor, and outside a compilation there is no volume to anchor.
-            video=str(session.current_video) if jumps.compilation else "",
-        )
+        mode_now = modes.remembered
         if mode_now != remembered:
             remembered = mode_now
             memory.write(mode_now)
@@ -591,12 +543,7 @@ def _run(args) -> int:
         drive = _drive_readout(console, published)
         left, top = hud_xy()
         panel = console_hud.bgra(ConsoleHud(
-            modes=ModeHud(
-                video=session.current_video.stem,
-                length_mode=length_mode, compilation=jumps.compilation,
-                position=session.index + 1, total=len(session.playlist),
-                f_mode=f_mode,
-            ),
+            modes=modes.hud,
             # Nau knows its own playback rate; Fun Time does not publish it, so it
             # is folded in here.  The dot's `active` and everything else came down
             # in the console file.
