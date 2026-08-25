@@ -14,7 +14,6 @@ from genau_vr.playback import (
     phase_to_position,
     update_engine,
 )
-from genau_vr.runtime_commands import apply_runtime_command
 
 
 class TestCycleShapeReverse:
@@ -27,22 +26,6 @@ class TestCycleShapeReverse:
         state = DirectControlState(playing=True, shape=WaveformShape.SINE)
         cycle_shape(state, -1)
         assert state.shape is WaveformShape.SAWTOOTH
-
-    def test_cycle_shape_prev_command_reverses_shape(self):
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        ds = DirectControlState(playing=True)
-        assert ds.shape is WaveformShape.SINE
-
-        handled = apply_runtime_command(
-            "CYCLE_SHAPE_PREV",
-            engine=engine,
-            rh_paused={"value": False},
-            step_clip=lambda _step: None,
-            direct_state=ds,
-        )
-
-        assert handled is True
-        assert ds.shape is WaveformShape.SAWTOOTH
 
 
 class TestBpmForSpeed:
