@@ -8,6 +8,21 @@ import pytest
 from genau_vr.vr_runtime import Probe, Readiness
 
 
+@pytest.fixture(autouse=True)
+def _do_not_name_the_interpreter(monkeypatch):
+    """Keep ``main()`` from preparing the launcher on the machine running this.
+
+    ``_name_this_process`` copies the running interpreter to a role-named
+    sibling and stamps an icon onto it — real work on Windows, where these tests
+    run for real, done five times over by the five cases that call ``main``.  It
+    swallows its own exceptions, so it costs a file and a copy rather than a red
+    test, which is exactly why nothing noticed.
+    """
+    import genau_vr.app
+
+    monkeypatch.setattr(genau_vr.app, "_name_this_process", lambda: None)
+
+
 def _ready() -> Probe:
     return Probe(Readiness.READY)
 
