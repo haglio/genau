@@ -8,9 +8,13 @@ so it closed Nau, then the portrait satellite, then the landscape one, one press
 at a time, while the dashboard, Genau and the audio companion carried on and the
 session had to be ended by voice.
 
-The scan at the bottom is what covers ``nau/app.py``, whose event loop needs a
-real window and the libmpv DLL and so cannot be exercised here — the same reason
-``test_focus_clickthrough`` reads its guarantee off the source.
+The scan at the bottom is what covers the run loops themselves, which need a real
+window and the libmpv DLL and so cannot be exercised here — the same reason
+``test_focus_clickthrough`` reads its guarantee off the source.  What each loop
+routes *through* differs: Nau's gesture is answered by ``nau.dashboard``, which
+has its own tests in ``test_nau_dashboard``; Genau's calls ``quit_gesture``
+directly.  Either way the regression is the same, and it is the call the loop
+makes that the scan is about.
 """
 from __future__ import annotations
 
@@ -20,10 +24,13 @@ from pathlib import Path
 from genau.session_quit import SESSION_QUIT, quit_gesture
 
 REPO = Path(__file__).resolve().parents[1]
-# Every loop that answers a quit gesture.  The loading screen is not one: it runs
-# before the session has a dispatch loop to ask, so giving up on the wait there
-# is still this window's own business.
-PLAYER_LOOPS = (REPO / "nau" / "app.py", REPO / "genau" / "lifecycle.py")
+# Every loop that answers a quit gesture, and the call it answers it with.  The
+# loading screen is not one: it runs before the session has a dispatch loop to
+# ask, so giving up on the wait there is still this window's own business.
+PLAYER_LOOPS = {
+    REPO / "nau" / "app.py": "take_quit_gesture",
+    REPO / "genau" / "lifecycle.py": "quit_gesture",
+}
 
 
 class TestQuitGesture:
@@ -56,11 +63,13 @@ class TestQuitGesture:
 
 
 def _calls(source: Path, name: str) -> bool:
+    """Whether *source* calls *name*, plainly or through something holding it."""
     tree = ast.parse(source.read_text(encoding="utf-8"))
     return any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == name
+        isinstance(node, ast.Call) and (
+            (isinstance(node.func, ast.Name) and node.func.id == name)
+            or (isinstance(node.func, ast.Attribute) and node.func.attr == name)
+        )
         for node in ast.walk(tree)
     )
 
@@ -70,8 +79,8 @@ def test_every_player_loop_routes_its_quit_through_the_session():
     regression: it looks right standalone and takes one window out of a session."""
     missing = [
         source.relative_to(REPO).as_posix()
-        for source in PLAYER_LOOPS
-        if not _calls(source, "quit_gesture")
+        for source, call in PLAYER_LOOPS.items()
+        if not _calls(source, call)
     ]
 
     assert not missing, f"these end themselves instead of asking the session: {missing}"
