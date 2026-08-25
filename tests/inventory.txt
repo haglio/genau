@@ -368,11 +368,60 @@ tests/test_genau_voice.py::TestParseVoskResult::test_unk_text_returns_none
 tests/test_genau_voice.py::TestParseVoskResult::test_unrecognized_phrase_returns_none
 tests/test_genau_voice.py::TestStartClip::test_parser_defaults_to_no_named_clip
 tests/test_genau_voice.py::TestStartClip::test_parser_takes_the_clip_to_open_on
-tests/test_genau_voice.py::TestVoiceCommands::test_all_values_are_recognized_runtime_commands
 tests/test_genau_voice.py::TestVoiceCommands::test_amp_fifty_maps_to_numeric_command
 tests/test_genau_voice.py::TestVoiceCommands::test_amp_zero_and_one_hundred
 tests/test_genau_voice.py::TestVoiceCommands::test_center_eighty_maps_to_numeric_command
 tests/test_genau_voice.py::TestVoiceCommands::test_contains_expected_phrases
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp down-AMPLITUDE_DOWN]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp eighty-AMP 80]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp fifty-AMP 50]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp forty-AMP 40]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp ninety-AMP 90]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp one hundred-AMP 100]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp seventy-AMP 70]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp sixty-AMP 60]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp ten-AMP 10]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp thirty-AMP 30]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp twenty-AMP 20]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp up-AMPLITUDE_UP]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[amp zero-AMP 0]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center down-CENTER_DOWN]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center eighty-CENTER 80]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center fifty-CENTER 50]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center forty-CENTER 40]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center ninety-CENTER 90]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center one hundred-CENTER 100]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center seventy-CENTER 70]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center sixty-CENTER 60]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center ten-CENTER 10]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center thirty-CENTER 30]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center twenty-CENTER 20]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center up-CENTER_UP]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[center zero-CENTER 0]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[cruise control-TOGGLE_CRUISE]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[cruise off-CRUISE_OFF]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[cruise on-CRUISE_ON]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[cycle shape-CYCLE_SHAPE]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[next clip-NEXT]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[pause-PAUSE]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[play-RESUME]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[previous clip-PREV]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[quit-QUIT]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[resume-RESUME]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[slow down-SPEED_DOWN]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed down-SPEED_DOWN]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed eighty-SPEED 80]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed fifty-SPEED 50]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed forty-SPEED 40]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed ninety-SPEED 90]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed one hundred-SPEED 100]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed seventy-SPEED 70]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed sixty-SPEED 60]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed ten-SPEED 10]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed thirty-SPEED 30]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed twenty-SPEED 20]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed up-SPEED_UP]
+tests/test_genau_voice.py::TestVoiceCommands::test_every_spoken_phrase_names_a_verb_the_runtime_handles[speed zero-SPEED 0]
 tests/test_genau_voice.py::TestVoiceCommands::test_quit_maps_to_quit_command
 tests/test_genau_voice.py::TestVoiceCommands::test_slow_down_maps_to_speed_down
 tests/test_genau_voice.py::TestVoiceCommands::test_speed_down_maps_to_speed_down
