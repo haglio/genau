@@ -31,20 +31,23 @@ def _source(tmp_path, durations):
     return lib, meta
 
 
-def test_clip_tagged_long_entry_is_a_short_not_full(tmp_path):
+def test_a_carved_scene_is_a_short_before_evolver_records_its_kind(tmp_path):
+    """The ``clip`` record was how a carved scene was known before there was a
+    kind to write, and a library Evolver has not been over since still has only
+    that — so it is still read."""
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     clip = _clip_entry(lib, meta, "larkin/1 clips/Ann Bly - POV Scene 2.mp4")
     plain = _plain_entry(lib, "larkin/0/Long Movie.mp4")
     src = LibrarySource(
         entries=[clip, plain], clips=[],
-        durations={clip.video: 120.0, plain.video: 120.0},  # both over the 60s short cutoff
+        durations={clip.video: 120.0, plain.video: 120.0},  # both well over the short cutoff
         rng=random.Random(0), metadata_root=meta,
     )
 
     shorts = {v for v, _ in src.playlist_for("shorts")}
     full = {v for v, _ in src.playlist_for("full")}
 
-    assert clip.video in shorts       # clip-tagged 120s surfaces as a short
+    assert clip.video in shorts       # the carved 120s scene surfaces as a short
     assert clip.video not in full     # ...and never as full-length
     assert plain.video in full        # a plain 120s is full-length
     assert plain.video not in shorts

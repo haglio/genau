@@ -37,11 +37,6 @@ class TestClipNav:
         nav = ClipNav.build([*clips, full], meta)
         return nav, clips, full
 
-    def test_is_clip(self, tmp_path):
-        nav, clips, full = self._nav(tmp_path)
-        assert nav.is_clip(clips[0]) is True
-        assert nav.is_clip(full) is False
-
     def test_compilation_of_names_the_volume_a_clip_came_from(self, tmp_path):
         """Nau's HUD says which compilation is holding the playlist, so the title
         has to be reachable from the clip that put it there."""

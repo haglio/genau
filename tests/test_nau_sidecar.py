@@ -3,7 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from nau.sidecar import read_clip, read_sidecar, read_version_group, sidecar_for
+from nau.sidecar import (
+    read_clip,
+    read_sidecar,
+    read_version_group,
+    read_video_type,
+    sidecar_for,
+)
 
 
 def _write(lib: Path, meta: Path, rel: str, payload: dict) -> Path:
@@ -21,6 +27,15 @@ class TestSidecarFor:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
 
         assert sidecar_for(lib / "w" / "x.mp4", meta) == meta / "w" / "x.json"
+
+    def test_a_genau_loop_mirrors_from_beside_the_library(self):
+        """Genau's clips sit next to the video tree rather than inside it, and
+        Evolver files their records the same way."""
+        meta = Path("D:/suite/videos/metadata")
+
+        assert sidecar_for(Path("D:/suite/videos/genau/clips/loop.mp4"), meta) == (
+            meta / "genau" / "clips" / "loop.json"
+        )
 
     def test_a_video_outside_the_library_has_none(self, tmp_path):
         meta = tmp_path / "videos" / "metadata"
@@ -63,6 +78,20 @@ class TestReadClip:
         video = _write(lib, meta, "w/y.mp4", {"version": {"group": "w/y"}})
 
         assert read_clip(video, meta) is None
+
+
+class TestReadVideoType:
+    def test_reads_the_kind_evolver_recorded(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        video = _write(lib, meta, "w/x.mp4", {"video": {"type": "excerpt"}})
+
+        assert read_video_type(video, meta) == "excerpt"
+
+    def test_a_video_with_no_record_reads_as_nothing(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        video = _write(lib, meta, "w/y.mp4", {"version": {"group": "y"}})
+
+        assert read_video_type(video, meta) == ""
 
 
 class TestReadVersionGroup:

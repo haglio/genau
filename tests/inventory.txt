@@ -604,7 +604,6 @@ tests/test_nau_clip_nav.py::TestClipNav::test_full_vid_of_matches_source_and_per
 tests/test_nau_clip_nav.py::TestClipNav::test_full_vid_of_none_when_absent
 tests/test_nau_clip_nav.py::TestClipNav::test_full_vid_resolves_on_performer_when_they_have_one_scene
 tests/test_nau_clip_nav.py::TestClipNav::test_full_vid_stays_ambiguous_with_several_scenes_for_the_performer
-tests/test_nau_clip_nav.py::TestClipNav::test_is_clip
 tests/test_nau_clip_nav.py::TestClipNav::test_re_encodes_of_one_scene_are_not_ambiguous
 tests/test_nau_clip_nav.py::TestRecordedMatch::test_clip_jump_uses_the_recorded_scene
 tests/test_nau_clip_nav.py::TestRecordedMatch::test_full_vid_goes_to_the_best_version_evolver_families_together
@@ -732,8 +731,10 @@ tests/test_nau_library.py::TestRealWorldNameGrouping::test_original_with_hash_an
 tests/test_nau_library.py::TestScriptedOnly::test_default_keeps_unscripted
 tests/test_nau_library.py::TestScriptedOnly::test_full_length_scripted_only_drops_unscripted
 tests/test_nau_library.py::TestScriptedOnly::test_scripted_only_still_includes_clips_in_shorts
+tests/test_nau_library.py::TestSelectLibrary::test_a_genau_loop_is_a_short_whether_or_not_its_record_says_so
+tests/test_nau_library.py::TestSelectLibrary::test_a_long_scene_recorded_as_full_length_is_never_measured
+tests/test_nau_library.py::TestSelectLibrary::test_a_video_evolver_has_not_reached_falls_back_to_its_running_time
 tests/test_nau_library.py::TestSelectLibrary::test_applies_version_dedup
-tests/test_nau_library.py::TestSelectLibrary::test_boundary_60s_is_short
 tests/test_nau_library.py::TestSelectLibrary::test_empty_clips_shorts_mode_is_duration_only
 tests/test_nau_library.py::TestSelectLibrary::test_full_length_mode_excludes_clips
 tests/test_nau_library.py::TestSelectLibrary::test_full_length_mode_keeps_only_long_videos
@@ -743,6 +744,8 @@ tests/test_nau_library.py::TestSelectLibrary::test_mixed_mode_keeps_a_video_whos
 tests/test_nau_library.py::TestSelectLibrary::test_mixed_mode_keeps_everything
 tests/test_nau_library.py::TestSelectLibrary::test_shorts_mode_includes_clips
 tests/test_nau_library.py::TestSelectLibrary::test_shorts_mode_keeps_only_short_videos
+tests/test_nau_library.py::TestSelectLibrary::test_the_boundary_second_is_short
+tests/test_nau_library.py::TestSelectLibrary::test_the_recorded_kind_decides_before_any_running_time
 tests/test_nau_library.py::TestVersionIndex::test_maps_every_member_to_ordered_group_pairs
 tests/test_nau_library.py::TestVersionIndex::test_singleton_maps_to_itself_only
 tests/test_nau_library_source.py::TestBuildLibrarySource::test_playlist_for_full_and_shorts
@@ -750,6 +753,7 @@ tests/test_nau_library_source.py::TestBuildLibrarySource::test_shorts_mode_inclu
 tests/test_nau_library_source.py::TestBuildLibrarySource::test_version_index_covers_all_entries
 tests/test_nau_library_source.py::TestBuildLibrarySource::test_version_index_includes_clips
 tests/test_nau_library_source.py::TestBuildProgress::test_a_raising_callback_stops_the_probing
+tests/test_nau_library_source.py::TestBuildProgress::test_a_video_whose_kind_is_on_file_is_never_measured
 tests/test_nau_library_source.py::TestBuildProgress::test_reports_each_probed_entry_against_the_total
 tests/test_nau_library_source.py::TestDiscoverClips::test_absent_dir_is_empty
 tests/test_nau_library_source.py::TestDiscoverClips::test_lists_clip_videos_with_size
@@ -935,7 +939,7 @@ tests/test_nau_session.py::TestSpeed::test_speed_defaults_to_normal
 tests/test_nau_session.py::TestVolume::test_set_volume_clamps_to_the_supported_range
 tests/test_nau_session.py::TestVolume::test_set_volume_drives_the_player
 tests/test_nau_session.py::TestVolume::test_volume_defaults_to_full
-tests/test_nau_shorts_marker.py::test_clip_tagged_long_entry_is_a_short_not_full
+tests/test_nau_shorts_marker.py::test_a_carved_scene_is_a_short_before_evolver_records_its_kind
 tests/test_nau_shorts_marker.py::test_without_metadata_root_length_only
 tests/test_nau_sidecar.py::TestReadClip::test_a_sidecar_with_no_clip_object_is_none
 tests/test_nau_sidecar.py::TestReadClip::test_reads_the_clip_object
@@ -943,6 +947,9 @@ tests/test_nau_sidecar.py::TestReadSidecar::test_a_missing_file_reads_as_nothing
 tests/test_nau_sidecar.py::TestReadSidecar::test_malformed_json_reads_as_nothing_recorded
 tests/test_nau_sidecar.py::TestReadVersionGroup::test_a_sidecar_with_no_version_object_is_none
 tests/test_nau_sidecar.py::TestReadVersionGroup::test_reads_the_family_id
+tests/test_nau_sidecar.py::TestReadVideoType::test_a_video_with_no_record_reads_as_nothing
+tests/test_nau_sidecar.py::TestReadVideoType::test_reads_the_kind_evolver_recorded
+tests/test_nau_sidecar.py::TestSidecarFor::test_a_genau_loop_mirrors_from_beside_the_library
 tests/test_nau_sidecar.py::TestSidecarFor::test_a_video_outside_the_library_has_none
 tests/test_nau_sidecar.py::TestSidecarFor::test_mirrors_the_librarys_own_layout
 tests/test_nau_status.py::TestStatusFields::test_a_running_loop_publishes_the_range_it_holds

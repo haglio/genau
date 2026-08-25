@@ -106,9 +106,6 @@ class ClipNav:
         """
         return self._families.get(scene) or stable_title(scene.stem)
 
-    def is_clip(self, video: Path) -> bool:
-        return video in self._clips
-
     def compilation_of(self, video: Path) -> str:
         """The title of the compilation *video* was carved from, or "" for a
         non-clip.  Nau's HUD names it, so the player can say what is holding the

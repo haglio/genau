@@ -23,7 +23,7 @@ from .library import (
     library_playlist,
     version_index_from_groups,
 )
-from .sidecar import read_clip, read_version_group
+from .sidecar import read_version_group, read_video_type
 
 # The app starts unfiltered — which is what Fun Time's own playlist has always
 # been, so a player that opened claiming "full length" was claiming a filter it
@@ -86,7 +86,7 @@ class LibrarySource:
             clips=self.clips,
             rng=self.rng,
             scripted_only=self.scripted_only,
-            is_clip=self._is_clip(),
+            kind_of=self._kind_of(),
         )
 
     def _group_id_of(self) -> Callable[[Path], str | None] | None:
@@ -95,12 +95,12 @@ class LibrarySource:
         metadata_root = self.metadata_root
         return lambda video: read_version_group(video, metadata_root)
 
-    def _is_clip(self) -> Callable[[Path], bool] | None:
-        """Predicate marking a video as a compilation clip (sidecar ``clip``)."""
+    def _kind_of(self) -> Callable[[Path], str] | None:
+        """Reader for the kind Evolver recorded — the length modes' authority."""
         if self.metadata_root is None:
             return None
         metadata_root = self.metadata_root
-        return lambda video: read_clip(video, metadata_root) is not None
+        return lambda video: read_video_type(video, metadata_root)
 
     @property
     def version_index(self) -> dict[Path, list[tuple[Path, Path | None]]]:
@@ -143,7 +143,8 @@ def build_library_source(
     """Discover videos + clips and obtain the durations mode-filtering needs.
 
     Pass *durations* to supply them directly (tests); otherwise a
-    *duration_cache* is probed (cached) and persisted.  *scripted_only*
+    *duration_cache* is probed (cached) and persisted — for the entries that
+    need one, which is those whose kind Evolver has not recorded yet.  *scripted_only*
     defaults False (Nau plays everything standalone); pass False to serve
     every video regardless of funscript.  *metadata_root*, when given, makes
     version grouping read Evolver's sidecars instead of guessing from names.
@@ -164,6 +165,11 @@ def build_library_source(
         durations = {}
         for done, entry in enumerate(entries):
             report(PHASE_DURATIONS, done, len(entries))
+            if metadata_root is not None and read_video_type(entry.video, metadata_root):
+                # Its kind is on file, which is the only thing a duration was
+                # ever wanted for — and this probe is the whole of startup's
+                # wait, so a library Evolver has been over opens without one.
+                continue
             durations[entry.video] = duration_cache.duration_for(entry.video)
         duration_cache.save()
     return LibrarySource(
