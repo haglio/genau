@@ -1260,6 +1260,7 @@ tests/test_nau_session.py::TestPassthroughs::test_close_closes_all_resources
 tests/test_nau_session.py::TestPassthroughs::test_current_funscript_none_when_unscripted
 tests/test_nau_session.py::TestPassthroughs::test_exposes_loaded_funscript
 tests/test_nau_session.py::TestPassthroughs::test_exposes_video_identity_and_duration
+tests/test_nau_session.py::TestPause::test_resuming_hands_the_device_back_rather_than_slamming_it
 tests/test_nau_session.py::TestPause::test_set_paused_same_state_is_noop
 tests/test_nau_session.py::TestPause::test_set_paused_tells_player
 tests/test_nau_session.py::TestPause::test_toggle_pause_flips
