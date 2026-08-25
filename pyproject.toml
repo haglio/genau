@@ -42,11 +42,19 @@ vr = [
 include = ["genau*", "nau*", "genau_vr*"]
 
 [tool.pytest.ini_options]
-# The timeout is a ceiling, not a target: the slowest test here is the
-# tracked-tree content scan at ~14 s, so 90 s clears it six times over and can
-# only bite on a hang. This suite binds real UDP sockets and joins reader
-# threads, which is exactly the shape that hangs. The thread method prints the
-# hung stack, which is what turns a stalled required check into a one-line
-# diagnosis. tests/test_timeouts.py holds both halves of it.
-addopts = "-p no:cacheprovider --timeout=90 --timeout-method=thread"
+# A ceiling on a hang, not a performance budget. The slowest test on a
+# developer machine is the tracked-tree content scan, but it is not the
+# slowest on a runner: it returns early when no blocklist is reachable, and
+# the blocklist is git-ignored, so a fresh checkout has none. What CI does run
+# longest here is the two inventory tests, each spawning a child that collects
+# the whole suite -- 76 modules pulling pygame, opencv, PyQt6, OpenXR and two
+# siblings -- at about two seconds here and much more on a cold Windows
+# runner. 240 s also leaves the 180 s child guards in tests/test_win32.py and
+# tests/test_gvr_without_openxr.py reachable, so those fail with their own
+# message; tools/inventory.py's 600 s guard does not, and cannot without a
+# ceiling too high to be one. --timeout-method=thread is the half that pays
+# for itself: it dumps the hung stack, which turns a stalled required check
+# into a one-line diagnosis. tests/test_timeouts.py holds all three halves of
+# it.
+addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread"
 testpaths = ["tests"]
