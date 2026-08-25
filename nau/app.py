@@ -10,9 +10,8 @@ import pygame
 
 from player_core.drive_readout import DriveHud, read_drive
 from genau.pygame_view import get_window_chrome_height
-from genau.session_quit import quit_gesture
 from player_core.tcode import UdpTCodeSink
-from player_core.file_channel import append_command, consume_command_file, read_paused_state
+from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.status import StatusWriter
@@ -27,6 +26,7 @@ from .cli import (
     resolve_playlist,
 )
 from .clip_jumps import ClipJumps
+from .dashboard import Dashboard
 from .clip_nav import ClipNav
 from player_core.console import ConsoleModel, genau_drives, read_console
 from .display import Display
@@ -327,6 +327,9 @@ def _run(args) -> int:
 
     status_writer = StatusWriter(args.status_file, _status_fields) if args.status_file else None
     stop_event = threading.Event()
+    # Every control on this HUD asks Fun Time rather than acting; so does
+    # the close box.  See nau.dashboard.
+    dashboard = Dashboard(args.dashboard_cmd_file)
 
     # Clip navigation: a clip carved from a compilation records its siblings,
     # order, and source scene in its sidecar (see nau.clip_nav). Built once over
@@ -459,32 +462,6 @@ def _run(args) -> int:
             descent_tops=descent_tops,
         )
 
-    def _post(command: str) -> None:
-        """Ask Fun Time for something, on the channel its dashboard uses.
-
-        Every control on this HUD asks rather than acts — the console's buttons
-        because the verbs are the room's, not this player's, and the volume slider
-        because Fun Time holds the authority over the main slot's sound.
-
-        Appended, because that file carries every mouse- and voice-driven writer
-        at once and the dispatch loop drains it a tick at a time.  Standalone
-        (no Fun Time) there is nowhere to ask, so a control is inert rather than
-        pretending: it goes on showing whatever is actually the case.
-        """
-        if args.dashboard_cmd_file is not None:
-            append_command(args.dashboard_cmd_file, command)
-
-    def _quit_gesture() -> None:
-        """The close box, Alt+F4, Ctrl+Q — every way this window is told to go.
-
-        Under Fun Time it is the session that goes, not this player: see
-        :mod:`genau.session_quit`.  Nau stays up until the teardown reaches it,
-        so the closing cover is what the user watches rather than the main slot
-        emptying ahead of everything else.
-        """
-        if quit_gesture(args.dashboard_cmd_file):
-            stop_event.set()
-
     def _press_volume(cx: int, cy: int) -> bool:
         """Take a press at chip-local ``(cx, cy)``; False if it missed the chip.
 
@@ -497,11 +474,11 @@ def _run(args) -> int:
         part = hit_part(cx, cy)
         if part == "mute":
             volume_hud = replace(volume_hud, muted=not volume_hud.muted)
-            _post("audio_unmute" if not volume_hud.muted else "audio_mute")
+            dashboard.post("audio_unmute" if not volume_hud.muted else "audio_mute")
         elif part == "track":
             level = volume_at(cx)
             volume_hud = VolumeHud(volume=level, muted=False)
-            _post(f"audio_set_volume|{level}")
+            dashboard.post(f"audio_set_volume|{level}")
         return bool(part)
 
     def _click(mx: int, my: int, win_w: int, win_h: int) -> None:
@@ -527,11 +504,11 @@ def _run(args) -> int:
         win_w, win_h = screen.get_size()
         for ev in pygame.event.get():
             if ev.type == pygame.QUIT:
-                _quit_gesture()
+                dashboard.take_quit_gesture(stop_event)
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 pressed = console_hud.press_at(*ev.pos)
                 if pressed:
-                    _post(pressed)
+                    dashboard.post(pressed)
                 else:
                     # A press that missed every button falls through to the video,
                     # where it seeks or pauses as it always did.
@@ -551,7 +528,7 @@ def _run(args) -> int:
                     # and says nothing while the level under it has not moved.
                     dragged = console_hud.drag_to(*ev.pos)
                     if dragged:
-                        _post(dragged)
+                        dashboard.post(dragged)
                 else:
                     # Dragging along the track keeps setting the level, the way
                     # every volume slider does; a drag that began elsewhere misses
@@ -562,7 +539,7 @@ def _run(args) -> int:
                         _press_volume(cx, cy)
             elif ev.type == pygame.KEYDOWN:
                 if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
-                    _quit_gesture()
+                    dashboard.take_quit_gesture(stop_event)
                 elif ev.key == pygame.K_ESCAPE:
                     session.toggle_pause()
                 elif ev.key == pygame.K_r:
