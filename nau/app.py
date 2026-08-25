@@ -289,16 +289,12 @@ def _run(args) -> int:
     # the status writer's closure below, which publishes the touch it chose.
     drive_gate = DriveGate(session)
 
-    def _status_fields(published_session) -> dict[str, str]:
-        fields = status_fields(published_session)
-        # The touch-down the trace chose for the boundary in play — see
-        # nau.status.next_handoff_touch.  Sent with every status so the
-        # arbiter ends Genau's turn where the picture drew it ending.
-        touch = drive_gate.handoff_touch()
-        fields["handoff_touch_ms"] = "" if touch is None else str(int(touch))
-        return fields
-
-    status_writer = StatusWriter(args.status_file, _status_fields) if args.status_file else None
+    # Every status carries the touch-down the trace chose for the boundary in
+    # play, so the arbiter ends Genau's turn where the picture drew it ending.
+    status_writer = StatusWriter(
+        args.status_file,
+        lambda published: status_fields(published, drive_gate.handoff_touch()),
+    ) if args.status_file else None
     stop_event = threading.Event()
     # Every control on this HUD asks Fun Time rather than acting; so does
     # the close box.  See nau.dashboard.
