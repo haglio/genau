@@ -25,6 +25,9 @@ class FakePlayer:
         self.loop_file = True
         self.paused = False
         self.ab_loop: tuple[float, float] | None = None
+        # Every value the session pushed, so "told the same thing again" can be
+        # told apart from "not told at all".
+        self.pauses: list[bool] = []
         self.seeks: list[float] = []
         self.speeds: list[float] = []
         self.volumes: list[int] = []
@@ -36,6 +39,7 @@ class FakePlayer:
         self.eof = False
 
     def set_paused(self, paused: bool) -> None:
+        self.pauses.append(paused)
         self.paused = paused
 
     def set_loop_file(self, loop: bool) -> None:
@@ -531,10 +535,35 @@ class TestPause:
         assert not session.is_paused
 
     def test_set_paused_same_state_is_noop(self, tmp_path):
+        """Fun Time owns the paused flag through a file and re-asserts it on
+        every tick, so being told what is already true is the common path
+        rather than the odd one -- and it must reach neither the player nor the
+        device."""
         session, player, tcode = _make_session(tmp_path)
+        player.pauses.clear()
+        resets_before = tcode.resets  # loading the first video takes the device
+
         session.set_paused(False)  # already playing
-        # no assertion on player beyond not crashing; state unchanged
-        assert not session.is_paused
+
+        assert session.is_paused is False
+        assert player.pauses == []
+        assert tcode.resets == resets_before
+
+    def test_resuming_hands_the_device_back_rather_than_slamming_it(self, tmp_path):
+        """While the video sat paused the last in-flight waypoint completed --
+        the device walked on to wherever it was aimed and froze there -- and
+        under OmniPause the broker may have parked it outright.  Resuming is a
+        takeover from there, so the first waypoints glide."""
+        session, player, tcode = _make_session(tmp_path)
+        resets_before = tcode.resets
+
+        session.set_paused(True)
+        assert tcode.resets == resets_before, (
+            "pausing hands the device over; it does not take it back")
+
+        session.set_paused(False)
+
+        assert tcode.resets == resets_before + 1
 
 
 class TestAdvance:
