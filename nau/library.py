@@ -278,15 +278,6 @@ def canonical_playlist(
     return canonicals
 
 
-# Which kinds each length mode plays.  A delivered loop and a scene carved out
-# of a longer one are shorts however long they run: the loop is a couple of
-# seconds by construction, and a carved scene is an excerpt of something, which
-# is what "full length" means the absence of.
-_MODE_KINDS = {
-    "shorts": frozenset({SHORT, EXCERPT, GENAU_CLIP}),
-    "full": frozenset({FULL_LENGTH}),
-}
-
 # What "short" means for a video Evolver has not recorded yet, and the same
 # number it records by — one line through the family instead of this player's
 # old 60 seconds and the phone's 10.
@@ -298,6 +289,13 @@ SHORT_MAX_S = 10.0
 MIXED = "mixed"
 FULL = "full"
 SHORTS = "shorts"
+
+# Which kinds each of the two filtering modes plays.  A delivered loop and a
+# scene carved out of a longer one are shorts however long they run: the loop
+# is a couple of seconds by construction, and a carved scene is an excerpt of
+# something, which is what "full length" means the absence of.
+SHORTS_KINDS = frozenset({SHORT, EXCERPT, GENAU_CLIP})
+FULL_KINDS = frozenset({FULL_LENGTH})
 
 
 def kind_of_video(
@@ -339,9 +337,10 @@ def select_library(
 
     Mixed mode applies no length filter: every entry and every clip survives,
     including the ones nothing has classified, since nothing here has to.  The
-    other two keep the kinds :data:`_MODE_KINDS` gives them —
+    other two keep the kinds :data:`SHORTS_KINDS` and :data:`FULL_KINDS` name —
     :func:`kind_of_video` says what each video's kind is, and a video with no
-    kind at all is dropped by both.
+    kind at all is dropped by both.  Anything that is not one of the three
+    modes filters as full-length, which is what it has always done.
 
     *kind_of* reads what Evolver recorded (``nau.sidecar.read_video_type``); the
     *durations* are the fallback for what it has not reached, and *clips* — the
@@ -360,7 +359,7 @@ def select_library(
     if mode == MIXED:
         kept = [*entries, *clips]
     else:
-        wanted = _MODE_KINDS[mode]
+        wanted = SHORTS_KINDS if mode == SHORTS else FULL_KINDS
         genau_clips = {clip.video for clip in clips}
         kept = [
             entry for entry in (*entries, *clips)
