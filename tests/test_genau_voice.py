@@ -2,13 +2,42 @@
 from __future__ import annotations
 
 import json
+import threading
 
+import pytest
+
+from player_core.cruise_control import CruiseControlState
+from player_core.direct_control import DirectControlState
+
+from genau.clip_advance import ClipAdvanceState
+from genau.engine import PlaybackEngine
+from genau.runtime_commands import apply_runtime_command
 from genau.voice import (
     VOICE_COMMANDS,
     VoiceListener,
     build_grammar,
     parse_vosk_result,
 )
+
+
+def _collaborators() -> dict:
+    """Everything the dispatcher can be handed, so no verb is refused for want
+    of one — which would read as an unhandled verb and hide a real gap."""
+    return dict(
+        engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+        rh_paused={"value": False},
+        step_clip=lambda _step: None,
+        discard_clip=lambda: None,
+        direct_state=DirectControlState(playing=True),
+        cruise_control_state=CruiseControlState(),
+        set_stroke_phase=lambda _phase: None,
+        clip_advance_state=ClipAdvanceState(),
+        stop_event=threading.Event(),
+        hud_state={},
+        display_state={},
+        set_volume=lambda *_a: None,
+        reorder_clips=lambda *_a, **_k: None,
+    )
 
 
 class TestBuildGrammar:
@@ -84,21 +113,17 @@ class TestVoiceCommands:
     def test_speed_down_maps_to_speed_down(self):
         assert VOICE_COMMANDS["speed down"] == "SPEED_DOWN"
 
-    def test_all_values_are_recognized_runtime_commands(self):
-        valid_static = {
-            "PAUSE", "RESUME", "SPEED_DOWN", "SPEED_UP",
-            "AMPLITUDE_DOWN", "AMPLITUDE_UP",
-            "CENTER_DOWN", "CENTER_UP",
-            "CYCLE_SHAPE", "TOGGLE_CRUISE", "CRUISE_ON", "CRUISE_OFF",
-            "PREV", "NEXT", "QUIT",
-        }
-        numeric_prefixes = ("AMP ", "CENTER ", "SPEED ")
-        for phrase, cmd in VOICE_COMMANDS.items():
-            if any(cmd.startswith(p) for p in numeric_prefixes):
-                _, value = cmd.split(" ", 1)
-                assert value.isdigit(), f"'{phrase}' has non-integer value '{value}'"
-            else:
-                assert cmd in valid_static, f"'{phrase}' maps to unknown command '{cmd}'"
+    @pytest.mark.parametrize("phrase, verb", sorted(VOICE_COMMANDS.items()))
+    def test_every_spoken_phrase_names_a_verb_the_runtime_handles(self, phrase, verb):
+        """The contract, asked of the dispatcher rather than of a list.
+
+        The allowlist this replaces was fifteen names typed into the test: it
+        answered "is this one of the fifteen I wrote down", which a renamed
+        branch passes and a speaker does not, since an unhandled verb is simply
+        ignored at runtime with nothing said about it.
+        """
+        assert apply_runtime_command(verb, **_collaborators()) is True, (
+            f"{phrase!r} says {verb!r}, which nothing handles")
 
     def test_quit_maps_to_quit_command(self):
         assert VOICE_COMMANDS["quit"] == "QUIT"
