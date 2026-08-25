@@ -930,6 +930,9 @@ tests/test_nau_overlay.py::TestLabelXsReadded::test_centers_and_avoids_overlap
 tests/test_nau_overlay.py::TestLoopThumbCapture::test_asks_for_in_first_then_out_near_end
 tests/test_nau_overlay.py::TestLoopThumbCapture::test_clears_when_loop_ends
 tests/test_nau_overlay.py::TestLoopThumbCapture::test_reset_thumbs_on_new_loop_bounds
+tests/test_nau_overlay.py::TestTheHeightOfTheTimelineRow::test_a_scripted_video_is_measured_by_its_strip
+tests/test_nau_overlay.py::TestTheHeightOfTheTimelineRow::test_a_strip_that_grew_to_record_takes_the_row_with_it
+tests/test_nau_overlay.py::TestTheHeightOfTheTimelineRow::test_an_unscripted_video_still_leaves_the_row_the_bar_needs
 tests/test_nau_overlay.py::TestTimeToX::test_clamps_to_the_strip
 tests/test_nau_overlay.py::TestTimeToX::test_empty_window_pins_left
 tests/test_nau_overlay.py::TestTimeToX::test_maps_window_fraction_to_pixel
