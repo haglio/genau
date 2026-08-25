@@ -34,7 +34,16 @@ def next_handoff_touch(script, position_ms: int, descent_tops: dict) -> int | No
     return entry[2]
 
 
-def status_fields(session) -> dict[str, str]:
+def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
+    """Everything Nau publishes about itself, in the order it is written.
+
+    *handoff_touch_ms* is the touch-down the trace has chosen for the boundary
+    in play (:func:`next_handoff_touch` answers it out of the latch
+    :class:`nau.drive_gate.DriveGate` holds), and None where there is none.  It
+    is asked for rather than defaulted because a caller that forgot it would
+    publish an empty field on every tick, and the arbiter would go on ending
+    Genau's turn wherever its own read of the wave put it.
+    """
     loop_in_ms, loop_out_ms = session.loop_bounds or (0, 0)
     return {
         "video": str(session.current_video),
@@ -56,4 +65,8 @@ def status_fields(session) -> dict[str, str]:
         # Genau in genau mode, which has no such lock to ask — so it goes out here
         # and comes back down on the console panel, the way the loop state does.
         "locked": "1" if session.locked else "0",
+        # Where the picture drew Genau's turn ending.  Empty rather than zero
+        # when the trace has chosen none: zero is a real media time, and the
+        # arbiter reading one would end the turn at the top of the video.
+        "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
     }
