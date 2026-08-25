@@ -1,12 +1,14 @@
-"""Tests for GenauVR audio volume control."""
+"""Tests for GenauVR audio volume control.
+
+The verbs that *reach* this player — VOLUME_UP, VOLUME_DOWN and the phrases
+voice control says them with — are in tests/test_gvr_runtime_commands.py with
+every other verb; here is only the level itself.
+"""
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from genau_vr.app import AudioPlayer
-from genau_vr.playback import PlaybackEngine
-from genau_vr.runtime_commands import apply_runtime_command
-from genau_vr.voice import VOICE_COMMANDS
 
 
 class TestAudioPlayerVolume:
@@ -53,58 +55,3 @@ class TestAudioPlayerVolume:
             player.adjust_volume(0.1)
 
         mock_sv.assert_called_once_with(0.35)
-
-
-class TestVolumeCommands:
-    def test_volume_up_calls_adjust_volume(self):
-        audio = MagicMock()
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
-
-        handled = apply_runtime_command(
-            "VOLUME_UP",
-            engine=engine,
-            rh_paused=rh_paused,
-            step_clip=lambda _: None,
-            audio_player=audio,
-        )
-
-        assert handled is True
-        audio.adjust_volume.assert_called_once_with(0.1)
-
-    def test_volume_down_calls_adjust_volume(self):
-        audio = MagicMock()
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
-
-        handled = apply_runtime_command(
-            "VOLUME_DOWN",
-            engine=engine,
-            rh_paused=rh_paused,
-            step_clip=lambda _: None,
-            audio_player=audio,
-        )
-
-        assert handled is True
-        audio.adjust_volume.assert_called_once_with(-0.1)
-
-    def test_volume_commands_ignored_without_audio_player(self):
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
-
-        for cmd in ("VOLUME_UP", "VOLUME_DOWN"):
-            handled = apply_runtime_command(
-                cmd,
-                engine=engine,
-                rh_paused=rh_paused,
-                step_clip=lambda _: None,
-            )
-            assert handled is False, f"{cmd} should be ignored without audio_player"
-
-
-class TestVolumeVoiceCommands:
-    def test_louder_maps_to_volume_up(self):
-        assert VOICE_COMMANDS["louder"] == "VOLUME_UP"
-
-    def test_quieter_maps_to_volume_down(self):
-        assert VOICE_COMMANDS["quieter"] == "VOLUME_DOWN"
