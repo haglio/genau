@@ -282,8 +282,6 @@ def _run(args) -> int:
     # the console is: a torn or missing read means "keep what you have", and in
     # Nau there is nothing publishing one at all.
     published: DriveHud | None = None
-    # Where the cursor is over the console, so a button can name itself on hover.
-    hover: tuple[int, int] | None = None
     loop_thumbs = LoopThumbCapture()
     # What of Genau's publish this video's picture believes: the descent
     # forecasts it is holding, and whether Genau has been seen live here.  Above
@@ -304,9 +302,7 @@ def _run(args) -> int:
     # of two sinks it drives (Genau's clip audio is the other), so the level
     # here is drawn and reported, never decided; see nau.volume_control.
     volume = VolumeControl(dashboard)
-    # A press the console's buttons did not take: the chip, the timeline, or the
-    # video.  See nau.pointer.
-    pointer = Pointer(session, heatmap, volume)
+
 
     # Clip navigation: a clip carved from a compilation records its siblings,
     # order, and source scene in its sidecar (see nau.clip_nav). Built once over
@@ -344,8 +340,9 @@ def _run(args) -> int:
         reload_playlist, session, jumps,
         partial(resolve_playlist, args, source=source)
         if args.playlist is not None else None)
-    # What this window's keyboard reaches.  See nau.keys.
+    # What this window's keyboard and mouse reach.  See nau.keys, nau.pointer.
     keys = Keys(session, modes, dashboard, stop_event)
+    pointer = Pointer(session, heatmap, volume, console_hud, dashboard)
 
     while not stop_event.is_set():
         win_w, win_h = screen.get_size()
@@ -353,31 +350,12 @@ def _run(args) -> int:
             if ev.type == pygame.QUIT:
                 dashboard.take_quit_gesture(stop_event)
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                pressed = console_hud.press_at(*ev.pos)
-                if pressed:
-                    dashboard.post(pressed)
-                else:
-                    # A press that missed every button falls through to the video,
-                    # where it seeks or pauses as it always did.
-                    pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
+                pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
             elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
-                console_hud.release()
+                pointer.release()
             elif ev.type == pygame.MOUSEMOTION:
-                hover = console_hud.hover_at(*ev.pos)
-                if not ev.buttons[0]:
-                    # The button came up somewhere this loop never saw it — over
-                    # another window, or off the screen — so nothing is held.
-                    console_hud.release()
-                elif console_hud.holding:
-                    # Dragging a bar on the drive readout keeps setting its level,
-                    # the way the volume slider below does.  The band a press took
-                    # hold of keeps the drag even as the pointer wanders off it,
-                    # and says nothing while the level under it has not moved.
-                    dragged = console_hud.drag_to(*ev.pos)
-                    if dragged:
-                        dashboard.post(dragged)
-                else:
-                    pointer.drag(*ev.pos, win_w=win_w, win_h=win_h)
+                pointer.motion(*ev.pos, held=bool(ev.buttons[0]),
+                               win_w=win_w, win_h=win_h)
             elif ev.type == pygame.KEYDOWN:
                 keys.press(ev.key, ev.mod)
             elif ev.type == pygame.KEYUP:
@@ -466,7 +444,7 @@ def _run(args) -> int:
             # in the console file.
             console=with_playback_speed(console, session.speed),
             drive=drive,
-        ), hover=hover)
+        ), hover=pointer.hover)
         player.overlay(_OV_CONSOLE, left, top, panel)
 
         # The volume control, at the right-hand end of the row above the timeline —
