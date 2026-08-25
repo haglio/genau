@@ -260,8 +260,20 @@ def main(argv: list[str] | None = None) -> None:
 
     Every path out of startup ends either in the VR loop or in a dialog: a
     hidden-launched process that just exits is indistinguishable from a crash.
+    That has to include opening the log, which runs before there is a log to
+    write the failure to -- so it gets a dialog of its own and startup stops
+    there.  An install whose ``state/`` will not take a log file will not take
+    the command files a session runs on either.
     """
-    log, fault_fp = _configure_logging()
+    try:
+        log, fault_fp = _configure_logging()
+    except Exception as exc:
+        _show_error_popup(
+            f"GenauVR could not start.\n\n"
+            f"It could not open its log in the install's state folder.\n\n"
+            f"Detail: {exc}"
+        )
+        return
     _name_this_process()
     try:
         _start(argv)
