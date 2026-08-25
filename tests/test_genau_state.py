@@ -4,7 +4,6 @@ from __future__ import annotations
 import dataclasses
 import socket
 import threading
-import time
 import logging
 from unittest.mock import MagicMock
 
@@ -91,7 +90,7 @@ def _run_reader(state: SharedState, port: int) -> tuple[threading.Thread, thread
     logger = logging.getLogger("test.udp_reader")
     t = threading.Thread(target=udp_reader, args=("127.0.0.1", port, state, stop, logger), daemon=True)
     t.start()
-    time.sleep(0.05)  # let the socket bind
+    _wait_until_bound(port, state)
     return t, stop
 
 
@@ -209,7 +208,6 @@ class TestTheSocketLoop:
         port = _free_udp_port()
         t, stop = _run_reader(state, port)
         try:
-            _wait_until_bound(port, state)
             _send(port, "AUTO 1")
             wait_until(lambda: state.auto_active, timeout=10.0, interval=0.02)
         finally:
