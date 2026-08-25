@@ -247,7 +247,11 @@ class TestTheSocketLoop:
         t = threading.Thread(
             target=udp_reader,
             args=("127.0.0.1", port, state, stop, logger),
-            kwargs={"retry_delays": (0.02,) * 50},
+            # Many short waits rather than a few long ones: the port is freed
+            # the moment the reader's first refusal is logged, so a short delay
+            # gets it bound at once, and the length of the list is only how long
+            # a stalled machine may take to get there before the retries run out.
+            kwargs={"retry_delays": (0.02,) * 500},
             daemon=True,
         )
         try:
