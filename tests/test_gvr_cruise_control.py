@@ -185,22 +185,31 @@ class TestWhatOnlyHappensWhenItIsDue:
 
         assert stroke.shape is WaveformShape.SINE
 
-    def test_and_then_becomes_one_of_the_four(self):
-        stroke = _stroke()
+    def test_and_then_becomes_the_one_the_seeded_draw_names(self):
+        """A case saying only "one of the four" is true of the shape it already
+        had, so the whole branch could be deleted under it.  Seeded, the draw is
+        a fact: this rng picks SAWTOOTH."""
+        stroke = _stroke(shape=WaveformShape.SINE)
         cruise = _cruising(_next_shape_change=0.0)
 
         tick_cruise_control(stroke, cruise, now=1.1)
 
-        assert stroke.shape in set(WaveformShape)
+        assert stroke.shape is WaveformShape.SAWTOOTH
+        assert cruise._next_shape_change > 1.1 + 5.0, "and the next one is scheduled"
 
     def test_the_targets_are_re_drawn_inside_the_range_they_are_allowed(self):
         """Amplitude between 30 and 100, centre between 20 and 80 -- the stroke
         wanders without ever going still or running to an end."""
         stroke = _stroke()
         cruise = _cruising(_next_retarget=0.0)
+        started_at = (cruise._amplitude_target, cruise._center_target)
 
         tick_cruise_control(stroke, cruise, now=1.1)
 
+        # Both must MOVE: the dataclass opens on 100.0 and 50.0, which already
+        # sit inside the two ranges, so "in range" alone is true of a draw that
+        # never happened.
+        assert (cruise._amplitude_target, cruise._center_target) != started_at
         assert 30.0 <= cruise._amplitude_target <= 100.0
         assert 20.0 <= cruise._center_target <= 80.0
         assert cruise._next_retarget >= 1.1 + 3.0

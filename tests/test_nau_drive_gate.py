@@ -113,6 +113,19 @@ class TestAChoiceThatIsHeld:
 
         assert gate.handoff_touch() == CHOSEN_TOUCH_MS
 
+    def test_a_second_frame_of_playing_does_not_move_it_either(self):
+        """It is the step BETWEEN frames that is measured, not the distance from
+        where the video started, so ordinary playback never accumulates into a
+        jump.  The gate has to remember where the playhead was on the last
+        frame for that to be true."""
+        gate, session = _gate_holding_a_forecast()
+
+        for ms in (300, 600):
+            session.position_ms = ms
+            _a_newer_publish_arrives(gate)
+
+        assert gate.handoff_touch() == CHOSEN_TOUCH_MS
+
     def test_a_stall_too_short_to_be_a_pause_does_not_move_it(self):
         """The trace's 40ms quantum makes some real frames read as zero."""
         gate, session = _gate_holding_a_forecast()
