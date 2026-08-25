@@ -59,13 +59,18 @@ def bind_with_retry(
     port: int,
     stop_event: threading.Event,
     logger: logging.Logger,
+    retry_delays: tuple[float, ...] = _BIND_RETRY_DELAYS,
 ) -> bool:
     """Take the port, waiting for it if something else still has it.
 
     Returns False only when the wait was cut short by a quit; a port that never
     frees raises on the last attempt, which is the caller's to report.
+
+    retry_delays is a parameter only so a test can ask for a schedule it
+    does not have to sit through: the app passes nothing and gets the module's
+    own, so what ships is the timing that was always here.
     """
-    for attempt, delay in enumerate(_BIND_RETRY_DELAYS, 1):
+    for attempt, delay in enumerate(retry_delays, 1):
         try:
             sock.bind((host, port))
             return True
@@ -81,11 +86,21 @@ def bind_with_retry(
     return True
 
 
-def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.Event, logger: logging.Logger) -> None:
+def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.Event,
+               logger: logging.Logger,
+               retry_delays: tuple[float, ...] = _BIND_RETRY_DELAYS) -> None:
+    """Bind a UDP listener on ``host:port`` and turn what arrives into ``state``.
+
+    ``retry_delays`` is the schedule the bind backs off on while the port is
+    still held -- by the previous run of this app, usually. It is a parameter
+    only so a test can ask for a schedule it does not have to sit through: the
+    app passes nothing and gets the module's own, so what ships is the timing
+    that was always here.
+    """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
-        if not bind_with_retry(sock, host, port, stop_event, logger):
+        if not bind_with_retry(sock, host, port, stop_event, logger, retry_delays):
             return
 
         sock.settimeout(_READ_TIMEOUT_S)

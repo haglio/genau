@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from app_support.threading_utils import wait_until
 from genau.state import SharedState, apply_udp_line, udp_reader
 
 
@@ -57,6 +58,32 @@ def _free_udp_port() -> int:
 def _send(port: int, msg: str) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.sendto(msg.encode(), ("127.0.0.1", port))
+
+
+# A knock at the door: SYNC is the one verb whose effect only counts, so it says
+# "a datagram arrived" without moving anything a case goes on to assert about.
+_KNOCK = "SYNC"
+
+
+def _wait_until_bound(port: int, state: SharedState) -> None:
+    """Block until the reader's socket is actually taking datagrams.
+
+    The bind happens inside the thread under test, so there is no moment the
+    test can watch for from outside -- and a datagram sent before it lands is
+    dropped without a trace rather than queued.  So the knock is re-offered
+    until one of them arrives, which is over the instant the socket is up and
+    spends the timeout only when it never comes.
+    """
+    def _knocked() -> bool:
+        _send(port, _KNOCK)
+        return state.sync_pulse_id > 0
+
+    wait_until(_knocked, timeout=10.0, interval=0.02)
+
+
+def _turned_away(caplog) -> bool:
+    """Whether the reader has logged a bind attempt that failed."""
+    return any("bind attempt" in record.getMessage() for record in caplog.records)
 
 
 def _run_reader(state: SharedState, port: int) -> tuple[threading.Thread, threading.Event]:
@@ -169,15 +196,22 @@ class TestActingOnOneLine:
 
 class TestTheSocketLoop:
     """What is left needing a real port: that the wire reaches the parsing, and
-    that the bind gives the port time to free."""
+    that the bind gives the port time to free.
+
+    Every wait here is on something the reader itself did -- a datagram it
+    answered, a warning it logged, a thread it left -- rather than on a nap long
+    enough to have probably happened.  A nap is both slower than it needs to be
+    and a coin flip on a loaded runner.
+    """
 
     def test_a_datagram_on_the_wire_reaches_the_state(self):
         state = SharedState()
         port = _free_udp_port()
         t, stop = _run_reader(state, port)
         try:
+            _wait_until_bound(port, state)
             _send(port, "AUTO 1")
-            time.sleep(0.1)
+            wait_until(lambda: state.auto_active, timeout=10.0, interval=0.02)
         finally:
             stop.set()
             t.join(timeout=1.0)
@@ -192,14 +226,22 @@ class TestTheSocketLoop:
         t.join(timeout=2.0)
         assert not t.is_alive()
 
-    def test_bind_retries_on_port_conflict(self):
-        """udp_reader retries binding when the port is initially occupied."""
+    def test_bind_retries_on_port_conflict(self, caplog):
+        """The port is held when the reader starts, and free by its next attempt.
+
+        The blocker deliberately does NOT set SO_REUSEADDR: Windows lets two
+        sockets share a port when both ask for it -- and the reader asks -- so a
+        blocker that asked was no blocker there at all, the first bind
+        succeeded, and this proved nothing on the one platform the gate runs on.
+
+        The release is driven by the reader's own "bind attempt failed" warning
+        rather than by a nap, so the port is freed once it has actually been
+        turned away, however slow the machine is.
+        """
         state = SharedState()
         port = _free_udp_port()
 
-        # Occupy the port
         blocker = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         blocker.bind(("127.0.0.1", port))
 
         stop = threading.Event()
@@ -207,23 +249,24 @@ class TestTheSocketLoop:
         t = threading.Thread(
             target=udp_reader,
             args=("127.0.0.1", port, state, stop, logger),
+            kwargs={"retry_delays": (0.02,) * 50},
             daemon=True,
         )
-        t.start()
-
-        # Release the port after a short delay so retry can succeed
-        time.sleep(0.3)
-        blocker.close()
-
-        # Wait for the reader to bind and become operational
-        time.sleep(1.0)
         try:
-            _send(port, "AUTO 1")
-            time.sleep(0.2)
-            assert state.auto_active is True
+            with caplog.at_level(logging.WARNING):
+                t.start()
+                wait_until(lambda: _turned_away(caplog), timeout=10.0)
+                blocker.close()
+
+                _wait_until_bound(port, state)
+                _send(port, "AUTO 1")
+                wait_until(lambda: state.auto_active, timeout=10.0, interval=0.02)
         finally:
             stop.set()
+            blocker.close()
             t.join(timeout=2.0)
+
+        assert state.auto_active is True
 
     def test_bind_failure_gives_up_and_says_so_on_the_log(self):
         """A port that never frees ends the reader, with the reason logged.
@@ -231,6 +274,10 @@ class TestTheSocketLoop:
         The log is the whole report: nothing in Genau reads a failure off the
         shared state, so a listener that cannot bind is a log line and a
         thread that has stopped.
+
+        The schedule is three zero-length waits, because what is under test is
+        what happens once the retries run out, not how long they take getting
+        there.
         """
         state = SharedState()
         port = _free_udp_port()
@@ -244,11 +291,11 @@ class TestTheSocketLoop:
         t = threading.Thread(
             target=udp_reader,
             args=("127.0.0.1", port, state, stop, logger),
+            kwargs={"retry_delays": (0, 0, 0)},
             daemon=True,
         )
         t.start()
         try:
-            # Wait for all retries to exhaust (0.5 + 1.0 + 2.0 = 3.5s + final attempt)
             t.join(timeout=8.0)
             assert not t.is_alive()
             logger.exception.assert_called_once_with("UDP reader failed")
