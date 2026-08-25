@@ -136,6 +136,18 @@ class HeatmapStrip:
 
 
 
+def timeline_height(heatmap: HeatmapStrip) -> int:
+    """How tall the timeline row is under the current video.
+
+    The heatmap strip when there is a funscript — taller while a loop is being
+    recorded — and the plain progress bar's own height when there is not, since
+    every video has a clickable timeline and a row of no height would put it
+    outside the window.  Asked by everything measured against the bottom of the
+    window: where a press lands, and where the volume chip sits.
+    """
+    return heatmap.height or TIMELINE_HEIGHT
+
+
 _THUMB_H = 64
 _OUT_CAPTURE_LEAD_MS = 400.0
 
