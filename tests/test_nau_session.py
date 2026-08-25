@@ -843,6 +843,73 @@ class TestCycleVersion:
         session.cycle_version()
         assert session.current_video == big
 
+    def test_a_family_of_three_walks_forward_and_wraps(self, tmp_path):
+        """Two members cannot say which way the cycle goes -- forward and
+        backward are the same step modulo two -- and CYCLE_VERSION is a command
+        Fun Time sends and a HUD control, so the order it walks a family is the
+        observable behaviour.
+
+        The index orders members largest-first, which is the order the library
+        builds it in: the canonical file, then its smaller versions.
+        """
+        original = tmp_path / "Jane Doe - scene one.mp4"
+        upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
+        small = tmp_path / "Jane Doe - scene one-540.mp4"
+        for path in (original, upscale, small):
+            path.write_text("x")
+        members = [(original, None), (upscale, None), (small, None)]
+        player = FakePlayer()
+        session = PlayerSession(
+            [(original, None)], player=player, tcode=FakeTCode(),
+            version_index={video: members for video, _fs in members},
+        )
+
+        walked = []
+        for _ in range(4):
+            session.cycle_version()
+            walked.append(session.current_video)
+
+        assert walked == [upscale, small, original, upscale]
+
+    def test_each_step_opens_the_new_file_from_the_beginning(self, tmp_path):
+        """Nothing of the old one is preserved -- the versions are the same
+        content at different sizes, but mpv is opening a different file."""
+        original = tmp_path / "Jane Doe - scene one.mp4"
+        upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
+        for path in (original, upscale):
+            path.write_text("x")
+        members = [(original, None), (upscale, None)]
+        player = FakePlayer()
+        session = PlayerSession(
+            [(original, None)], player=player, tcode=FakeTCode(),
+            version_index={video: members for video, _fs in members},
+        )
+        opened_before = len(player.opened)
+
+        session.cycle_version()
+
+        assert player.opened[opened_before:] == [upscale]
+
+    def test_a_version_the_index_does_not_know_is_left_alone(self, tmp_path):
+        """A playlist can carry a video the index was built without -- Fun Time
+        writes one from its own selection -- and cycling it must not swap in
+        somebody else's family."""
+        stranger = tmp_path / "Ann Bly - scene two.mp4"
+        original = tmp_path / "Jane Doe - scene one.mp4"
+        upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
+        for path in (stranger, original, upscale):
+            path.write_text("x")
+        members = [(original, None), (upscale, None)]
+        player = FakePlayer()
+        session = PlayerSession(
+            [(stranger, None)], player=player, tcode=FakeTCode(),
+            version_index={stranger: members},
+        )
+
+        session.cycle_version()
+
+        assert session.current_video == stranger
+
     def test_replaces_in_place_so_navigation_skips_the_alternate(self, tmp_path):
         # Cycling a version must not add a playlist entry: [ still steps back to
         # the previous distinct video, not the version we cycled away from.
