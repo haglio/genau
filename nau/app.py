@@ -29,6 +29,7 @@ from .clip_jumps import ClipJumps
 from .dashboard import Dashboard
 from .library_source import DEFAULT_MODE
 from .drive_gate import DriveGate
+from .keys import Keys
 from .modes import Modes, reload_playlist
 from .pointer import Pointer
 from .volume_control import VolumeControl
@@ -54,7 +55,7 @@ from .overlay import (
     time_to_x,
     timeline_height,
 )
-from .runtime import SEEK_STEP_MS, apply_command
+from .runtime import apply_command
 from player_core.volume import VolumeHudPainter, chip_xy
 from .session import PlayerSession
 from .status import status_fields
@@ -343,6 +344,8 @@ def _run(args) -> int:
         reload_playlist, session, jumps,
         partial(resolve_playlist, args, source=source)
         if args.playlist is not None else None)
+    # What this window's keyboard reaches.  See nau.keys.
+    keys = Keys(session, modes, dashboard, stop_event)
 
     while not stop_event.is_set():
         win_w, win_h = screen.get_size()
@@ -376,27 +379,9 @@ def _run(args) -> int:
                 else:
                     pointer.drag(*ev.pos, win_w=win_w, win_h=win_h)
             elif ev.type == pygame.KEYDOWN:
-                if ev.key == pygame.K_q and ev.mod & pygame.KMOD_CTRL:
-                    dashboard.take_quit_gesture(stop_event)
-                elif ev.key == pygame.K_ESCAPE:
-                    session.toggle_pause()
-                elif ev.key == pygame.K_r:
-                    session.record_down()
-                elif ev.key == pygame.K_LEFTBRACKET:
-                    session.step(-1)
-                elif ev.key == pygame.K_RIGHTBRACKET:
-                    session.step(1)
-                elif ev.key == pygame.K_MINUS:
-                    session.seek_by(-SEEK_STEP_MS)
-                elif ev.key == pygame.K_EQUALS:
-                    session.seek_by(SEEK_STEP_MS)
-                elif ev.key == pygame.K_v:
-                    session.cycle_version()
-                elif ev.key == pygame.K_l:
-                    modes.toggle_length()
+                keys.press(ev.key, ev.mod)
             elif ev.type == pygame.KEYUP:
-                if ev.key == pygame.K_r:
-                    session.record_up()
+                keys.release(ev.key)
 
         if paused_file is not None:
             session.set_paused(read_paused_state(paused_file, logger=logger))
