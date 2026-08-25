@@ -1,6 +1,7 @@
 """Tests for genau_vr.vr_runtime — is VR ready, and can we make it ready?"""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -82,6 +83,35 @@ def test_probe_releases_the_instance_when_no_headset_answers():
     with patch("genau_vr.vr_runtime.xr", stub):
         probe()
     stub.destroy_instance.assert_called_once_with(stub.create_instance.return_value)
+
+
+def test_probe_survives_a_teardown_that_fails_under_it():
+    """Releasing the instance cannot replace the answer probe() decided on.
+
+    ``ensure_ready()`` polls ``probe()`` and every loader failure has to reach
+    the popup; an exception raised on the way out escapes past both. A bare
+    ``MagicMock`` stands in for the loader because this case reaches no
+    ``except`` clause -- the answer is settled before the teardown runs.
+    """
+    stub = MagicMock()
+    stub.destroy_instance.side_effect = RuntimeError("the runtime shut down mid-probe")
+
+    with patch("genau_vr.vr_runtime.xr", stub):
+        result = probe()
+
+    assert result.readiness is Readiness.READY
+    stub.destroy_instance.assert_called_once()
+
+
+def test_a_teardown_that_failed_is_written_down(caplog):
+    """Swallowed and unrecorded, it would be the silent exit this app avoids."""
+    stub = MagicMock()
+    stub.destroy_instance.side_effect = RuntimeError("the runtime shut down mid-probe")
+
+    with patch("genau_vr.vr_runtime.xr", stub), caplog.at_level(logging.WARNING):
+        probe()
+
+    assert "the runtime shut down mid-probe" in caplog.text
 
 
 def test_launcher_for_runtime_finds_the_pimax_client_beside_the_runtime(tmp_path):
