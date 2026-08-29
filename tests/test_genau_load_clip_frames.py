@@ -14,7 +14,7 @@ def _make_frames(count: int, width: int = 8, height: int = 6) -> list[np.ndarray
 
 
 def test_load_clip_frames_from_cache(tmp_path):
-    from genau.frame_cache import write_rhcache
+    from rhcache_fixtures import write_rhcache
 
     video_path = tmp_path / "clip.mp4"
     video_path.touch()
