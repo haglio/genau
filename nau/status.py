@@ -2,9 +2,10 @@
 
 The dispatch side reads these to drive clipper_save, the dashboard funscript
 highlight, and the record-button state.  The throttled writing itself is
-:class:`player_core.status.StatusWriter`; this module is only the field set,
-because these keys and their order are Nau's own contract with fun_time — no
-other player publishes them.
+:class:`player_core.status.StatusWriter`; here are the whole field set and the
+one choice that goes into it (:func:`next_handoff_touch`), because these keys
+and their order are Nau's own contract with fun_time — no other player
+publishes them.
 """
 from __future__ import annotations
 
