@@ -10,6 +10,7 @@ from genau_vr.playback import (
     bpm_for_speed,
     cycle_shape,
     display_index_for_phase,
+    _waveform_raw,
     display_phase_for_position,
     format_tcode_command,
     phase_to_position,
@@ -254,3 +255,15 @@ class TestDisplayPhaseForPosition:
 
     def test_sine_phase_half_returns_half(self):
         assert display_phase_for_position(0.5, WaveformShape.SINE) == pytest.approx(0.5)
+
+
+def test_a_shape_the_waveform_does_not_know_is_refused():
+    """The four branches cover the enum; there is no fifth answer to give.
+
+    The chain used to end in a verbatim copy of the SINE branch, unreachable
+    and reading as a meaningful default -- so a fifth shape added later would
+    have come out a sine rather than a failure. _PEAK_PHASE, ten lines below,
+    raises KeyError on a shape it does not know; the two now agree.
+    """
+    with pytest.raises(ValueError):
+        _waveform_raw(0.25, "not-a-shape")
