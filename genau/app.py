@@ -214,12 +214,10 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         except Exception:
             logger.warning("Failed to pre-load first clip %s", first_clip_path, exc_info=True)
 
-    preload_thread = None
-    if first_clip_path is not None:
-        preload_thread = threading.Thread(
-            target=_preload_first_clip, daemon=True, name="genau-preload",
-        )
-        preload_thread.start()
+    preload_thread = threading.Thread(
+        target=_preload_first_clip, daemon=True, name="genau-preload",
+    )
+    preload_thread.start()
 
     view = PygameView(
         width=args.width,
@@ -444,11 +442,10 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
-    if preload_thread is not None:
-        preload_thread.join(timeout=10.0)
-        if preload_result["frames"] is not None:
-            clip_store.clip_cache[first_clip_path] = {"frames": preload_result["frames"]}
-            logger.info("Pre-loaded %d frames for %s", len(preload_result["frames"]), first_clip_path.name)
+    preload_thread.join(timeout=10.0)
+    if preload_result["frames"] is not None:
+        clip_store.clip_cache[first_clip_path] = {"frames": preload_result["frames"]}
+        logger.info("Pre-loaded %d frames for %s", len(preload_result["frames"]), first_clip_path.name)
     selection.set_current_clip(selection.current_path)
 
     while not stop_event.is_set():
