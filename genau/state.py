@@ -10,13 +10,8 @@ from dataclasses import dataclass, field
 class SharedState:
     lock: threading.Lock = field(default_factory=threading.Lock)
     auto_active: bool = False
-    visible: bool = False
     raw_bpm: float | None = None
-    beats: int | None = None
-    stroke_name: str = ""
-    pattern_duration: float | None = None
     sync_pulse_id: int = 0
-    last_msg: str = ""
 
 
 _BIND_RETRY_DELAYS = (0.5, 1.0, 2.0)
@@ -58,15 +53,7 @@ def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.E
             arg = parts[1] if len(parts) > 1 else ""
 
             with state.lock:
-                state.last_msg = line
-
-                if cmd == "SHOW":
-                    state.visible = True
-                    logger.info("Received SHOW")
-                elif cmd == "HIDE":
-                    state.visible = False
-                    logger.info("Received HIDE")
-                elif cmd == "AUTO":
+                if cmd == "AUTO":
                     state.auto_active = arg.strip() == "1"
                     logger.info("Received AUTO %s", 1 if state.auto_active else 0)
                 elif cmd == "BPM":
@@ -74,18 +61,6 @@ def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.E
                         state.raw_bpm = float(arg.strip())
                     except ValueError:
                         logger.warning("Invalid BPM payload: %s", line)
-                elif cmd == "BEATS":
-                    try:
-                        state.beats = int(arg.strip())
-                    except ValueError:
-                        logger.warning("Invalid BEATS payload: %s", line)
-                elif cmd == "STROKE":
-                    state.stroke_name = arg.strip()
-                elif cmd == "PATTERN":
-                    try:
-                        state.pattern_duration = float(arg.strip())
-                    except ValueError:
-                        logger.warning("Invalid PATTERN payload: %s", line)
                 elif cmd == "SYNC":
                     state.sync_pulse_id += 1
     except Exception:

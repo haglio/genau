@@ -280,23 +280,21 @@ tests/test_genau_runtime_commands.py::TestWeirdCommand::test_weird_condemns_the_
 tests/test_genau_runtime_commands.py::TestWeirdCommand::test_weird_ignored_without_a_way_to_discard
 tests/test_genau_state.py::TestSharedState::test_default_values
 tests/test_genau_state.py::TestSharedState::test_has_lock
-tests/test_genau_state.py::TestUdpReader::test_auto_0_disables_auto_without_forcing_visibility
-tests/test_genau_state.py::TestUdpReader::test_auto_1_enables_auto_without_forcing_visibility
-tests/test_genau_state.py::TestUdpReader::test_beats_invalid_does_not_crash
-tests/test_genau_state.py::TestUdpReader::test_beats_parsed
+tests/test_genau_state.py::TestSharedState::test_it_holds_only_the_fields_something_reads
+tests/test_genau_state.py::TestUdpReader::test_a_verb_genau_does_not_act_on_leaves_the_state_where_it_was[BEATS 4]
+tests/test_genau_state.py::TestUdpReader::test_a_verb_genau_does_not_act_on_leaves_the_state_where_it_was[HIDE]
+tests/test_genau_state.py::TestUdpReader::test_a_verb_genau_does_not_act_on_leaves_the_state_where_it_was[PATTERN 2.5]
+tests/test_genau_state.py::TestUdpReader::test_a_verb_genau_does_not_act_on_leaves_the_state_where_it_was[SHOW]
+tests/test_genau_state.py::TestUdpReader::test_a_verb_genau_does_not_act_on_leaves_the_state_where_it_was[STROKE twist]
+tests/test_genau_state.py::TestUdpReader::test_a_verb_genau_does_not_act_on_leaves_the_state_where_it_was[UNKNOWN payload]
+tests/test_genau_state.py::TestUdpReader::test_auto_0_takes_the_room_back
+tests/test_genau_state.py::TestUdpReader::test_auto_1_hands_the_room_to_the_broker
 tests/test_genau_state.py::TestUdpReader::test_bind_failure_gives_up_and_says_so_on_the_log
 tests/test_genau_state.py::TestUdpReader::test_bind_retries_on_port_conflict
 tests/test_genau_state.py::TestUdpReader::test_bpm_invalid_does_not_crash
 tests/test_genau_state.py::TestUdpReader::test_bpm_parsed
-tests/test_genau_state.py::TestUdpReader::test_hide_clears_visible
-tests/test_genau_state.py::TestUdpReader::test_last_msg_recorded
-tests/test_genau_state.py::TestUdpReader::test_pattern_invalid_does_not_crash
-tests/test_genau_state.py::TestUdpReader::test_pattern_parsed
-tests/test_genau_state.py::TestUdpReader::test_show_sets_visible
 tests/test_genau_state.py::TestUdpReader::test_stop_event_terminates_reader
-tests/test_genau_state.py::TestUdpReader::test_stroke_stored
 tests/test_genau_state.py::TestUdpReader::test_sync_increments
-tests/test_genau_state.py::TestUdpReader::test_unknown_command_is_ignored
 tests/test_genau_status_writer.py::test_build_status_text_amp_at_max
 tests/test_genau_status_writer.py::test_build_status_text_amp_at_min
 tests/test_genau_status_writer.py::test_build_status_text_cruise_active

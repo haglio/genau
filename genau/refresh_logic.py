@@ -6,26 +6,16 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class SharedStateSnapshot:
     auto_active: bool
-    visible: bool
     raw_bpm: float | None
-    beats: int | None
-    stroke_name: str
-    pattern_duration: float | None
     sync_pulse_id: int
-    last_msg: str
 
 
 def read_shared_state_snapshot(state) -> SharedStateSnapshot:
     with state.lock:
         return SharedStateSnapshot(
             auto_active=state.auto_active,
-            visible=state.visible,
             raw_bpm=state.raw_bpm,
-            beats=state.beats,
-            stroke_name=state.stroke_name,
-            pattern_duration=state.pattern_duration,
             sync_pulse_id=state.sync_pulse_id,
-            last_msg=state.last_msg,
         )
 
 
