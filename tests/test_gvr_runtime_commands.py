@@ -115,11 +115,9 @@ HANDLED = [
     ("PREV", {}, {"steps": (-1,)}),
     ("NEXT", {}, {"steps": (1,)}),
     ("OFFSET_QUARTER_CYCLE", {}, {"phase": 0.75}),
-    ("NUDGE25", {}, {"phase": 0.75}),
     ("PAUSE", {}, {"paused": True, "playing": False}),
     ("RESUME", {"paused": True, "playing": False}, {"paused": False, "playing": True}),
     ("SPEED_DOWN", {}, {"speed": 45}),
-    ("SLOW_DOWN", {}, {"speed": 45}),
     ("SPEED_UP", {}, {"speed": 55}),
     ("AMPLITUDE_DOWN", {}, {"amplitude": 50}),
     ("AMPLITUDE_UP", {}, {"amplitude": 70}),
@@ -183,6 +181,8 @@ REFUSED = [
     ("AMP eighty", {}),           # a number that is not one
     ("AMP 80 90", {}),            # split takes one argument, and this is two
     ("BRIGHTNESS 80", {}),        # a number, for a setter that does not exist
+    ("NUDGE25", {}),              # a legacy spelling with no sender in any repo
+    ("SLOW_DOWN", {}),            # likewise; the live one is SPEED_DOWN
 ]
 
 
@@ -207,7 +207,7 @@ class TestWhatTheRuntimeWasNotGiven:
     """
 
     ONLY_WITH_DIRECT_STATE = [
-        "SPEED_DOWN", "SLOW_DOWN", "SPEED_UP",
+        "SPEED_DOWN", "SPEED_UP",
         "AMPLITUDE_DOWN", "AMPLITUDE_UP", "CENTER_DOWN", "CENTER_UP",
         "CYCLE_SHAPE", "CYCLE_SHAPE_PREV",
         "AMP 80", "CENTER 65", "SPEED 90",
