@@ -5,29 +5,6 @@ import math
 import numpy as np
 
 
-def direction_to_equirect_uv(dx: float, dy: float, dz: float) -> tuple[float, float]:
-    """Convert a 3D direction to equirectangular UV coordinates.
-
-    Coordinate system: +X=right, +Y=up, -Z=forward (OpenGL convention).
-    Returns (u, v) in [0, 1] where u=0.5 is forward, v=0.5 is horizon.
-    """
-    theta = math.atan2(dx, -dz)
-    phi = math.asin(max(-1.0, min(1.0, dy / math.sqrt(dx * dx + dy * dy + dz * dz))))
-    u = theta / (2 * math.pi) + 0.5
-    v = -phi / math.pi + 0.5
-    return u, v
-
-
-def equirect_uv_to_sbs_vr180(
-    u: float, v: float, *, eye: int
-) -> tuple[float, float]:
-    """Remap equirectangular UV to VR180 side-by-side texture coordinates.
-
-    eye=0 → left half of texture, eye=1 → right half.
-    """
-    return u * 0.5 + eye * 0.5, v
-
-
 def fov_to_projection_matrix(
     angle_left: float,
     angle_right: float,
