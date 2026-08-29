@@ -441,10 +441,8 @@ def _run_loop(
             now=now,
             auto_active=True,
             raw_bpm=state.bpm,
-            sync_pulse_id=0,
             beats_per_loop=1.0,
             bpm_smoothing=0.14,
-            sync_strength=0.0,
             paused=not state.playing or rh_paused["value"],
         )
 
