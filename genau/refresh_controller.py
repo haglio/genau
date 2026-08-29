@@ -48,10 +48,10 @@ class GenauRefreshController:
         set_loading_text,
         logger,
         log_name: str,
+        direct_state,
         now_source=time.monotonic,
         consume_command=consume_command_file,
         read_paused_state=None,
-        direct_state=None,
         tcode_sender=None,
         cruise_control=None,
         clip_advance=None,
@@ -117,8 +117,7 @@ class GenauRefreshController:
         # as a real falling edge against the state the controller was built in —
         # unseeded, the first tick recorded whatever the commands left and the
         # edge they carried never fired.
-        self._prev_playing: bool | None = (
-            direct_state.playing if direct_state is not None else None)
+        self._prev_playing: bool = direct_state.playing
         # Which half of the clip is showing, and what is known about the end
         # the stroke is at — see :meth:`_scrub_the_clip`.
         self._scrub = ClipScrub()
@@ -165,7 +164,7 @@ class GenauRefreshController:
 
         shared = read_shared_state_snapshot(self.state)
 
-        direct_active = self.direct_state is not None and not shared.auto_active
+        direct_active = not shared.auto_active
 
         if direct_active:
             if self.cruise_control is not None:
@@ -206,15 +205,12 @@ class GenauRefreshController:
             sync_pulse_id = shared.sync_pulse_id
 
         self.window_visible = self.notifier.sync_window_visibility(
-            desired_visible=shared.visible if self.direct_state is None else True,
+            desired_visible=True,
             window_visible=self.window_visible,
             current_clip_path=self.renderer.current_clip_path,
             show_window=self.show_window,
             hide_window=self.hide_window,
         )
-
-        if shared.error and self.direct_state is None:
-            return
 
         loop_duration = update_engine(
             self.engine,
@@ -228,32 +224,30 @@ class GenauRefreshController:
             paused=paused,
         )
 
-        if self.direct_state is not None:
-            # The device changing hands, both directions, seen the same tick the
-            # command landed (the drain above runs first).  Symmetric on purpose:
-            # the falling edge latches where the device was and rests the swing;
-            # the rising edge arms the climb out of the park — which never fired
-            # when this edge was read after a tick's sends had already gone out.
-            now_playing = self.direct_state.playing
-            prev_playing = self._prev_playing
-            if self.tcode_sender is not None and prev_playing is not None:
-                if now_playing and not prev_playing:
-                    self.tcode_sender.take_over()
-                elif prev_playing and not now_playing:
-                    self.tcode_sender.hand_over()
-            if (self.broker_cmd_file is not None and prev_playing is not None
-                    and now_playing != prev_playing):
-                self.broker_cmd_file.write_text(
-                    "RESUME" if now_playing else "PARK", encoding="utf-8",
-                )
-            self._prev_playing = now_playing
+        # The device changing hands, both directions, seen the same tick the
+        # command landed (the drain above runs first).  Symmetric on purpose:
+        # the falling edge latches where the device was and rests the swing;
+        # the rising edge arms the climb out of the park — which never fired
+        # when this edge was read after a tick's sends had already gone out.
+        now_playing = self.direct_state.playing
+        prev_playing = self._prev_playing
+        if self.tcode_sender is not None:
+            if now_playing and not prev_playing:
+                self.tcode_sender.take_over()
+            elif prev_playing and not now_playing:
+                self.tcode_sender.hand_over()
+        if self.broker_cmd_file is not None and now_playing != prev_playing:
+            self.broker_cmd_file.write_text(
+                "RESUME" if now_playing else "PARK", encoding="utf-8",
+            )
+        self._prev_playing = now_playing
 
         if self.tcode_sender is not None and direct_active and self.direct_state.playing:
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
         if direct_active:
             self._update_console(now)
-        elif self.direct_state is not None:
+        else:
             self.set_console(None)
 
         if self.hud_state is not None:
@@ -291,10 +285,9 @@ class GenauRefreshController:
 
         self.selection.request_nearby_prefetch()
 
-        if self.direct_state is not None:
-            self.present_scene()
+        self.present_scene()
 
-        if self.direct_state is not None and self.cruise_control is not None:
+        if self.cruise_control is not None:
             status_path = self.command_file.parent / "genau_status.txt"
             hud_on = self.hud_state["active"] if self.hud_state is not None else False
             write_status_file(
