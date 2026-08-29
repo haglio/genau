@@ -29,7 +29,7 @@ def _cruising(**over) -> CruiseControlState:
     """An active state whose schedule is entirely in the future."""
     fields = dict(active=True, _last_tick=1.0, _next_retarget=NEVER,
                   _next_speed_change=NEVER, _next_shape_change=NEVER,
-                  _next_clip_change=NEVER, rng=random.Random(0))
+                  rng=random.Random(0))
     fields.update(over)
     return CruiseControlState(**fields)
 
@@ -215,42 +215,13 @@ class TestWhatOnlyHappensWhenItIsDue:
         assert cruise._next_retarget >= 1.1 + 3.0
 
 
-class TestMovingOnToTheNextClip:
-    def test_a_clip_change_that_is_due_is_taken(self):
-        stepped: list[int] = []
-        stroke = _stroke()
-        cruise = _cruising(_next_clip_change=0.0)
+def test_cruise_control_never_changes_the_clip():
+    """The VR loop owns the clip; cruise varies the stroke and nothing else.
 
-        tick_cruise_control(stroke, cruise, now=1.1, step_clip=stepped.append)
-
-        assert stepped == [1]
-
-    def test_one_that_is_not_due_is_not(self):
-        stepped: list[int] = []
-        stroke = _stroke()
-
-        tick_cruise_control(stroke, _cruising(), now=1.1, step_clip=stepped.append)
-
-        assert stepped == []
-
-    def test_a_caller_that_offered_no_stepper_is_not_asked(self):
-        """The VR loop drives clips itself when it is showing one; nothing here
-        may assume a stepper is there."""
-        stroke = _stroke()
-        cruise = _cruising(_next_clip_change=0.0)
-
-        tick_cruise_control(stroke, cruise, now=1.1)  # no step_clip, and no crash
-
-        assert cruise._next_clip_change == 0.0, "the schedule only moves when it fires"
-
-    @pytest.mark.parametrize("ticks", [2, 5])
-    def test_taking_one_puts_the_next_out_of_reach(self, ticks):
-        stepped: list[int] = []
-        stroke = _stroke()
-        cruise = _cruising(_next_clip_change=0.0)
-
-        for tick in range(1, ticks + 1):
-            tick_cruise_control(stroke, cruise, now=1.0 + tick / 10,
-                                step_clip=stepped.append)
-
-        assert stepped == [1]
+    An older player_core design had cruise advance clips too, and this copy
+    was taken from it. genau_vr/app.py:436 calls it with three positional
+    arguments and no stepper, so the auto-advance never ran -- VR cruise
+    silently never changed clips while reading as if it did.
+    """
+    with pytest.raises(TypeError):
+        tick_cruise_control(_stroke(), _cruising(), 1.1, lambda _delta: None)
