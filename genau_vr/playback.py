@@ -22,7 +22,6 @@ class PlaybackEngine:
     estimated_bpm: float | None = None
     target_bpm: float | None = None
     last_tick: float = 0.0
-    seen_sync_pulse_id: int = 0
 
 
 def update_engine(
@@ -31,10 +30,8 @@ def update_engine(
     now: float,
     auto_active: bool,
     raw_bpm: float | None,
-    sync_pulse_id: int,
     beats_per_loop: float,
     bpm_smoothing: float,
-    sync_strength: float,
     paused: bool,
 ) -> None:
     dt = now - engine.last_tick
@@ -53,13 +50,6 @@ def update_engine(
     if auto_active and engine.estimated_bpm and engine.estimated_bpm > 0 and not paused:
         loop_duration = (60.0 / engine.estimated_bpm) * beats_per_loop
         engine.phase = (engine.phase + (dt / loop_duration)) % 1.0
-
-    if sync_pulse_id != engine.seen_sync_pulse_id:
-        engine.seen_sync_pulse_id = sync_pulse_id
-        phase = engine.phase
-        error = -phase if phase <= 0.5 else (1.0 - phase)
-        strength = max(0.0, min(1.0, sync_strength))
-        engine.phase = (engine.phase + error * strength) % 1.0
 
 
 # ---------------------------------------------------------------------------

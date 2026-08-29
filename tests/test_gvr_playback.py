@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import pytest
 
 from genau_vr.playback import (
@@ -168,6 +169,18 @@ class TestEachWaveformShape:
 
 
 class TestUpdateEngine:
+    def test_the_engine_holds_no_sync_state(self):
+        """GenauVR has no bus to be pulsed from.
+
+        Genau's engine follows a SYNC verb its UDP listener counts; this copy
+        was taken from that one and kept the machinery, with the single call
+        site passing sync_pulse_id=0 and sync_strength=0.0 forever -- so the
+        phase correction could never fire and no test reached it either.
+        """
+        assert {f.name for f in dataclasses.fields(PlaybackEngine)} == {
+            "phase", "estimated_bpm", "target_bpm", "last_tick",
+        }
+
     def test_phase_advances(self):
         engine = PlaybackEngine(last_tick=0.0)
         update_engine(
@@ -175,10 +188,8 @@ class TestUpdateEngine:
             now=0.5,
             auto_active=True,
             raw_bpm=60.0,
-            sync_pulse_id=0,
             beats_per_loop=1.0,
             bpm_smoothing=1.0,
-            sync_strength=0.0,
             paused=False,
         )
         # dt clamped to 0.1, loop=1s at 60bpm → phase=0.1 after first tick
@@ -192,10 +203,8 @@ class TestUpdateEngine:
             now=0.5,
             auto_active=True,
             raw_bpm=60.0,
-            sync_pulse_id=0,
             beats_per_loop=1.0,
             bpm_smoothing=1.0,
-            sync_strength=0.0,
             paused=True,
         )
         assert engine.phase == 0.0
