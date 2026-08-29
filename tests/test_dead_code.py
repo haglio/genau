@@ -28,6 +28,39 @@ def test_no_dead_code():
     )
 
 
+# The three ruff rules that name dead code and nothing else: an import
+# nothing uses, a redefinition that shadows the first, a local assigned and
+# never read. Vulture sees none of them -- it treats an import as used when
+# the same name appears in any other file it scans, so a stray `import json`
+# in one module hides behind a real one in its neighbour.
+_DEAD_CODE_LINT_RULES = "F401,F811,F841"
+
+
+# One finding is held open on purpose. tests/test_win32.py imports MagicMock
+# and does not yet use it: a parked bug-fix branch adds the two COM-apartment
+# cases that do, and taking the import out here would land them broken.
+# Delete this entry once that branch has landed -- the gate then covers the
+# file like every other.
+_HELD_OPEN = ("tests/test_win32.py:9:", )
+
+
+def test_no_dead_imports_or_unread_locals():
+    cmd = [
+        sys.executable, "-m", "ruff", "check",
+        "--select", _DEAD_CODE_LINT_RULES,
+        "--output-format", "concise",
+        str(GENAU_DIR), str(NAU_DIR), str(_ROOT / "genau_vr"),
+        str(_ROOT / "tools"), str(_ROOT / "tests"),
+    ]
+    result = subprocess.run(cmd, cwd=_ROOT, capture_output=True, text=True)
+    reported = [
+        line for line in result.stdout.splitlines()
+        if ": F" in line and not line.startswith(_HELD_OPEN)
+    ]
+
+    assert not reported, "ruff found dead code:\n" + "\n".join(reported)
+
+
 def _attribute_names_read_anywhere() -> set[str]:
     """Every ``x.<name>`` read in the tree, plus every string literal.
 
