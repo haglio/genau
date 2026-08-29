@@ -359,8 +359,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         beats_per_loop=args.beats_per_loop,
         bpm_smoothing=args.bpm_smoothing,
         sync_strength=args.sync_strength,
-        show_window=lambda: None,
-        hide_window=lambda: None,
         set_loading_text=view.set_loading_text,
         logger=logger,
         log_name=config.log_file("genau_listener").name,
