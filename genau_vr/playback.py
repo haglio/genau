@@ -36,7 +36,7 @@ def update_engine(
     bpm_smoothing: float,
     sync_strength: float,
     paused: bool,
-) -> float | None:
+) -> None:
     dt = now - engine.last_tick
     engine.last_tick = now
     dt = max(0.0, min(dt, 0.1))
@@ -53,8 +53,6 @@ def update_engine(
     if auto_active and engine.estimated_bpm and engine.estimated_bpm > 0 and not paused:
         loop_duration = (60.0 / engine.estimated_bpm) * beats_per_loop
         engine.phase = (engine.phase + (dt / loop_duration)) % 1.0
-    else:
-        loop_duration = None
 
     if sync_pulse_id != engine.seen_sync_pulse_id:
         engine.seen_sync_pulse_id = sync_pulse_id
@@ -62,8 +60,6 @@ def update_engine(
         error = -phase if phase <= 0.5 else (1.0 - phase)
         strength = max(0.0, min(1.0, sync_strength))
         engine.phase = (engine.phase + error * strength) % 1.0
-
-    return loop_duration
 
 
 # ---------------------------------------------------------------------------
