@@ -3,11 +3,8 @@ from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeVar
 
 from .cache_utils import trim_path_lru_cache
-
-T = TypeVar("T")
 
 
 @dataclass
