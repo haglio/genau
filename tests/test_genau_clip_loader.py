@@ -22,7 +22,6 @@ def _make_loader(*, current_clip_path: Path | None = None):
     starter = JobStarter()
     logger = MagicMock()
     active_loaded: list[str] = []
-    errors: list[str] = []
 
     controller = ClipLoadController(
         clip_store=clip_store,
@@ -33,14 +32,13 @@ def _make_loader(*, current_clip_path: Path | None = None):
         start_thread=starter,
         logger=logger,
         on_active_clip_loaded=lambda: active_loaded.append("ready"),
-        on_error=errors.append,
     )
-    return controller, clip_store, load_state, prefetch_state, starter, logger, active_loaded, errors
+    return controller, clip_store, load_state, prefetch_state, starter, logger, active_loaded
 
 
 def test_request_clip_load_adopts_decoded_frames_without_starting_job():
     path = Path("demo.mp4")
-    controller, clip_store, _load_state, _prefetch_state, starter, _logger, _active_loaded, _errors = _make_loader()
+    controller, clip_store, _load_state, _prefetch_state, starter, _logger, _active_loaded = _make_loader()
     clip_store.decoded_frame_cache[path] = ["f0", "f1"]
 
     controller.request_clip_load(path)
@@ -51,7 +49,7 @@ def test_request_clip_load_adopts_decoded_frames_without_starting_job():
 
 def test_request_clip_load_starts_background_job():
     path = Path("demo.mp4")
-    controller, _clip_store, load_state, _prefetch_state, starter, _logger, _active_loaded, _errors = _make_loader()
+    controller, _clip_store, load_state, _prefetch_state, starter, _logger, _active_loaded = _make_loader()
 
     controller.request_clip_load(path)
 
@@ -61,7 +59,7 @@ def test_request_clip_load_starts_background_job():
 
 def test_adopt_loaded_clip_if_ready_promotes_frames_and_notifies_current_clip():
     path = Path("demo.mp4")
-    controller, clip_store, load_state, _prefetch_state, _starter, _logger, active_loaded, _errors = _make_loader(current_clip_path=path)
+    controller, clip_store, load_state, _prefetch_state, _starter, _logger, active_loaded = _make_loader(current_clip_path=path)
     request_id = load_state.begin()
     load_state.record_success(path, ["f0", "f1"], request_id)
 
@@ -72,20 +70,25 @@ def test_adopt_loaded_clip_if_ready_promotes_frames_and_notifies_current_clip():
     assert active_loaded == ["ready"]
 
 
-def test_adopt_loaded_clip_if_ready_forwards_errors():
+def test_adopt_loaded_clip_if_ready_takes_up_nothing_from_a_failed_decode():
+    """A clip that would not decode is dropped, not cached half-made.
+
+    The failure itself is already on the log, written by the decode thread.
+    """
     path = Path("demo.mp4")
-    controller, _clip_store, load_state, _prefetch_state, _starter, _logger, _active_loaded, errors = _make_loader()
+    controller, clip_store, load_state, _prefetch_state, _starter, _logger, active_loaded = _make_loader(current_clip_path=path)
     request_id = load_state.begin()
     load_state.record_error(path, "boom", request_id)
 
     controller.adopt_loaded_clip_if_ready()
 
-    assert errors == ["boom"]
+    assert path not in clip_store.clip_cache
+    assert active_loaded == []
 
 
 def test_request_prefetch_skips_when_busy():
     path = Path("demo.mp4")
-    controller, _clip_store, load_state, _prefetch_state, starter, _logger, _active_loaded, _errors = _make_loader()
+    controller, _clip_store, load_state, _prefetch_state, starter, _logger, _active_loaded = _make_loader()
     load_state.begin()
 
     controller.request_prefetch(path)
@@ -95,7 +98,7 @@ def test_request_prefetch_skips_when_busy():
 
 def test_request_prefetch_starts_background_job_for_uncached_path():
     path = Path("demo.mp4")
-    controller, _clip_store, _load_state, prefetch_state, starter, _logger, _active_loaded, _errors = _make_loader()
+    controller, _clip_store, _load_state, prefetch_state, starter, _logger, _active_loaded = _make_loader()
 
     controller.request_prefetch(path)
 
@@ -105,7 +108,7 @@ def test_request_prefetch_starts_background_job_for_uncached_path():
 
 def test_adopt_prefetch_if_ready_caches_frames_without_active_notification():
     path = Path("demo.mp4")
-    controller, clip_store, _load_state, prefetch_state, _starter, _logger, active_loaded, _errors = _make_loader()
+    controller, clip_store, _load_state, prefetch_state, _starter, _logger, active_loaded = _make_loader()
     request_id = prefetch_state.begin()
     prefetch_state.record_success(path, ["f0"], request_id)
 

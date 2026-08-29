@@ -13,7 +13,6 @@ class SharedStateSnapshot:
     pattern_duration: float | None
     sync_pulse_id: int
     last_msg: str
-    error: str | None
 
 
 def read_shared_state_snapshot(state) -> SharedStateSnapshot:
@@ -27,7 +26,6 @@ def read_shared_state_snapshot(state) -> SharedStateSnapshot:
             pattern_duration=state.pattern_duration,
             sync_pulse_id=state.sync_pulse_id,
             last_msg=state.last_msg,
-            error=state.error,
         )
 
 

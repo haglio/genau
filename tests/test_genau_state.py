@@ -5,6 +5,7 @@ import socket
 import threading
 import time
 import logging
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -26,7 +27,6 @@ class TestSharedState:
         assert s.pattern_duration is None
         assert s.sync_pulse_id == 0
         assert s.last_msg == ""
-        assert s.error is None
 
     def test_has_lock(self):
         s = SharedState()
@@ -207,8 +207,13 @@ class TestUdpReader:
             stop.set()
             t.join(timeout=2.0)
 
-    def test_bind_failure_sets_error(self):
-        """udp_reader sets state.error when all bind retries are exhausted."""
+    def test_bind_failure_gives_up_and_says_so_on_the_log(self):
+        """A port that never frees ends the reader, with the reason logged.
+
+        The log is the whole report: nothing in Genau reads a failure off the
+        shared state, so a listener that cannot bind is a log line and a
+        thread that has stopped.
+        """
         state = SharedState()
         port = _free_udp_port()
 
@@ -217,7 +222,7 @@ class TestUdpReader:
         blocker.bind(("127.0.0.1", port))
 
         stop = threading.Event()
-        logger = logging.getLogger("test.udp_reader")
+        logger = MagicMock()
         t = threading.Thread(
             target=udp_reader,
             args=("127.0.0.1", port, state, stop, logger),
@@ -227,8 +232,8 @@ class TestUdpReader:
         try:
             # Wait for all retries to exhaust (0.5 + 1.0 + 2.0 = 3.5s + final attempt)
             t.join(timeout=8.0)
-            assert state.error is not None
-            assert "10048" in state.error or "address" in state.error.lower()
+            assert not t.is_alive()
+            logger.exception.assert_called_once_with("UDP reader failed")
         finally:
             stop.set()
             blocker.close()

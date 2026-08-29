@@ -17,7 +17,6 @@ class SharedState:
     pattern_duration: float | None = None
     sync_pulse_id: int = 0
     last_msg: str = ""
-    error: str | None = None
 
 
 _BIND_RETRY_DELAYS = (0.5, 1.0, 2.0)
@@ -89,9 +88,7 @@ def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.E
                         logger.warning("Invalid PATTERN payload: %s", line)
                 elif cmd == "SYNC":
                     state.sync_pulse_id += 1
-    except Exception as exc:
+    except Exception:
         logger.exception("UDP reader failed")
-        with state.lock:
-            state.error = str(exc)
     finally:
         sock.close()
