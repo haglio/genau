@@ -7,30 +7,14 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 import zipfile
 from pathlib import Path
 
 import cv2
 import numpy as np
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}
-
-
-def _subprocess_kwargs() -> dict:
-    if sys.platform != "win32":
-        return {}
-    return {
-        "startupinfo": _hidden_startupinfo(),
-        "creationflags": subprocess.CREATE_NO_WINDOW,
-    }
-
-
-def _hidden_startupinfo() -> subprocess.STARTUPINFO:
-    si = subprocess.STARTUPINFO()
-    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    si.wShowWindow = 0
-    return si
 
 
 def cache_dir_for_clips_folder(folder: Path) -> Path:
@@ -60,7 +44,7 @@ def _ffprobe_size(path: Path) -> tuple[int, int]:
         "-of", "csv=p=0:s=x",
         str(path),
     ]
-    out = subprocess.check_output(cmd, text=True, **_subprocess_kwargs()).strip()
+    out = subprocess.check_output(cmd, text=True, **hidden_subprocess_kwargs()).strip()
     width, height = out.split("x", 1)
     return int(width), int(height)
 
@@ -78,7 +62,7 @@ def _decode_video_to_numpy_frames(path: Path) -> list[np.ndarray]:
         "pipe:1",
     ]
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **_subprocess_kwargs())
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **hidden_subprocess_kwargs())
     frames: list[np.ndarray] = []
 
     try:
