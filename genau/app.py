@@ -310,7 +310,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         start_thread=start_daemon_thread,
         logger=logger,
         on_active_clip_loaded=renderer.prepare_active_clip_for_current_size,
-        on_error=lambda msg: state.__setattr__("error", msg),
     )
     weird_dir = weird_dir_for_clips_folder(clips_folder)
     selection = ClipSelectionController(
