@@ -70,9 +70,6 @@ class LibrarySource:
     clips: list[LibraryEntry]
     durations: dict[Path, float]
     rng: random.Random
-    # Nau is a general player standalone (funscript-focus is Fun Time's
-    # F-mode job); versions/length filtering apply, but every video is served.
-    scripted_only: bool = False
     # When set, version families come from Evolver's metadata sidecars (the
     # authoritative record) instead of Nau's own name-prefix guess.
     metadata_root: Path | None = None
@@ -84,7 +81,6 @@ class LibrarySource:
             durations=self.durations,
             clips=self.clips,
             rng=self.rng,
-            scripted_only=self.scripted_only,
             kind_of=self._kind_of(),
         )
 
@@ -135,7 +131,6 @@ def build_library_source(
     rng: random.Random,
     duration_cache: DurationCache | None = None,
     durations: dict[Path, float] | None = None,
-    scripted_only: bool = False,
     metadata_root: Path | None = None,
     on_progress: Callable[[str, int, int], None] | None = None,
 ) -> LibrarySource:
@@ -143,9 +138,9 @@ def build_library_source(
 
     Pass *durations* to supply them directly (tests); otherwise a
     *duration_cache* is probed (cached) and persisted — for the entries that
-    need one, which is those whose kind Evolver has not recorded yet.  *scripted_only*
-    defaults False (Nau plays everything standalone); pass False to serve
-    every video regardless of funscript.  *metadata_root*, when given, makes
+    need one, which is those whose kind Evolver has not recorded yet.  Every
+    video is served: Nau standalone is a general player, and narrowing to
+    scripted videos is Fun Time's F-mode.  *metadata_root*, when given, makes
     version grouping read Evolver's sidecars instead of guessing from names.
 
     *on_progress* is called ``(phase, done, total)`` as the work the user waits
@@ -173,5 +168,5 @@ def build_library_source(
         duration_cache.save()
     return LibrarySource(
         entries=entries, clips=clips, durations=durations, rng=rng,
-        scripted_only=scripted_only, metadata_root=metadata_root,
+        metadata_root=metadata_root,
     )
