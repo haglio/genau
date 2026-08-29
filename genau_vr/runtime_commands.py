@@ -48,7 +48,7 @@ def apply_runtime_command(
         step_clip(-1)
     elif normalized == "NEXT":
         step_clip(1)
-    elif normalized in {"OFFSET_QUARTER_CYCLE", "NUDGE25"}:
+    elif normalized == "OFFSET_QUARTER_CYCLE":
         engine.phase = (engine.phase + 0.25) % 1.0
     elif normalized == "PAUSE":
         rh_paused["value"] = True
@@ -58,7 +58,7 @@ def apply_runtime_command(
         rh_paused["value"] = False
         if direct_state is not None:
             direct_state.playing = True
-    elif normalized in {"SPEED_DOWN", "SLOW_DOWN"} and direct_state is not None:
+    elif normalized == "SPEED_DOWN" and direct_state is not None:
         adjust_speed(direct_state, -5)
     elif normalized == "SPEED_UP" and direct_state is not None:
         adjust_speed(direct_state, 5)

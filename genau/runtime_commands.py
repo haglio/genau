@@ -24,7 +24,6 @@ from .clip_advance import (
 
 
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
-LEGACY_QUARTER_CYCLE_OFFSET_COMMAND = "NUDGE25"
 
 
 def apply_runtime_command(
@@ -66,7 +65,7 @@ def apply_runtime_command(
     # after launch was in no sequence at all until now.
     elif normalized in ("LATEST", "SHUFFLE") and reorder_clips is not None:
         reorder_clips(normalized == "LATEST")
-    elif normalized in {QUARTER_CYCLE_OFFSET_COMMAND, LEGACY_QUARTER_CYCLE_OFFSET_COMMAND}:
+    elif normalized == QUARTER_CYCLE_OFFSET_COMMAND:
         engine.phase = (engine.phase + 0.25) % 1.0
     elif normalized == "PAUSE":
         rh_paused["value"] = True
@@ -76,7 +75,7 @@ def apply_runtime_command(
         rh_paused["value"] = False
         if direct_state is not None:
             direct_state.playing = True
-    elif normalized in {"SPEED_DOWN", "SLOW_DOWN"} and direct_state is not None:
+    elif normalized == "SPEED_DOWN" and direct_state is not None:
         adjust_speed(direct_state, -5)
     elif normalized == "SPEED_UP" and direct_state is not None:
         adjust_speed(direct_state, 5)

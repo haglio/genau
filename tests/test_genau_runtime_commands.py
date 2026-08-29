@@ -6,7 +6,6 @@ import threading
 import pytest
 
 from genau.runtime_commands import (
-    LEGACY_QUARTER_CYCLE_OFFSET_COMMAND,
     QUARTER_CYCLE_OFFSET_COMMAND,
     apply_runtime_command,
 )
@@ -75,19 +74,28 @@ class TestApplyRuntimeCommand:
         assert handled is True
         assert engine.phase == pytest.approx(0.15)
 
-    def test_legacy_nudge25_command_still_supported(self):
+    @pytest.mark.parametrize("verb", ["NUDGE25", "SLOW_DOWN"])
+    def test_a_spelling_nothing_sends_is_not_a_verb(self, verb):
+        """Two aliases had no sender in any of the eleven repos.
+
+        The live spellings are OFFSET_QUARTER_CYCLE, which Fun Time posts, and
+        SPEED_DOWN, which Genau's own voice grammar maps "slow down" to. These
+        two are now reported unhandled like any other unknown line.
+        """
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        ds = DirectControlState(playing=True, speed=50)
 
         handled = apply_runtime_command(
-            LEGACY_QUARTER_CYCLE_OFFSET_COMMAND,
+            verb,
             engine=engine,
-            rh_paused=rh_paused,
+            rh_paused={"value": False},
             step_clip=lambda _step: None,
+            direct_state=ds,
         )
 
-        assert handled is True
-        assert engine.phase == pytest.approx(0.25)
+        assert handled is False
+        assert engine.phase == pytest.approx(0.0)
+        assert ds.speed == 50
 
     def test_pause_sets_paused(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
@@ -154,22 +162,6 @@ class TestApplyRuntimeCommand:
 
         handled = apply_runtime_command(
             "SPEED_DOWN",
-            engine=engine,
-            rh_paused=rh_paused,
-            step_clip=lambda _step: None,
-            direct_state=ds,
-        )
-
-        assert handled is True
-        assert ds.speed == 45
-
-    def test_slow_down_is_alias_for_speed_down(self):
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
-        ds = DirectControlState(playing=True, speed=50)
-
-        handled = apply_runtime_command(
-            "SLOW_DOWN",
             engine=engine,
             rh_paused=rh_paused,
             step_clip=lambda _step: None,
