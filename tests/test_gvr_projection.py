@@ -6,75 +6,26 @@ import pytest
 
 import numpy as np
 
-from genau_vr.projection import (
-    direction_to_equirect_uv,
-    equirect_uv_to_sbs_vr180,
-    fov_to_projection_matrix,
-    pose_to_view_matrix,
-)
+from genau_vr import projection
+from genau_vr.projection import fov_to_projection_matrix, pose_to_view_matrix
 
 
-class TestDirectionToEquirectUv:
-    def test_forward_maps_to_center(self):
-        u, v = direction_to_equirect_uv(0.0, 0.0, -1.0)
-        assert u == pytest.approx(0.5)
-        assert v == pytest.approx(0.5)
+def test_the_module_holds_no_second_model_of_the_projection():
+    """The equirect mapping lives in the fragment shader and only there.
 
-    def test_left_maps_to_left_edge(self):
-        u, v = direction_to_equirect_uv(-1.0, 0.0, 0.0)
-        assert u == pytest.approx(0.25)
-        assert v == pytest.approx(0.5)
+    Two Python helpers used to model it and disagreed with it: 360 degrees
+    against the shader's 180, and for a direction behind the viewer they
+    returned a texture coordinate where the shader draws black. Nothing
+    called them, so twelve tests reported green on a projection the product
+    does not use.
+    """
+    own = {
+        name for name, value in vars(projection).items()
+        if not name.startswith("_") and callable(value)
+        and getattr(value, "__module__", "") == projection.__name__
+    }
 
-    def test_right_maps_to_right_edge(self):
-        u, v = direction_to_equirect_uv(1.0, 0.0, 0.0)
-        assert u == pytest.approx(0.75)
-        assert v == pytest.approx(0.5)
-
-    def test_up_maps_to_top(self):
-        u, v = direction_to_equirect_uv(0.0, 1.0, 0.0)
-        assert v == pytest.approx(0.0)
-
-    def test_down_maps_to_bottom(self):
-        u, v = direction_to_equirect_uv(0.0, -1.0, 0.0)
-        assert v == pytest.approx(1.0)
-
-    def test_backward_maps_to_edge(self):
-        u, v = direction_to_equirect_uv(0.0, 0.0, 1.0)
-        assert (u == pytest.approx(0.0) or u == pytest.approx(1.0))
-        assert v == pytest.approx(0.5)
-
-    def test_unnormalized_direction_works(self):
-        u, v = direction_to_equirect_uv(0.0, 0.0, -5.0)
-        assert u == pytest.approx(0.5)
-        assert v == pytest.approx(0.5)
-
-
-class TestEquirectUvToSbsVr180:
-    def test_left_eye_center_maps_to_quarter(self):
-        u_sbs, v_sbs = equirect_uv_to_sbs_vr180(0.5, 0.5, eye=0)
-        assert u_sbs == pytest.approx(0.25)
-        assert v_sbs == pytest.approx(0.5)
-
-    def test_right_eye_center_maps_to_three_quarters(self):
-        u_sbs, v_sbs = equirect_uv_to_sbs_vr180(0.5, 0.5, eye=1)
-        assert u_sbs == pytest.approx(0.75)
-        assert v_sbs == pytest.approx(0.5)
-
-    def test_left_eye_range_is_zero_to_half(self):
-        u_lo, _ = equirect_uv_to_sbs_vr180(0.0, 0.0, eye=0)
-        u_hi, _ = equirect_uv_to_sbs_vr180(1.0, 0.0, eye=0)
-        assert u_lo == pytest.approx(0.0)
-        assert u_hi == pytest.approx(0.5)
-
-    def test_right_eye_range_is_half_to_one(self):
-        u_lo, _ = equirect_uv_to_sbs_vr180(0.0, 0.0, eye=1)
-        u_hi, _ = equirect_uv_to_sbs_vr180(1.0, 0.0, eye=1)
-        assert u_lo == pytest.approx(0.5)
-        assert u_hi == pytest.approx(1.0)
-
-    def test_v_coordinate_passes_through(self):
-        _, v = equirect_uv_to_sbs_vr180(0.3, 0.7, eye=0)
-        assert v == pytest.approx(0.7)
+    assert own == {"fov_to_projection_matrix", "pose_to_view_matrix"}
 
 
 class TestFovToProjectionMatrix:
