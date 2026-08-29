@@ -9,11 +9,9 @@ class ClipRenderController:
         *,
         clip_store,
         display_frame_fn,
-        logger,
     ):
         self.clip_store = clip_store
         self.display_frame_fn = display_frame_fn
-        self.logger = logger
         self.current_clip_path: Path | None = None
         self.current_frame_index: int | None = None
 

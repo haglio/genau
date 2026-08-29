@@ -297,7 +297,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     renderer = ClipRenderController(
         clip_store=clip_store,
         display_frame_fn=view.display_frame,
-        logger=logger,
     )
 
     loader = ClipLoadController(
@@ -360,7 +359,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         sync_strength=args.sync_strength,
         set_loading_text=view.set_loading_text,
         logger=logger,
-        log_name=config.log_file("genau_listener").name,
         read_paused_state=read_paused_state,
         direct_state=direct_state,
         tcode_sender=tcode_sender,
@@ -423,7 +421,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         _post_console(view.console_drag_to(mx, my))
 
     lifecycle = GenauLifecycleController(
-        view=view,
         renderer=renderer,
         selection=selection,
         stop_event=stop_event,

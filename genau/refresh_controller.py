@@ -45,7 +45,6 @@ class GenauRefreshController:
         sync_strength: float,
         set_loading_text,
         logger,
-        log_name: str,
         direct_state,
         now_source=time.monotonic,
         consume_command=consume_command_file,
@@ -80,7 +79,6 @@ class GenauRefreshController:
         self.sync_strength = sync_strength
         self.set_loading_text = set_loading_text
         self.logger = logger
-        self.log_name = log_name
         self.now_source = now_source
         self.consume_command = consume_command
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)

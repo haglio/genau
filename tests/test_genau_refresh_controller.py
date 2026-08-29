@@ -170,7 +170,6 @@ def _build_controller(
         sync_strength=0.5,
         set_loading_text=loading_texts.append,
         logger=logger,
-        log_name="genau_listener.log",
         now_source=lambda: 5.0,
         consume_command=lambda _path, logger=None: (commands if commands is not None else ([command] if command else [])),
         read_paused_state=lambda _path, logger=None: paused_state,
@@ -874,5 +873,4 @@ def test_the_controller_cannot_be_built_without_a_direct_state():
             sync_strength=0.5,
             set_loading_text=lambda _text: None,
             logger=MagicMock(),
-            log_name="genau_listener.log",
         )
