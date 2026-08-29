@@ -210,7 +210,8 @@ class TestHeatmapBgra:
     def _framed_strip(self, win_w=200):
         # Production builds the colour row at the inset track width, then frames
         # it to full window width.
-        from nau.overlay import bar_track_x, heatmap_bgra
+        from nau.overlay import heatmap_bgra
+        from player_core.timeline import bar_track_x
         x0, x1 = bar_track_x(win_w)
         strip = HeatmapStrip()
         strip.update("v.mp4", _funscript(), 4000.0, width=x1 - x0)  # window 0..4000
@@ -284,3 +285,16 @@ class TestLabelXsReadded:
         assert label_xs(100, 500, 60, 60, 1000) == (70, 470)
         ix, ox = label_xs(100, 120, 60, 60, 1000)  # markers close
         assert ox >= ix + 60
+
+
+def test_the_overlay_hands_on_none_of_the_timeline_it_does_not_use():
+    """nau.app imports from player_core directly in eleven other places.
+
+    Two of the shared timeline's names were imported here and used nowhere
+    in the module, kept alive by a blanket noqa so nau.app could reach them
+    through this one -- an indirection that bought nothing.
+    """
+    import nau.overlay
+
+    assert not hasattr(nau.overlay, "bar_track_x")
+    assert not hasattr(nau.overlay, "progress_bar_bgra")
