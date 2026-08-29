@@ -90,6 +90,7 @@ tests/test_genau_clip_sequence.py::test_nearby_candidates_prefers_next_then_prev
 tests/test_genau_clip_sequence.py::test_requires_at_least_one_clip
 tests/test_genau_clip_sequence.py::test_starts_at_first_clip
 tests/test_genau_clip_sequence.py::test_step_wraps_forward_and_backward
+tests/test_genau_config.py::TestLoadConfig::test_a_config_without_render_batch_still_loads
 tests/test_genau_config.py::TestLoadConfig::test_genau_cmd_file
 tests/test_genau_config.py::TestLoadConfig::test_genau_paused_file
 tests/test_genau_config.py::TestLoadConfig::test_loads_clips_dir
