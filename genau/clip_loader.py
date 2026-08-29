@@ -16,7 +16,6 @@ class ClipLoadController:
         start_thread,
         logger,
         on_active_clip_loaded,
-        on_error,
     ):
         self.clip_store = clip_store
         self.load_state = load_state
@@ -26,7 +25,6 @@ class ClipLoadController:
         self.start_thread = start_thread
         self.logger = logger
         self.on_active_clip_loaded = on_active_clip_loaded
-        self.on_error = on_error
 
     @property
     def is_busy(self) -> bool:
@@ -69,7 +67,6 @@ class ClipLoadController:
 
         path, frames, err = result
         if err:
-            self.on_error(err)
             return
 
         self._cache_decoded_frames(path, frames)

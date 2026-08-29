@@ -18,7 +18,6 @@ def test_read_shared_state_snapshot_copies_fields():
         pattern_duration=1.5,
         sync_pulse_id=7,
         last_msg="AUTO 1",
-        error="boom",
     )
 
     snapshot = read_shared_state_snapshot(state)
@@ -32,7 +31,6 @@ def test_read_shared_state_snapshot_copies_fields():
         pattern_duration=1.5,
         sync_pulse_id=7,
         last_msg="AUTO 1",
-        error="boom",
     )
 
 
