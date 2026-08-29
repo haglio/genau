@@ -32,3 +32,32 @@ def test_all_app_packages_are_declared_for_installation():
             f"[tool.setuptools.packages.find] include so {package!r} is "
             "importable from the installed distribution"
         )
+
+
+def test_every_declared_runtime_dependency_is_imported_somewhere():
+    """A dependency nothing imports is fetched by every install and every CI run.
+
+    `pyserial` was one: Genau reaches the OSR2 over UDP through the broker,
+    and it is the broker repo that talks to the serial port and declares the
+    package itself.
+    """
+    # Only the ones whose import name is not the distribution name.
+    import_names = {"opencv-python": "cv2", "pillow": "PIL", "pygame-ce": "pygame"}
+    with _PYPROJECT.open("rb") as fp:
+        declared = tomllib.load(fp)["project"]["dependencies"]
+
+    tree = Path(__file__).resolve().parent.parent
+    sources = [
+        p.read_text(encoding="utf-8")
+        for p in tree.rglob("*.py")
+        if not any(part in {".venv", "__pycache__", ".claude"}
+                   for part in p.relative_to(tree).parts)
+    ]
+    unimported = []
+    for name in declared:
+        module = import_names.get(name, name.replace("-", "_"))
+        if not any(f"import {module}" in text or f"from {module}" in text
+                   for text in sources):
+            unimported.append(name)
+
+    assert not unimported, f"declared and never imported: {unimported}"

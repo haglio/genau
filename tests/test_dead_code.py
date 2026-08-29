@@ -37,7 +37,10 @@ def _attribute_names_read_anywhere() -> set[str]:
     """
     names: set[str] = set()
     for path in _ROOT.rglob("*.py"):
-        if any(part in {".venv", "__pycache__", ".claude"} for part in path.parts):
+        # Relative parts: this repo is worked in a git worktree under
+        # .claude/, so an absolute-path check would exclude the whole tree.
+        if any(part in {".venv", "__pycache__", ".claude"}
+               for part in path.relative_to(_ROOT).parts):
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
