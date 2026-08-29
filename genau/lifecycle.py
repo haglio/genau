@@ -11,7 +11,6 @@ class GenauLifecycleController:
     def __init__(
         self,
         *,
-        view,
         renderer,
         selection,
         stop_event,
@@ -33,7 +32,6 @@ class GenauLifecycleController:
         on_console_release=lambda: None,
         on_console_motion=lambda mx, my: None,
     ):
-        self.view = view
         self.renderer = renderer
         self.selection = selection
         self.stop_event = stop_event

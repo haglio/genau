@@ -8,10 +8,6 @@ import pygame
 from genau.lifecycle import GenauLifecycleController
 
 
-class FakeView:
-    pass
-
-
 class FakeRenderer:
     def __init__(self):
         self.prepare_calls = 0
@@ -46,13 +42,11 @@ def _build_controller(**callbacks):
     Everything left out keeps the controller's own default, so each test can
     assert that its one key reaches its one callback.
     """
-    view = FakeView()
     renderer = FakeRenderer()
     selection = FakeSelection()
     notifier = FakeNotifier()
     stop_event = threading.Event()
     controller = GenauLifecycleController(
-        view=view,
         renderer=renderer,
         selection=selection,
         stop_event=stop_event,
@@ -60,11 +54,11 @@ def _build_controller(**callbacks):
         resize_delay_ms=75,
         **callbacks,
     )
-    return controller, view, renderer, selection, notifier, stop_event
+    return controller, renderer, selection, notifier, stop_event
 
 
 def test_handle_key_steps_selection_on_m_and_period_keys():
-    controller, _view, _renderer, selection, _notifier, _stop_event = _build_controller()
+    controller, _renderer, selection, _notifier, _stop_event = _build_controller()
 
     controller._handle_key(type("Event", (), {"key": pygame.K_m, "mod": 0})())
     controller._handle_key(type("Event", (), {"key": pygame.K_PERIOD, "mod": 0})())
@@ -73,7 +67,7 @@ def test_handle_key_steps_selection_on_m_and_period_keys():
 
 
 def test_resize_debounces_prepare_calls():
-    controller, _view, renderer, _selection, _notifier, _stop_event = _build_controller()
+    controller, renderer, _selection, _notifier, _stop_event = _build_controller()
 
     controller._on_resize()
     assert renderer.prepare_calls == 0
@@ -84,7 +78,7 @@ def test_resize_debounces_prepare_calls():
 
 
 def test_on_close_stops_notifier():
-    controller, _view, _renderer, _selection, notifier, stop_event = _build_controller()
+    controller, _renderer, _selection, notifier, stop_event = _build_controller()
 
     controller.on_close()
 
@@ -99,7 +93,7 @@ def test_in_a_session_closing_asks_the_session_and_this_window_stays(tmp_path):
     gesture goes to the dashboard's channel and this window keeps drawing until
     the teardown reaches it."""
     cmd_file = tmp_path / "dashboard_cmd.txt"
-    controller, _view, _renderer, _selection, notifier, stop_event = _build_controller(
+    controller, _renderer, _selection, notifier, stop_event = _build_controller(
         dashboard_cmd_file=cmd_file,
     )
 
@@ -113,7 +107,7 @@ def test_in_a_session_closing_asks_the_session_and_this_window_stays(tmp_path):
 def test_in_a_session_ctrl_q_goes_the_same_way(tmp_path):
     """Not only the close box: every gesture that means "quit this window"."""
     cmd_file = tmp_path / "dashboard_cmd.txt"
-    controller, _view, _renderer, _selection, _notifier, stop_event = _build_controller(
+    controller, _renderer, _selection, _notifier, stop_event = _build_controller(
         dashboard_cmd_file=cmd_file,
     )
 
@@ -124,7 +118,7 @@ def test_in_a_session_ctrl_q_goes_the_same_way(tmp_path):
 
 
 def test_ctrl_q_triggers_close():
-    controller, _view, _renderer, _selection, _notifier, stop_event = _build_controller()
+    controller, _renderer, _selection, _notifier, stop_event = _build_controller()
 
     event = type("Event", (), {"key": pygame.K_q, "mod": pygame.KMOD_CTRL})()
     controller._handle_key(event)
@@ -134,7 +128,7 @@ def test_ctrl_q_triggers_close():
 
 def test_backslash_triggers_quarter_offset():
     offsets = []
-    controller, _view, _renderer, _selection, _notifier, _stop_event = _build_controller(
+    controller, _renderer, _selection, _notifier, _stop_event = _build_controller(
         quarter_offset=lambda: offsets.append(1),
     )
 
