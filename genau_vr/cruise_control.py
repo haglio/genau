@@ -5,7 +5,6 @@ Copied from Genau's cruise_control.py.
 from __future__ import annotations
 
 import random
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -29,7 +28,6 @@ class CruiseControlState:
     _next_retarget: float = 0.0
     _next_speed_change: float = 0.0
     _next_shape_change: float = 0.0
-    _next_clip_change: float = 0.0
 
 
 def toggle_cruise_control(state: CruiseControlState) -> None:
@@ -48,7 +46,6 @@ def tick_cruise_control(
     direct: DirectControlState,
     cc: CruiseControlState,
     now: float,
-    step_clip: Callable[[int], None] | None = None,
 ) -> None:
     if not cc.active:
         return
@@ -82,7 +79,3 @@ def tick_cruise_control(
         shapes = list(WaveformShape)
         direct.shape = cc.rng.choice(shapes)
         cc._next_shape_change = now + cc.rng.uniform(5, 15)
-
-    if step_clip is not None and now >= cc._next_clip_change:
-        step_clip(1)
-        cc._next_clip_change = now + cc.rng.uniform(8, 12)
