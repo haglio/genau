@@ -19,7 +19,7 @@ class NoticeWriter:
         self._path = path
         self._clock = clock
 
-    def say(self, message: str, *, level: str = "error") -> bool:
+    def say(self, message: str, *, level: str = "error") -> None:
         """Raise *message*; ``level`` picks the color Fun Time flashes it in.
 
         "error" is red, "notice" white, and "favorite" green — green being what
@@ -33,12 +33,11 @@ class NoticeWriter:
         them ever flashed.
         """
         if self._path is None:
-            return False
+            return
         text = f"seq={self._clock():.3f}\nlevel={level}\nmessage={message}\n"
         try:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             self._path.write_text(text, encoding="utf-8")
         except OSError:
-            return False
-        return True
+            return
 

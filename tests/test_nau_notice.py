@@ -14,7 +14,7 @@ def _read(path):
 def test_say_publishes_the_message_and_level(tmp_path):
     path = tmp_path / "state" / "nau_notice.txt"
 
-    assert NoticeWriter(path, clock=lambda: 10.0).say("full video not available") is True
+    NoticeWriter(path, clock=lambda: 10.0).say("full video not available")
 
     assert _read(path) == {"seq": "10.000", "level": "error",
                            "message": "full video not available"}
@@ -40,5 +40,12 @@ def test_a_restarted_writer_still_reads_as_newer(tmp_path):
     assert float(_read(path)["seq"]) > 100.0
 
 
-def test_without_a_path_it_is_inert():
-    assert NoticeWriter(None).say("nothing doing") is False
+def test_without_a_path_it_is_inert(tmp_path):
+    """Nothing to say to, nothing written, and nothing raised at the caller.
+
+    All eight production callers ignore the answer, so the answer is not the
+    contract -- the absence of a file is.
+    """
+    NoticeWriter(None).say("nothing doing")
+
+    assert list(tmp_path.iterdir()) == []

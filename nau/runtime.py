@@ -32,10 +32,10 @@ def apply_command(
     set_f_mode=None,
     set_volume_hud=None,
     set_display=None,
-) -> bool:
+) -> None:
     parts = command.strip().split(None, 1)
     if not parts:
-        return False
+        return
     keyword = parts[0].upper()
     arg = parts[1].strip() if len(parts) > 1 else ""
 
@@ -52,9 +52,9 @@ def apply_command(
     elif keyword == "SPEED_DOWN":
         session.adjust_speed(-SPEED_STEP)
     elif keyword == "SET_SPEED":
-        return _set_speed(session, arg)
+        _set_speed(session, arg)
     elif keyword == "SET_VOLUME":
-        return _set_volume(session, arg, set_volume_hud)
+        _set_volume(session, arg, set_volume_hud)
     elif keyword == "RECORD_DOWN":
         session.record_down()
     elif keyword == "RECORD_UP":
@@ -64,7 +64,7 @@ def apply_command(
     elif keyword == "LOOP_CANCEL":
         session.loop_cancel()
     elif keyword == "SET_LOOP":
-        return _set_loop(session, arg)
+        _set_loop(session, arg)
     elif keyword == "TOGGLE_LOCK":
         session.toggle_lock()
     elif keyword in ("LOCK_ON", "LOCK_OFF"):
@@ -86,50 +86,50 @@ def apply_command(
             reload_playlist()
     elif keyword == "TOGGLE_LENGTH_MODE":
         if toggle_length_mode is None:
-            return False
+            return
         toggle_length_mode()
     elif keyword == "SET_LENGTH_MODE":
         if set_length_mode is None or not arg:
-            return False
+            return
         set_length_mode(arg)
     elif keyword == "PLAY_COMPILATION":
         if play_compilation is None:
-            return False
+            return
         play_compilation()
     elif keyword == "PLAY_FULL_VID":
         if play_full_vid is None:
-            return False
+            return
         play_full_vid()
     elif keyword == "PLAY_CLIP_JUMP":
         if play_clip_jump is None:
-            return False
+            return
         play_clip_jump()
     elif keyword == "JUMP_TO_FUNSCRIPT":
         # Past the quiet stretch, to where this video's scripting starts again.
         if jump_to_funscript is None:
-            return False
+            return
         jump_to_funscript()
     elif keyword == "NEXT_FUNSCRIPTED":
         # Give up on this video for the next scripted one, at its action.
         if next_funscripted is None:
-            return False
+            return
         next_funscripted()
     elif keyword == "END_COMPILATION":
         # Out of a compilation without naming a length: back to the mode that was
         # feeding the playlist when it was entered.
         if end_compilation is None:
-            return False
+            return
         end_compilation()
     elif keyword == "SET_TCODE_ENABLED":
         if not arg:
-            return False
+            return
         session.set_tcode_enabled(arg != "0")
     elif keyword == "SET_F_MODE":
         # F-mode narrows the playlist Fun Time writes to the scripted videos.
         # Nau receives the result and cannot tell it from any other playlist, so
         # the flag has to be said outright for the HUD to be able to show it.
         if set_f_mode is None or not arg:
-            return False
+            return
         set_f_mode(arg != "0")
     elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
         # Whether Nau owns the main slot's rect right now, which is not the same as
@@ -138,20 +138,19 @@ def apply_command(
         # without this an alt-tab back lands on the frame it was paused on.  The
         # mirror of the DISPLAY_ON/DISPLAY_OFF Genau is sent (see nau.display).
         if set_display is None:
-            return False
+            return
         set_display(keyword == "DISPLAY_ON")
     elif keyword == "QUIT":
         if stop_event is None:
-            return False
+            return
         stop_event.set()
-    else:
-        return False
-    return True
 
 
-def _set_speed(session, arg: str) -> bool:
-    """SET_SPEED <min|max|multiplier> -> absolute playback rate. Returns False on
-    a missing or non-numeric argument so the caller reports it unhandled."""
+def _set_speed(session, arg: str) -> None:
+    """SET_SPEED <min|max|multiplier> -> absolute playback rate.
+
+    A missing or non-numeric argument leaves the rate where it was.
+    """
     key = arg.lower()
     if key == "min":
         session.set_speed(MIN_SPEED_RATE)
@@ -161,30 +160,28 @@ def _set_speed(session, arg: str) -> bool:
         try:
             session.set_speed(float(arg))
         except ValueError:
-            return False
-    return True
+            return
 
 
-def _set_loop(session, arg: str) -> bool:
+def _set_loop(session, arg: str) -> None:
     """SET_LOOP <in_ms> <out_ms> -> a loop this player was left running.
 
     The one piece of Nau's state an orchestrator has to hand back rather than
     rebuild: a loop is a range inside one video, so it dies with the process
     while everything else rides in on the playlist or a flag file.  The bounds
     come straight off the status file this player published, already snapped, so
-    they are asserted rather than marked.  Returns False on anything it cannot
-    read as two numbers, so the caller reports it unhandled.
+    they are asserted rather than marked.  Anything that will not read as two
+    numbers leaves the player as it was.
     """
     in_part, _, out_part = arg.partition(" ")
     try:
         in_ms, out_ms = int(in_part), int(out_part)
     except ValueError:
-        return False
+        return
     session.restore_loop(in_ms, out_ms)
-    return True
 
 
-def _set_volume(session, arg: str, set_volume_hud=None) -> bool:
+def _set_volume(session, arg: str, set_volume_hud=None) -> None:
     """SET_VOLUME <0-100> [muted] -> the main slot's sound level.
 
     The mute comes as a flag of its own rather than as a level of zero.  Zero is
@@ -192,19 +189,17 @@ def _set_volume(session, arg: str, set_volume_hud=None) -> bool:
     has to be looked at cannot tell silent from turned-all-the-way-down from it —
     and unmuting has to come back to the level the speaker chose.  So the level is
     what is drawn, the mute is drawn over it, and the audible loudness is worked
-    out here.  Returns False on a missing or non-numeric level, so the caller
-    reports it unhandled.
+    out here.  A missing or non-numeric level leaves the sound where it was.
     """
     level, _, muted_arg = arg.partition(" ")
     try:
         volume = int(level)
     except ValueError:
-        return False
+        return
     muted = muted_arg.strip() not in ("", "0")
     session.set_volume(0 if muted else volume)
     if set_volume_hud is not None:
         set_volume_hud(volume, muted)
-    return True
 
 
 def _record_tap(session) -> None:
