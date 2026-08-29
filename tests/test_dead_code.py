@@ -19,6 +19,7 @@ def test_no_dead_code():
         sys.executable, "-m", "vulture",
         str(GENAU_DIR),
         str(NAU_DIR),
+        str(_ROOT / "genau_vr"),
         str(WHITELIST),
         "--min-confidence", "60",
     ]
