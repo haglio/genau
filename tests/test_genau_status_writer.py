@@ -138,8 +138,10 @@ def test_write_status_file_skips_when_unchanged(tmp_path: Path):
     path = tmp_path / "genau_status.txt"
 
     assert write_status_file(path, ds, cs) is True  # first write
-    mtime1 = path.stat().st_mtime_ns
+    written_at = path.stat().st_mtime_ns
+
     assert write_status_file(path, ds, cs) is False  # no change
+    assert path.stat().st_mtime_ns == written_at, "the file was rewritten anyway"
 
 
 def test_build_status_text_reports_the_clip_held_by_default():

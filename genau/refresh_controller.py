@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.clip_scrub import ClipScrub, scrub_clip
@@ -118,7 +117,7 @@ class GenauRefreshController:
     def refresh(self) -> None:
         try:
             self._refresh_once()
-        except Exception as exc:
+        except Exception:
             self.logger.exception("refresh failed")
 
     def _refresh_once(self) -> None:

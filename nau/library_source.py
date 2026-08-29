@@ -6,7 +6,6 @@ playlist and does not use this.
 """
 from __future__ import annotations
 
-import json
 import random
 from collections.abc import Callable
 from dataclasses import dataclass

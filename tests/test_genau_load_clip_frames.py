@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 from genau.video import load_clip_frames
 
