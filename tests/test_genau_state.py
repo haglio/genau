@@ -1,6 +1,7 @@
 """Tests for genau.state (SharedState + UDP message parsing)."""
 from __future__ import annotations
 
+import dataclasses
 import socket
 import threading
 import time
@@ -17,16 +18,23 @@ from genau.state import SharedState, udp_reader
 # ---------------------------------------------------------------------------
 
 class TestSharedState:
+    def test_it_holds_only_the_fields_something_reads(self):
+        """The listener's state is the read surface, not a log of the wire.
+
+        Genau acts on three verbs. The broker also sends SHOW, HIDE, BEATS,
+        STROKE and PATTERN, and fields once existed to hold all of them --
+        copied into the snapshot every tick and read by nobody. Naming the
+        set here is what stops a write-only field growing back.
+        """
+        assert {f.name for f in dataclasses.fields(SharedState)} == {
+            "lock", "auto_active", "raw_bpm", "sync_pulse_id",
+        }
+
     def test_default_values(self):
         s = SharedState()
         assert s.auto_active is False
-        assert s.visible is False
         assert s.raw_bpm is None
-        assert s.beats is None
-        assert s.stroke_name == ""
-        assert s.pattern_duration is None
         assert s.sync_pulse_id == 0
-        assert s.last_msg == ""
 
     def test_has_lock(self):
         s = SharedState()
@@ -77,32 +85,13 @@ class TestUdpReader:
             t.join(timeout=1.0)
         return state
 
-    def test_show_sets_visible(self):
-        state = self._run_with_message("SHOW")
-        assert state.visible is True
-
-    def test_hide_clears_visible(self):
-        state = SharedState()
-        state.visible = True
-        port = _free_udp_port()
-        t, stop = _run_reader(state, port)
-        try:
-            _send(port, "HIDE")
-            time.sleep(0.1)
-        finally:
-            stop.set()
-            t.join(timeout=1.0)
-        assert state.visible is False
-
-    def test_auto_1_enables_auto_without_forcing_visibility(self):
+    def test_auto_1_hands_the_room_to_the_broker(self):
         state = self._run_with_message("AUTO 1")
         assert state.auto_active is True
-        assert state.visible is False
 
-    def test_auto_0_disables_auto_without_forcing_visibility(self):
+    def test_auto_0_takes_the_room_back(self):
         state = SharedState()
         state.auto_active = True
-        state.visible = True
         port = _free_udp_port()
         t, stop = _run_reader(state, port)
         try:
@@ -112,7 +101,6 @@ class TestUdpReader:
             stop.set()
             t.join(timeout=1.0)
         assert state.auto_active is False
-        assert state.visible is True
 
     def test_bpm_parsed(self):
         state = self._run_with_message("BPM 120.5")
@@ -121,26 +109,6 @@ class TestUdpReader:
     def test_bpm_invalid_does_not_crash(self):
         state = self._run_with_message("BPM notanumber")
         assert state.raw_bpm is None
-
-    def test_beats_parsed(self):
-        state = self._run_with_message("BEATS 4")
-        assert state.beats == 4
-
-    def test_beats_invalid_does_not_crash(self):
-        state = self._run_with_message("BEATS oops")
-        assert state.beats is None
-
-    def test_stroke_stored(self):
-        state = self._run_with_message("STROKE twist")
-        assert state.stroke_name == "twist"
-
-    def test_pattern_parsed(self):
-        state = self._run_with_message("PATTERN 2.5")
-        assert state.pattern_duration == pytest.approx(2.5)
-
-    def test_pattern_invalid_does_not_crash(self):
-        state = self._run_with_message("PATTERN bad")
-        assert state.pattern_duration is None
 
     def test_sync_increments(self):
         state = SharedState()
@@ -156,15 +124,20 @@ class TestUdpReader:
             t.join(timeout=1.0)
         assert state.sync_pulse_id == 2
 
-    def test_last_msg_recorded(self):
-        state = self._run_with_message("BPM 99")
-        assert state.last_msg == "BPM 99"
+    @pytest.mark.parametrize("line", [
+        "SHOW", "HIDE", "BEATS 4", "STROKE twist", "PATTERN 2.5", "UNKNOWN payload",
+    ])
+    def test_a_verb_genau_does_not_act_on_leaves_the_state_where_it_was(self, line):
+        """The broker still sends SHOW, HIDE, BEATS, STROKE and PATTERN.
 
-    def test_unknown_command_is_ignored(self):
-        # Must not raise; state remains at defaults
-        state = self._run_with_message("UNKNOWN payload")
-        # No crash is the assertion; also last_msg logged
-        assert state.last_msg == "UNKNOWN payload"
+        Genau acts on AUTO, BPM and SYNC. The other five arrive and fall
+        through exactly as an unrecognised line does -- no crash, nothing
+        moved. Whether the broker should stop sending them is the broker's
+        call, not this reader's.
+        """
+        state = self._run_with_message(line)
+
+        assert (state.auto_active, state.raw_bpm, state.sync_pulse_id) == (False, None, 0)
 
     def test_stop_event_terminates_reader(self):
         state = SharedState()
@@ -200,9 +173,9 @@ class TestUdpReader:
         # Wait for the reader to bind and become operational
         time.sleep(1.0)
         try:
-            _send(port, "SHOW")
+            _send(port, "AUTO 1")
             time.sleep(0.2)
-            assert state.visible is True
+            assert state.auto_active is True
         finally:
             stop.set()
             t.join(timeout=2.0)

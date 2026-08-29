@@ -203,15 +203,7 @@ def _build_controller(
 
 
 def test_refresh_displays_active_frame():
-    state = SharedState(
-        auto_active=True,
-        visible=True,
-        raw_bpm=120.0,
-        beats=4,
-        stroke_name="pull",
-        pattern_duration=1.5,
-        last_msg="AUTO 1",
-    )
+    state = SharedState(auto_active=True, raw_bpm=120.0)
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(state=state, entry=entry)
 
