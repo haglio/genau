@@ -28,6 +28,20 @@ class TestLoadConfig:
         cfg = load_config(cfg_path)
         assert cfg.clips_dir == tmp_path / "clips"
 
+    def test_a_config_without_render_batch_still_loads(self, cfg_factory):
+        """The key is gone from Genau's surface; a file that lacks it is fine.
+
+        Files that still carry it are fine too -- the loader names the keys it
+        wants and ignores the rest -- which matters because clipper reads a
+        genau block of its own and still requires the key.
+        """
+        cfg_path = cfg_factory({"genau": {"render_batch": None}})
+        raw = json.loads(cfg_path.read_text(encoding="utf-8"))
+        del raw["genau"]["render_batch"]
+        cfg_path.write_text(json.dumps(raw), encoding="utf-8")
+
+        assert isinstance(load_config(cfg_path), ProjectConfig)
+
     def test_loads_genau_settings(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.genau.beats_per_loop == 1.0
@@ -60,7 +74,6 @@ class TestLoadConfig:
                 "shuffle_on_load": True,
                 "beats_per_loop": 1.0,
                 "clip_cache_size": 2,
-                "render_batch": 6,
                 "bpm_smoothing": 0.14,
                 "sync_strength": 0.35,
                 "udp_host": "127.0.0.1",

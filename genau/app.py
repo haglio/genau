@@ -80,7 +80,6 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--height", type=int, default=900)
     ap.add_argument("--beats-per-loop", type=float, default=config.genau.beats_per_loop)
     ap.add_argument("--clip-cache-size", type=int, default=config.genau.clip_cache_size)
-    ap.add_argument("--render-batch", type=int, default=config.genau.render_batch)
     ap.add_argument("--bpm-smoothing", type=float, default=config.genau.bpm_smoothing)
     ap.add_argument("--sync-strength", type=float, default=config.genau.sync_strength)
     ap.add_argument("--udp-host", default=config.genau.udp_host)

@@ -28,7 +28,6 @@ class GenauConfig:
     shuffle_on_load: bool
     beats_per_loop: float
     clip_cache_size: int
-    render_batch: int
     bpm_smoothing: float
     sync_strength: float
     udp_host: str
@@ -104,7 +103,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
             shuffle_on_load=bool(genau_raw["shuffle_on_load"]),
             beats_per_loop=float(genau_raw["beats_per_loop"]),
             clip_cache_size=int(genau_raw["clip_cache_size"]),
-            render_batch=int(genau_raw["render_batch"]),
             bpm_smoothing=float(genau_raw["bpm_smoothing"]),
             sync_strength=float(genau_raw["sync_strength"]),
             udp_host=str(genau_raw["udp_host"]),

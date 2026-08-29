@@ -149,7 +149,6 @@ def _write_genau_config(tmp_path: Path, overrides: dict | None = None) -> Path:
             "shuffle_on_load": True,
             "beats_per_loop": 1.0,
             "clip_cache_size": 2,
-            "render_batch": 6,
             "bpm_smoothing": 0.14,
             "sync_strength": 0.35,
             "udp_host": "127.0.0.1",
