@@ -56,18 +56,29 @@ class SpySession:
 
 
 class TestApplyCommand:
+    def test_it_answers_nothing_because_nothing_asks(self):
+        """nau/app.py, the one production caller, calls it as a statement.
+
+        It used to return True/False for "did I understand this", and three
+        helper docstrings promised a caller that reported an unhandled verb.
+        There has never been one: an unknown or malformed verb is dropped in
+        silence either way.
+        """
+        assert apply_command("NEXT", SpySession()) is None
+        assert apply_command("NOT_A_VERB", SpySession()) is None
+
     def test_next_and_prev_step(self):
         session = SpySession()
 
-        assert apply_command("NEXT", session)
-        assert apply_command("PREV", session)
+        apply_command("NEXT", session)
+        apply_command("PREV", session)
 
         assert session.calls == [("step", 1), ("step", -1)]
 
     def test_keyword_is_case_insensitive(self):
         session = SpySession()
 
-        assert apply_command("next", session)
+        apply_command("next", session)
 
         assert session.calls == [("step", 1)]
 
@@ -104,25 +115,26 @@ class TestApplyCommand:
             ("set_speed", 1.5),
         ]
 
-    def test_set_speed_without_or_invalid_argument_returns_false(self):
+    def test_a_set_speed_it_cannot_read_leaves_the_rate_alone(self):
         session = SpySession()
 
-        assert apply_command("SET_SPEED", session) is False
-        assert apply_command("SET_SPEED fast", session) is False
+        apply_command("SET_SPEED", session)
+        apply_command("SET_SPEED fast", session)
+
         assert session.calls == []
 
     def test_set_volume_absolute(self):
         session = SpySession()
 
-        assert apply_command("SET_VOLUME 40", session)
+        apply_command("SET_VOLUME 40", session)
 
         assert session.calls == [("set_volume", 40)]
 
     def test_set_volume_without_or_invalid_argument_returns_false(self):
         session = SpySession()
 
-        assert apply_command("SET_VOLUME", session) is False
-        assert apply_command("SET_VOLUME loud", session) is False
+        apply_command("SET_VOLUME", session) is False
+        apply_command("SET_VOLUME loud", session) is False
         assert session.calls == []
 
     def test_set_volume_takes_the_mute_as_a_fact_of_its_own(self):
@@ -133,7 +145,7 @@ class TestApplyCommand:
         session = SpySession()
         shown = []
 
-        assert apply_command("SET_VOLUME 70 1", session, set_volume_hud=lambda *a: shown.append(a))
+        apply_command("SET_VOLUME 70 1", session, set_volume_hud=lambda *a: shown.append(a))
 
         assert session.calls == [("set_volume", 0)], "muted plays silent"
         assert shown == [(70, True)], "…but the control still shows where it was set"
@@ -142,7 +154,7 @@ class TestApplyCommand:
         session = SpySession()
         shown = []
 
-        assert apply_command("SET_VOLUME 70 0", session, set_volume_hud=lambda *a: shown.append(a))
+        apply_command("SET_VOLUME 70 0", session, set_volume_hud=lambda *a: shown.append(a))
 
         assert session.calls == [("set_volume", 70)]
         assert shown == [(70, False)]
@@ -153,7 +165,7 @@ class TestApplyCommand:
         session = SpySession()
         shown = []
 
-        assert apply_command("SET_VOLUME 40", session, set_volume_hud=lambda *a: shown.append(a))
+        apply_command("SET_VOLUME 40", session, set_volume_hud=lambda *a: shown.append(a))
 
         assert session.calls == [("set_volume", 40)]
         assert shown == [(40, False)]
@@ -174,16 +186,17 @@ class TestApplyCommand:
         the playhead happens to be."""
         session = SpySession()
 
-        assert apply_command("SET_LOOP 2000 4000", session)
+        apply_command("SET_LOOP 2000 4000", session)
 
         assert session.calls == [("restore_loop", 2000, 4000)]
 
-    def test_set_loop_reports_a_range_it_cannot_read_as_unhandled(self):
+    def test_a_set_loop_range_it_cannot_read_leaves_the_player_alone(self):
         session = SpySession()
 
-        assert apply_command("SET_LOOP", session) is False
-        assert apply_command("SET_LOOP 2000", session) is False
-        assert apply_command("SET_LOOP 2000 later", session) is False
+        apply_command("SET_LOOP", session)
+        apply_command("SET_LOOP 2000", session)
+        apply_command("SET_LOOP 2000 later", session)
+
         assert session.calls == []
 
     def test_lock_commands(self):
@@ -236,28 +249,29 @@ class TestApplyCommand:
     def test_cycle_version(self):
         session = SpySession()
 
-        assert apply_command("CYCLE_VERSION", session)
+        apply_command("CYCLE_VERSION", session)
 
         assert session.calls == [("cycle_version",)]
 
     def test_set_tcode_enabled_zero_disables(self):
         session = SpySession()
 
-        assert apply_command("SET_TCODE_ENABLED 0", session)
+        apply_command("SET_TCODE_ENABLED 0", session)
 
         assert session.calls == [("set_tcode_enabled", False)]
 
     def test_set_tcode_enabled_one_enables(self):
         session = SpySession()
 
-        assert apply_command("SET_TCODE_ENABLED 1", session)
+        apply_command("SET_TCODE_ENABLED 1", session)
 
         assert session.calls == [("set_tcode_enabled", True)]
 
-    def test_set_tcode_enabled_without_argument_returns_false(self):
+    def test_set_tcode_enabled_without_an_argument_leaves_the_driver_alone(self):
         session = SpySession()
 
-        assert apply_command("SET_TCODE_ENABLED", session) is False
+        apply_command("SET_TCODE_ENABLED", session)
+
         assert session.calls == []
 
     def test_reload_playlist_invokes_callback(self):
@@ -273,7 +287,7 @@ class TestApplyCommand:
         session = SpySession()
         toggled = []
 
-        assert apply_command(
+        apply_command(
             "TOGGLE_LENGTH_MODE", session,
             toggle_length_mode=lambda: toggled.append(1),
         )
@@ -281,16 +295,18 @@ class TestApplyCommand:
         assert toggled == [1]
         assert session.calls == []
 
-    def test_toggle_length_mode_without_callback_returns_false(self):
+    def test_toggle_length_mode_without_its_callback_does_nothing(self):
         session = SpySession()
 
-        assert apply_command("TOGGLE_LENGTH_MODE", session) is False
+        apply_command("TOGGLE_LENGTH_MODE", session)
+
+        assert session.calls == []
 
     def test_set_length_mode_invokes_callback_with_mode(self):
         session = SpySession()
         modes = []
 
-        assert apply_command(
+        apply_command(
             "SET_LENGTH_MODE shorts", session,
             set_length_mode=modes.append,
         )
@@ -298,17 +314,19 @@ class TestApplyCommand:
         assert modes == ["shorts"]
         assert session.calls == []
 
-    def test_set_length_mode_without_callback_returns_false(self):
+    def test_set_length_mode_without_its_callback_does_nothing(self):
         session = SpySession()
 
-        assert apply_command("SET_LENGTH_MODE shorts", session) is False
+        apply_command("SET_LENGTH_MODE shorts", session)
 
-    def test_set_length_mode_without_argument_returns_false(self):
-        session = SpySession()
+        assert session.calls == []
 
-        assert apply_command(
-            "SET_LENGTH_MODE", session, set_length_mode=lambda _m: None,
-        ) is False
+    def test_set_length_mode_without_an_argument_does_not_call_back(self):
+        modes: list[str] = []
+
+        apply_command("SET_LENGTH_MODE", SpySession(), set_length_mode=modes.append)
+
+        assert modes == []
 
     def test_end_compilation_invokes_callback(self):
         """Leaving a compilation without having to name a length: the mode you
@@ -316,13 +334,17 @@ class TestApplyCommand:
         session = SpySession()
         calls = []
 
-        assert apply_command("END_COMPILATION", session, end_compilation=lambda: calls.append(1))
+        apply_command("END_COMPILATION", session, end_compilation=lambda: calls.append(1))
 
         assert calls == [1]
         assert session.calls == []
 
-    def test_end_compilation_without_callback_returns_false(self):
-        assert apply_command("END_COMPILATION", SpySession()) is False
+    def test_end_compilation_without_its_callback_does_nothing(self):
+        session = SpySession()
+
+        apply_command("END_COMPILATION", session)
+
+        assert session.calls == []
 
     def test_set_f_mode_invokes_callback(self):
         """F-mode is Fun Time's flag; all Nau ever sees of it is a pre-narrowed
@@ -331,17 +353,20 @@ class TestApplyCommand:
         session = SpySession()
         states = []
 
-        assert apply_command("SET_F_MODE 1", session, set_f_mode=states.append)
-        assert apply_command("SET_F_MODE 0", session, set_f_mode=states.append)
+        apply_command("SET_F_MODE 1", session, set_f_mode=states.append)
+        apply_command("SET_F_MODE 0", session, set_f_mode=states.append)
 
         assert states == [True, False]
         assert session.calls == []
 
-    def test_set_f_mode_without_callback_or_argument_returns_false(self):
+    def test_set_f_mode_without_its_callback_or_its_argument_does_nothing(self):
         session = SpySession()
+        flags: list[bool] = []
 
-        assert apply_command("SET_F_MODE 1", session) is False
-        assert apply_command("SET_F_MODE", session, set_f_mode=lambda _f: None) is False
+        apply_command("SET_F_MODE 1", session)
+        apply_command("SET_F_MODE", session, set_f_mode=flags.append)
+
+        assert (session.calls, flags) == ([], [])
 
     def test_display_verbs_invoke_callback(self):
         """Whether Nau owns the main slot's rect is Fun Time's to say: in genau mode
@@ -351,17 +376,19 @@ class TestApplyCommand:
         session = SpySession()
         states = []
 
-        assert apply_command("DISPLAY_OFF", session, set_display=states.append)
-        assert apply_command("DISPLAY_ON", session, set_display=states.append)
+        apply_command("DISPLAY_OFF", session, set_display=states.append)
+        apply_command("DISPLAY_ON", session, set_display=states.append)
 
         assert states == [False, True]
         assert session.calls == [], "the display is not playback"
 
-    def test_display_verbs_without_callback_return_false(self):
+    def test_display_verbs_without_their_callback_do_nothing(self):
         session = SpySession()
 
-        assert apply_command("DISPLAY_OFF", session) is False
-        assert apply_command("DISPLAY_ON", session) is False
+        apply_command("DISPLAY_OFF", session)
+        apply_command("DISPLAY_ON", session)
+
+        assert session.calls == []
 
     def test_quit_sets_stop_event(self):
         session = SpySession()
@@ -371,9 +398,10 @@ class TestApplyCommand:
 
         assert stop.is_set()
 
-    def test_unknown_command_returns_false(self):
+    def test_an_unknown_command_touches_nothing(self):
         session = SpySession()
 
-        assert apply_command("FROBNICATE", session) is False
-        assert apply_command("", session) is False
+        apply_command("FROBNICATE", session)
+        apply_command("", session)
+
         assert session.calls == []
