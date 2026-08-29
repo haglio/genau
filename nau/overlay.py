@@ -148,7 +148,6 @@ def timeline_height(heatmap: HeatmapStrip) -> int:
     return heatmap.height or TIMELINE_HEIGHT
 
 
-_THUMB_H = 64
 _OUT_CAPTURE_LEAD_MS = 400.0
 
 
