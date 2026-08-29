@@ -105,10 +105,6 @@ def _recompute_center(state: DirectControlState) -> None:
     state.center = max(half, min(100 - half, state.intended_center))
 
 
-def toggle_playing(state: DirectControlState) -> None:
-    state.playing = not state.playing
-
-
 def set_speed(state: DirectControlState, speed: int) -> None:
     state.speed = max(MIN_SPEED, min(MAX_SPEED, speed))
     state.bpm = bpm_for_speed(state.speed)
