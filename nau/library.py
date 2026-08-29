@@ -295,7 +295,6 @@ def select_library(
     mode: str,
     durations: dict[Path, float],
     clips: list[LibraryEntry],
-    scripted_only: bool = False,
     is_clip: Callable[[Path], bool] | None = None,
 ) -> list[LibraryEntry]:
     """Filter *entries* by length *mode*, then version-dedup the survivors.
@@ -314,16 +313,8 @@ def select_library(
     so it joins shorts and is held out of full-length even when it runs long.
     Without the predicate the split stays duration-only.
 
-    *scripted_only* (the standalone default — Nau standalone is the funscript
-    loop tool) drops main entries with no funscript so the R gesture always
-    has something to loop; *clips* are always included regardless, since
-    shorts mode exists to surface them.
-
     Returns one canonical entry per surviving version group.
     """
-    if scripted_only:
-        entries = [e for e in entries if e.funscript is not None]
-
     def marked(entry: LibraryEntry) -> bool:
         return is_clip is not None and is_clip(entry.video)
 
@@ -373,7 +364,6 @@ def library_playlist(
     durations: dict[Path, float],
     clips: list[LibraryEntry],
     rng: random.Random,
-    scripted_only: bool = False,
     is_clip: Callable[[Path], bool] | None = None,
 ) -> list[tuple[Path, Path | None]]:
     """Full standalone build: filter by *mode*, version-dedup, shuffle, pair.
@@ -383,7 +373,6 @@ def library_playlist(
     consistent.
     """
     selected = select_library(
-        entries, mode=mode, durations=durations, clips=clips,
-        scripted_only=scripted_only, is_clip=is_clip,
+        entries, mode=mode, durations=durations, clips=clips, is_clip=is_clip,
     )
     return entries_to_pairs(canonical_playlist(selected, rng))
