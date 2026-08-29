@@ -26,11 +26,6 @@ def _plain_entry(lib: Path, rel: str) -> LibraryEntry:
     return LibraryEntry(video=v, funscript=None, size=100)
 
 
-def _source(tmp_path, durations):
-    lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    return lib, meta
-
-
 def test_a_carved_scene_is_a_short_before_evolver_records_its_kind(tmp_path):
     """The ``clip`` record was how a carved scene was known before there was a
     kind to write, and a library Evolver has not been over since still has only
