@@ -735,6 +735,8 @@ tests/test_nau_cli.py::TestAudioMuted::test_default_is_unmuted
 tests/test_nau_cli.py::TestAudioMuted::test_env_mutes
 tests/test_nau_cli.py::TestAudioMuted::test_no_audio_flag_mutes
 tests/test_nau_cli.py::TestBorderless::test_borderless_is_off_by_default_and_on_by_flag
+tests/test_nau_cli.py::TestBorderless::test_the_parser_always_defines_what_the_app_reads_off_it[notice_file]
+tests/test_nau_cli.py::TestBorderless::test_the_parser_always_defines_what_the_app_reads_off_it[taskbar_identity]
 tests/test_nau_cli.py::TestLibrarySource::test_built_even_when_playlist_given
 tests/test_nau_cli.py::TestLibrarySource::test_built_from_dirs
 tests/test_nau_cli.py::TestLibrarySource::test_clips_dir_falls_back_to_top_level_config

@@ -219,7 +219,7 @@ def _open_window(args):
 
 
 def _run(args) -> int:
-    _set_aumid(args.config, getattr(args, "taskbar_identity", None))
+    _set_aumid(args.config, args.taskbar_identity)
     screen = _open_window(args)
     # mpv renders the video directly into this window; overlays go on top.  Until
     # it does, the window is the loading screen's to paint.
@@ -308,7 +308,7 @@ def _run(args) -> int:
         [e.video for e in entries] + [c.video for c in (source.clips if source else [])],
         source.metadata_root if source is not None else None,
     )
-    notices = NoticeWriter(getattr(args, "notice_file", None))
+    notices = NoticeWriter(args.notice_file)
     jumps = ClipJumps(
         clip_nav, session, {e.video: e.funscript for e in entries}, notices,
     )
