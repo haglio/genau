@@ -6,10 +6,8 @@ single clip synchronously with no caching or prefetch.
 from __future__ import annotations
 
 import json
-import logging
 import subprocess
 import sys
-import tempfile
 import zipfile
 from pathlib import Path
 
@@ -114,31 +112,6 @@ def load_clip(video_path: Path) -> list[np.ndarray]:
     if cache_path.exists():
         return _read_rhcache_all_frames(cache_path)
     return _decode_video_to_numpy_frames(video_path)
-
-
-logger = logging.getLogger(__name__)
-
-
-def extract_audio(video_path: Path) -> Path | None:
-    """Extract audio from a video file to a temp WAV. Returns path or None."""
-    try:
-        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-        tmp.close()
-        cmd = [
-            "ffmpeg", "-v", "error", "-y",
-            "-i", str(video_path),
-            "-vn", "-acodec", "pcm_s16le",
-            "-ar", "44100", "-ac", "2",
-            tmp.name,
-        ]
-        subprocess.run(cmd, check=True, **_subprocess_kwargs())
-        if Path(tmp.name).stat().st_size < 1000:
-            Path(tmp.name).unlink(missing_ok=True)
-            return None
-        return Path(tmp.name)
-    except (subprocess.CalledProcessError, OSError) as exc:
-        logger.debug("No audio extracted from %s: %s", video_path.name, exc)
-        return None
 
 
 def scan_clips(folder: Path) -> list[Path]:
