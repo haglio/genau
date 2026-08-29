@@ -369,43 +369,27 @@ class TestVersionIndex:
         assert index == {Path("solo-1080p.mp4"): [(Path("solo-1080p.mp4"), None)]}
 
 
-class TestScriptedOnly:
-    def test_full_length_scripted_only_drops_unscripted(self):
-        from nau.library import select_library, FULL
-        scripted = _entry("Amy-Long-topaz.mp4", size=900, funscript="Amy-Long.funscript")
-        unscripted = _entry("Bea-Long-1080p.mp4", size=900)
-        durations = {scripted.video: 300.0, unscripted.video: 300.0}
+class TestEveryVideoIsServed:
+    def test_no_flag_can_narrow_the_library_to_scripted_videos(self):
+        """Nau standalone is a general player; scripted-focus is Fun Time's
+        F-mode. A scripted_only flag threaded through four signatures drove a
+        real filter that no production path ever turned on, and its own two
+        docstrings disagreed about what it meant."""
+        import pytest
 
-        kept = select_library(
-            [scripted, unscripted], mode=FULL, durations=durations, clips=[],
-            scripted_only=True,
-        )
+        from nau.library import FULL, select_library
 
-        assert [e.video for e in kept] == [scripted.video]
+        with pytest.raises(TypeError):
+            select_library([], mode=FULL, durations={}, clips=[], scripted_only=True)
 
-    def test_scripted_only_still_includes_clips_in_shorts(self):
-        from nau.library import select_library, SHORTS
-        scripted_short = _entry("Cee-topaz.mp4", size=100, funscript="Cee.funscript")
-        unscripted_short = _entry("Dee-1080p.mp4", size=100)
-        clip = _entry("saved-clip.mp4", size=50)
-        durations = {scripted_short.video: 6.0, unscripted_short.video: 6.0}
-
-        kept = select_library(
-            [scripted_short, unscripted_short], mode=SHORTS, durations=durations,
-            clips=[clip], scripted_only=True,
-        )
-        vids = {e.video for e in kept}
-
-        assert scripted_short.video in vids       # scripted short kept
-        assert unscripted_short.video not in vids  # unscripted short dropped
-        assert clip.video in vids                  # clips always included
-
-    def test_default_keeps_unscripted(self):
-        from nau.library import select_library, FULL
+    def test_an_unscripted_video_is_kept(self):
+        from nau.library import FULL, select_library
         unscripted = _entry("Eff-1080p.mp4", size=900)
+
         kept = select_library(
             [unscripted], mode=FULL, durations={unscripted.video: 300.0}, clips=[],
         )
+
         assert [e.video for e in kept] == [unscripted.video]
 
 

@@ -72,7 +72,7 @@ class TestBuildLibrarySource:
         durations = {long_vid: 300.0, short_vid: 10.0}
 
         source = build_library_source(
-            vids, scripts, None, rng=random.Random(0), durations=durations, scripted_only=False,
+            vids, scripts, None, rng=random.Random(0), durations=durations,
         )
 
         full = source.playlist_for("full")
@@ -92,7 +92,7 @@ class TestBuildLibrarySource:
         durations = {long_vid: 300.0}
 
         source = build_library_source(
-            vids, scripts, clips, rng=random.Random(0), durations=durations, scripted_only=False,
+            vids, scripts, clips, rng=random.Random(0), durations=durations,
         )
 
         shorts_videos = {v for v, _ in source.playlist_for("shorts")}
@@ -252,7 +252,6 @@ def test_standalone_source_serves_all_videos_by_default():
     vids = {v for v, _ in src.playlist_for("full")}
 
     assert scripted.video in vids and unscripted.video in vids
-    assert src.scripted_only is False
 
 
 def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):
