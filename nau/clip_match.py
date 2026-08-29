@@ -313,9 +313,10 @@ def locate(scene: np.ndarray, candidates: dict[Path, np.ndarray], *, fps: float)
 def record(clip: Path, scene: Path, *, offset: float, metadata_root: Path) -> None:
     """Write the scene *clip* came from, and where in it, into *clip*'s sidecar.
 
-    ``scene_offset`` is seconds into *scene* — nothing reads it yet, but it is
-    what a funscript has to be shifted by to fit the clip, and it is only
-    knowable while the alignment that found it is still in hand.
+    ``scene_offset`` is seconds into *scene* — what a funscript has to be
+    shifted by to fit the clip, and only knowable while the alignment that
+    found it is still in hand.  Evolver shifts by it, in
+    ``tasks/scene_scripts.py`` and ``tasks/clip_scripts.py``.
     """
     path = sidecar_for(clip, metadata_root)
     if path is None:

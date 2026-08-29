@@ -28,8 +28,8 @@ Two disciplines keep the picture still while it slides:
   latched in Genau's own publish (``DriveHud.let_go``), captured at the source
   before the resting phase destroys it.
 
-Kept out of :mod:`nau.app` and free of Pillow, like :mod:`nau.console` is, so the
-shape of the picture is testable without a window or a font.
+Kept out of :mod:`nau.app` and free of Pillow, so the shape of the picture is
+testable without a window or a font.
 """
 from __future__ import annotations
 
