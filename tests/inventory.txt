@@ -1331,6 +1331,7 @@ tests/test_nau_volume_control.py::TestWhatFunTimeSaysBack::test_an_ignored_press
 tests/test_nau_volume_control.py::TestWhatFunTimeSaysBack::test_it_starts_at_full_and_unmuted_until_anything_says_otherwise
 tests/test_nau_volume_control.py::TestWhatFunTimeSaysBack::test_its_answer_is_what_the_chip_shows
 tests/test_packaging.py::test_all_app_packages_are_declared_for_installation
+tests/test_packaging.py::test_every_declared_runtime_dependency_is_imported_somewhere
 tests/test_process_names.py::test_each_app_stamps_its_own_mark[Genau VR]
 tests/test_process_names.py::test_each_app_stamps_its_own_mark[Genau]
 tests/test_process_names.py::test_each_app_stamps_its_own_mark[Nau]
