@@ -423,7 +423,7 @@ tests/test_genau_voice.py::TestVoiceCommands::test_quit_maps_to_quit_command
 tests/test_genau_voice.py::TestVoiceCommands::test_slow_down_maps_to_speed_down
 tests/test_genau_voice.py::TestVoiceCommands::test_speed_down_maps_to_speed_down
 tests/test_genau_voice.py::TestVoiceCommands::test_speed_thirty_maps_to_numeric_command
-tests/test_genau_voice.py::TestVoiceListener::test_stop_sets_event
+tests/test_genau_voice.py::TestVoiceListener::test_the_listener_has_no_stop_handle
 tests/test_genau_voice.py::TestVoiceListener::test_write_command_writes_to_file
 tests/test_genau_weird.py::test_a_clip_already_gone_is_not_an_error
 tests/test_genau_weird.py::test_move_creates_the_weird_dir_on_first_use

@@ -167,16 +167,16 @@ class TestVoiceListener:
 
         assert cmd_file.read_text(encoding="utf-8") == "TEST_CMD"
 
-    def test_stop_sets_event(self):
-        listener = VoiceListener(
-            commands={},
-            cmd_file="dummy",
-            model_path="dummy",
-        )
+    def test_the_listener_has_no_stop_handle(self):
+        """Nothing can stop it, and that is the design.
 
-        listener.stop()
-
-        assert listener._stop.is_set()
+        genau/app.py builds the listener into a local, hands ``run`` to a
+        daemon thread and drops the reference, so the loop ends when the
+        process does. A ``stop()`` only a test could reach read as an orderly
+        shutdown that has never existed -- and the vulture whitelist asserted
+        it was "called externally to signal shutdown", which was false.
+        """
+        assert not hasattr(VoiceListener, "stop")
 
 
 class TestFunTimeFlag:
