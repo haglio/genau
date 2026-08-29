@@ -27,13 +27,11 @@ class FakeLoader:
 
 
 class FakeNotifier:
-    def __init__(self, *, window_visible: bool = False):
-        self.window_visible = window_visible
-        self.calls: list[dict] = []
+    def __init__(self):
+        self.announced: list[Path | None] = []
 
-    def sync_window_visibility(self, **kwargs):
-        self.calls.append(kwargs)
-        return self.window_visible
+    def announce_visible(self, current_clip_path) -> None:
+        self.announced.append(current_clip_path)
 
 
 class FakeRenderer:
@@ -140,8 +138,6 @@ def _build_controller(
     display_state: dict | None = None,
 ):
     loading_texts: list[str | None] = []
-    show_window_calls: list[str] = []
-    hide_window_calls: list[str] = []
     consoles: list = []
     present_calls: list[int] = []
     hud_mode_calls: list[bool] = []
@@ -172,8 +168,6 @@ def _build_controller(
         beats_per_loop=4.0,
         bpm_smoothing=0.5,
         sync_strength=0.5,
-        show_window=lambda: show_window_calls.append("show"),
-        hide_window=lambda: hide_window_calls.append("hide"),
         set_loading_text=loading_texts.append,
         logger=logger,
         log_name="genau_listener.log",
@@ -201,8 +195,6 @@ def _build_controller(
         "engine": engine,
         "logger": logger,
         "loading_texts": loading_texts,
-        "show_window_calls": show_window_calls,
-        "hide_window_calls": hide_window_calls,
         "consoles": consoles,
         "present_calls": present_calls,
         "hud_mode_calls": hud_mode_calls,
@@ -888,8 +880,6 @@ def test_the_controller_cannot_be_built_without_a_direct_state():
             beats_per_loop=4.0,
             bpm_smoothing=0.5,
             sync_strength=0.5,
-            show_window=lambda: None,
-            hide_window=lambda: None,
             set_loading_text=lambda _text: None,
             logger=MagicMock(),
             log_name="genau_listener.log",

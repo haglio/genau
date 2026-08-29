@@ -43,8 +43,6 @@ class GenauRefreshController:
         beats_per_loop: float,
         bpm_smoothing: float,
         sync_strength: float,
-        show_window,
-        hide_window,
         set_loading_text,
         logger,
         log_name: str,
@@ -80,8 +78,6 @@ class GenauRefreshController:
         self.beats_per_loop = beats_per_loop
         self.bpm_smoothing = bpm_smoothing
         self.sync_strength = sync_strength
-        self.show_window = show_window
-        self.hide_window = hide_window
         self.set_loading_text = set_loading_text
         self.logger = logger
         self.log_name = log_name
@@ -111,7 +107,6 @@ class GenauRefreshController:
         self.set_volume = set_volume or (lambda _level, _muted: None)
         self.reorder_clips = reorder_clips
         self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
-        self.window_visible = False
         # Seeded from the state itself, not None: the drain now runs at the
         # top of the tick, so a PAUSE queued before the first refresh must read
         # as a real falling edge against the state the controller was built in —
@@ -204,13 +199,7 @@ class GenauRefreshController:
             paused = self.rh_paused["value"]
             sync_pulse_id = shared.sync_pulse_id
 
-        self.window_visible = self.notifier.sync_window_visibility(
-            desired_visible=True,
-            window_visible=self.window_visible,
-            current_clip_path=self.renderer.current_clip_path,
-            show_window=self.show_window,
-            hide_window=self.hide_window,
-        )
+        self.notifier.announce_visible(self.renderer.current_clip_path)
 
         loop_duration = update_engine(
             self.engine,

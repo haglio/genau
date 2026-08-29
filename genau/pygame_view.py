@@ -358,12 +358,6 @@ class PygameView:
             )
             logger.info("HUD: layered window disabled")
 
-    def show(self) -> None:
-        self.window.show()
-
-    def hide(self) -> None:
-        self.window.hide()
-
     def destroy(self) -> None:
         self._current_texture = None
         self.window.destroy()
