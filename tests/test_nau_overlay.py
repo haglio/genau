@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import numpy as np
 
 from player_core.funscript import Funscript
 from nau.heatmap import build_heatmap
@@ -11,10 +10,6 @@ from nau.overlay import (
     time_to_x,
     timeline_height,
 )
-
-
-def _frame(fill: int, w: int = 160, h: int = 90) -> np.ndarray:
-    return np.full((h, w, 3), fill, dtype=np.uint8)
 
 
 def _funscript():

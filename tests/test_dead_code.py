@@ -94,6 +94,10 @@ def _attribute_names_read_anywhere() -> set[str]:
     return names
 
 
+def _parse(path: Path) -> ast.Module:
+    return ast.parse(path.read_text(encoding="utf-8"))
+
+
 def _names_read_per_file() -> dict[str, set[str]]:
     """Per file, every plain name and attribute read in it, plus its strings.
 
@@ -200,6 +204,53 @@ def test_no_module_level_constant_goes_unread():
     unread = _unread_module_constants()
 
     assert not unread, "Assigned and never read:\n" + "\n".join(unread)
+
+
+def _is_collected_by_pytest(node: ast.FunctionDef) -> bool:
+    """A fixture or a hook is called by pytest, not by a name in the file."""
+    if node.name.startswith(("test", "pytest_")):
+        return True
+    return any("fixture" in ast.unparse(d) or "hookimpl" in ast.unparse(d)
+               for d in node.decorator_list)
+
+
+def _uncalled_test_helpers() -> list[str]:
+    """Helpers in tests/ that their own file never calls and no file imports."""
+    imported = {
+        alias.name
+        for path in _tracked_python_files()
+        for node in ast.walk(_parse(path))
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
+    }
+    found: list[str] = []
+    for path in sorted((_ROOT / "tests").rglob("*.py")):
+        tree = _parse(path)
+        used = {
+            node.id if isinstance(node, ast.Name) else node.attr
+            for node in ast.walk(tree)
+            if (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load))
+            or (isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load))
+        }
+        for node in tree.body:
+            if (isinstance(node, ast.FunctionDef)
+                    and not _is_collected_by_pytest(node)
+                    and node.name not in used
+                    and node.name not in imported):
+                found.append(f"{path.relative_to(_ROOT)}:{node.lineno}: {node.name}")
+    return found
+
+
+def test_no_test_helper_is_written_and_never_called():
+    """The suite is not checked by the gates that check the packages.
+
+    vulture is pointed at genau/, nau/ and genau_vr/ only -- pointing it at
+    tests/ as well would report every fake-collaborator method as unused --
+    so a leftover helper in a test file accumulates unseen.
+    """
+    uncalled = _uncalled_test_helpers()
+
+    assert not uncalled, "Written and never called:\n" + "\n".join(uncalled)
 
 
 def test_no_constructor_parameter_is_stored_and_never_read():
