@@ -508,6 +508,7 @@ tests/test_gvr_playback.py::TestTheSpeedRange::test_the_pace_follows_the_speed_t
 tests/test_gvr_playback.py::TestUpdateEngine::test_paused_does_not_advance
 tests/test_gvr_playback.py::TestUpdateEngine::test_phase_advances
 tests/test_gvr_playback.py::TestUpdateEngine::test_the_engine_holds_no_sync_state
+tests/test_gvr_playback.py::test_a_shape_the_waveform_does_not_know_is_refused
 tests/test_gvr_projection.py::TestFovToProjectionMatrix::test_near_far_encoded_in_matrix
 tests/test_gvr_projection.py::TestFovToProjectionMatrix::test_symmetric_fov_produces_symmetric_matrix
 tests/test_gvr_projection.py::TestFovToProjectionMatrix::test_symmetric_fov_shape

@@ -150,7 +150,7 @@ def _waveform_raw(phase: float, shape: WaveformShape) -> float:
             return frac / rise
         else:
             return 1 - (frac - rise) / (1 - rise)
-    return (1 - math.cos(2 * math.pi * phase)) / 2
+    raise ValueError(f"unknown waveform shape: {shape!r}")
 
 
 _PEAK_PHASE = {
