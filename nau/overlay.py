@@ -10,16 +10,13 @@ import numpy as np
 
 # The scrubber and its frame are the shared engine's now, so every player draws
 # the same one; the funscript heatmap below is Nau's own, built on that frame.
-# bar_track_x and progress_bar_bgra are re-exported for nau.app, which draws them.
-from player_core.timeline import (  # noqa: F401 (bar_track_x/progress_bar_bgra re-exported)
+from player_core.timeline import (
     BAR_BORDER,
     BORDER_W,
     TIMELINE_HEIGHT,
-    bar_track_x,
     draw_border,
     draw_track_marks,
     framed_track,
-    progress_bar_bgra,
 )
 
 from .heatmap import build_heatmap

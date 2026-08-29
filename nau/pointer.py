@@ -19,7 +19,9 @@ green.
 """
 from __future__ import annotations
 
-from .overlay import bar_track_x, timeline_height
+from player_core.timeline import bar_track_x
+
+from .overlay import timeline_height
 
 
 class Pointer:
