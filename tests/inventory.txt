@@ -112,7 +112,6 @@ tests/test_genau_engine.py::TestUpdateEngine::test_smoothing_moves_estimated_bpm
 tests/test_genau_engine.py::TestUpdateEngine::test_sync_pulse_corrections_pull_phase_toward_zero
 tests/test_genau_frame_cache.py::test_read_all_frames_lossless
 tests/test_genau_frame_cache.py::test_write_and_read_meta
-tests/test_genau_frame_cache.py::test_write_empty_frames_raises
 tests/test_genau_layout.py::TestEdgeCases::test_exact_fit_no_bars
 tests/test_genau_layout.py::TestEdgeCases::test_square_video_centered
 tests/test_genau_layout.py::TestLandscapeVideo::test_narrower_video_pillarboxed
