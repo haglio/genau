@@ -315,6 +315,10 @@ class PlayerSession:
         if members is None or len(members) <= 1:
             return
         videos = [vid for vid, _fs in members]
+        # Not dead defensiveness: Fun Time writes the playlist from its own
+        # selection, so a video can arrive mapped to a family it is not a
+        # member of.  Cycling it must not swap in somebody else's version --
+        # see test_a_version_the_index_does_not_know_is_left_alone.
         try:
             pos = videos.index(self.current_video)
         except ValueError:
