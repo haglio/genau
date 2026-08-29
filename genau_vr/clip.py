@@ -1,7 +1,9 @@
 """Clip loading for GenauVR.
 
-Copied from Genau's video.py and frame_cache.py — simplified to load a
-single clip synchronously with no caching or prefetch.
+Every frame of one clip, loaded up front — from the sibling .rhcache that
+Evolver's pipeline writes into the frames folder when there is one, otherwise
+by decoding with ffmpeg.  No in-memory cache and no prefetch: GenauVR shows
+one clip at a time and reads it whole.
 """
 from __future__ import annotations
 
