@@ -47,13 +47,12 @@ from .loading import LoadingCancelled, LoadingScreen
 from .overlay import (
     HeatmapStrip,
     LoopThumbCapture,
-    bar_track_x,
     heatmap_bgra,
     label_xs,
-    progress_bar_bgra,
     time_to_x,
     timeline_height,
 )
+from player_core.timeline import bar_track_x, progress_bar_bgra
 from .runtime import apply_command
 from player_core.volume import VolumeHudPainter, chip_xy
 from .session import PlayerSession
