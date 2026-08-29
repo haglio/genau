@@ -15,9 +15,10 @@ def fov_to_projection_matrix(
 ) -> np.ndarray:
     """Build an OpenGL projection matrix from OpenXR FOV angles (radians).
 
-    Returns a 4x4 column-major-compatible matrix (row-major numpy layout
-    that matches OpenGL when transposed, but we use row-vector convention
-    consistent with numpy @ vec).
+    Column-vector convention: ``v_clip = proj @ v_view``, and the matrix is
+    uploaded with ``transpose=GL_TRUE`` (genau_vr/vr_renderer.py:109).  That is what
+    the perspective divide at ``mat[3, 2]`` and the near/far term at
+    ``mat[2, 3]`` are placed for.
     """
     tan_l = math.tan(angle_left)
     tan_r = math.tan(angle_right)
