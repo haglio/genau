@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
-from genau.frame_cache import (
-    read_rhcache_all_frames,
-    read_rhcache_meta,
-    write_rhcache,
-)
+from genau.frame_cache import read_rhcache_all_frames, read_rhcache_meta
+from rhcache_fixtures import write_rhcache
 
 
 def _make_frames(count: int, width: int = 8, height: int = 6) -> list[np.ndarray]:
@@ -36,8 +32,3 @@ def test_read_all_frames_lossless(tmp_path):
     assert len(all_frames) == 4
     for i, recovered in enumerate(all_frames):
         np.testing.assert_array_equal(recovered, frames[i])
-
-
-def test_write_empty_frames_raises(tmp_path):
-    with pytest.raises(ValueError, match="empty"):
-        write_rhcache([], tmp_path / "empty.rhcache")
