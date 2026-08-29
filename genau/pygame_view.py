@@ -323,7 +323,7 @@ class PygameView:
         """Toggle Win32 layered-window color key transparency.
 
         When enabled, pixels matching HUD_COLOR_KEY (1, 0, 1) become fully
-        transparent, letting the window beneath (VLC) show through.
+        transparent, letting Nau's video window beneath show through.
         """
         import ctypes
         import logging
