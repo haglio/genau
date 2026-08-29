@@ -9,29 +9,12 @@ from genau.state import SharedState
 
 
 def test_read_shared_state_snapshot_copies_fields():
-    state = SharedState(
-        auto_active=True,
-        visible=True,
-        raw_bpm=120.0,
-        beats=4,
-        stroke_name="pull",
-        pattern_duration=1.5,
-        sync_pulse_id=7,
-        last_msg="AUTO 1",
-    )
+    state = SharedState(auto_active=True, raw_bpm=120.0, sync_pulse_id=7)
 
     snapshot = read_shared_state_snapshot(state)
 
     assert snapshot == SharedStateSnapshot(
-        auto_active=True,
-        visible=True,
-        raw_bpm=120.0,
-        beats=4,
-        stroke_name="pull",
-        pattern_duration=1.5,
-        sync_pulse_id=7,
-        last_msg="AUTO 1",
-    )
+        auto_active=True, raw_bpm=120.0, sync_pulse_id=7)
 
 
 def test_display_index_for_phase_reverses_phase_position():
