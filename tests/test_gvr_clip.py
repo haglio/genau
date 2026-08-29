@@ -6,7 +6,6 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import pytest
 
 from genau_vr.clip import cache_dir_for_clips_folder, load_clip
 

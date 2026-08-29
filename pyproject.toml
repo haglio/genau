@@ -24,6 +24,7 @@ voice = [
 ]
 dev = [
     "pytest",
+    "ruff",
     "vulture",
 ]
 vr = [

@@ -1,7 +1,6 @@
 """OpenGL rendering for VR180 SBS equirectangular video on a hemisphere."""
 from __future__ import annotations
 
-import ctypes
 import logging
 
 import numpy as np

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 
 from genau.layout import compute_video_rects
 
