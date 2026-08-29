@@ -128,6 +128,8 @@ def _build_controller(
     commands: list[str] | None = None,
     paused_state: bool = False,
     pending_clip_name: str | None = None,
+    # The state the app itself opens on: not playing, mid speed.  Genau always
+    # has one, so a test that does not care about it still gets it.
     direct_state: DirectControlState | None = None,
     tcode_sender: FakeTCodeSender | None = None,
     cruise_control: CruiseControlState | None = None,
@@ -178,7 +180,7 @@ def _build_controller(
         now_source=lambda: 5.0,
         consume_command=lambda _path, logger=None: (commands if commands is not None else ([command] if command else [])),
         read_paused_state=lambda _path, logger=None: paused_state,
-        direct_state=direct_state,
+        direct_state=direct_state if direct_state is not None else DirectControlState(),
         tcode_sender=tcode_sender,
         cruise_control=cruise_control,
         clip_advance=clip_advance,
@@ -238,14 +240,6 @@ def test_refresh_skips_display_when_no_frames_are_ready():
     assert built["selection"].prefetch_calls == 1
 
 
-def test_refresh_skips_prefetch_when_state_has_error():
-    built = _build_controller(state=SharedState(error="boom"))
-
-    built["controller"].refresh()
-
-    assert built["selection"].prefetch_calls == 0
-
-
 def test_refresh_applies_runtime_commands_through_selection_step():
     built = _build_controller(command="NEXT", entry=None)
 
@@ -255,8 +249,10 @@ def test_refresh_applies_runtime_commands_through_selection_step():
 
 
 def test_refresh_reads_paused_state_file_each_tick():
+    """The paused file is the broker's word, so it is read on the broker's path."""
     entry = {"frames": [object() for _ in range(4)]}
-    built = _build_controller(entry=entry, paused_state=True)
+    built = _build_controller(
+        state=SharedState(auto_active=True), entry=entry, paused_state=True)
 
     built["controller"].refresh()
 
@@ -347,15 +343,6 @@ def test_direct_mode_paused_does_not_send_tcode():
     assert tcode.sends == []
 
 
-def test_no_tcode_sender_in_passive_mode():
-    entry = {"frames": [object() for _ in range(8)]}
-    state = SharedState(auto_active=True, visible=True, raw_bpm=120.0)
-    built = _build_controller(state=state, entry=entry, tcode_sender=None)
-
-    # Should not raise
-    built["controller"].refresh()
-
-
 def test_direct_mode_publishes_the_drive_readout():
     dc = DirectControlState(playing=True, bpm=120.0, amplitude=70, intended_center=60)
     tcode = FakeTCodeSender()
@@ -380,16 +367,6 @@ def test_direct_mode_calls_present_scene():
     built["controller"].refresh()
 
     assert len(built["present_calls"]) == 1
-
-
-def test_passive_mode_does_not_call_present_scene():
-    entry = {"frames": [object() for _ in range(8)]}
-    state = SharedState(auto_active=True, visible=True, raw_bpm=120.0)
-    built = _build_controller(state=state, entry=entry)
-
-    built["controller"].refresh()
-
-    assert len(built["present_calls"]) == 0
 
 
 def test_pause_command_stops_direct_mode_playback():
@@ -886,3 +863,34 @@ def test_a_stroke_that_never_reaches_an_end_keeps_the_half_it_is_in():
 
     assert built["controller"]._scrub.back_half is False
     assert built["renderer"].display_calls[-1] == 5
+
+
+def test_the_controller_cannot_be_built_without_a_direct_state():
+    """Genau has one playback mode, and the constructor says so.
+
+    A passive mode used to exist for a state the app never builds; the guards
+    that read it were decided at build time. The parameter is required so the
+    second mode cannot come back by omitting an argument.
+    """
+    import pytest
+
+    with pytest.raises(TypeError):
+        GenauRefreshController(
+            state=SharedState(),
+            loader=FakeLoader(),
+            notifier=FakeNotifier(),
+            renderer=FakeRenderer(),
+            selection=FakeSelection(),
+            engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+            rh_paused={"value": False},
+            command_file=Path("command.txt"),
+            paused_file=Path("paused.txt"),
+            beats_per_loop=4.0,
+            bpm_smoothing=0.5,
+            sync_strength=0.5,
+            show_window=lambda: None,
+            hide_window=lambda: None,
+            set_loading_text=lambda _text: None,
+            logger=MagicMock(),
+            log_name="genau_listener.log",
+        )
