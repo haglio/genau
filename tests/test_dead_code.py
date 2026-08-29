@@ -62,6 +62,17 @@ def test_no_dead_imports_or_unread_locals():
     assert not reported, "ruff found dead code:\n" + "\n".join(reported)
 
 
+def _tracked_python_files() -> list[Path]:
+    """Every .py in the repo. Parts are taken relative to the root because
+    this repo is worked in a git worktree *under* .claude/, so an
+    absolute-path exclusion would quietly skip the whole tree."""
+    return [
+        path for path in _ROOT.rglob("*.py")
+        if not any(part in {".venv", "__pycache__", ".claude"}
+                   for part in path.relative_to(_ROOT).parts)
+    ]
+
+
 def _attribute_names_read_anywhere() -> set[str]:
     """Every ``x.<name>`` read in the tree, plus every string literal.
 
@@ -70,12 +81,7 @@ def _attribute_names_read_anywhere() -> set[str]:
     be sure before deleting, not to find every last one.
     """
     names: set[str] = set()
-    for path in _ROOT.rglob("*.py"):
-        # Relative parts: this repo is worked in a git worktree under
-        # .claude/, so an absolute-path check would exclude the whole tree.
-        if any(part in {".venv", "__pycache__", ".claude"}
-               for part in path.relative_to(_ROOT).parts):
-            continue
+    for path in _tracked_python_files():
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError:
@@ -86,6 +92,33 @@ def _attribute_names_read_anywhere() -> set[str]:
             elif isinstance(node, ast.Constant) and isinstance(node.value, str):
                 names.add(node.value)
     return names
+
+
+def _names_read_per_file() -> dict[str, set[str]]:
+    """Per file, every plain name and attribute read in it, plus its strings.
+
+    A name is counted as read in the file that defines it only if it is used
+    there beyond the assignment itself, which is what lets the caller ask
+    "and nowhere else either".
+    """
+    per_file: dict[str, set[str]] = {}
+    for path in _tracked_python_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        names: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                names.add(node.id)
+            elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
+                names.add(node.attr)
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                names.add(node.value)
+            elif isinstance(node, ast.alias):
+                names.add(node.name.split(".")[0])
+        per_file[str(path.relative_to(_ROOT))] = names
+    return per_file
 
 
 def _stored_but_unread_parameters() -> list[str]:
@@ -132,6 +165,41 @@ def _stored_but_unread_parameters() -> list[str]:
                             f"{cls.name}.{target.attr}"
                         )
     return found
+
+
+def _unread_module_constants() -> list[str]:
+    """Module-level names assigned in a package and read nowhere in the tree.
+
+    Vulture does not report unused module-level constants at all, so this is
+    the third blind spot: a `_THUMB_H = 64` nothing measures sits there for
+    good. A name is only reported when it appears in no other file either, so
+    a constant one module defines and another imports is safe.
+    """
+    read = _names_read_per_file()
+    found: list[str] = []
+    for package in PACKAGE_DIRS:
+        for path in sorted(package.rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            here = str(path.relative_to(_ROOT))
+            elsewhere = set().union(
+                *(names for name, names in read.items() if name != here))
+            for node in tree.body:
+                targets = []
+                if isinstance(node, ast.Assign):
+                    targets = [t for t in node.targets if isinstance(t, ast.Name)]
+                elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                    targets = [node.target]
+                for target in targets:
+                    if target.id not in read[here] and target.id not in elsewhere:
+                        found.append(f"{here}:{node.lineno}: {target.id}")
+    return found
+
+
+def test_no_module_level_constant_goes_unread():
+    """A constant nobody measures against is a number with no meaning left."""
+    unread = _unread_module_constants()
+
+    assert not unread, "Assigned and never read:\n" + "\n".join(unread)
 
 
 def test_no_constructor_parameter_is_stored_and_never_read():
