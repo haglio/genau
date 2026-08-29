@@ -22,8 +22,6 @@ except Exception as _exc:  # pyopenxr raises NotImplementedError off Windows, no
     xr = None  # type: ignore[assignment]
     _OPENXR_IMPORT_ERROR = str(_exc)
 
-OPENXR_AVAILABLE: bool = xr is not None
-
 logger = logging.getLogger(__name__)
 
 
