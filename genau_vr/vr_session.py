@@ -337,7 +337,7 @@ class VRSession:
 
         return should_render, frame_state.predicted_display_time, views
 
-    def bind_eye_framebuffer(self, eye_index: int) -> int:
+    def bind_eye_framebuffer(self, eye_index: int) -> None:
         sc_info = self.swapchains[eye_index]
         image_index = xr.acquire_swapchain_image(sc_info.handle, xr.SwapchainImageAcquireInfo())
         xr.wait_swapchain_image(sc_info.handle, xr.SwapchainImageWaitInfo(timeout=xr.INFINITE_DURATION))
@@ -352,7 +352,6 @@ class VRSession:
             GL.GL_RENDERBUFFER, self._depth_buffers[eye_index],
         )
         GL.glViewport(0, 0, sc_info.width, sc_info.height)
-        return image_index
 
     def release_eye_framebuffer(self, eye_index: int) -> None:
         GL.glFlush()
