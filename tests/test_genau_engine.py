@@ -9,7 +9,7 @@ class TestUpdateEngine:
     def test_initial_raw_bpm_sets_estimated_and_target_bpm(self):
         engine = PlaybackEngine(last_tick=100.0)
 
-        loop_duration = update_engine(
+        returned = update_engine(
             engine,
             now=100.05,
             auto_active=False,
@@ -21,7 +21,7 @@ class TestUpdateEngine:
             paused=False,
         )
 
-        assert loop_duration is None
+        assert returned is None, "update_engine is a command, not a query"
         assert engine.target_bpm == pytest.approx(120.0)
         assert engine.estimated_bpm == pytest.approx(120.0)
 
@@ -43,10 +43,11 @@ class TestUpdateEngine:
         assert engine.target_bpm == pytest.approx(130.0)
         assert engine.estimated_bpm == pytest.approx(107.5)
 
-    def test_auto_active_advances_phase_using_loop_duration(self):
+    def test_auto_active_advances_phase_by_one_tick_of_the_loop(self):
+        """0.05 s at 120 bpm over 4 beats is a fortieth of a 2 s loop."""
         engine = PlaybackEngine(last_tick=100.0, estimated_bpm=120.0, target_bpm=120.0, phase=0.1)
 
-        loop_duration = update_engine(
+        returned = update_engine(
             engine,
             now=100.05,
             auto_active=True,
@@ -58,13 +59,13 @@ class TestUpdateEngine:
             paused=False,
         )
 
-        assert loop_duration == pytest.approx(2.0)
+        assert returned is None
         assert engine.phase == pytest.approx(0.125)
 
     def test_paused_does_not_advance_phase_even_when_auto_active(self):
         engine = PlaybackEngine(last_tick=100.0, estimated_bpm=120.0, target_bpm=120.0, phase=0.4)
 
-        loop_duration = update_engine(
+        returned = update_engine(
             engine,
             now=100.05,
             auto_active=True,
@@ -76,7 +77,7 @@ class TestUpdateEngine:
             paused=True,
         )
 
-        assert loop_duration is None
+        assert returned is None
         assert engine.phase == pytest.approx(0.4)
 
     def test_sync_pulse_corrections_pull_phase_toward_zero(self):

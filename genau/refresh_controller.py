@@ -199,7 +199,7 @@ class GenauRefreshController:
 
         self.notifier.announce_visible(self.renderer.current_clip_path)
 
-        loop_duration = update_engine(
+        update_engine(
             self.engine,
             now=now,
             auto_active=auto_active,
