@@ -1,10 +1,4 @@
-"""Who owns the OSR2 when Genau runs under Fun Time.
-
-All that is left of what was ``runtime_support``: the logging, threading, CLI and
-subprocess scaffolding it held alongside this is now ``app_support``, and the
-command/paused file channel is ``player_core.file_channel``. What remains is one
-piece of policy, and it is Genau's alone.
-"""
+"""Who owns the OSR2 when Genau runs under Fun Time."""
 from __future__ import annotations
 
 from pathlib import Path

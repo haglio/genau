@@ -66,16 +66,13 @@ class RateLimitedTCodeSender:
         """Genau has the device again: resume the stroke from the foot of its
         swing, and ease onto it.
 
-        The funscript's turn leaves the device at its park, and the frozen
-        phase could be anywhere in the cycle — resuming there aimed the first
-        commands at whatever height the swing happened to freeze at, a lunge
-        across most of the range.  From the bottom, and through the rise: the
-        stroke's floor can sit well above the park (amplitude under 100, a
-        raised center), and starting the swing there jumped the device across
-        the gap — so the swing holds while the device climbs park-to-floor over
-        :data:`~player_core.funscript.HANDOFF_RAMP_MS`, then begins.  A
-        floor already on the park skips the climb; the stroke starts at once,
-        as it always did at full amplitude.
+        The funscript's turn leaves the device at its park and the frozen phase
+        could be anywhere in the cycle, so the stroke resumes from the bottom
+        rather than from wherever it froze.  The stroke's floor can sit well
+        above the park (amplitude under 100, a raised center), so the swing
+        holds while the device climbs park-to-floor over
+        :data:`~player_core.funscript.HANDOFF_RAMP_MS`, then begins.  A floor
+        already on the park skips the climb and the stroke starts at once.
         """
         self.rest_at_bottom()
         if self._compute_position() > _RISE_SKIP_BELOW:
@@ -103,8 +100,7 @@ class RateLimitedTCodeSender:
         resume with, not the position it stopped at — and it is the one number
         the trace cannot recompute when it draws the descent.  Nothing is sent:
         the driver taking the device owns walking it down (its first park is
-        the handoff ramp), and a second writer's glide here was superseded
-        within a tick and only bent the descent.
+        the handoff ramp).
         """
         self._let_go_position = self.current_position()
         self.rest_at_bottom()

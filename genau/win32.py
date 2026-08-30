@@ -201,8 +201,7 @@ def take_taskbar_identity(
     Stamping edits a shortcut under %APPDATA%, outside every checkout, and that
     shortcut launches the installed app.  A session on an explicit --config (a
     test run's temp one, an alternate of the developer's) is a different
-    instance, and the pin points at neither of them.  Fun Time's integration
-    suite launches Nau and Genau on a temp config, so every run was doing it.
+    instance, and the pin points at neither of them.
 
     Paths resolve before comparing: Nau and GenauVR each build their own spelling
     of the one config file, and an argparse default arrives unresolved, so the
