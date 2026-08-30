@@ -12,6 +12,7 @@ from player_core.console_hud import ConsoleHud, ModeHud
 from player_core.drive_readout import TRACE_SAMPLES, DriveHud, publish_drive
 from .engine import update_engine
 from .controls import GenauControls
+from .device_handoff import DeviceHandoff
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
 from .status_writer import write_status_file
@@ -82,7 +83,11 @@ class GenauRefreshController:
         self.consume_command = consume_command
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
         self.tcode_sender = tcode_sender
-        self.broker_cmd_file = broker_cmd_file
+        self.handoff = DeviceHandoff(
+            playing=self.direct_state.playing,
+            tcode_sender=tcode_sender,
+            broker_cmd_file=broker_cmd_file,
+        )
         self.drive_file = drive_file
         self.console_file = console_file
         self._last_drive_publish = 0.0
@@ -98,10 +103,6 @@ class GenauRefreshController:
         self._prev_hud_active: bool = (
             self.hud_state["active"] if self.hud_state is not None else False
         )
-        # Seeded from the state itself, so a PAUSE queued before the first
-        # refresh reads as a real falling edge against the state the controller
-        # was built in.
-        self._prev_playing: bool = self.direct_state.playing
         # Which half of the clip is showing, and what is known about the end
         # the stroke is at — see :meth:`_scrub_the_clip`.
         self._scrub = ClipScrub()
@@ -182,22 +183,9 @@ class GenauRefreshController:
             paused=paused,
         )
 
-        # The device changing hands, both directions, seen the same tick the
-        # command landed (the drain above runs first).  Symmetric on purpose:
-        # the falling edge latches where the device was and rests the swing;
-        # the rising edge arms the climb out of the park.
-        now_playing = self.direct_state.playing
-        prev_playing = self._prev_playing
-        if self.tcode_sender is not None:
-            if now_playing and not prev_playing:
-                self.tcode_sender.take_over()
-            elif prev_playing and not now_playing:
-                self.tcode_sender.hand_over()
-        if self.broker_cmd_file is not None and now_playing != prev_playing:
-            self.broker_cmd_file.write_text(
-                "RESUME" if now_playing else "PARK", encoding="utf-8",
-            )
-        self._prev_playing = now_playing
+        # Seen the same tick the command landed, because the drain above runs
+        # first.
+        self.handoff.watch(self.direct_state.playing)
 
         if self.tcode_sender is not None and direct_active and self.direct_state.playing:
             self.tcode_sender.maybe_send(self.engine.phase, now)

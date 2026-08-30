@@ -90,7 +90,7 @@ GENAU_NOT_VERBS: dict[str, str] = {
     "AUTO": "genau/state.py — a UDP verb the broker sends",
     "BPM": "genau/state.py — a UDP verb the broker sends",
     "SYNC": "genau/state.py — a UDP verb the broker sends",
-    "PARK": "genau/refresh_controller.py — written to the broker, not read from Fun Time",
+    "PARK": "genau/device_handoff.py — written to the broker, not read from Fun Time",
     "APPDATA": "genau/win32.py — an environment variable",
     "L0": "genau/tcode.py — the T-Code axis",
     "RGB": "genau/pygame_view.py — a pygame surface format",
