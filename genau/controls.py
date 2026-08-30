@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
-from typing import Callable, Mapping, MutableMapping
+from typing import Callable, MutableMapping
 
 from player_core.cruise_control import (
     CruiseControlState,
@@ -38,6 +38,7 @@ from player_core.direct_control import (
     set_speed,
 )
 
+from .control_registry import Control, Verb, bind, bind_keys
 from .clip_advance import (
     ClipAdvanceState,
     adjust_interval,
@@ -67,59 +68,14 @@ class GenauControls:
     reorder_clips: Callable[[bool], None] | None = None
 
 
-# What a verb does when it lands: move something on the controls, and say whether
-# it could.  The value is the rest of the line after the verb, empty when there
-# was none.
+# The acts below all take these controls and the rest of the line, and say
+# whether they could.
 Act = Callable[[GenauControls, str], bool]
 
 # Fun Time's spelling for the quarter-turn of the stroke's phase.  Named because
 # two spellings of it once shipped side by side, which is the drift a literal per
 # branch invites.
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
-
-
-@dataclass(frozen=True)
-class Verb:
-    """One spelling an orchestrator may send, and the key that means the same.
-
-    ``takes_a_value`` is part of the spelling, not a convenience: ``AMP`` alone
-    and ``SPEED_UP 5`` are both refused, because half a command is not a command.
-
-    ``key`` is the name of the pygame constant a press on Genau's own window
-    arrives as -- the name rather than the constant, so this module stays free
-    of the window library.  Declaring it here is the point: a key and a verb
-    that mean the same thing are one line, so they cannot drift into meaning
-    two things, which they had (see the `/` key in CHANGELOG.md).
-    """
-
-    spelling: str
-    act: Act
-    takes_a_value: bool = False
-    key: str | None = None
-
-
-@dataclass(frozen=True)
-class Control:
-    """One thing a person can move, declared in one place.
-
-    A control used to be spread over four to six files -- a branch in the
-    dispatcher, a parameter and an attribute on the refresh controller, a branch
-    in the key handler, a line in the status file -- with nothing tying the
-    pieces together but the reader's memory.  Here it is one record: what it is
-    called, what it cannot act without, and the verbs that move it.
-
-    ``needs`` names fields of :class:`GenauControls`.  A build that did not wire
-    one of them refuses this control's verbs and logs them, rather than acting on
-    half of what was asked -- the same rule the ``and X is not None`` guard on
-    every branch used to spell out one verb at a time.
-    """
-
-    name: str
-    verbs: tuple[Verb, ...]
-    needs: tuple[str, ...] = ()
-
-    def can_act(self, controls: GenauControls) -> bool:
-        return all(getattr(controls, name) is not None for name in self.needs)
 
 
 def _stepper(step: int) -> Act:
@@ -427,48 +383,5 @@ CONTROLS: tuple[Control, ...] = (
 )
 
 
-def _bind(controls: tuple[Control, ...]) -> Mapping[str, tuple[Control, Verb]]:
-    """Flatten the registry to the map the dispatcher looks a verb up in.
-
-    Two controls claiming one spelling is refused here rather than resolved: the
-    loser would go silently unreachable, which is precisely the drift the
-    registry exists to stop.  It is an import-time answer, so a malformed
-    registry cannot get as far as a running app.
-    """
-    bound: dict[str, tuple[Control, Verb]] = {}
-    for control in controls:
-        for verb in control.verbs:
-            if verb.spelling in bound:
-                other, _ = bound[verb.spelling]
-                raise ValueError(
-                    f"{verb.spelling} is claimed by both "
-                    f"{other.name} and {control.name}"
-                )
-            bound[verb.spelling] = (control, verb)
-    return bound
-
-
-def _bind_keys(controls: tuple[Control, ...]) -> Mapping[str, tuple[Control, Verb]]:
-    """The keys the registry declares, by the name of the pygame constant.
-
-    Two verbs on one key is refused the same way and for the same reason as two
-    controls on one verb: whichever the window looked up second would never
-    fire, and nothing would say so.
-    """
-    bound: dict[str, tuple[Control, Verb]] = {}
-    for control in controls:
-        for verb in control.verbs:
-            if verb.key is None:
-                continue
-            if verb.key in bound:
-                _, other = bound[verb.key]
-                raise ValueError(
-                    f"{verb.key} is claimed by both "
-                    f"{other.spelling} and {verb.spelling}"
-                )
-            bound[verb.key] = (control, verb)
-    return bound
-
-
-VERBS: Mapping[str, tuple[Control, Verb]] = _bind(CONTROLS)
-KEYS: Mapping[str, tuple[Control, Verb]] = _bind_keys(CONTROLS)
+VERBS = bind(CONTROLS)
+KEYS = bind_keys(CONTROLS)

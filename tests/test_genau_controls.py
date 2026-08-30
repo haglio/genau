@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-from genau.controls import CONTROLS, VERBS, Control, GenauControls, Verb, _bind
+from genau.control_registry import Control, Verb, bind
+from genau.controls import CONTROLS, VERBS, GenauControls
 from genau.engine import PlaybackEngine
 from player_core.direct_control import DirectControlState
 
@@ -31,7 +32,7 @@ class TestOneVerbHasOneOwner:
         )
 
         with pytest.raises(ValueError) as refused:
-            _bind(clash)
+            bind(clash)
 
         assert "EXAMPLE_VERB" in str(refused.value)
         assert "one" in str(refused.value) and "two" in str(refused.value)
