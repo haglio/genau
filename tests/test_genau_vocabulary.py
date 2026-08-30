@@ -375,6 +375,81 @@ class TestGenauVrAnswersEveryVerbWrittenDown:
         assert spoken <= set(GVR_VERBS)
 
 
+class TestHowManyFilesAControlIsSpreadOver:
+    """The number this whole item exists to move.
+
+    A control used to be hand-plumbed through four to six files -- a keyword
+    parameter and a branch in the dispatcher, a parameter and an attribute and a
+    hand-off line on the tick, a branch in the key handler, a line in the status
+    file -- and the two hottest files in the repo changed together in 22 of 46
+    commits because of it.
+
+    Held as a ceiling that fails rather than as a note, and measured the way a
+    reader would: which files in the package spell the verb at all.  Two are
+    allowed, and only two: the registry that declares it, and the voice grammar,
+    which maps spoken phrases to verbs and is a second vocabulary by nature.
+    """
+
+    DECLARED_IN = "controls.py"
+    MAY_ALSO_SPELL_IT = "voice.py"
+
+    # One spelling belongs to two protocols.  device_handoff.py writes RESUME
+    # and PARK to the *broker*, so the room's other player can take the device
+    # over; that RESUME is not the verb Fun Time sends Genau, it is the word
+    # Genau sends onward, and the two are unrelated.  Written down rather than
+    # tolerated, so a genuine second home for a verb still reds this.
+    ELSEWHERE = {"RESUME": {"device_handoff.py"}}
+
+    @staticmethod
+    def _files_naming(verb: str, package: str) -> set[str]:
+        naming = set()
+        for path in sorted((REPO_DIR / package).rglob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            if any(isinstance(n, ast.Constant) and n.value == verb
+                   for n in ast.walk(tree)):
+                naming.add(path.name)
+        return naming
+
+    @pytest.mark.parametrize("verb", sorted(GENAU_VERBS))
+    def test_genau_declares_it_in_one_file(self, verb):
+        naming = self._files_naming(verb, "genau")
+
+        assert self.DECLARED_IN in naming
+        allowed = {self.DECLARED_IN, self.MAY_ALSO_SPELL_IT} | self.ELSEWHERE.get(verb, set())
+        assert naming <= allowed, verb
+
+    @pytest.mark.parametrize("verb", sorted(GVR_VERBS))
+    def test_genau_vr_declares_it_in_one_file(self, verb):
+        naming = self._files_naming(verb, "genau_vr")
+
+        assert self.DECLARED_IN in naming
+        assert naming <= {self.DECLARED_IN, self.MAY_ALSO_SPELL_IT}, verb
+
+    def test_the_registry_is_the_only_file_that_declares_a_key(self):
+        """The other half of the plumbing: a key used to be a branch in the key
+        handler, a callback parameter, and a lambda in the composition root."""
+        from genau.controls import KEYS
+
+        assert set(_scan("genau")[1]) == set(KEYS)
+
+    def test_the_window_keeps_exactly_the_three_keys_that_have_no_verb(self):
+        """The registry is where a key goes.  Three cannot be there: ESC and
+        SPACE are two spellings of play/pause with two rules and no verb between
+        them, and `/` is held out because it does not hand the cruise phase back
+        the way TOGGLE_CRUISE does (CHANGELOG.md, 2026-08-30).  Anything else
+        added beside them is a key plumbed by hand again, which is what this
+        item removed -- so the set is held as an equality.
+        """
+        lifecycle = REPO_DIR / "genau" / "lifecycle.py"
+        tree = ast.parse(lifecycle.read_text(encoding="utf-8"), filename=str(lifecycle))
+        calls = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "keymap"]
+
+        assert len(calls) == 1, "the window builds its keymap in one place"
+        assert {kw.arg for kw in calls[0].keywords} == {
+            "K_ESCAPE", "K_SPACE", "K_SLASH"}
+
+
 class TestTheTwoDispatchersDivergeOnlyWhereSaid:
     """One vocabulary, two receivers — and the difference is a written fact.
 
