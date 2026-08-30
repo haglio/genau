@@ -24,9 +24,8 @@ from .library import (
 )
 from .sidecar import read_clip, read_version_group
 
-# The app starts unfiltered — which is what Fun Time's own playlist has always
-# been, so a player that opened claiming "full length" was claiming a filter it
-# was not running.  The toggle walks all three in this order and wraps.
+# The app starts unfiltered, which is what Fun Time's own playlist is.  The
+# toggle walks all three in this order and wraps.
 LENGTH_MODES = (MIXED, SHORTS, FULL)
 DEFAULT_MODE = MIXED
 
@@ -44,9 +43,9 @@ def length_mode_rebuilds(requested: str, current: str, *, in_compilation: bool) 
 
     Naming the mode already running asks for nothing, and the rebuild it would
     trigger is not nothing: the playlist is reshuffled and landed on at entry 0,
-    so saying "mixed" twice puts two different videos on screen.  Fun Time's reset
-    says it on every press, which made a control meaning "put it back" the
-    quickest way to keep changing what was playing.
+    so saying "mixed" twice puts two different videos on screen — and Fun Time's
+    reset says it on every press, so a control meaning "put it back" would
+    otherwise be the quickest way to keep changing what is playing.
 
     Inside a compilation the same words do have work, and are the point:
     PLAY_COMPILATION swaps the playlist for one volume's clips without touching

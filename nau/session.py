@@ -428,9 +428,9 @@ class PlayerSession:
             self._tcode.reset()
         elif rewound:
             # The plain locked wrap (loop-file), same story: a seek to the
-            # start in all but name.  Without the reset, a clip scripted to
-            # its edges aimed an un-glided waypoint from the last action's
-            # height to the first action's, a full-range slam every pass.
+            # start in all but name.  Without the reset a clip scripted to its
+            # edges aims an un-glided waypoint from the last action's height to
+            # the first action's, a full-range slam every pass.
             self._tcode.reset()
 
         if self._tcode_enabled:
