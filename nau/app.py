@@ -36,6 +36,7 @@ from .volume_control import VolumeControl
 from .clip_nav import ClipNav
 from .display import Display
 from .funscript_jumps import FunscriptJumps
+from .input import Input
 from player_core.console_hud import ConsolePainter
 from .notice import NoticeWriter
 from .loading import LoadingCancelled, LoadingScreen
@@ -290,9 +291,11 @@ def _run(args) -> int:
         reload_playlist, session, jumps,
         partial(resolve_playlist, args, source=source)
         if args.playlist is not None else None)
-    # What this window's keyboard and mouse reach.  See nau.keys, nau.pointer.
+    # What this window's keyboard and mouse reach, and what SDL's events are
+    # taken to mean.  See nau.keys, nau.pointer, nau.input.
     keys = Keys(session, modes, dashboard, stop_event)
     pointer = Pointer(session, heatmap, volume, console_hud, dashboard)
+    window_input = Input(pointer, keys, dashboard, stop_event)
     # Everything this window draws on top of the video, and the order it goes up
     # in.  See nau.painter.
     painter = Painter(
@@ -301,20 +304,7 @@ def _run(args) -> int:
 
     while not stop_event.is_set():
         win_w, win_h = screen.get_size()
-        for ev in pygame.event.get():
-            if ev.type == pygame.QUIT:
-                dashboard.take_quit_gesture(stop_event)
-            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
-            elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:
-                pointer.release()
-            elif ev.type == pygame.MOUSEMOTION:
-                pointer.motion(*ev.pos, held=bool(ev.buttons[0]),
-                               win_w=win_w, win_h=win_h)
-            elif ev.type == pygame.KEYDOWN:
-                keys.press(ev.key, ev.mod)
-            elif ev.type == pygame.KEYUP:
-                keys.release(ev.key)
+        window_input.deal(pygame.event.get(), win_w, win_h)
 
         if paused_file is not None:
             session.set_paused(read_paused_state(paused_file, logger=logger))
