@@ -63,6 +63,11 @@ def _load_icon_surface():
         img = Image.open(_ICON_PATH).convert("RGBA")
         return pygame.image.fromstring(img.tobytes(), img.size, "RGBA")
     except Exception:
+        # Broad, because a window without its icon is still a window -- but
+        # said, because a permanently missing icon otherwise reads in the log
+        # exactly like one that loaded.
+        logger.debug("No window icon: %s could not be read", _ICON_PATH,
+                     exc_info=True)
         return None
 
 
@@ -99,7 +104,10 @@ def _name_this_process() -> None:
         from app_support.process_identity import ProcessNamer
         ProcessNamer("Nau", icon=_ICON_PATH).prepare_launcher("Nau")
     except Exception:
-        pass  # Cosmetic: costs a name in the task list, never a launch.
+        # Costs a name in the task list, never a launch.  Unbound on purpose:
+        # tests/test_process_names.py reads this function as text and asks for
+        # this exact line, which is what says a naming failure cannot escape.
+        logger.debug("Left the launcher unnamed", exc_info=True)
 
 
 def _set_aumid(config_path, taskbar_identity: str | None = None) -> None:
@@ -123,7 +131,8 @@ def _set_aumid(config_path, taskbar_identity: str | None = None) -> None:
             _APP_USER_MODEL_ID, include="nau", exclude="genau", config_path=config_path,
         )
     except Exception:
-        pass
+        # A window on the wrong taskbar button is a launch that happened.
+        logger.debug("No taskbar identity claimed", exc_info=True)
 
 
 
