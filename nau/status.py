@@ -9,7 +9,13 @@ publishes them.
 """
 from __future__ import annotations
 
-from .descent_latch import DescentLatch
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # For the annotation only.  This module is the field set itself, and it is
+    # worth being able to read it -- by import or by syntax tree -- without
+    # dragging the trace's machinery, and player_core behind it, along.
+    from .descent_latch import DescentLatch
 
 
 def next_handoff_touch(script, position_ms: int, latch: DescentLatch) -> int | None:
