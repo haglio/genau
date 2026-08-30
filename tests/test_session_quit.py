@@ -16,10 +16,13 @@ has its own tests in ``test_nau_dashboard``; Genau's calls ``quit_gesture``
 directly.  Either way the regression is the same, and it is the call the loop
 makes that the scan is about.
 
-Nau's events are dealt in ``nau.input`` now rather than inside its run loop, and
-a synthetic QUIT can be fed to that (``test_nau_input``), so for Nau this scan
-is a second line rather than the only one: it says the branch is still there
-where the events are answered.  Genau's loop is still the only cover there is.
+Nau's events are dealt in ``nau.input`` now rather than inside its run loop, so
+for Nau the scan is a chain of two: the loop hands its events on, and the module
+it hands them to asks the session.  Both links are named below, because scanning
+only the second would pass a loop that took its events back and ended itself,
+with ``nau/input.py`` sitting there correct and unused.  A synthetic QUIT can be
+fed to that module directly as well (``test_nau_input``), which Genau's loop has
+no equivalent of -- there the scan is still the only cover there is.
 """
 from __future__ import annotations
 
@@ -33,6 +36,12 @@ REPO = Path(__file__).resolve().parents[1]
 # loading screen is not one: it runs before the session has a dispatch loop to
 # ask, so giving up on the wait there is still this window's own business.
 PLAYER_LOOPS = {
+    # Nau's is a chain of two now, and both links are scanned: the loop must
+    # still hand its events to nau.input, and nau.input must still answer a
+    # QUIT by asking.  Scanning only the second would pass a loop that took its
+    # events back and ended itself, leaving nau/input.py sitting there correct
+    # and unused.
+    REPO / "nau" / "app.py": "deal",
     REPO / "nau" / "input.py": "take_quit_gesture",
     REPO / "genau" / "lifecycle.py": "quit_gesture",
 }
