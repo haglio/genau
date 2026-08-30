@@ -35,9 +35,12 @@ class ConsolePointer:
         The chip is tried first: it floats in its own corner, so a press on it is
         never also a press on the panel.
         """
-        volume = self.view.press_volume_at(mx, my)
-        if volume:
-            self._post(volume)
+        volume = self.view.volume_press_at(mx, my)
+        if volume is not None:
+            # Shown first, asked for second: the chip is following the pointer
+            # and Fun Time's answer is a tick away.
+            self.view.set_volume(volume.level, volume.muted)
+            self._post(volume.command)
             return
         self._post(self.view.console_press_at(mx, my))
 

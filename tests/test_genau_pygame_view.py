@@ -216,27 +216,66 @@ def test_the_volume_chip_sits_where_naus_does_with_no_timeline_under_it(mock_pyg
     assert mock_pygame.Rect.call_args.args == (nau_x, nau_y, CHIP_W, CHIP_H)
 
 
-def test_a_press_on_the_chip_asks_fun_time_and_shows_the_new_level_at_once(mock_pygame):
-    """Fun Time owns the level, so the press is a request — but its answer is a
+class TestAPressOnTheVolumeChip:
+    """Fun Time owns the level, so a press is a request — but its answer is a
     tick away, and a slider that waited for it would drag a frame behind the
-    pointer.  The speaker end asks for the mute instead."""
-    from player_core.volume import CHIP_W, VolumeHud, chip_xy
-    from genau.pygame_view import PygameView
+    pointer.  So the press says both what to ask for and what to show meanwhile,
+    and the caller does both; asking is not itself a move."""
 
-    view = PygameView(width=800, height=600)
-    view.window.size = (800, 600)
-    view.set_volume(30, False)
-    vx, vy = chip_xy(win_w=800, win_h=600, timeline_h=0)
+    @staticmethod
+    def _view(mock_pygame, level=30, muted=False):
+        from genau.pygame_view import PygameView
 
-    assert view.press_volume_at(vx + CHIP_W - 2, vy + 10) == "audio_set_volume|100"
-    assert view._volume == VolumeHud(volume=100, muted=False)
+        view = PygameView(width=800, height=600)
+        view.window.size = (800, 600)
+        view.set_volume(level, muted)
+        return view
 
-    assert view.press_volume_at(vx + 3, vy + 10) == "audio_mute"
-    assert view._volume == VolumeHud(volume=100, muted=True)
-    assert view.press_volume_at(vx + 3, vy + 10) == "audio_unmute"
+    @staticmethod
+    def _at(part: str):
+        from player_core.volume import CHIP_W, chip_xy
 
-    # A press nowhere near it asks for nothing, so the console behind gets it.
-    assert view.press_volume_at(10, 10) == ""
+        vx, vy = chip_xy(win_w=800, win_h=600, timeline_h=0)
+        return (vx + CHIP_W - 2, vy + 10) if part == "far end" else (vx + 3, vy + 10)
+
+    def test_the_far_end_of_the_track_asks_for_full_volume(self, mock_pygame):
+        press = self._view(mock_pygame).volume_press_at(*self._at("far end"))
+
+        assert press.command == "audio_set_volume|100"
+        assert (press.level, press.muted) == (100, False)
+
+    def test_the_speaker_end_asks_for_the_mute(self, mock_pygame):
+        press = self._view(mock_pygame).volume_press_at(*self._at("speaker"))
+
+        assert press.command == "audio_mute"
+        assert press.muted is True
+
+    def test_pressing_a_muted_speaker_asks_to_unmute(self, mock_pygame):
+        press = self._view(mock_pygame, muted=True).volume_press_at(*self._at("speaker"))
+
+        assert press.command == "audio_unmute"
+        assert press.muted is False
+
+    def test_the_mute_leaves_the_level_where_it_was(self, mock_pygame):
+        """Muting is not turning it down: unmuting has to come back to here."""
+        press = self._view(mock_pygame, level=30).volume_press_at(*self._at("speaker"))
+
+        assert press.level == 30
+
+    def test_asking_does_not_itself_move_the_chip(self, mock_pygame):
+        """It used to, which is why nothing could ask what a press would do
+        without it having already happened."""
+        from player_core.volume import VolumeHud
+
+        view = self._view(mock_pygame, level=30)
+
+        view.volume_press_at(*self._at("far end"))
+
+        assert view._volume == VolumeHud(volume=30, muted=False)
+
+    def test_a_press_nowhere_near_it_asks_for_nothing(self, mock_pygame):
+        """So the console behind the chip gets it instead."""
+        assert self._view(mock_pygame).volume_press_at(10, 10) is None
 
 
 def test_the_published_level_is_what_the_chip_shows(mock_pygame):

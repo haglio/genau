@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -25,22 +26,14 @@ HUD_COLOR_KEY = (1, 0, 1)
 
 
 def get_window_chrome_height() -> int:
-    """The title bar + frame a bordered window costs at the top, so the client
-    area can be sized down to keep the video inside the rect.  Zero off Windows,
-    and zero for a borderless window, which has no chrome to measure."""
-    try:
-        import ctypes
-        SM_CYCAPTION = 4
-        SM_CYFRAME = 33
-        SM_CXPADDEDBORDER = 92
-        user32 = ctypes.windll.user32
-        return (
-            user32.GetSystemMetrics(SM_CYCAPTION)
-            + user32.GetSystemMetrics(SM_CYFRAME)
-            + user32.GetSystemMetrics(SM_CXPADDEDBORDER)
-        )
-    except Exception:
-        return 0
+    """What a bordered window costs at the top — see genau.win32.
+
+    Kept here as the name Nau and this view both already reach for; the
+    measuring itself is Win32's and lives with the rest of it.
+    """
+    from .win32 import window_chrome_height
+
+    return window_chrome_height()
 
 
 def hud_window_identity(
@@ -56,6 +49,21 @@ def hud_window_identity(
     if active and hybrid_title is not None:
         return hybrid_title, hybrid_icon if hybrid_icon is not None else base_icon
     return base_title, base_icon
+
+
+@dataclass(frozen=True)
+class VolumePress:
+    """What a press on the volume chip asks for, and what to show meanwhile.
+
+    Fun Time holds the authority over the level and its answer is a tick away,
+    so a slider that waited for it would drag a frame behind the pointer.  The
+    chip shows this at once; Fun Time's answer overwrites it either way, which
+    is what corrects a press it decides to ignore.
+    """
+
+    command: str
+    level: int
+    muted: bool
 
 
 def _layered_window(title: str):
@@ -197,26 +205,30 @@ class PygameView:
         """Show the level Fun Time is publishing for the primary display."""
         self._volume = VolumeHud(volume=level, muted=muted)
 
-    def press_volume_at(self, mx: int, my: int) -> str:
-        """The command a press at ``(mx, my)`` posts on the volume chip, "" over none.
+    def volume_press_at(self, mx: int, my: int) -> VolumePress | None:
+        """What a press at ``(mx, my)`` on the volume chip asks for, or None
+        over no part of it.
 
-        The new level is shown at once and asked for at the same time: Fun Time
-        holds the authority and its answer is a tick away, so a slider that waited
-        for it would drag a frame behind the pointer.  Its answer overwrites this
-        one either way, which is what corrects a press it decides to ignore.
+        A question, not a move: it says what to ask Fun Time for *and* what the
+        chip should show meanwhile, and the caller does both.  Showing it here
+        made a hit test that also mutated, which is why nothing could ask what a
+        press would do without it having already happened.
         """
         win_w, win_h = self.window.size
         cx, cy = chip_local(mx, my, win_w=win_w, win_h=win_h, timeline_h=0)
         part = hit_part(cx, cy)
         if part == "mute":
             muted = not self._volume.muted
-            self._volume = VolumeHud(volume=self._volume.volume, muted=muted)
-            return "audio_mute" if muted else "audio_unmute"
+            return VolumePress(
+                command="audio_mute" if muted else "audio_unmute",
+                level=self._volume.volume,
+                muted=muted,
+            )
         if part == "track":
             level = volume_at(cx)
-            self._volume = VolumeHud(volume=level, muted=False)
-            return f"audio_set_volume|{level}"
-        return ""
+            return VolumePress(
+                command=f"audio_set_volume|{level}", level=level, muted=False)
+        return None
 
     def set_console_hover(self, mx: int, my: int) -> None:
         """Remember where the cursor is over the console, so a button under it

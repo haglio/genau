@@ -25,6 +25,30 @@ _WS_EX_LAYERED = 0x80000
 _LWA_COLORKEY = 0x1
 
 
+# What a bordered window costs at the top: the caption, the frame, and the
+# padded border Windows adds around it.
+_SM_CYCAPTION = 4
+_SM_CYFRAME = 33
+_SM_CXPADDEDBORDER = 92
+
+
+def window_chrome_height() -> int:
+    """The title bar + frame a bordered window costs at the top, so the client
+    area can be sized down to keep the video inside the rect.
+
+    Zero where there is no Win32 to ask, and zero for a borderless window, which
+    has no chrome to measure.
+    """
+    try:
+        return (
+            _user32.GetSystemMetrics(_SM_CYCAPTION)
+            + _user32.GetSystemMetrics(_SM_CYFRAME)
+            + _user32.GetSystemMetrics(_SM_CXPADDEDBORDER)
+        )
+    except Exception:
+        return 0
+
+
 def _colorref(rgb: tuple[int, int, int]) -> int:
     """A Win32 COLORREF, which is 0x00BBGGRR — the reverse of RGB.
 
