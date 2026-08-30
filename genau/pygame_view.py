@@ -86,18 +86,17 @@ class PygameView:
         borderless: bool = False,
     ) -> None:
         # Before the window exists, and before pygame.init(): SDL otherwise eats
-        # the click that focuses this window, so every press on the console had
+        # the click that focuses this window, so every press on the console has
         # to be made twice — once to wake the window, once to hit the button.
-        # See player_core.sdl_hints for the whole mechanism; the satellites have
-        # asked for this all along and the console had not.
+        # See player_core.sdl_hints for the whole mechanism.
         deliver_the_focusing_click()
         pygame.init()
-        # Borderless under Fun Time, like the satellites and Nau: the main slot
-        # slot's mode was readable off this window's title bar, but that moved onto
-        # the in-video HUD, so the bar only took space.  With no chrome the client
-        # area is the whole rect Fun Time sizes the window to — and, in Hybrid, this
-        # transparent layer lines up with Nau's video beneath it pixel for pixel,
-        # where a title bar on one and not the other would shift them apart.
+        # Borderless under Fun Time, like the satellites and Nau: with no chrome
+        # the client area is the whole rect Fun Time sizes the window to — and,
+        # in Hybrid, this transparent layer lines up with Nau's video beneath it
+        # pixel for pixel, where a title bar on one and not the other would
+        # shift them apart.  The main slot's mode is drawn on the in-video HUD,
+        # so the bar would carry nothing.
         # Standalone it keeps its chrome, so it can be dragged and closed like any
         # window, and the client is sized down to leave the video inside the rect.
         if borderless:

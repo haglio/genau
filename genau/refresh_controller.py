@@ -104,11 +104,9 @@ class GenauRefreshController:
         self.set_volume = set_volume or (lambda _level, _muted: None)
         self.reorder_clips = reorder_clips
         self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
-        # Seeded from the state itself, not None: the drain now runs at the
-        # top of the tick, so a PAUSE queued before the first refresh must read
-        # as a real falling edge against the state the controller was built in —
-        # unseeded, the first tick recorded whatever the commands left and the
-        # edge they carried never fired.
+        # Seeded from the state itself, so a PAUSE queued before the first
+        # refresh reads as a real falling edge against the state the controller
+        # was built in.
         self._prev_playing: bool = direct_state.playing
         # Which half of the clip is showing, and what is known about the end
         # the stroke is at — see :meth:`_scrub_the_clip`.
@@ -127,12 +125,7 @@ class GenauRefreshController:
         self.selection.adopt_pending_clip()
 
         # Drained FIRST, before anything below reads the state the commands
-        # mutate.  Drained last, a PAUSE landed after this tick's stroke command
-        # had already gone out — one extra swing target mid-handoff — and the
-        # playing edge it flipped was recomputed at the bottom of the same tick,
-        # so the take-over the edge is supposed to arm never saw it: the resume
-        # ramp was dead code and the device slammed from the park onto the
-        # running swing.
+        # mutate, and before this tick's stroke command goes out.
         for cmd in self.consume_command(self.command_file, logger=self.logger):
             apply_runtime_command(
                 cmd,
@@ -213,8 +206,7 @@ class GenauRefreshController:
         # The device changing hands, both directions, seen the same tick the
         # command landed (the drain above runs first).  Symmetric on purpose:
         # the falling edge latches where the device was and rests the swing;
-        # the rising edge arms the climb out of the park — which never fired
-        # when this edge was read after a tick's sends had already gone out.
+        # the rising edge arms the climb out of the park.
         now_playing = self.direct_state.playing
         prev_playing = self._prev_playing
         if self.tcode_sender is not None:
