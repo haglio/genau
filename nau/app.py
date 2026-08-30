@@ -103,10 +103,11 @@ def _name_this_process() -> None:
     try:
         from app_support.process_identity import ProcessNamer
         ProcessNamer("Nau", icon=_ICON_PATH).prepare_launcher("Nau")
+    # tests/test_process_names.py reads this function as text and requires this
+    # handler, which is what says a naming failure can never cost a launch; the
+    # exception is left unbound so that line stays the one it looks for.
     except Exception:
-        # Costs a name in the task list, never a launch.  Unbound on purpose:
-        # tests/test_process_names.py reads this function as text and asks for
-        # this exact line, which is what says a naming failure cannot escape.
+        # Costs a name in the task list, never a launch.
         logger.debug("Left the launcher unnamed", exc_info=True)
 
 
