@@ -114,15 +114,19 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["speed down"] == "SPEED_DOWN"
 
     @pytest.mark.parametrize("phrase, verb", sorted(VOICE_COMMANDS.items()))
-    def test_every_spoken_phrase_names_a_verb_the_runtime_handles(self, phrase, verb):
+    def test_every_spoken_phrase_names_a_verb_the_runtime_handles(self, phrase, verb, caplog):
         """The contract, asked of the dispatcher rather than of a list.
 
         The allowlist this replaces was fifteen names typed into the test: it
         answered "is this one of the fifteen I wrote down", which a renamed
-        branch passes and a speaker does not, since an unhandled verb is simply
-        ignored at runtime with nothing said about it.
+        branch passes and a speaker does not.  Asked of the log, because that
+        is where the dispatcher now puts a verb it cannot answer and the only
+        place production can see one.
         """
-        assert apply_runtime_command(verb, **_collaborators()) is True, (
+        with caplog.at_level("WARNING", logger="genau.runtime_commands"):
+            apply_runtime_command(verb, **_collaborators())
+
+        assert caplog.records == [], (
             f"{phrase!r} says {verb!r}, which nothing handles")
 
     def test_quit_maps_to_quit_command(self):
