@@ -11,7 +11,7 @@ the module that would be wrong.
 """
 from __future__ import annotations
 
-from genau_vr.app import _resolve_tcode_endpoint
+from genau_vr.config import VrConfig
 from genau_vr.playback import (
     DirectControlState,
     RateLimitedTCodeSender,
@@ -88,10 +88,10 @@ class TestTheUdpSink:
 
         assert sock.sent[0][1] == ("127.0.0.1", 50557)
 
-    def test_the_config_default_names_the_same_endpoint(self):
+    def test_the_config_default_names_the_same_endpoint(self, tmp_path):
         """The two ways GenauVR can arrive at an endpoint have to agree, or a
         config with no T-Code section drives a different device than one with."""
-        assert _resolve_tcode_endpoint({}) == ("127.0.0.1", 50557)
+        assert VrConfig(state_dir=tmp_path).tcode_endpoint == ("127.0.0.1", 50557)
 
     def test_closing_the_sink_closes_the_socket(self):
         sock = RecordingSocket()
