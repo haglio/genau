@@ -41,18 +41,53 @@ _OV_VOLUME = 7
 HUD_OVERLAYS = (_OV_HEATMAP, _OV_IN_THUMB, _OV_OUT_THUMB, _OV_CONSOLE, _OV_VOLUME)
 
 
+class ConsolePanel:
+    """The top-left corner, and the four things it is built out of.
+
+    The video's name and the dot saying whether a bare command lands here, what
+    is selecting this playlist, what is driving the device, and every control
+    Fun Time's dashboard used to hold for this slot.  The name heads it rather
+    than sitting in a chip of its own beneath.
+
+    Its own part, because it is where the frame's reading of the outside world
+    happens: the room's two published files, and the gate that says how much of
+    the stroke to believe.  The other three overlays read none of that.
+    """
+
+    def __init__(self, session, *, room, drive_gate, console_hud, modes) -> None:
+        self._session = session
+        self._room = room
+        self._drive_gate = drive_gate
+        self._console_hud = console_hud
+        self._modes = modes
+
+    def bgra(self, *, hover):
+        """This frame's panel.  Reads the room first, then asks the gate what of
+        the stroke it published this video's picture may believe -- drawn the
+        other way round, the pill and the line describe the frame before this
+        one."""
+        self._room.refresh()
+        drive = self._drive_gate.readout(
+            self._room.drive, genau_behind=self._room.genau_drives)
+        return self._console_hud.bgra(ConsoleHud(
+            modes=self._modes.hud,
+            # Nau knows its own playback rate; Fun Time does not publish it, so
+            # it is folded in here.  The dot's `active` and everything else came
+            # down in the console file.
+            console=with_playback_speed(self._room.console, self._session.speed),
+            drive=drive,
+        ), hover=hover)
+
+
 class Painter:
     """The overlays of one frame, built from what the player is doing now."""
 
-    def __init__(self, player, session, *, room, heatmap, console_hud, drive_gate,
-                 modes, volume, loop_thumbs) -> None:
+    def __init__(self, player, session, console: ConsolePanel, *, heatmap,
+                 volume, loop_thumbs) -> None:
         self._player = player
         self._session = session
-        self._room = room
+        self._console = console
         self._heatmap = heatmap
-        self._console_hud = console_hud
-        self._drive_gate = drive_gate
-        self._modes = modes
         self._volume = volume
         self._loop_thumbs = loop_thumbs
         # Its own, because nothing else draws the chip; built once rather than
@@ -63,7 +98,7 @@ class Painter:
         """Put this frame's overlays up.  *hover* is where the pointer is, which
         is the one thing drawn here that the mouse owns rather than the player."""
         self._timeline(win_w, win_h)
-        self._console(hover)
+        self._panel(hover)
         self._chip(win_w, win_h)
         self._loop_frames(win_w, win_h)
 
@@ -89,25 +124,9 @@ class Painter:
             )
         self._player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
 
-    def _console(self, hover) -> None:
-        """The top-left corner: the video's name and the dot saying whether a
-        bare command lands here, what is selecting this playlist, what is
-        driving the device, and every control Fun Time's dashboard used to hold
-        for this slot.  The name heads it rather than sitting in a chip of its
-        own beneath."""
-        self._room.refresh()
-        drive = self._drive_gate.readout(
-            self._room.drive, genau_behind=self._room.genau_drives)
+    def _panel(self, hover) -> None:
         left, top = hud_xy()
-        panel = self._console_hud.bgra(ConsoleHud(
-            modes=self._modes.hud,
-            # Nau knows its own playback rate; Fun Time does not publish it, so
-            # it is folded in here.  The dot's `active` and everything else came
-            # down in the console file.
-            console=with_playback_speed(self._room.console, self._session.speed),
-            drive=drive,
-        ), hover=hover)
-        self._player.overlay(_OV_CONSOLE, left, top, panel)
+        self._player.overlay(_OV_CONSOLE, left, top, self._console.bgra(hover=hover))
 
     def _chip(self, win_w: int, win_h: int) -> None:
         """The volume control, at the right-hand end of the row above the

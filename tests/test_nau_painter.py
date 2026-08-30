@@ -100,17 +100,19 @@ def _frame(height: int = 10, width: int = 20):
     return np.zeros((height, width, 4), dtype=np.uint8)
 
 
+def _console(session, log):
+    from nau.painter import ConsolePanel
+    return ConsolePanel(session, room=SpyRoom(log), drive_gate=SpyGate(log),
+                        console_hud=ConsolePainter(), modes=FakeModes())
+
+
 def _painter(session, *, player=None, log=None, thumbs=None, heatmap=None):
     from nau.painter import Painter
     log = [] if log is None else log
     player = player or SpyPlayer()
     painter = Painter(
-        player, session,
-        room=SpyRoom(log),
+        player, session, _console(session, log),
         heatmap=heatmap or HeatmapStrip(),
-        console_hud=ConsolePainter(),
-        drive_gate=SpyGate(log),
-        modes=FakeModes(),
         volume=FakeVolume(),
         loop_thumbs=thumbs or LoopThumbCapture(),
     )
@@ -181,17 +183,26 @@ class TestWhatTheBlankHasToTakeDown:
         assert max(HUD_OVERLAYS) < _OVERLAY_ID, "the black would go underneath"
 
 
-class TestTheOrderInsideAFrame:
+class TestTheConsolePanel:
     def test_the_room_is_read_before_the_stroke_is_believed(self):
         """The console and the stroke arrive as two files somebody else
         publishes.  Read after the readout, both the pill and the drawn line
         would be a frame behind the room they describe."""
         log: list[str] = []
+
+        _console(FakeSession(), log).bgra(hover=None)
+
+        assert log == ["refresh", "readout"]
+
+    def test_a_frame_reads_the_room_exactly_once(self):
+        """It is two file reads a frame, on a channel Genau and Fun Time are
+        republishing while this polls it."""
+        log: list[str] = []
         painter, _player = _painter(FakeSession(), log=log)
 
         _paint(painter)
 
-        assert log == ["refresh", "readout"]
+        assert log.count("refresh") == 1
 
 
 class TestTheLoopsOwnTwoFrames:
