@@ -126,13 +126,13 @@ class ClipNav:
         # its original, so keep only the largest file for each running index —
         # the same "canonical is biggest" rule the version grouping uses.
         best: dict[int, Path] = {}
-        for video, m in self._clips.items():
+        for sibling, m in self._clips.items():
             if m.get("compilation") != comp:
                 continue
             index = m.get("index", 0)
             current = best.get(index)
-            if current is None or _size(video) > _size(current):
-                best[index] = video
+            if current is None or _size(sibling) > _size(current):
+                best[index] = sibling
         return [best[i] for i in sorted(best)]
 
     def full_vid_of(self, video: Path) -> Path | None:
