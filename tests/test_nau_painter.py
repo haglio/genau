@@ -157,6 +157,30 @@ class TestWhatOneFramePutsUp:
         assert ("overlay", 0, 0, 576) in player.calls
 
 
+class TestWhatTheBlankHasToTakeDown:
+    def test_every_id_a_frame_draws_is_one_the_blank_knows_about(self):
+        """When the room gives Nau's rect to Genau, nau.display puts a black
+        overlay up and takes down the ids it was handed -- `HUD_OVERLAYS`.  An
+        id drawn here that is not in that tuple is one the black cannot cover,
+        and it stays painted over the blackout for the rest of the session.
+
+        Both directions matter, so this is an equality: a sixth overlay added
+        without extending the tuple fails, and a tuple entry nothing draws any
+        more fails too.
+        """
+        from nau.display import _OVERLAY_ID
+        from nau.painter import HUD_OVERLAYS
+        session = FakeSession(bounds=LOOP)
+        painter, player = _painter(session, player=SpyPlayer(_frame()))
+
+        _paint(painter)                     # the in frame is grabbed and drawn
+        session.position_ms = 3700.0
+        _paint(painter)                     # ...and then the out frame
+
+        assert set(player.ids) == set(HUD_OVERLAYS)
+        assert max(HUD_OVERLAYS) < _OVERLAY_ID, "the black would go underneath"
+
+
 class TestTheOrderInsideAFrame:
     def test_the_room_is_read_before_the_stroke_is_believed(self):
         """The console and the stroke arrive as two files somebody else

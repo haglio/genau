@@ -55,8 +55,8 @@ class Painter:
         self._modes = modes
         self._volume = volume
         self._loop_thumbs = loop_thumbs
-        # Its own, because nothing else draws the chip and it keeps no state
-        # between frames.
+        # Its own, because nothing else draws the chip; built once rather than
+        # per frame, because it keeps the bitmap until the level moves.
         self._volume_painter = VolumeHudPainter()
 
     def paint(self, win_w: int, win_h: int, *, hover) -> None:

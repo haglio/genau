@@ -1,4 +1,4 @@
-"""On-screen state feedback for Nau: the funscript heatmap strip and timeline.
+"""Where Nau's own overlays go, and what the heatmap strip is made of.
 
 The pure decision logic (the visible time window, strip geometry) lives here
 untied to pygame so it is unit-testable; the drawing helpers at the bottom turn
