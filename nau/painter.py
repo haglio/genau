@@ -143,9 +143,10 @@ class Painter:
         bounds = session.loop_bounds
         which = thumbs.needed(session.loop_state, bounds, session.position_ms)
         if which is not None:
-            thumb = self._player.screenshot_bgra()
-            if thumb is not None:
-                thumbs.set(which, thumb)
+            # Whatever mpv gives, including nothing: a capture is only ever
+            # asked for while that side is empty, so handing back None leaves it
+            # empty and the next frame asks again.
+            thumbs.set(which, self._player.screenshot_bgra())
         if bounds is None:
             # By hand, because the ids are stable so each frame updates in
             # place: left alone, a cancelled loop's frames stay over the video.

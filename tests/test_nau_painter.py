@@ -125,16 +125,30 @@ def _paint(painter) -> None:
 
 class TestWhatOneFramePutsUp:
     def test_the_four_overlays_a_frame_owns(self):
-        """Ids 0, 6 and 7 every frame; the loop's two are 4 and 5, which is why
-        a frame with no loop takes them down rather than leaving them."""
+        """Ids 0, 6 and 7 every frame, each at its own place; the loop's two are
+        4 and 5, which is why a frame with no loop takes them down rather than
+        leaving them.  A set, not a list: the ids are the z-order, so the order
+        these three go up in is not the contract -- see the next case for the
+        one ordering that is."""
         painter, player = _painter(FakeSession())
 
         _paint(painter)
 
-        assert player.calls == [
+        assert set(player.calls) == {
             ("overlay", 0, 0, 576), ("overlay", 6, 8, 8), ("overlay", 7, 878, 577),
             ("remove", 4), ("remove", 5),
-        ]
+        }
+
+    def test_the_timeline_is_measured_before_the_things_that_sit_above_it(self):
+        """The chip and the loop's frames are both placed against the timeline
+        row's height, and that height is whatever the heatmap was last updated
+        to.  Measured before the update, they sit against the previous video's
+        row for a frame."""
+        painter, player = _painter(FakeSession())
+
+        _paint(painter)
+
+        assert player.ids.index(0) < player.ids.index(7)
 
     def test_the_timeline_is_built_at_the_track_width_and_framed_at_the_window(self):
         """Two widths, deliberately: the colour row fills the inset track, and
@@ -213,13 +227,15 @@ class TestTheLoopsOwnTwoFrames:
     """
 
     def test_the_first_frame_is_grabbed_and_drawn_when_the_loop_opens(self):
-        thumbs = LoopThumbCapture()
+        """What is drawn is what mpv handed back, not merely something the
+        painter put in both places."""
+        grabbed = _frame()
         painter, player = _painter(FakeSession(bounds=LOOP),
-                                   player=SpyPlayer(_frame()), thumbs=thumbs)
+                                   player=SpyPlayer(grabbed))
 
         _paint(painter)
 
-        assert thumbs.in_thumb is player.up[4]
+        assert player.up[4] is grabbed
 
     def test_the_last_frame_joins_it_as_the_loop_comes_round(self):
         session = FakeSession(bounds=LOOP)
@@ -231,13 +247,17 @@ class TestTheLoopsOwnTwoFrames:
 
         assert {4, 5} <= set(player.up)
 
-    def test_a_frame_not_grabbed_yet_is_not_drawn(self):
+    def test_a_frame_mpv_could_not_give_is_not_kept_as_one(self):
         """mpv answers None while it has no picture to give -- between videos,
-        or before the first frame has been decoded."""
-        painter, player = _painter(FakeSession(bounds=LOOP), player=SpyPlayer(None))
+        or before the first frame has been decoded.  Stored anyway, the capture
+        reads as done and the frame it is holding is nothing."""
+        thumbs = LoopThumbCapture()
+        painter, player = _painter(FakeSession(bounds=LOOP),
+                                   player=SpyPlayer(None), thumbs=thumbs)
 
         _paint(painter)
 
+        assert thumbs.in_thumb is None
         assert not {4, 5} & set(player.up)
 
     def test_the_end_of_a_loop_takes_both_frames_off_the_screen(self):
