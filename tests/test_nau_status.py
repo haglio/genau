@@ -4,6 +4,7 @@ from pathlib import Path
 
 from player_core.funscript import Funscript
 
+from nau.descent_latch import DescentChoice, DescentLatch, DriveKey
 from nau.status import next_handoff_touch, status_fields
 
 
@@ -113,9 +114,18 @@ class TestTheTouchTheTraceChose:
     """
 
     # The boundary the script below opens its cluster at, and a touch latched
-    # for it.  The latch's entries are (key, ramp top, touch-down).
+    # for it.
     BOUNDARY_MS = 3_000
-    LATCHED = {BOUNDARY_MS: ((50, 100, 50, None), 0.35, 3_600)}
+    TOUCHING = DriveKey(center=50, amplitude=100, speed=50, let_go=None)
+
+    @classmethod
+    def _latched(cls, top: float = 0.35, touch: int | None = 3_600,
+                 key: DriveKey | None = None) -> DescentLatch:
+        latch = DescentLatch()
+        latch.remember(cls.BOUNDARY_MS,
+                       DescentChoice(key=key or cls.TOUCHING, top=top, touch=touch),
+                       stale_before=0)
+        return latch
 
     @staticmethod
     def _script() -> Funscript:
@@ -123,31 +133,33 @@ class TestTheTouchTheTraceChose:
                                   for t in range(8_000, 9_001, 200)])
 
     def test_an_unscripted_video_has_no_handoff_to_chose_one_for(self):
-        assert next_handoff_touch(None, 0, self.LATCHED) is None
+        assert next_handoff_touch(None, 0, self._latched()) is None
 
     def test_resting_before_a_turn_takes_the_turn_it_is_approaching(self):
         """The boundary in play is the one ahead: the device is about to change
         hands there."""
-        assert next_handoff_touch(self._script(), 0, self.LATCHED) == 3_600
+        assert next_handoff_touch(self._script(), 0, self._latched()) == 3_600
 
     def test_inside_a_turn_it_takes_the_boundary_just_crossed(self):
         """The arbiter is still ending that turn, so the touch it needs is the
         one the picture drew the ending on."""
-        assert next_handoff_touch(self._script(), 5_000, self.LATCHED) == 3_600
+        assert next_handoff_touch(self._script(), 5_000, self._latched()) == 3_600
 
     def test_a_rest_with_no_turn_after_it_has_no_boundary_at_all(self):
         """Past the last cluster nothing hands over again, and a lookup there
         would otherwise land on whatever the latch still held."""
-        assert next_handoff_touch(self._script(), 20_000, self.LATCHED) is None
+        assert next_handoff_touch(self._script(), 20_000, self._latched()) is None
 
     def test_a_boundary_with_nothing_latched_yet_says_so(self):
         """The choice stays live while the boundary is far, so early in an
         approach there is nothing to publish."""
-        assert next_handoff_touch(self._script(), 0, {}) is None
+        assert next_handoff_touch(self._script(), 0, DescentLatch()) is None
 
     def test_a_ramped_handoff_has_no_touch_down_to_name(self):
         """A stroke whose floor sits above the park never comes down onto it:
         the grey ramps instead, and there is no touch."""
-        ramped = {self.BOUNDARY_MS: ((50, 80, 50, None), 0.12, None)}
+        ramped = self._latched(
+            top=0.12, touch=None,
+            key=DriveKey(center=50, amplitude=80, speed=50, let_go=None))
 
         assert next_handoff_touch(self._script(), 0, ramped) is None
