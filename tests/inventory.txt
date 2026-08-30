@@ -20,8 +20,12 @@ tests/test_conftest_isolates_pygame.py::test_the_view_is_mocked_even_though_it_w
 tests/test_conftest_pins_this_tree.py::test_a_tree_already_imported_before_the_pin_is_named_outright
 tests/test_conftest_pins_this_tree.py::test_the_packages_under_test_are_this_trees
 tests/test_conftest_pins_this_tree.py::test_the_suite_imports_its_own_tree_from_a_foreign_directory
+tests/test_dead_code.py::test_every_package_in_the_tree_is_scanned
 tests/test_dead_code.py::test_no_constructor_parameter_is_stored_and_never_read
-tests/test_dead_code.py::test_no_dead_code
+tests/test_dead_code.py::test_no_dead_code[genau]
+tests/test_dead_code.py::test_no_dead_code[genau_vr]
+tests/test_dead_code.py::test_no_dead_code[nau]
+tests/test_dead_code.py::test_no_dead_code[tools]
 tests/test_dead_code.py::test_no_dead_imports_or_unread_locals
 tests/test_dead_code.py::test_no_function_takes_an_argument_it_never_reads
 tests/test_dead_code.py::test_no_module_level_constant_goes_unread

@@ -14,3 +14,10 @@ _.draw_color  # type: ignore[name-defined]
 # see either reader.
 WINREG_AVAILABLE  # type: ignore[name-defined]
 OPENXR_AVAILABLE  # type: ignore[name-defined]
+
+# tools.inventory's "which written-down tests stopped being collected", read by
+# tests/test_inventory.py and by tools/update_inventory.py's --accept-removals
+# path.  The scan below covers tools/ on its own, and vulture cannot be pointed
+# at tests/ to see the caller -- the suite's fakes stand in for protocols and
+# would drown the gate in false positives.
+missing_from  # type: ignore[name-defined]
