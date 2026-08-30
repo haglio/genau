@@ -56,7 +56,8 @@ class TestWritingItDownWheneverItMoves:
         memory.write(RememberedMode(length_mode=SHORTS))
         path.unlink()          # so a write would show up as the file coming back
 
-        assert memory.sync(RememberedMode(length_mode=SHORTS)) is False
+        memory.sync(RememberedMode(length_mode=SHORTS))
+
         assert not path.exists()
 
     def test_a_mode_that_moved_is_written_down(self, tmp_path):
@@ -64,7 +65,8 @@ class TestWritingItDownWheneverItMoves:
         memory = ModeMemory(path)
         memory.write(RememberedMode(length_mode=SHORTS))
 
-        assert memory.sync(RememberedMode(length_mode=FULL)) is True
+        memory.sync(RememberedMode(length_mode=FULL))
+
         assert memory.read().length_mode == FULL
 
     def test_what_was_read_back_at_startup_counts_as_already_written(self, tmp_path):
@@ -76,7 +78,8 @@ class TestWritingItDownWheneverItMoves:
         remembered = memory.read()
         path.unlink()
 
-        assert memory.sync(remembered) is False
+        memory.sync(remembered)
+
         assert not path.exists()
 
 

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import numpy as np
 
-# Above every id nau.app draws with, and the only overlay up while it is.
+# Above every id nau.painter draws with, and the only overlay up while it is.
 _OVERLAY_ID = 8
 
 
