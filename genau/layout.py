@@ -15,7 +15,6 @@ def compute_video_rects(
     """
     is_portrait = video_h > video_w
 
-    # Scale to fit window height
     tile_h = window_h
     tile_w = int(video_w * (window_h / video_h))
 
@@ -23,7 +22,6 @@ def compute_video_rects(
         tile_count = max(1, window_w // tile_w)
     else:
         if tile_w > window_w:
-            # Wider than window — fit by width instead
             tile_w = window_w
             tile_h = int(video_h * (window_w / video_w))
         tile_count = 1

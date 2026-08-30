@@ -265,7 +265,6 @@ class GenauRefreshController:
             )
             self.renderer.display_frame(display_index)
 
-        # Show or clear the loading overlay
         pending = self.selection.pending_clip_name
         self.set_loading_text(f"Loading {pending}" if pending else None)
 
