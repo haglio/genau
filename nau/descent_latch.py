@@ -2,9 +2,8 @@
 
 :mod:`nau.drive_trace` chooses, once per approaching turn, how the blue leaves
 the device there: the top the grey ramps down from, and the touch-down it runs
-to instead when there is one.  Chosen once and then HELD -- re-read live every
-frame the answer breathes with the beat between Genau's publish cadence and the
-frame clock, and the seam flickers.
+to instead when there is one.  WHY it is chosen once and then held, and what
+voids it, is :mod:`nau.drive_gate`'s to say and is said there.
 
 Three modules meet around what is held.  The trace writes it as it paints,
 :mod:`nau.status` reads the chosen touch out of it to publish for the arbiter,

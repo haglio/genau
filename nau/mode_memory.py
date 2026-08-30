@@ -57,18 +57,15 @@ class ModeMemory:
         )
         return self._written
 
-    def sync(self, mode: RememberedMode) -> bool:
-        """Write *mode* down if it is not what is down already, and say whether
-        that happened.
+    def sync(self, mode: RememberedMode) -> None:
+        """Write *mode* down if it is not what is down already.
 
         The mode moves on several paths -- a key, a command from Fun Time,
         leaving a compilation -- so there is no one moment to write it at, and
         the player simply says this every frame.
         """
-        if mode == self._written:
-            return False
-        self.write(mode)
-        return True
+        if mode != self._written:
+            self.write(mode)
 
     def write(self, mode: RememberedMode) -> None:
         """Remember *mode*; a write that cannot land is simply not remembered."""

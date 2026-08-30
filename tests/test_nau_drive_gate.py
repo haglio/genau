@@ -19,6 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 from player_core.drive_readout import TRACE_SAMPLES, DriveHud
 from player_core.funscript import Funscript
 
@@ -27,7 +28,7 @@ from nau.drive_gate import DriveGate
 SPAN_S = 7.9
 STEP_MS = 100
 FIRST_VIDEO = Path("videos/Jane Doe - scene one.mp4")
-SECOND_VIDEO = Path("videos/Ann Bly - scene two.mp4")
+SECOND_VIDEO = Path("videos/Jane Doe - scene two.mp4")
 # The touch the trace chooses for the boundary ahead, on the first read.
 CHOSEN_TOUCH_MS = 3_600
 # How much newer the second publish is.  Deliberately not equal to any playhead
@@ -174,13 +175,18 @@ class TestWhatVoidsAChoice:
         """The carry rules are written for one continuous approach, and a
         rewind approaches the SAME boundary again with a realigned wave -- the
         old choice's touch then cuts the new wave anywhere, which is how the
-        blue once overran its own drawn ending by a whole cycle."""
+        blue once overran its own drawn ending by a whole cycle.
+
+        Nothing answers in its place here, unlike the other four: a playhead
+        this far back is outside the freeze horizon, so the choice goes back to
+        being a live forecast and the field publishes empty until the approach
+        re-enters it."""
         gate, session = _gate_holding_a_forecast()
 
         session.position_ms = -300
         _a_newer_publish_arrives(gate)
 
-        assert gate.handoff_touch() != CHOSEN_TOUCH_MS
+        assert gate.handoff_touch() is None
 
     def test_a_jump_forward(self):
         gate, session = _gate_holding_a_forecast()
@@ -339,5 +345,27 @@ class TestWhetherGenauHasBeenSeenLiveHere:
 
         gate.readout(_stroke(), genau_behind=False)
         hud = gate.readout(_stroke(let_go=0.44), genau_behind=True)
+
+        assert hud.let_go == 0.44
+
+    @pytest.mark.parametrize("what_moved", ["a rewind", "a jump forward", "a pause"])
+    def test_nothing_that_only_voids_a_forecast_re_arms_it(self, what_moved):
+        """The two things this gate holds go stale on different events, and only
+        a new video moves both.  Every rule that voids the held forecasts leaves
+        the playhead somewhere else in the SAME video, where Genau has not gone
+        anywhere and the handoff it published still describes the device — so
+        stripping ``let_go`` there would top the next descent off the parked
+        publish and draw a ramp from a height nothing is at.
+        """
+        session = FakeSession()
+        gate = DriveGate(session)
+        gate.readout(_stroke(), genau_behind=True)   # let_go unset: seen live
+        if what_moved == "a pause":
+            for _ in range(30):
+                gate.readout(_stroke(), genau_behind=True)
+        session.position_ms = {"a rewind": -300, "a jump forward": 900,
+                               "a pause": 40}[what_moved]
+
+        hud = gate.readout(_stroke(NEWER_MS, let_go=0.44), genau_behind=True)
 
         assert hud.let_go == 0.44

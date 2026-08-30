@@ -1,10 +1,8 @@
 """The forecasts a trace is holding: one choice per approaching turn.
 
-A descent's top and touch-down are SELECTED once for the turn they belong to
-and then held, because re-read live every frame they breathe with the beat
-between Genau's publish cadence and the frame clock.  Holding them means having
-somewhere to hold them, and this is that place: the three modules that used to
-pass one bare dict around -- :mod:`nau.drive_trace` writing it as it paints,
+A descent's top and touch-down are chosen once for the turn they belong to and
+then held.  Holding them means having somewhere to hold them, and this is that
+place: the three modules that used to pass one bare dict around -- :mod:`nau.drive_trace` writing it as it paints,
 :mod:`nau.status` reading it as it publishes, :mod:`nau.drive_gate` voiding it
 -- now share a type that names its own fields.
 
