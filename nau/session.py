@@ -219,9 +219,25 @@ class PlayerSession:
         if was_looping:
             self._exit_loop()
 
+    def _take_the_device_over(self) -> None:
+        """The playback clock jumped, or the device has changed hands: the next
+        waypoint must glide from wherever the device really is.
+
+        Every path that moves the playhead without playing to it says this --
+        a seek, a loop wrap, a video opening, a resumed pause, a rate change,
+        output being re-enabled after Genau had it.  Reset, the driver re-times
+        its in-flight move against the new clock and sends the next waypoint at
+        once, with the handoff glide.  Not reset, it aims from where the script
+        says the device WAS: a clip scripted to its edges slams across the full
+        range every pass, and a video resumed under OmniPause -- where the
+        broker may have parked or retracted the device outright -- aims from a
+        height nothing is at.
+        """
+        self._tcode.reset()
+
     def _exit_loop(self) -> None:
         self._player.clear_ab_loop()
-        self._tcode.reset()
+        self._take_the_device_over()
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:
@@ -229,12 +245,9 @@ class PlayerSession:
         self._paused = paused
         self._player.set_paused(paused)
         if not paused:
-            # While the video sat paused the last in-flight waypoint completed
-            # — the device walked on to wherever it was aimed and froze there —
-            # and under OmniPause the broker may have parked or retracted it
-            # outright.  Resuming is a takeover from wherever that left it, so
-            # the first waypoints glide instead of slamming across the range.
-            self._tcode.reset()
+            # While the video sat paused the last in-flight waypoint completed:
+            # the device walked on to wherever it was aimed and froze there.
+            self._take_the_device_over()
 
     def toggle_pause(self) -> None:
         self.set_paused(not self._paused)
@@ -248,15 +261,15 @@ class PlayerSession:
         """Change the playback rate, clamped to the supported range.
 
         mpv retimes the video and its clock, so the funscript stays in sync on
-        its own; the T-Code driver is reset to re-time the in-flight move at the
-        new rate rather than wait out the current (now mistimed) one.
+        its own.  The in-flight T-Code move is the one thing that does not, and
+        waiting out a now-mistimed one is what taking the device over avoids.
         """
         speed = max(MIN_SPEED_RATE, min(MAX_SPEED_RATE, speed))
         if speed == self._speed:
             return
         self._speed = speed
         self._player.set_speed(speed)
-        self._tcode.reset()
+        self._take_the_device_over()
 
     def adjust_speed(self, delta: float) -> None:
         self.set_speed(self._speed + delta)
@@ -275,14 +288,11 @@ class PlayerSession:
 
         In Hybrid mode Genau drives the OSR2, so Nau must stop emitting its own
         funscript-derived T-Code or the two fight over the broker's UDP inlet.
-        Muting just skips the per-tick update.  Re-enabling is a takeover — the
-        device is wherever Genau's stroke left it — so the driver is reset the
-        way every takeover resets it: the next tick re-sends a waypoint at once,
-        with the handoff glide, rather than snapping the device to a waypoint
-        that may be milliseconds away.
+        Muting just skips the per-tick update; re-enabling is a takeover, since
+        the device is wherever Genau's stroke left it.
         """
         if enabled and not self._tcode_enabled:
-            self._tcode.reset()
+            self._take_the_device_over()
         self._tcode_enabled = enabled
 
     @property
@@ -379,7 +389,7 @@ class PlayerSession:
         floor = 0.0 if self.record_in_ms is None else float(self.record_in_ms)
         target = max(floor, min(self._player.duration_ms, position_ms))
         self._player.seek_ms(target)
-        self._tcode.reset()
+        self._take_the_device_over()
 
     def _flush_pending_seek(self) -> None:
         """Take a seek held over a file open, once the file is open."""
@@ -423,15 +433,12 @@ class PlayerSession:
                 self._finalize_loop(int(pos_ms if near_end else prev_pos_ms))
                 return
         elif self._loop_ctrl.state == LoopState.LOOPING and rewound:
-            # mpv's A/B loop wraps B->A by rewinding the clock; resend the
-            # T-Code waypoint from the loop start so the OSR2 restarts cleanly.
-            self._tcode.reset()
+            # mpv's A/B loop wraps B->A by rewinding the clock.
+            self._take_the_device_over()
         elif rewound:
-            # The plain locked wrap (loop-file), same story: a seek to the
-            # start in all but name.  Without the reset a clip scripted to its
-            # edges aims an un-glided waypoint from the last action's height to
-            # the first action's, a full-range slam every pass.
-            self._tcode.reset()
+            # The plain locked wrap (loop-file): a seek to the start in all but
+            # name.
+            self._take_the_device_over()
 
         if self._tcode_enabled:
             if self._funscript is not None:
@@ -476,5 +483,5 @@ class PlayerSession:
         self._player.clear_ab_loop()
         self._player.load(vid_path)
         self._player.set_paused(self._paused)
-        self._tcode.reset()
+        self._take_the_device_over()
         self._last_pos_ms = 0.0

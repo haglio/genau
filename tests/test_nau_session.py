@@ -1057,3 +1057,52 @@ class TestSpeed:
         session.advance()
 
         assert tcode.updates[-1] == (1500, session.current_funscript, 2.0)
+
+
+class TestTakingTheDeviceBack:
+    """Every path that jumps the playback clock, or takes the device from
+    whoever had it, resets the T-Code driver -- so the next waypoint glides
+    from wherever the device really is instead of slamming across its range.
+
+    Three of the paths that do it had nothing watching them, which is how a
+    rule restated at eight call sites goes wrong: the one that forgets is
+    invisible.
+    """
+
+    def test_leaving_a_loop_takes_it_back(self, tmp_path):
+        """The playhead is about to carry on past the out point it was being
+        held inside, which the device knows nothing about."""
+        session, player, tcode = _make_session(tmp_path)
+        player.position_ms = 2500
+        session.record_down()
+        player.position_ms = 3500
+        session.record_up()
+        resets_before = tcode.resets
+
+        session.loop_cancel()
+
+        assert tcode.resets == resets_before + 1
+
+    def test_a_locked_video_wrapping_to_its_own_start_takes_it_back(self, tmp_path):
+        """A seek to the start in all but name.  Without it, a clip scripted to
+        its edges aims an un-glided waypoint from the last action's height to
+        the first action's -- a full-range slam every pass."""
+        session, player, tcode = _make_session(tmp_path)
+        player.position_ms = 9_000
+        session.advance()
+        resets_before = tcode.resets
+
+        player.position_ms = 20.0
+        session.advance()
+
+        assert tcode.resets == resets_before + 1
+
+    def test_opening_another_video_takes_it_back(self, tmp_path):
+        """The new video's script starts from wherever it starts, and the
+        device is still standing where the last one left it."""
+        session, _player, tcode = _make_session(tmp_path, entries=2)
+        resets_before = tcode.resets
+
+        session.step(1)
+
+        assert tcode.resets == resets_before + 1
