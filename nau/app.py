@@ -36,24 +36,12 @@ from .volume_control import VolumeControl
 from .clip_nav import ClipNav
 from .display import Display
 from .funscript_jumps import FunscriptJumps
-from player_core.console_hud import (
-    ConsoleHud,
-    ConsolePainter,
-    hud_xy,
-    with_playback_speed,
-)
+from player_core.console_hud import ConsolePainter
 from .notice import NoticeWriter
 from .loading import LoadingCancelled, LoadingScreen
-from .overlay import (
-    HeatmapStrip,
-    LoopThumbCapture,
-    heatmap_bgra,
-    loop_thumbnail_xys,
-    timeline_height,
-)
-from player_core.timeline import bar_track_x, progress_bar_bgra
+from .overlay import HeatmapStrip, LoopThumbCapture
+from .painter import HUD_OVERLAYS, Painter
 from .runtime import apply_command
-from player_core.volume import VolumeHudPainter, chip_xy
 from .session import PlayerSession
 from .status import status_fields
 from player_core.tcode_driver import FunscriptTCodeDriver
@@ -61,15 +49,6 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 logger = logging.getLogger(__name__)
 
 _APP_USER_MODEL_ID = "Nau.App"
-
-# Overlay ids (stable so each frame updates in place).
-_OV_HEATMAP = 0
-_OV_IN_THUMB = 4
-_OV_OUT_THUMB = 5
-_OV_CONSOLE = 6
-_OV_VOLUME = 7
-# Every one of the above: what a blanked display takes down with the video.
-_HUD_OVERLAYS = (_OV_HEATMAP, _OV_IN_THUMB, _OV_OUT_THUMB, _OV_CONSOLE, _OV_VOLUME)
 
 _ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
 
@@ -120,30 +99,6 @@ def _name_this_process() -> None:
         ProcessNamer("Nau", icon=_ICON_PATH).prepare_launcher("Nau")
     except Exception:
         pass  # Cosmetic: costs a name in the task list, never a launch.
-
-
-def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -> None:
-    """Capture (on demand) and draw the loop in/out frame thumbnails above
-    their timeline marks."""
-    bounds = session.loop_bounds
-    which = loop_thumbs.needed(session.loop_state, bounds, session.position_ms)
-    if which is not None:
-        thumb = player.screenshot_bgra()
-        if thumb is not None:
-            loop_thumbs.set(which, thumb)
-    if bounds is None:
-        # By hand, because the overlay ids are stable so each frame updates in
-        # place: left alone, a cancelled loop's thumbnails stay over the video.
-        player.remove_overlay(_OV_IN_THUMB)
-        player.remove_overlay(_OV_OUT_THUMB)
-        return
-    in_at, out_at = loop_thumbnail_xys(
-        heatmap, loop_thumbs, bounds,
-        track=bar_track_x(win_w), win_w=win_w, win_h=win_h)
-    if in_at is not None:
-        player.overlay(_OV_IN_THUMB, *in_at, loop_thumbs.in_thumb)
-    if out_at is not None:
-        player.overlay(_OV_OUT_THUMB, *out_at, loop_thumbs.out_thumb)
 
 
 def _set_aumid(config_path, taskbar_identity: str | None = None) -> None:
@@ -255,11 +210,10 @@ def _run(args) -> int:
         start_paused=start_paused,
         version_index=source.version_index if source is not None else None,
     )
-    volume_painter = VolumeHudPainter()
     # Whether this window paints at all.  Fun Time gives the main slot's rect to
     # Genau in genau mode and minimizes Nau — minimized, so it keeps its taskbar
     # button — and says so on this channel; see nau.display.
-    display = Display(player, _HUD_OVERLAYS)
+    display = Display(player, HUD_OVERLAYS)
     heatmap = HeatmapStrip()
     console_hud = ConsolePainter()
     # What Fun Time says about the main slot, and what Genau says it is doing
@@ -327,6 +281,11 @@ def _run(args) -> int:
     # What this window's keyboard and mouse reach.  See nau.keys, nau.pointer.
     keys = Keys(session, modes, dashboard, stop_event)
     pointer = Pointer(session, heatmap, volume, console_hud, dashboard)
+    # Everything this window draws on top of the video, and the order it goes up
+    # in.  See nau.painter.
+    painter = Painter(
+        player, session, room=room, heatmap=heatmap, console_hud=console_hud,
+        drive_gate=drive_gate, modes=modes, volume=volume, loop_thumbs=loop_thumbs)
 
     while not stop_event.is_set():
         win_w, win_h = screen.get_size()
@@ -389,51 +348,7 @@ def _run(args) -> int:
             clock.tick(60)
             continue
 
-        # --- overlays on top of mpv's video ---
-        # The heatmap fills the inset track, so build its colour row at track
-        # width; heatmap_bgra frames it full-width to line up with the plain bar.
-        tx0, tx1 = bar_track_x(win_w)
-        heatmap.update(
-            session.current_video, session.current_funscript, session.duration_ms,
-            tx1 - tx0,
-            loop_state=session.loop_state,
-            record_in_ms=session.record_in_ms,
-            position_ms=session.position_ms,
-        )
-        hb = heatmap_bgra(heatmap, session.position_ms, session.loop_bounds, win_w)
-        if hb is None:
-            # Unscripted video: a plain clickable progress bar instead, still
-            # showing the playcursor and any loop in/out marks.
-            hb = progress_bar_bgra(
-                session.position_ms, session.duration_ms, session.loop_bounds,
-                win_w, record_in_ms=session.record_in_ms,
-            )
-        player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
-
-        # The top-left corner: the console — the video's name and the dot saying
-        # whether a bare command lands here, what is selecting this playlist, what
-        # is driving the device, and every control Fun Time's dashboard used to
-        # hold for this slot.  The name heads it now rather than sitting in a chip
-        # of its own beneath.
-        room.refresh()
-        drive = drive_gate.readout(room.drive, genau_behind=room.genau_drives)
-        left, top = hud_xy()
-        panel = console_hud.bgra(ConsoleHud(
-            modes=modes.hud,
-            # Nau knows its own playback rate; Fun Time does not publish it, so it
-            # is folded in here.  The dot's `active` and everything else came down
-            # in the console file.
-            console=with_playback_speed(room.console, session.speed),
-            drive=drive,
-        ), hover=pointer.hover)
-        player.overlay(_OV_CONSOLE, left, top, panel)
-
-        # The volume control, at the right-hand end of the row above the timeline —
-        # beside the transport, where a player's has always been.
-        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=timeline_height(heatmap))
-        player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume.hud))
-
-        _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h)
+        painter.paint(win_w, win_h, hover=pointer.hover)
 
         clock.tick(60)
 

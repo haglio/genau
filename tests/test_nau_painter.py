@@ -1,0 +1,220 @@
+"""One painted frame: what Nau puts on top of mpv's video, and in what order.
+
+Four things are drawn every frame -- the timeline along the bottom, the console
+in the top-left corner, the volume chip above the timeline's right-hand end, and
+the loop's two frames above their marks -- and the order they are built in is
+load-bearing in ways nothing was watching: the heatmap's colour row is built at
+the inset track's width and framed at the window's, the room's two files are
+read before anything drawn believes them, and the overlay ids are the z-order
+rather than the call order.
+
+The player here is a spy rather than mpv: what reaches it is a list of overlay
+calls, which is exactly what a frame is.
+"""
+from __future__ import annotations
+
+import numpy as np
+from player_core.console import ConsoleModel
+from player_core.console_hud import ConsolePainter, ModeHud
+from player_core.drive_readout import DriveHud
+from player_core.funscript import Funscript
+from player_core.volume import VolumeHud
+
+from nau.overlay import HeatmapStrip, LoopThumbCapture
+
+WIN_W, WIN_H = 1000, 600
+TRACK_W = 828                 # bar_track_x(1000) spans 40..868
+VIDEO = "gamma reel.mp4"
+LOOP = (2000, 4000)
+
+
+class SpyPlayer:
+    """mpv's overlay surface, recorded: every call in order, and what is up."""
+
+    def __init__(self, frame=None) -> None:
+        self.calls: list[tuple] = []
+        self.up: dict[int, np.ndarray] = {}
+        self._frame = frame
+
+    def overlay(self, ident: int, x: int, y: int, bgra) -> None:
+        self.calls.append(("overlay", ident, x, y))
+        self.up[ident] = bgra
+
+    def remove_overlay(self, ident: int) -> None:
+        self.calls.append(("remove", ident))
+        self.up.pop(ident, None)
+
+    def screenshot_bgra(self):
+        return self._frame
+
+    @property
+    def ids(self) -> list[int]:
+        return [call[1] for call in self.calls]
+
+
+class SpyRoom:
+    """What the room published, and when it was asked for it."""
+
+    def __init__(self, log: list[str], *, genau_behind: bool = True) -> None:
+        self._log = log
+        self.console = ConsoleModel()
+        self.drive = DriveHud()
+        self.genau_drives = genau_behind
+
+    def refresh(self) -> None:
+        self._log.append("refresh")
+
+
+class SpyGate:
+    def __init__(self, log: list[str]) -> None:
+        self._log = log
+
+    def readout(self, published, *, genau_behind: bool) -> DriveHud:
+        self._log.append("readout")
+        return published if published is not None else DriveHud()
+
+
+class FakeModes:
+    hud = ModeHud(video="gamma reel", length_mode="mixed", compilation="",
+                  position=1, total=3, f_mode=False)
+
+
+class FakeVolume:
+    hud = VolumeHud()
+
+
+class FakeSession:
+    def __init__(self, *, scripted: bool = True, bounds=None) -> None:
+        self.current_video = VIDEO
+        self.current_funscript = (
+            Funscript(actions=[(0, 0), (1000, 100), (2000, 0)]) if scripted else None)
+        self.duration_ms = 4000.0
+        self.position_ms = 2000.0
+        self.speed = 1.0
+        self.loop_bounds = bounds
+        self.loop_state = "looping" if bounds is not None else "normal"
+        self.record_in_ms = None
+
+
+def _frame(height: int = 10, width: int = 20):
+    return np.zeros((height, width, 4), dtype=np.uint8)
+
+
+def _painter(session, *, player=None, log=None, thumbs=None, heatmap=None):
+    from nau.painter import Painter
+    log = [] if log is None else log
+    player = player or SpyPlayer()
+    painter = Painter(
+        player, session,
+        room=SpyRoom(log),
+        heatmap=heatmap or HeatmapStrip(),
+        console_hud=ConsolePainter(),
+        drive_gate=SpyGate(log),
+        modes=FakeModes(),
+        volume=FakeVolume(),
+        loop_thumbs=thumbs or LoopThumbCapture(),
+    )
+    return painter, player
+
+
+def _paint(painter) -> None:
+    painter.paint(WIN_W, WIN_H, hover=None)
+
+
+class TestWhatOneFramePutsUp:
+    def test_the_four_overlays_a_frame_owns(self):
+        """Ids 0, 6 and 7 every frame; the loop's two are 4 and 5, which is why
+        a frame with no loop takes them down rather than leaving them."""
+        painter, player = _painter(FakeSession())
+
+        _paint(painter)
+
+        assert player.calls == [
+            ("overlay", 0, 0, 576), ("overlay", 6, 8, 8), ("overlay", 7, 878, 577),
+            ("remove", 4), ("remove", 5),
+        ]
+
+    def test_the_timeline_is_built_at_the_track_width_and_framed_at_the_window(self):
+        """Two widths, deliberately: the colour row fills the inset track, and
+        the strip it is framed into spans the window so it lines up with the
+        plain bar.  Build the row at the window's width and the strip is drawn
+        at the wrong scale, silently."""
+        heatmap = HeatmapStrip()
+        painter, player = _painter(FakeSession(), heatmap=heatmap)
+
+        _paint(painter)
+
+        assert len(heatmap.colors) == TRACK_W
+        assert player.up[0].shape[1] == WIN_W
+
+    def test_an_unscripted_video_gets_the_plain_bar_in_the_same_place(self):
+        """Every video has a clickable timeline; without a funscript there is no
+        heatmap to build one from, so the shared progress bar stands in."""
+        painter, player = _painter(FakeSession(scripted=False))
+
+        _paint(painter)
+
+        assert ("overlay", 0, 0, 576) in player.calls
+
+
+class TestTheOrderInsideAFrame:
+    def test_the_room_is_read_before_the_stroke_is_believed(self):
+        """The console and the stroke arrive as two files somebody else
+        publishes.  Read after the readout, both the pill and the drawn line
+        would be a frame behind the room they describe."""
+        log: list[str] = []
+        painter, _player = _painter(FakeSession(), log=log)
+
+        _paint(painter)
+
+        assert log == ["refresh", "readout"]
+
+
+class TestTheLoopsOwnTwoFrames:
+    """A running loop shows the frame it starts on and the frame it ends on,
+    above their marks.  The frames come from mpv screenshots, which is why they
+    are asked for one at a time: the in frame when the loop opens, the out frame
+    only as playback nears the out point.
+    """
+
+    def test_the_first_frame_is_grabbed_and_drawn_when_the_loop_opens(self):
+        thumbs = LoopThumbCapture()
+        painter, player = _painter(FakeSession(bounds=LOOP),
+                                   player=SpyPlayer(_frame()), thumbs=thumbs)
+
+        _paint(painter)
+
+        assert thumbs.in_thumb is player.up[4]
+
+    def test_the_last_frame_joins_it_as_the_loop_comes_round(self):
+        session = FakeSession(bounds=LOOP)
+        painter, player = _painter(session, player=SpyPlayer(_frame()))
+
+        _paint(painter)
+        session.position_ms = 3700.0        # inside the out frame's lead
+        _paint(painter)
+
+        assert {4, 5} <= set(player.up)
+
+    def test_a_frame_not_grabbed_yet_is_not_drawn(self):
+        """mpv answers None while it has no picture to give -- between videos,
+        or before the first frame has been decoded."""
+        painter, player = _painter(FakeSession(bounds=LOOP), player=SpyPlayer(None))
+
+        _paint(painter)
+
+        assert not {4, 5} & set(player.up)
+
+    def test_the_end_of_a_loop_takes_both_frames_off_the_screen(self):
+        """The ids are stable so each frame updates in place, which is also why
+        they have to be removed by hand: left alone, the thumbnails of a
+        cancelled loop stay over the video for the rest of the session."""
+        session = FakeSession(bounds=LOOP)
+        painter, player = _painter(session, player=SpyPlayer(_frame()))
+        _paint(painter)
+
+        session.loop_bounds, session.loop_state = None, "normal"
+        _paint(painter)
+
+        assert [c for c in player.calls if c[0] == "remove"] == [
+            ("remove", 4), ("remove", 5)]
