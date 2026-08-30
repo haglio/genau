@@ -20,16 +20,28 @@ from genau_vr.playback import (
 )
 
 
-class TestCycleShapeReverse:
-    def test_step_minus_one_goes_backward(self):
+class TestCycleShape:
+    def test_it_walks_the_shapes_in_order(self):
         state = DirectControlState(playing=True, shape=WaveformShape.TRIANGLE)
-        cycle_shape(state, -1)
+
+        cycle_shape(state)
+
+        assert state.shape is WaveformShape.ROUNDED_SQUARE
+
+    def test_it_wraps_from_the_last_shape_to_the_first(self):
+        state = DirectControlState(playing=True, shape=WaveformShape.SAWTOOTH)
+
+        cycle_shape(state)
+
         assert state.shape is WaveformShape.SINE
 
-    def test_backward_wraps_from_first_to_last(self):
-        state = DirectControlState(playing=True, shape=WaveformShape.SINE)
-        cycle_shape(state, -1)
-        assert state.shape is WaveformShape.SAWTOOTH
+    def test_it_goes_one_way(self):
+        """GenauVR cycles forward only -- CYCLE_SHAPE_PREV had no phrase and
+        is gone, so a step argument would be a direction nothing can ask for."""
+        import pytest
+
+        with pytest.raises(TypeError):
+            cycle_shape(DirectControlState(), -1)
 
 
 class TestBpmForSpeed:
