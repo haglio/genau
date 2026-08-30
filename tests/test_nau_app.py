@@ -115,3 +115,39 @@ class TestWhenSomethingCosmeticFails:
 
         assert surface is None
         assert "icon" in caplog.text.lower()
+
+
+class TestWhichConfigTheFlagsAreReadAgainst:
+    """Nau parses twice on purpose.  The first pass exists only to find out
+    whether ``--config`` names a file other than the default one; if it does,
+    the parser is built again from THAT file, because every default it feeds --
+    the library directories, the state dir, the device's port -- would
+    otherwise come from a config this run was told not to use.
+    """
+
+    def _main(self, monkeypatch, argv):
+        import nau.app as app
+        landed = []
+        monkeypatch.setattr(app, "_name_this_process", lambda: None)
+        monkeypatch.setattr(app, "_run", lambda args: landed.append(args) or 0)
+        app.main(argv)
+        return landed[0]
+
+    def test_a_named_config_supplies_the_defaults(self, tmp_path, monkeypatch):
+        config = tmp_path / "genau_config.json"
+        config.write_text('{"nau": {"tcode_udp_port": 51000}}', encoding="utf-8")
+
+        args = self._main(monkeypatch, ["--config", str(config)])
+
+        assert args.tcode_port == 51000
+
+    def test_a_flag_still_beats_the_config_it_named(self, tmp_path, monkeypatch):
+        """The whole line is parsed again, not patched, so the flags keep
+        winning -- which they would not if the second pass only filled gaps."""
+        config = tmp_path / "genau_config.json"
+        config.write_text('{"nau": {"tcode_udp_port": 51000}}', encoding="utf-8")
+
+        args = self._main(
+            monkeypatch, ["--config", str(config), "--tcode-port", "50999"])
+
+        assert args.tcode_port == 50999
