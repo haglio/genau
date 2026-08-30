@@ -163,6 +163,22 @@ def _open_window(args):
     return screen
 
 
+def _status_writer(args, drive_gate) -> StatusWriter | None:
+    """The status file this player publishes, or None when nobody asked for one.
+
+    Every status carries the touch-down the trace chose for the boundary in
+    play, so the arbiter ends Genau's turn where the picture drew it ending.
+    The gate is asked for it as each status is written rather than when this is
+    built: the choice is made while the frame is painted, and the writer
+    publishes at its own throttled cadence in between.
+    """
+    if args.status_file is None:
+        return None
+    return StatusWriter(
+        args.status_file,
+        lambda session: status_fields(session, drive_gate.handoff_touch()))
+
+
 def _run(args) -> int:
     _set_aumid(args.config, args.taskbar_identity)
     screen = _open_window(args)
@@ -222,16 +238,12 @@ def _run(args) -> int:
     room = Published(args.console_file, args.drive_file)
     loop_thumbs = LoopThumbCapture()
     # What of Genau's publish this video's picture believes: the descent
-    # forecasts it is holding, and whether Genau has been seen live here.  Above
-    # the status writer's closure below, which publishes the touch it chose.
+    # forecasts it is holding, and whether Genau has been seen live here.  The
+    # status writer below asks it for the touch it chose; the painter is what
+    # makes it choose one.
     drive_gate = DriveGate(session)
 
-    # Every status carries the touch-down the trace chose for the boundary in
-    # play, so the arbiter ends Genau's turn where the picture drew it ending.
-    status_writer = StatusWriter(
-        args.status_file,
-        lambda published: status_fields(published, drive_gate.handoff_touch()),
-    ) if args.status_file else None
+    status_writer = _status_writer(args, drive_gate)
     stop_event = threading.Event()
     # Every control on this HUD asks Fun Time rather than acting; so does
     # the close box.  See nau.dashboard.
