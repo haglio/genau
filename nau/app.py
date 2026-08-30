@@ -41,7 +41,7 @@ from player_core.console_hud import ConsolePainter
 from .notice import NoticeWriter
 from .loading import LoadingCancelled, LoadingScreen
 from .overlay import HeatmapStrip, LoopThumbCapture
-from .painter import HUD_OVERLAYS, Painter
+from .painter import HUD_OVERLAYS, ConsolePanel, Painter
 from .runtime import apply_command
 from .session import PlayerSession
 from .status import status_fields
@@ -339,10 +339,13 @@ def _run(args) -> int:
         funscript_jumps=funscript_jumps, volume=volume, display=display,
         take_up_playlist=take_up_playlist)
     # Everything this window draws on top of the video, and the order it goes up
-    # in.  See nau.painter.
+    # in.  The console panel is its own part: it is where a frame reads the
+    # outside world.  See nau.painter.
     painter = Painter(
-        player, session, room=room, heatmap=heatmap, console_hud=console_hud,
-        drive_gate=drive_gate, modes=modes, volume=volume, loop_thumbs=loop_thumbs)
+        player, session,
+        ConsolePanel(session, room=room, drive_gate=drive_gate,
+                     console_hud=console_hud, modes=modes),
+        heatmap=heatmap, volume=volume, loop_thumbs=loop_thumbs)
 
     while not stop_event.is_set():
         win_w, win_h = screen.get_size()
