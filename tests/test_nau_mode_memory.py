@@ -43,6 +43,43 @@ class TestLengthMode:
         assert memory.read() == RememberedMode()
 
 
+class TestWritingItDownWheneverItMoves:
+    """The player asks this every frame, whichever path moved the mode -- a
+    key, a Fun Time command, leaving a compilation -- because there is no one
+    moment when it moves.  Sixty times a second, so what is already written
+    down is what decides whether anything is written at all.
+    """
+
+    def test_a_mode_that_has_not_moved_is_not_written_again(self, tmp_path):
+        path = tmp_path / "nau_mode.txt"
+        memory = ModeMemory(path)
+        memory.write(RememberedMode(length_mode=SHORTS))
+        path.unlink()          # so a write would show up as the file coming back
+
+        assert memory.sync(RememberedMode(length_mode=SHORTS)) is False
+        assert not path.exists()
+
+    def test_a_mode_that_moved_is_written_down(self, tmp_path):
+        path = tmp_path / "nau_mode.txt"
+        memory = ModeMemory(path)
+        memory.write(RememberedMode(length_mode=SHORTS))
+
+        assert memory.sync(RememberedMode(length_mode=FULL)) is True
+        assert memory.read().length_mode == FULL
+
+    def test_what_was_read_back_at_startup_counts_as_already_written(self, tmp_path):
+        """Nau opens on the mode it closed in, so the first frame's record
+        matches the file and must not rewrite it."""
+        path = tmp_path / "nau_mode.txt"
+        ModeMemory(path).write(RememberedMode(length_mode=SHORTS))
+        memory = ModeMemory(path)
+        remembered = memory.read()
+        path.unlink()
+
+        assert memory.sync(remembered) is False
+        assert not path.exists()
+
+
 class TestCompilation:
     def test_the_compilation_and_its_clip_read_back_with_the_mode(self, tmp_path):
         """Nau's playlist swap for a compilation is in memory only — the file
