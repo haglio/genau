@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 import threading
 from pathlib import Path
 
@@ -435,3 +436,62 @@ class TestApplyCommand:
         apply_command("", session)
 
         assert session.calls == []
+
+
+# Every command line Nau answers, one per verb, with fabricated arguments.
+# Written out rather than read off the dispatcher: these strings are what Fun
+# Time writes into nau_cmd.txt, so a verb renamed on this side is a control
+# that goes quiet on the other, and the rename has to show up as a diff in both
+# repos.  One-directional on purpose -- a verb ADDED here is backward
+# compatible and this says nothing about it; a verb removed or respelled is
+# what it catches.
+ACCEPTED_COMMANDS = [
+    "NEXT", "PREV", "SEEK_FWD", "SEEK_BACK",
+    "SPEED_UP", "SPEED_DOWN", "SET_SPEED 1.5", "SET_SPEED min", "SET_SPEED max",
+    "SET_VOLUME 40", "SET_VOLUME 40 1",
+    "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "LOOP_CANCEL", "SET_LOOP 1000 2000",
+    "TOGGLE_LOCK", "LOCK_ON", "LOCK_OFF",
+    "CYCLE_VERSION", "PLAY_FILE C:/example/library/videos/gamma reel.mp4",
+    "RELOAD_PLAYLIST", "TOGGLE_LENGTH_MODE", "SET_LENGTH_MODE shorts",
+    "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP",
+    "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED", "END_COMPILATION",
+    "SET_TCODE_ENABLED 1", "SET_F_MODE 1",
+    "DISPLAY_ON", "DISPLAY_OFF",
+    "QUIT",
+]
+
+# The thirteen collaborators a fully wired player hands the dispatcher.
+COLLABORATORS = (
+    "reload_playlist", "toggle_length_mode", "set_length_mode", "play_compilation",
+    "play_full_vid", "play_clip_jump", "jump_to_funscript", "next_funscripted",
+    "end_compilation", "set_f_mode", "set_volume_hud", "set_display",
+)
+
+
+def _fully_wired() -> dict:
+    return {name: (lambda *_args, **_kw: None) for name in COLLABORATORS} | {
+        "stop_event": threading.Event()}
+
+
+class TestTheVerbsFunTimeCanSend:
+    """The command file is an orchestrator contract in the other direction from
+    the status file: Fun Time writes these words and Nau acts on them.  The
+    dispatcher says so itself -- an unhandled verb is a WARNING and nothing
+    else -- so a respelled verb is a control that silently stops working, which
+    is exactly what a log line nobody is reading looks like.
+    """
+
+    @pytest.mark.parametrize("command", ACCEPTED_COMMANDS)
+    def test_it_is_answered_rather_than_logged_as_unknown(self, command, caplog):
+        with caplog.at_level("WARNING", logger="nau.runtime"):
+            apply_command(command, SpySession(), **_fully_wired())
+
+        assert caplog.records == []
+
+    def test_a_word_it_does_not_know_is_named_on_the_log(self, caplog):
+        """The control probe: without it, a dispatcher that answered everything
+        would pass every case above."""
+        with caplog.at_level("WARNING", logger="nau.runtime"):
+            apply_command("FROBNICATE", SpySession(), **_fully_wired())
+
+        assert "FROBNICATE" in caplog.text
