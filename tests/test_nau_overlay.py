@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-
+import numpy as np
 from player_core.funscript import Funscript
 from nau.heatmap import build_heatmap
 from nau.overlay import (
@@ -277,6 +277,67 @@ class TestLoopThumbCapture:
 
         # a different loop → in_thumb must be re-requested
         assert cap.needed("looping", (5000, 7000), 5000) == "in"
+
+
+class TestWhereTheLoopsTwoFramesGo:
+    """Above their own marks on the timeline's inset track, and clear of the
+    row itself -- which is the heatmap strip where there is one and the plain
+    bar's own height where there is not, so the frames never sit on top of the
+    thing they are labelling.
+
+    The numbers are written out rather than recomputed: this is where the
+    thumbnails ended up on a 1000x600 window, and a change to any of the three
+    helpers underneath (the track inset, the time-to-pixel mapping, the
+    overlap nudge) moves them.
+    """
+
+    TRACK = (40, 868)          # bar_track_x(1000): the inset the bar sits on
+    WIN_W, WIN_H = 1000, 600
+    FRAME_H, FRAME_W = 10, 20
+
+    def _thumbs(self, *, out=True):
+        from nau.overlay import LoopThumbCapture
+        thumbs = LoopThumbCapture()
+        thumbs.set("in", np.zeros((self.FRAME_H, self.FRAME_W, 4), dtype=np.uint8))
+        if out:
+            thumbs.set("out", np.zeros((self.FRAME_H, self.FRAME_W, 4), dtype=np.uint8))
+        return thumbs
+
+    def _xys(self, heatmap, thumbs, bounds):
+        from nau.overlay import loop_thumbnail_xys
+        return loop_thumbnail_xys(heatmap, thumbs, bounds, track=self.TRACK,
+                                  win_w=self.WIN_W, win_h=self.WIN_H)
+
+    def _scripted(self) -> HeatmapStrip:
+        strip = HeatmapStrip()
+        strip.update("v0.mp4", _funscript(), 4000.0, width=40)
+        return strip
+
+    def test_each_frame_sits_centered_above_its_own_mark(self):
+        assert self._xys(self._scripted(), self._thumbs(), (2000, 3000)) == (
+            (444, 564), (651, 564))
+
+    def test_an_unscripted_video_still_clears_the_row_its_bar_needs(self):
+        """No strip is 0 tall, and frames measured against that would sit on
+        the bar rather than above it."""
+        strip = HeatmapStrip()
+        strip.update("plain.mp4", None, 4000.0, width=40)
+
+        assert self._xys(strip, self._thumbs(), (2000, 3000))[0] == (444, 564)
+
+    def test_a_frame_not_grabbed_yet_has_nowhere_to_go(self):
+        in_at, out_at = self._xys(self._scripted(), self._thumbs(out=False),
+                                  (2000, 3000))
+
+        assert (in_at, out_at) == ((444, 564), None)
+
+    def test_two_marks_too_close_together_push_their_frames_apart(self):
+        """Centered on both, the frames would overlap and the second would be
+        unreadable; the out frame steps to the right of the in frame instead."""
+        (in_x, _y), (out_x, _oy) = self._xys(self._scripted(), self._thumbs(),
+                                             (2000, 2050))
+
+        assert out_x >= in_x + self.FRAME_W
 
 
 class TestLabelXsReadded:

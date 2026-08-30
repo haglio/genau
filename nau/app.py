@@ -48,8 +48,7 @@ from .overlay import (
     HeatmapStrip,
     LoopThumbCapture,
     heatmap_bgra,
-    label_xs,
-    time_to_x,
+    loop_thumbnail_xys,
     timeline_height,
 )
 from player_core.timeline import bar_track_x, progress_bar_bgra
@@ -133,25 +132,18 @@ def _draw_loop_thumbnails(player, loop_thumbs, session, heatmap, win_w, win_h) -
         if thumb is not None:
             loop_thumbs.set(which, thumb)
     if bounds is None:
+        # By hand, because the overlay ids are stable so each frame updates in
+        # place: left alone, a cancelled loop's thumbnails stay over the video.
         player.remove_overlay(_OV_IN_THUMB)
         player.remove_overlay(_OV_OUT_THUMB)
         return
-    start_ms, end_ms = heatmap.window
-    tx0, tx1 = bar_track_x(win_w)  # thumbnails sit above their marks on the inset track
-    track_w = tx1 - tx0
-    in_x = tx0 + time_to_x(bounds[0], start_ms, end_ms, track_w)
-    out_x = tx0 + time_to_x(bounds[1], start_ms, end_ms, track_w)
-    in_t, out_t = loop_thumbs.in_thumb, loop_thumbs.out_thumb
-    iw = in_t.shape[1] if in_t is not None else 1
-    ow = out_t.shape[1] if out_t is not None else 1
-    ix, ox = label_xs(in_x, out_x, iw, ow, win_w)
-    strip_h = timeline_height(heatmap)
-    if in_t is not None:
-        y = win_h - strip_h - in_t.shape[0] - 2
-        player.overlay(_OV_IN_THUMB, ix, y, in_t)
-    if out_t is not None:
-        y = win_h - strip_h - out_t.shape[0] - 2
-        player.overlay(_OV_OUT_THUMB, ox, y, out_t)
+    in_at, out_at = loop_thumbnail_xys(
+        heatmap, loop_thumbs, bounds,
+        track=bar_track_x(win_w), win_w=win_w, win_h=win_h)
+    if in_at is not None:
+        player.overlay(_OV_IN_THUMB, *in_at, loop_thumbs.in_thumb)
+    if out_at is not None:
+        player.overlay(_OV_OUT_THUMB, *out_at, loop_thumbs.out_thumb)
 
 
 def _set_aumid(config_path, taskbar_identity: str | None = None) -> None:
