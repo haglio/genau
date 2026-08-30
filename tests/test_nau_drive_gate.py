@@ -204,6 +204,102 @@ class TestWhatVoidsAChoice:
         assert gate.handoff_touch() != CHOSEN_TOUCH_MS
 
 
+class TestExactlyWhereTheseRulesBegin:
+    """The three numbers were tuned against a real device, and every one of
+    them was only bracketed: the rewind case moved 300ms and nothing said that
+    250 must not void, so the window could have been any width down to zero --
+    including "any backward motion at all", which is the asymmetry the constant
+    exists to avoid.  The numbers are asserted here, from both sides.
+    """
+
+    def test_a_step_back_the_width_of_the_window_is_still_playing(self):
+        """-250ms: the trace's own quantum makes some real frames read oddly,
+        and a picture that voided its forecasts on one would flicker."""
+        gate, session = _gate_holding_a_forecast()
+
+        session.position_ms = -250
+        _a_newer_publish_arrives(gate)
+
+        assert gate.handoff_touch() == CHOSEN_TOUCH_MS
+
+    def test_one_millisecond_further_back_is_a_rewind(self):
+        gate, session = _gate_holding_a_forecast()
+
+        session.position_ms = -251
+        _a_newer_publish_arrives(gate)
+
+        assert gate.handoff_touch() != CHOSEN_TOUCH_MS
+
+    def test_a_slow_frame_may_carry_the_playhead_this_far_forward(self):
+        """+400ms: forward motion has to allow for a frame the machine was too
+        busy to draw, which a rewind does not."""
+        gate, session = _gate_holding_a_forecast()
+
+        session.position_ms = 400
+        _a_newer_publish_arrives(gate)
+
+        assert gate.handoff_touch() == CHOSEN_TOUCH_MS
+
+    def test_one_millisecond_further_on_is_a_jump(self):
+        gate, session = _gate_holding_a_forecast()
+
+        session.position_ms = 401
+        _a_newer_publish_arrives(gate)
+
+        assert gate.handoff_touch() != CHOSEN_TOUCH_MS
+
+    def test_twenty_five_standing_frames_are_not_yet_a_pause(self):
+        """The setup's own read is the first of them, so twenty-four more."""
+        gate, session = _gate_holding_a_forecast()
+        for _ in range(24):
+            gate.readout(_stroke(), genau_behind=True)
+
+        session.position_ms = 40
+        _a_newer_publish_arrives(gate)
+
+        assert gate.handoff_touch() == CHOSEN_TOUCH_MS
+
+    def test_twenty_six_of_them_are(self):
+        gate, session = _gate_holding_a_forecast()
+        for _ in range(25):
+            gate.readout(_stroke(), genau_behind=True)
+
+        session.position_ms = 40
+        _a_newer_publish_arrives(gate)
+
+        assert gate.handoff_touch() != CHOSEN_TOUCH_MS
+
+    def test_a_pause_a_seek_ended_is_voided_once_and_not_again(self):
+        """The seek takes the standing count with it.  Left standing, the first
+        ordinary frame after the seek would void a second time and throw away
+        the choice made from the wave the seek actually landed on."""
+        gate, session = _gate_holding_a_forecast()
+        for _ in range(30):
+            gate.readout(_stroke(), genau_behind=True)      # a real pause
+        session.position_ms = 900                           # ended by a jump
+        _a_newer_publish_arrives(gate)
+        chosen_where_it_landed = gate.handoff_touch()
+
+        session.position_ms = 940                           # an ordinary frame
+        gate.readout(_stroke(NEWER_MS * 2), genau_behind=True)
+
+        assert gate.handoff_touch() == chosen_where_it_landed
+
+
+class TestHowFastTheVideoIsRunning:
+    def test_the_touch_is_chosen_at_the_rate_the_video_is_playing_at(self):
+        """The trace covers wall-clock time, so at double speed twice as much
+        of the script goes past inside it and the touch the device will be set
+        down on is a different one.  Nau knows the rate; nothing else does."""
+        session = FakeSession()
+        session.speed = 2.0
+        gate = DriveGate(session)
+
+        gate.readout(_stroke(), genau_behind=True)
+
+        assert gate.handoff_touch() not in (None, CHOSEN_TOUCH_MS)
+
+
 class TestWhetherGenauHasBeenSeenLiveHere:
     """``let_go`` is Genau's own latch of the height it handed over at, and it
     survives a video change while Genau sits paused."""
