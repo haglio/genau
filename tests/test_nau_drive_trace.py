@@ -25,6 +25,7 @@ from player_core.drive_readout import (
     TRACE_SAMPLES,
     DriveHud,
 )
+from nau.descent_latch import DescentLatch
 from nau.drive_trace import drive_readout
 
 # A 7.9-second trace: 79 steps of a round 100ms each, so a whole-step slide in
@@ -85,11 +86,11 @@ def _script_ahead(*, from_ms: int = 8_000, to_ms: int = 9_000) -> Funscript:
 
 
 def _read(script, *, at: int, published=None, genau_behind=True,
-          descent_tops=None) -> DriveHud:
+          latch=None) -> DriveHud:
     return drive_readout(
         published if published is not None else _stroke(),
         script=script, position_ms=at, genau_behind=genau_behind,
-        descent_tops=descent_tops)
+        latch=latch)
 
 
 def _colors(hud: DriveHud) -> list[str]:
@@ -292,7 +293,7 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
 
     def test_no_ramp_and_the_grey_runs_flat(self):
         hud = _read(_script_ahead(), at=0, published=self._touching_stroke(),
-                    descent_tops={})
+                    latch=DescentLatch())
         blue_end = hud.runs[0][1]
         green_start = hud.runs[-1][0]
 
@@ -304,21 +305,21 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
 
     def test_the_blue_swings_past_the_boundary_to_the_touch(self):
         hud = _read(_script_ahead(), at=0, published=self._touching_stroke(),
-                    descent_tops={})
+                    latch=DescentLatch())
         blue_end_ms = hud.runs[0][1] * STEP_MS
 
         assert blue_end_ms > 3_000                        # past the turn boundary
 
     def test_the_touch_is_selected_once(self):
         script = _script_ahead()
-        tops: dict = {}
+        latch = DescentLatch()
 
         first = _read(script, at=0, published=self._touching_stroke(),
-                      descent_tops=tops)
+                      latch=latch)
         # A publish a beat newer — the wobble that used to re-pick the moment.
         later = _read(script, at=0, published=self._touching_stroke(
             waveform=tuple(0.5 + 0.5 * np.sin((i + 0.3) / 3)
-                           for i in range(TRACE_SAMPLES))), descent_tops=tops)
+                           for i in range(TRACE_SAMPLES))), latch=latch)
 
         assert later.runs[0][1] == first.runs[0][1]
 
@@ -329,7 +330,7 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
         the wave as a future resumed one — the drawn ending landed a whole
         swing away from the park it claimed to touch."""
         published = self._touching_stroke()
-        hud = _read(_script_ahead(), at=0, published=published, descent_tops={})
+        hud = _read(_script_ahead(), at=0, published=published, latch=DescentLatch())
         blue_end = hud.runs[0][1]
 
         # The run's end column is the grey's first sample (runs share their
@@ -348,18 +349,19 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
         swing wrong.  The choice is latched only inside the freeze horizon,
         where the projection is as fresh as the arbiter's own."""
         script = _script_ahead(from_ms=18_000, to_ms=19_000)  # boundary 13000
-        tops: dict = {}
+        latch = DescentLatch()
 
         _read(script, at=2_000, published=self._touching_stroke(),
-              descent_tops=tops)
-        assert tops == {}                       # too far: still a forecast
+              latch=latch)
+        # Too far: nothing chosen for that boundary yet, still a forecast.
+        assert latch.choice_for(13_000) is None
 
         _read(script, at=10_040, published=self._touching_stroke(),
-              descent_tops=tops)
-        assert 13_000 in tops                   # inside the horizon: latched
+              latch=latch)
+        assert latch.choice_for(13_000) is not None   # inside the horizon
 
     def test_a_raised_floor_still_ramps(self):
-        hud = _read(_script_ahead(), at=0, descent_tops={})   # amplitude 80
+        hud = _read(_script_ahead(), at=0, latch=DescentLatch())   # amplitude 80
         opens = 3_000 // STEP_MS
 
         assert hud.runs[1][2] == DRIVEN_BY_NEUTRAL
@@ -376,13 +378,13 @@ class TestTheDescentTopIsSelectedOnce:
 
     def test_the_held_top_does_not_move_with_the_publish(self):
         script = _script_ahead()
-        tops: dict = {}
+        latch = DescentLatch()
         opens = 3_000 // STEP_MS
 
-        first = _read(script, at=0, published=_stroke_at(0), descent_tops=tops)
+        first = _read(script, at=0, published=_stroke_at(0), latch=latch)
         # The next frame's publish is a beat newer than the playhead — the
         # exact mismatch that used to re-shape the ramp.
-        later = _read(script, at=0, published=_stroke_at(20), descent_tops=tops)
+        later = _read(script, at=0, published=_stroke_at(20), latch=latch)
 
         assert later.waveform[opens] == first.waveform[opens]
 
@@ -391,26 +393,26 @@ class TestTheDescentTopIsSelectedOnce:
         wave to the park; the publish's let_go edge is what re-keys the latch,
         so the ramp is re-read from the wave as it now stands."""
         script = _script_ahead()
-        tops: dict = {}
+        latch = DescentLatch()
         opens = 3_000 // STEP_MS
 
-        live = _read(script, at=0, published=_stroke(), descent_tops=tops)
+        live = _read(script, at=0, published=_stroke(), latch=latch)
         parked = _read(script, at=0, published=_parked_stroke(let_go=0.44),
-                       descent_tops=tops)
+                       latch=latch)
 
         assert parked.waveform[opens] != live.waveform[opens]
 
     def test_the_wave_coming_live_again_re_selects_the_top(self):
         """The other half of the OmniPause round trip: when the climb finishes
         and the publish runs again (let_go cleared), the held prediction from
-        the frozen wave is stale, and the fresh live wave re-tops the ramp."""
+        the frozen wave is stale, and the fresh live wave re-latch the ramp."""
         script = _script_ahead()
-        tops: dict = {}
+        latch = DescentLatch()
         opens = 3_000 // STEP_MS
 
         frozen = _read(script, at=0, published=_parked_stroke(let_go=0.44),
-                       descent_tops=tops)
-        resumed = _read(script, at=0, published=_stroke_at(0), descent_tops=tops)
+                       latch=latch)
+        resumed = _read(script, at=0, published=_stroke_at(0), latch=latch)
 
         assert resumed.waveform[opens] != frozen.waveform[opens]
 
@@ -427,11 +429,11 @@ class TestTheDescentTopIsSelectedOnce:
         """
         script = _script_ahead()
         opens = 3_000 // STEP_MS
-        tops: dict = {}
+        latch = DescentLatch()
 
-        first = _read(script, at=0, published=_stroke_at(0), descent_tops=tops)
+        first = _read(script, at=0, published=_stroke_at(0), latch=latch)
         moved = _read(script, at=0, published=_stroke_at(20, **{control: moved_to}),
-                      descent_tops=tops)
+                      latch=latch)
 
         assert moved.waveform[opens] != first.waveform[opens]
 
@@ -544,18 +546,18 @@ class TestTheSeamCannotFlicker:
     residual indecision he watched at the blue-to-grey point."""
 
     def test_the_last_blue_column_sits_on_the_latched_top(self):
-        tops: dict = {}
+        latch = DescentLatch()
         published = _stroke()                        # amplitude 80: the ramp case
         hud = _read(_script_ahead(), at=1_000, published=published,
-                    descent_tops=tops)
+                    latch=latch)
         seam = hud.runs[0][1]                        # the grey's first column
 
-        top = tops[3_000][1]
+        top = latch.choice_for(3_000).top
         assert abs(hud.waveform[seam - 1] - top) < 0.12
         # A publish a beat older — the wobble that used to flap the join —
         # moves the seam-adjacent column almost nothing.
         aged = _read(_script_ahead(), at=1_000, published=_stroke_at(20),
-                     descent_tops=tops)
+                     latch=latch)
         assert abs(aged.waveform[seam - 1] - hud.waveform[seam - 1]) < 0.02
 
 
@@ -577,12 +579,12 @@ class TestForecastsDieWithTheirWave:
         again) re-keys twice; the second re-key must re-scan — carried through,
         the old alignment's touch cut the realigned wave mid-swing."""
         script = _script_ahead()
-        tops: dict = {}
+        latch = DescentLatch()
 
-        first = _read(script, at=0, published=self._touching(), descent_tops=tops)
-        _read(script, at=0, published=self._touching(let_go=0.0), descent_tops=tops)
+        first = _read(script, at=0, published=self._touching(), latch=latch)
+        _read(script, at=0, published=self._touching(let_go=0.0), latch=latch)
         moved = _read(script, at=0, published=self._touching(phase=9.4),
-                      descent_tops=tops)
+                      latch=latch)
 
         assert first.runs[0][1] != moved.runs[0][1]   # the new wave's own touch
 
@@ -590,22 +592,22 @@ class TestForecastsDieWithTheirWave:
         """Right after a rewind the publish is still the frozen pre-rewind wave
         for a beat; a forecast latched from it froze the stale touch."""
         script = _script_ahead()
-        tops: dict = {}
+        latch = DescentLatch()
 
-        _read(script, at=0, published=self._touching(let_go=0.0), descent_tops=tops)
+        _read(script, at=0, published=self._touching(let_go=0.0), latch=latch)
 
-        assert tops == {}
+        assert latch.choice_for(3_000) is None
 
     def test_no_extension_is_drawn_off_a_parked_wave(self):
         """A rewind landing just past a boundary finds the script holding the
         device (let_go published): the drawn line is the buffer and the plan,
         never a blue stroke nobody is making."""
         script = _script_ahead()
-        tops: dict = {}
-        _read(script, at=2_800, published=self._touching(), descent_tops=tops)
+        latch = DescentLatch()
+        _read(script, at=2_800, published=self._touching(), latch=latch)
 
         landed = _read(script, at=3_120, published=self._touching(let_go=0.0),
-                       descent_tops=tops)
+                       latch=latch)
 
         assert DRIVEN_BY_GENAU not in _colors(landed)
 
@@ -623,7 +625,7 @@ class TestThePillFollowsTheLine:
             waveform=tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
         # 3320ms is past the boundary (3000) but before the touch-down.
         hud = _read(_script_ahead(), at=3_320, published=published,
-                    descent_tops={})
+                    latch=DescentLatch())
 
         assert hud.driven == DRIVEN_BY_GENAU
 
@@ -647,32 +649,32 @@ class TestThePublishedTouch:
     def test_the_latched_touch_is_what_gets_published(self):
         from nau.status import next_handoff_touch
         script = _script_ahead()
-        tops: dict = {}
+        latch = DescentLatch()
         published = _stroke(
             amplitude=100,
             waveform=tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
-        hud = _read(script, at=1_000, published=published, descent_tops=tops)
+        hud = _read(script, at=1_000, published=published, latch=latch)
         blue_end_ms = 1_000 + hud.runs[0][1] * STEP_MS
 
         # Approaching the boundary (resting) and inside the extension (not
         # resting) both name the same turn's touch.
-        assert next_handoff_touch(script, 1_000, tops) == tops[3_000][2]
-        assert next_handoff_touch(script, 3_200, tops) == tops[3_000][2]
-        assert abs(next_handoff_touch(script, 1_000, tops) - blue_end_ms) <= STEP_MS
+        assert next_handoff_touch(script, 1_000, latch) == latch.choice_for(3_000).touch
+        assert next_handoff_touch(script, 3_200, latch) == latch.choice_for(3_000).touch
+        assert abs(next_handoff_touch(script, 1_000, latch) - blue_end_ms) <= STEP_MS
 
     def test_a_ramp_boundary_publishes_no_touch(self):
         from nau.status import next_handoff_touch
         script = _script_ahead()
-        tops: dict = {}
-        _read(script, at=1_000, descent_tops=tops)          # amplitude 80: ramp
+        latch = DescentLatch()
+        _read(script, at=1_000, latch=latch)          # amplitude 80: ramp
 
-        assert next_handoff_touch(script, 1_000, tops) is None
+        assert next_handoff_touch(script, 1_000, latch) is None
 
     def test_nothing_latched_publishes_no_touch(self):
         from nau.status import next_handoff_touch
 
-        assert next_handoff_touch(_script_ahead(), 1_000, {}) is None
-        assert next_handoff_touch(None, 1_000, {}) is None
+        assert next_handoff_touch(_script_ahead(), 1_000, DescentLatch()) is None
+        assert next_handoff_touch(None, 1_000, DescentLatch()) is None
 
 
 class TestNothingToFoldIn:

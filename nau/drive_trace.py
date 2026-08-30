@@ -46,6 +46,8 @@ from player_core.drive_readout import (
     DriveHud,
 )
 
+from .descent_latch import DescentChoice, DescentLatch, DriveKey
+
 # The window into the script slides continuously, so read at the raw playhead it
 # would move — and repaint the console — at Nau's full frame rate.  Quantized to
 # the cadence Genau's own publishes already repaint at while the stroke scrolls,
@@ -91,7 +93,7 @@ def drive_readout(
     position_ms: int,
     speed: float = 1.0,
     genau_behind: bool,
-    descent_tops: dict | None = None,
+    latch: DescentLatch | None = None,
 ) -> DriveHud:
     """The readout to draw, folding the funscript's own shape into it.
 
@@ -102,11 +104,11 @@ def drive_readout(
     rather than off the console's round-tripped state, which trails the arbiter
     by a couple of publish intervals.
 
-    *descent_tops* is the caller's latch, one entry per approaching turn: a
-    descent's top is SELECTED once and then held, re-selected only when
-    something real moves it (the controls, a handoff, the wave realigning
-    after an OmniPause).  Re-read live every frame it would breathe with the
-    beat between Genau's publish cadence and the frame clock.
+    *latch* is the caller's :class:`nau.descent_latch.DescentLatch`, one choice
+    per approaching turn: a descent's top is SELECTED once and then held,
+    re-selected only when something real moves it (the controls, a handoff, the
+    wave realigning after an OmniPause).  Re-read live every frame it would
+    breathe with the beat between Genau's publish cadence and the frame clock.
 
     The span is Genau's own — it publishes the number with its trace — scaled by
     the playback rate, because the trace covers wall-clock time and at double
@@ -228,23 +230,23 @@ def drive_readout(
         latched once inside the freeze horizon, where the projection is as
         fresh as the arbiter's own; from there it cannot move again.
         """
-        latched = descent_tops.get(turn_start) if descent_tops is not None else None
-        key = (base.center, base.amplitude, base.speed, base.let_go)
-        if latched is not None and latched[0] == key:
-            return latched[1], latched[2]
+        latched = latch.choice_for(turn_start) if latch is not None else None
+        key = DriveKey.cut_from(base)
+        if latched is not None and latched.key == key:
+            return latched.top, latched.touch
         prev_began, _ = script.turn_bounds_at(max(turn_start - 1, 0))
         if base.let_go is not None and position_ms >= turn_start:
             top = base.let_go
         else:
             top = genau_height(turn_start, prev_began)
-        if (latched is not None and latched[0][3] is None
+        if (latched is not None and latched.key.let_go is None
                 and base.let_go is not None):
             # The flip itself: the moment was chosen from the live wave, and
             # the now-frozen one cannot re-answer it — carried.  Every OTHER
             # re-key (the wave realigning after a resume, a control moving the
             # floor) is a real change of plan, and the touch is re-chosen with
             # it — the old wave's touch means nothing on the new one.
-            touch = latched[2]
+            touch = latched.touch
         else:
             touch = park_touch_after(turn_start, prev_began)
         # Never latched off a parked publish before its turn: right after a
@@ -254,13 +256,13 @@ def drive_readout(
         # forecast.
         frozen = (position_ms >= turn_start - round(_TOUCH_FREEZE_AHEAD_MS * speed)
                   and (base.let_go is None or position_ms >= turn_start))
-        if descent_tops is not None and (frozen or latched is not None):
-            descent_tops[turn_start] = (key, top, touch)
-            if len(descent_tops) > 16:
-                horizon = round((PARK_TOUCH_WAIT_CAP_MS + _TOUCH_LAG_MS) * speed)
-                for stale in [turn for turn in descent_tops
-                              if turn + horizon < position_ms]:
-                    del descent_tops[stale]
+        if latch is not None and (frozen or latched is not None):
+            # A turn the playhead is this far past can no longer be the
+            # boundary in play: the scan is over by then, either on a touch or
+            # on the cap it gives up at.
+            horizon = round((PARK_TOUCH_WAIT_CAP_MS + _TOUCH_LAG_MS) * speed)
+            latch.remember(turn_start, DescentChoice(key, top, touch),
+                           stale_before=position_ms - horizon)
         return top, touch
 
     def at(sample_ms: int, planned: float) -> tuple[float, str]:
