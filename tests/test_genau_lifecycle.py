@@ -1,11 +1,22 @@
+"""The window's own events: which key the map answers, and what the pointer does.
+
+The keys themselves are pinned in tests/test_genau_key_seam.py, against the real
+controls and row-for-row against the verbs that mean the same thing.  What is
+left here is the controller's own share: that the map it builds *is* the
+registry's, that Ctrl+Q is the one key that reads a modifier and does not move a
+control at all, and the mouse and resize handling that no verb has.
+"""
 from __future__ import annotations
 
 import threading
 import time
 
 import pygame
+import pytest
 
-from genau.lifecycle import GenauLifecycleController
+from genau.controls import KEYS, GenauControls
+from genau.engine import PlaybackEngine
+from genau.lifecycle import GenauLifecycleController, keymap
 
 
 class FakeRenderer:
@@ -14,14 +25,6 @@ class FakeRenderer:
 
     def prepare_active_clip_for_current_size(self) -> None:
         self.prepare_calls += 1
-
-
-class FakeSelection:
-    def __init__(self):
-        self.steps: list[int] = []
-
-    def step(self, delta: int) -> None:
-        self.steps.append(delta)
 
 
 class FakeNotifier:
@@ -36,38 +39,163 @@ class FakeNotifier:
         self.closed += 1
 
 
-def _build_controller(**callbacks):
-    """Build a controller, passing through only the callbacks a test names.
+class FakePointer:
+    def __init__(self):
+        self.presses: list[tuple[int, int]] = []
+        self.drags: list[tuple[int, int]] = []
+        self.motions: list[tuple[int, int]] = []
+        self.releases = 0
 
-    Everything left out keeps the controller's own default, so each test can
-    assert that its one key reaches its one callback.
-    """
+    def press(self, mx: int, my: int) -> None:
+        self.presses.append((mx, my))
+
+    def drag(self, mx: int, my: int) -> None:
+        self.drags.append((mx, my))
+
+    def release(self) -> None:
+        self.releases += 1
+
+    def motion(self, mx: int, my: int) -> None:
+        self.motions.append((mx, my))
+
+
+def _controls() -> GenauControls:
+    return GenauControls(
+        engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+        rh_paused={"value": False},
+        step_clip=lambda _step: None,
+    )
+
+
+def _build_controller(**overrides):
     renderer = FakeRenderer()
-    selection = FakeSelection()
     notifier = FakeNotifier()
+    pointer = FakePointer()
     stop_event = threading.Event()
+    window_keys = {
+        "on_toggle_playing": lambda: None,
+        "on_pause_playing": lambda: None,
+        "on_toggle_cruise": lambda: None,
+    }
+    window_keys.update({k: v for k, v in overrides.items() if k in window_keys})
     controller = GenauLifecycleController(
         renderer=renderer,
-        selection=selection,
+        controls=overrides.get("controls") or _controls(),
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=75,
-        **callbacks,
+        console_pointer=pointer,
+        dashboard_cmd_file=overrides.get("dashboard_cmd_file"),
+        **window_keys,
     )
-    return controller, renderer, selection, notifier, stop_event
+    return controller, renderer, pointer, notifier, stop_event
 
 
-def test_handle_key_steps_selection_on_m_and_period_keys():
-    controller, _renderer, selection, _notifier, _stop_event = _build_controller()
+def _key(key: int, mod: int = 0):
+    return pygame.event.Event(pygame.KEYDOWN, key=key, mod=mod)
 
-    controller._handle_key(type("Event", (), {"key": pygame.K_m, "mod": 0})())
-    controller._handle_key(type("Event", (), {"key": pygame.K_PERIOD, "mod": 0})())
 
-    assert selection.steps == [-1, 1]
+class TestTheMapIsTheRegistrys:
+    """Built from the registry rather than written out again here, so a key
+    added to a control cannot be one the window has never heard of."""
+
+    def test_every_key_a_control_declares_is_in_the_map(self):
+        controller, *_ = _build_controller()
+
+        for name in KEYS:
+            assert getattr(pygame, name) in controller.keys, name
+
+    def test_every_declared_key_name_is_one_pygame_has(self):
+        """The name is a string here so genau.controls stays free of pygame; a
+        misspelling would otherwise be a key the window silently never answers."""
+        for name in KEYS:
+            assert isinstance(getattr(pygame, name, None), int), name
+
+    def test_the_windows_own_three_are_in_it_too(self):
+        controller, *_ = _build_controller()
+
+        for key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_SLASH):
+            assert key in controller.keys
+
+    def test_the_map_holds_those_and_nothing_else(self):
+        controller, *_ = _build_controller()
+
+        assert set(controller.keys) == (
+            {getattr(pygame, name) for name in KEYS}
+            | {pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_SLASH}
+        )
+
+    def test_a_key_no_control_claims_is_ignored_rather_than_an_error(self):
+        """X armed auto advance, which is no longer a switch: an unlocked Genau
+        advances and a locked one does not, and the comma key is that lock."""
+        controller, *_ = _build_controller()
+
+        controller._handle_key(_key(pygame.K_x))  # must not raise
+
+    def test_a_control_this_build_did_not_wire_swallows_its_key(self):
+        """The same answer the verb gives -- nothing happens -- rather than the
+        AttributeError an unguarded call would raise inside the frame loop."""
+        controller, *_ = _build_controller()
+
+        controller._handle_key(_key(pygame.K_j))  # no direct_state wired
+
+
+class TestClosingTheWindow:
+    def test_ctrl_q_closes_and_moves_no_control(self):
+        controller, _renderer, _pointer, notifier, stop_event = _build_controller()
+
+        controller._handle_key(_key(pygame.K_q, pygame.KMOD_CTRL))
+
+        assert stop_event.is_set()
+        assert notifier.visible_updates == [False]
+
+    def test_q_without_the_modifier_is_not_a_key_at_all(self):
+        controller, _renderer, _pointer, _notifier, stop_event = _build_controller()
+
+        controller._handle_key(_key(pygame.K_q))
+
+        assert not stop_event.is_set()
+
+    def test_on_close_stops_notifier(self):
+        controller, _renderer, _pointer, notifier, stop_event = _build_controller()
+
+        controller.on_close()
+
+        assert stop_event.is_set()
+        assert notifier.visible_updates == [False]
+        assert notifier.closed == 1
+
+    def test_in_a_session_closing_asks_the_session_and_this_window_stays(self, tmp_path):
+        """Genau placed in a Fun Time session is one window of six.  Closing it on
+        its own leaves the session running around a hole nothing refills, so the
+        gesture goes to the dashboard's channel and this window keeps drawing until
+        the teardown reaches it."""
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        controller, _renderer, _pointer, notifier, stop_event = _build_controller(
+            dashboard_cmd_file=cmd_file,
+        )
+
+        controller.on_close()
+
+        assert cmd_file.read_text(encoding="utf-8").split() == ["quit"]
+        assert not stop_event.is_set()
+        assert notifier.closed == 0
+
+    def test_in_a_session_ctrl_q_goes_the_same_way(self, tmp_path):
+        """Not only the close box: every gesture that means "quit this window"."""
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        controller, _renderer, _pointer, _notifier, stop_event = _build_controller(
+            dashboard_cmd_file=cmd_file,
+        )
+
+        controller._handle_key(_key(pygame.K_q, pygame.KMOD_CTRL))
+
+        assert cmd_file.read_text(encoding="utf-8").split() == ["quit"]
+        assert not stop_event.is_set()
 
 
 def test_resize_debounces_prepare_calls():
-    controller, renderer, _selection, _notifier, _stop_event = _build_controller()
+    controller, renderer, *_ = _build_controller()
 
     controller._on_resize()
     assert renderer.prepare_calls == 0
@@ -77,262 +205,65 @@ def test_resize_debounces_prepare_calls():
     assert renderer.prepare_calls == 1
 
 
-def test_on_close_stops_notifier():
-    controller, _renderer, _selection, notifier, stop_event = _build_controller()
-
-    controller.on_close()
-
-    assert stop_event.is_set()
-    assert notifier.visible_updates == [False]
-    assert notifier.closed == 1
-
-
-def test_in_a_session_closing_asks_the_session_and_this_window_stays(tmp_path):
-    """Genau placed in a Fun Time session is one window of six.  Closing it on
-    its own leaves the session running around a hole nothing refills, so the
-    gesture goes to the dashboard's channel and this window keeps drawing until
-    the teardown reaches it."""
-    cmd_file = tmp_path / "dashboard_cmd.txt"
-    controller, _renderer, _selection, notifier, stop_event = _build_controller(
-        dashboard_cmd_file=cmd_file,
-    )
-
-    controller.on_close()
-
-    assert cmd_file.read_text(encoding="utf-8").split() == ["quit"]
-    assert not stop_event.is_set()
-    assert notifier.closed == 0
-
-
-def test_in_a_session_ctrl_q_goes_the_same_way(tmp_path):
-    """Not only the close box: every gesture that means "quit this window"."""
-    cmd_file = tmp_path / "dashboard_cmd.txt"
-    controller, _renderer, _selection, _notifier, stop_event = _build_controller(
-        dashboard_cmd_file=cmd_file,
-    )
-
-    controller._handle_key(type("Event", (), {"key": pygame.K_q, "mod": pygame.KMOD_CTRL})())
-
-    assert cmd_file.read_text(encoding="utf-8").split() == ["quit"]
-    assert not stop_event.is_set()
-
-
-def test_ctrl_q_triggers_close():
-    controller, _renderer, _selection, _notifier, stop_event = _build_controller()
-
-    event = type("Event", (), {"key": pygame.K_q, "mod": pygame.KMOD_CTRL})()
-    controller._handle_key(event)
-
-    assert stop_event.is_set()
-
-
-def test_backslash_triggers_quarter_offset():
-    offsets = []
-    controller, _renderer, _selection, _notifier, _stop_event = _build_controller(
-        quarter_offset=lambda: offsets.append(1),
-    )
-
-    event = type("Event", (), {"key": pygame.K_BACKSLASH, "mod": 0})()
-    controller._handle_key(event)
-
-    assert offsets == [1]
-
-
-def test_escape_triggers_toggle_playing():
-    toggles = []
-    controller, *_ = _build_controller(
-        on_toggle_playing=lambda: toggles.append(1),
-    )
-
-    event = type("Event", (), {"key": pygame.K_ESCAPE, "mod": 0})()
-    controller._handle_key(event)
-
-    assert toggles == [1]
-
-
-def test_j_key_triggers_speed_down():
-    deltas = []
-    controller, *_ = _build_controller(
-        on_adjust_speed=lambda d: deltas.append(d),
-    )
-
-    event = type("Event", (), {"key": pygame.K_j, "mod": 0})()
-    controller._handle_key(event)
-
-    assert deltas == [-5]
-
-
-def test_l_key_triggers_speed_up():
-    deltas = []
-    controller, *_ = _build_controller(
-        on_adjust_speed=lambda d: deltas.append(d),
-    )
-
-    event = type("Event", (), {"key": pygame.K_l, "mod": 0})()
-    controller._handle_key(event)
-
-    assert deltas == [5]
-
-
-def test_7_and_9_keys_trigger_amplitude_down_and_up():
-    deltas = []
-    controller, *_ = _build_controller(
-        on_adjust_amplitude=lambda d: deltas.append(d),
-    )
-
-    controller._handle_key(type("Event", (), {"key": pygame.K_7, "mod": 0})())
-    controller._handle_key(type("Event", (), {"key": pygame.K_9, "mod": 0})())
-
-    assert deltas == [-10, 10]
-
-
-def test_i_key_triggers_cycle_shape():
-    calls = []
-    controller, *_ = _build_controller(
-        on_cycle_shape=lambda: calls.append(1),
-    )
-
-    event = type("Event", (), {"key": pygame.K_i, "mod": 0})()
-    controller._handle_key(event)
-
-    assert calls == [1]
-
-
-def test_k_key_condemns_the_clip():
-    """K sits above the M / , / . row the way Up sits above the arrows, and
-    means for a Genau clip what Up means for a portrait video."""
-    calls = []
-    controller, *_ = _build_controller(
-        on_weird_clip=lambda: calls.append(1),
-    )
-
-    event = type("Event", (), {"key": pygame.K_k, "mod": 0})()
-    controller._handle_key(event)
-
-    assert calls == [1]
-
-
-def test_u_key_triggers_center_down():
-    deltas = []
-    controller, *_ = _build_controller(
-        on_adjust_center=lambda d: deltas.append(d),
-    )
-
-    event = type("Event", (), {"key": pygame.K_u, "mod": 0})()
-    controller._handle_key(event)
-
-    assert deltas == [-5]
-
-
-def test_o_key_triggers_center_up():
-    deltas = []
-    controller, *_ = _build_controller(
-        on_adjust_center=lambda d: deltas.append(d),
-    )
-
-    event = type("Event", (), {"key": pygame.K_o, "mod": 0})()
-    controller._handle_key(event)
-
-    assert deltas == [5]
-
-
-def test_comma_key_holds_the_clip():
-    calls = []
-    controller, *_ = _build_controller(
-        on_toggle_lock=lambda: calls.append(1),
-    )
-
-    event = type("Event", (), {"key": pygame.K_COMMA, "mod": 0})()
-    controller._handle_key(event)
-
-    assert calls == [1]
-
-
-def test_x_key_does_nothing_now_that_advancing_is_not_a_mode():
-    """It armed auto advance, which is no longer a switch: an unlocked Genau
-    advances and a locked one does not, and the comma key is that lock."""
-    controller, *_ = _build_controller()
-
-    event = type("Event", (), {"key": pygame.K_x, "mod": 0})()
-
-    controller._handle_key(event)  # must not raise
-
-
-def test_slash_key_triggers_toggle_auto():
-    calls = []
-    controller, *_ = _build_controller(
-        on_toggle_cruise=lambda: calls.append(1),
-    )
-
-    event = type("Event", (), {"key": pygame.K_SLASH, "mod": 0})()
-    controller._handle_key(event)
-
-    assert calls == [1]
-
-
-def test_space_triggers_pause_playing():
-    pauses = []
-    controller, *_ = _build_controller(
-        on_pause_playing=lambda: pauses.append(1),
-    )
-
-    event = type("Event", (), {"key": pygame.K_SPACE, "mod": 0})()
-    controller._handle_key(event)
-
-    assert pauses == [1]
-
-
-def test_default_callbacks_do_not_raise():
-    controller, *_ = _build_controller()
-
-    for key in [pygame.K_ESCAPE, pygame.K_j, pygame.K_l, pygame.K_k,
-                pygame.K_i, pygame.K_u, pygame.K_o, pygame.K_COMMA,
-                pygame.K_SLASH, pygame.K_SPACE, pygame.K_7, pygame.K_9,
-                pygame.K_x]:
-        event = type("Event", (), {"key": key, "mod": 0})()
-        controller._handle_key(event)
-
-
 class TestConsoleMouse:
     """A press on one of the drive readout's bars holds it, and the pointer goes
     on setting that level until the button comes up — so a bar is dragged, not
     only clicked."""
 
     @staticmethod
-    def _pump(monkeypatch, events, **callbacks):
-        controller, *_ = _build_controller(**callbacks)
+    def _pump(monkeypatch, events):
+        controller, _renderer, pointer, *_ = _build_controller()
         monkeypatch.setattr(pygame.event, "get", lambda: events)
         controller.process_events()
+        return pointer
 
     @staticmethod
     def _motion(pos, held: bool):
-        return type("Event", (), {"type": pygame.MOUSEMOTION, "pos": pos,
-                                  "buttons": (1 if held else 0, 0, 0)})()
+        return pygame.event.Event(
+            pygame.MOUSEMOTION, pos=pos, buttons=(1 if held else 0, 0, 0),
+        )
+
+    def test_a_press_reaches_the_pointer(self, monkeypatch):
+        pointer = self._pump(monkeypatch, [
+            pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=1, pos=(3, 4)),
+        ])
+
+        assert pointer.presses == [(3, 4)]
+
+    def test_a_press_of_another_button_does_not(self, monkeypatch):
+        pointer = self._pump(monkeypatch, [
+            pygame.event.Event(pygame.MOUSEBUTTONDOWN, button=3, pos=(3, 4)),
+        ])
+
+        assert pointer.presses == []
 
     def test_the_pointer_moving_with_the_button_down_drags(self, monkeypatch):
-        dragged, hovered = [], []
-        self._pump(monkeypatch, [self._motion((7, 9), held=True)],
-                   on_console_drag=lambda mx, my: dragged.append((mx, my)),
-                   on_console_motion=lambda mx, my: hovered.append((mx, my)))
+        pointer = self._pump(monkeypatch, [self._motion((7, 9), held=True)])
 
-        assert dragged == [(7, 9)]
+        assert pointer.drags == [(7, 9)]
         # The cursor still names whatever it is over while it drags.
-        assert hovered == [(7, 9)]
+        assert pointer.motions == [(7, 9)]
 
     def test_the_button_coming_up_lets_go(self, monkeypatch):
-        released = []
-        self._pump(monkeypatch,
-                   [type("Event", (), {"type": pygame.MOUSEBUTTONUP, "button": 1})()],
-                   on_console_release=lambda: released.append(1))
+        pointer = self._pump(monkeypatch, [
+            pygame.event.Event(pygame.MOUSEBUTTONUP, button=1),
+        ])
 
-        assert released == [1]
+        assert pointer.releases == 1
 
     def test_a_motion_with_the_button_already_up_lets_go_too(self, monkeypatch):
         """It came up out of this window's sight — over another window, or off the
         screen — so the bar it was holding is not still being dragged."""
-        released, dragged = [], []
-        self._pump(monkeypatch, [self._motion((7, 9), held=False)],
-                   on_console_release=lambda: released.append(1),
-                   on_console_drag=lambda mx, my: dragged.append((mx, my)))
+        pointer = self._pump(monkeypatch, [self._motion((7, 9), held=False)])
 
-        assert (released, dragged) == ([1], [])
+        assert (pointer.releases, pointer.drags) == (1, [])
+
+
+class TestBuildingAMapOnItsOwn:
+    def test_a_window_key_may_not_shadow_a_control_the_registry_declared(self):
+        """Silently overriding one would leave a control with a key that means
+        something else, which is the drift the registry exists to stop."""
+        with pytest.raises(ValueError) as refused:
+            keymap(_controls(), K_j=lambda: None)
+
+        assert "K_j" in str(refused.value)

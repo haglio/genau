@@ -116,53 +116,37 @@ class Keys:
 def _build(keys: Keys) -> GenauLifecycleController:
     """Wire the controller the way run_listener does.
 
-    Transcribed from genau/app.py, which is the only place this wiring exists;
     ``pause_only`` is False here, which is Genau standalone.
     """
+    from player_core.cruise_control import toggle_cruise_control
     from player_core.direct_control import space_action, toggle_playing
 
     return GenauLifecycleController(
         renderer=FakeRenderer(),
-        selection=keys.selection,
+        controls=keys.controls,
         stop_event=keys.stop_event,
         notifier=keys.notifier,
         resize_delay_ms=75,
-        quarter_offset=lambda: keys.engine.__setattr__(
-            "phase", (keys.engine.phase + 0.25) % 1.0),
         on_toggle_playing=lambda: toggle_playing(keys.direct),
         on_pause_playing=lambda: space_action(keys.direct, pause_only=False),
-        on_adjust_speed=lambda delta: _adjust("speed", keys.direct, delta),
-        on_adjust_amplitude=lambda delta: _adjust("amplitude", keys.direct, delta),
-        on_adjust_center=lambda delta: _adjust("center", keys.direct, delta),
-        on_cycle_shape=lambda: _cycle(keys.direct),
-        on_toggle_cruise=lambda: _toggle_cruise(keys.cruise),
-        on_toggle_lock=lambda: _toggle_lock(keys.advance),
-        on_weird_clip=keys.selection.discard_current,
+        on_toggle_cruise=lambda: toggle_cruise_control(keys.cruise),
+        console_pointer=FakePointer(),
     )
 
 
-def _adjust(which, direct, delta):
-    from player_core import direct_control
+class FakePointer:
+    """The console pointer, which no key reaches."""
 
-    getattr(direct_control, f"adjust_{which}")(direct, delta)
+    def press(self, mx: int, my: int) -> None:
+        raise AssertionError("a key reached the pointer")
 
+    drag = press
 
-def _cycle(direct):
-    from player_core.direct_control import cycle_shape
+    def release(self) -> None:
+        raise AssertionError("a key reached the pointer")
 
-    cycle_shape(direct)
-
-
-def _toggle_cruise(cruise):
-    from player_core.cruise_control import toggle_cruise_control
-
-    toggle_cruise_control(cruise)
-
-
-def _toggle_lock(advance):
-    from genau.clip_advance import toggle_lock
-
-    toggle_lock(advance)
+    def motion(self, mx: int, my: int) -> None:
+        raise AssertionError("a key reached the pointer")
 
 
 # key, modifier, what it starts from, and the ONLY keys it may move.

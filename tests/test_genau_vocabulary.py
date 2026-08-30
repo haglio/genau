@@ -98,6 +98,27 @@ GENAU_NOT_VERBS: dict[str, str] = {
     "T": "genau/cache_utils.py — an ISO-8601 date separator",
 }
 
+# The keys Genau's own window answers to, and the verb each one means.  Twelve
+# of the sixteen: ESC, SPACE, `/` and Ctrl+Q are the window's own and have no
+# verb (the `/` divergence is in CHANGELOG.md, 2026-08-30).
+#
+# Laid out like the arrow keys for the clip cluster: K above for "condemn this
+# one", M and . either side for previous and next, and , below K for the lock.
+GENAU_KEYS: dict[str, str] = {
+    "K_j": "SPEED_DOWN",
+    "K_l": "SPEED_UP",
+    "K_7": "AMPLITUDE_DOWN",
+    "K_9": "AMPLITUDE_UP",
+    "K_u": "CENTER_DOWN",
+    "K_o": "CENTER_UP",
+    "K_i": "CYCLE_SHAPE",
+    "K_m": "PREV",
+    "K_PERIOD": "NEXT",
+    "K_k": "WEIRD",
+    "K_COMMA": "TOGGLE_LOCK",
+    "K_BACKSLASH": "OFFSET_QUARTER_CYCLE",
+}
+
 # Spellings that must stay refused.  Two were aliases no sender in the family
 # ever used; three named the auto-advance rather than the number of seconds it
 # spends, and were retired when the verb was renamed.  Fun Time's genau-mode
@@ -173,20 +194,46 @@ ONLY_GVR = frozenset({"VOLUME_UP", "VOLUME_DOWN"})
 # --------------------------------------------------------------------------
 
 
-def _verb_shaped_literals(package: str) -> set[str]:
-    """Every verb-shaped string constant in a package's source.
+def _key_names(tree: ast.AST) -> dict[int, str]:
+    """The ``key=`` a ``Verb(...)`` was declared with, by node id.
+
+    A pygame constant's name is verb-shaped (``K_PERIOD``) but is not a verb, so
+    the scan below has to tell the two apart by where they sit rather than by
+    how they are spelled.  These get their own gate instead.
+    """
+    named: dict[int, str] = {}
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Verb"):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg == "key" and isinstance(keyword.value, ast.Constant):
+                named[id(keyword.value)] = keyword.value.value
+    return named
+
+
+def _scan(package: str) -> tuple[set[str], set[str]]:
+    """Every verb-shaped string constant in a package's source, and its keys.
 
     Read off the syntax tree rather than by importing, so a module that needs a
     platform this machine has not got still contributes its verbs.
     """
-    found: set[str] = set()
+    verbs: set[str] = set()
+    keys: set[str] = set()
     for path in sorted((REPO_DIR / package).rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        declared_keys = _key_names(tree)
         for node in ast.walk(tree):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                if _VERB_SHAPED.match(node.value):
-                    found.add(node.value)
-    return found
+            if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+                continue
+            if id(node) in declared_keys:
+                keys.add(node.value)
+            elif _VERB_SHAPED.match(node.value):
+                verbs.add(node.value)
+    return verbs, keys
+
+
+def _verb_shaped_literals(package: str) -> set[str]:
+    return _scan(package)[0]
 
 
 @contextmanager
@@ -287,6 +334,18 @@ class TestGenauAnswersEveryVerbWrittenDown:
 
         spoken = {phrase.split()[0] for phrase in VOICE_COMMANDS.values()}
         assert spoken <= set(GENAU_VERBS)
+
+    def test_the_source_declares_these_keys_and_no_others(self):
+        assert _scan("genau")[1] == set(GENAU_KEYS)
+
+    def test_each_key_stands_for_the_verb_written_down_beside_it(self):
+        from genau.controls import KEYS
+
+        assert {name: verb.spelling for name, (_control, verb) in KEYS.items()} == GENAU_KEYS
+
+    def test_genau_vr_declares_no_keys(self):
+        """The headset has no keyboard; its controls arrive as verbs only."""
+        assert _scan("genau_vr")[1] == set()
 
     def test_no_control_declares_a_verb_that_is_not_written_down(self):
         """The registry is where verbs are added, so it is where a widening of

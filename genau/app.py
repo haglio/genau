@@ -14,13 +14,14 @@ from app_support.logging_utils import (
     install_exception_logging,
 )
 from app_support.threading_utils import start_daemon_thread
-from player_core.file_channel import append_command, read_paused_state
+from player_core.file_channel import read_paused_state
 
 from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
 from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
+from .console_pointer import ConsolePointer
 from .controls import GenauControls
 from .lifecycle import GenauLifecycleController
 from .notifier import GenauNotifier
@@ -240,6 +241,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         name="genau-udp",
     )
 
+    dashboard_cmd_file = Path(args.dashboard_cmd_file) if args.dashboard_cmd_file else None
+
     clip_store = ClipCacheStore(limit=args.clip_cache_size)
 
     engine = PlaybackEngine(last_tick=time.monotonic())
@@ -388,66 +391,20 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_hud_mode=view.set_hud_mode,
         set_blank=view.set_blank,
     )
-    from .clip_advance import toggle_lock
     from player_core.cruise_control import toggle_cruise_control
-    from player_core.direct_control import (
-        adjust_amplitude,
-        adjust_center,
-        adjust_speed,
-        cycle_shape,
-        space_action,
-        toggle_playing,
-    )
-
-    dashboard_cmd_file = Path(args.dashboard_cmd_file) if args.dashboard_cmd_file else None
-
-    def _post_console(command: str) -> None:
-        """Ask Fun Time for what the console just said, on the same channel its
-        dashboard uses, so it is routed like any other command.  Inert with no
-        dashboard (standalone), where there is nowhere to ask."""
-        if command and dashboard_cmd_file is not None:
-            append_command(dashboard_cmd_file, command)
-
-    def _press_console(mx: int, my: int) -> None:
-        """A press on what Genau draws over its clip — the volume chip, a console
-        button's own command, or the level the drive readout's bar under the
-        pointer is set to.
-
-        The chip is tried first: it floats in its own corner, so a press on it is
-        never also a press on the panel.
-        """
-        volume = view.press_volume_at(mx, my)
-        if volume:
-            _post_console(volume)
-            return
-        _post_console(view.console_press_at(mx, my))
-
-    def _drag_console(mx: int, my: int) -> None:
-        """The pointer moving with the button down: a bar the press took hold of
-        goes on being set, and says nothing while its level has not moved."""
-        _post_console(view.console_drag_to(mx, my))
+    from player_core.direct_control import space_action, toggle_playing
 
     lifecycle = GenauLifecycleController(
         renderer=renderer,
-        selection=selection,
+        controls=controls,
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=config.genau.resize_debounce_ms,
         dashboard_cmd_file=dashboard_cmd_file,
-        quarter_offset=lambda: engine.__setattr__("phase", (engine.phase + 0.25) % 1.0),
         on_toggle_playing=lambda: toggle_playing(direct_state),
         on_pause_playing=lambda: space_action(direct_state, pause_only=args.fun_time),
-        on_adjust_speed=lambda delta: adjust_speed(direct_state, delta),
-        on_adjust_amplitude=lambda delta: adjust_amplitude(direct_state, delta),
-        on_adjust_center=lambda delta: adjust_center(direct_state, delta),
-        on_cycle_shape=lambda: cycle_shape(direct_state),
         on_toggle_cruise=lambda: toggle_cruise_control(cruise_control),
-        on_toggle_lock=lambda: toggle_lock(clip_advance),
-        on_weird_clip=selection.discard_current,
-        on_console_press=_press_console,
-        on_console_drag=_drag_console,
-        on_console_release=view.console_release,
-        on_console_motion=view.set_console_hover,
+        console_pointer=ConsolePointer(view, dashboard_cmd_file),
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)

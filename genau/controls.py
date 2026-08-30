@@ -80,15 +80,22 @@ QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
 
 @dataclass(frozen=True)
 class Verb:
-    """One spelling an orchestrator may send.
+    """One spelling an orchestrator may send, and the key that means the same.
 
     ``takes_a_value`` is part of the spelling, not a convenience: ``AMP`` alone
     and ``SPEED_UP 5`` are both refused, because half a command is not a command.
+
+    ``key`` is the name of the pygame constant a press on Genau's own window
+    arrives as -- the name rather than the constant, so this module stays free
+    of the window library.  Declaring it here is the point: a key and a verb
+    that mean the same thing are one line, so they cannot drift into meaning
+    two things, which they had (see the `/` key in CHANGELOG.md).
     """
 
     spelling: str
     act: Act
     takes_a_value: bool = False
+    key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -295,8 +302,8 @@ CONTROLS: tuple[Control, ...] = (
         name="speed",
         needs=("direct_state",),
         verbs=(
-            Verb("SPEED_DOWN", _stepper(-5)),
-            Verb("SPEED_UP", _stepper(5)),
+            Verb("SPEED_DOWN", _stepper(-5), key="K_j"),
+            Verb("SPEED_UP", _stepper(5), key="K_l"),
             Verb("SPEED", _number_setter(set_speed), takes_a_value=True),
         ),
     ),
@@ -304,8 +311,8 @@ CONTROLS: tuple[Control, ...] = (
         name="amplitude",
         needs=("direct_state",),
         verbs=(
-            Verb("AMPLITUDE_DOWN", _amplitude_step(-10)),
-            Verb("AMPLITUDE_UP", _amplitude_step(10)),
+            Verb("AMPLITUDE_DOWN", _amplitude_step(-10), key="K_7"),
+            Verb("AMPLITUDE_UP", _amplitude_step(10), key="K_9"),
             Verb("AMP", _number_setter(set_amplitude), takes_a_value=True),
         ),
     ),
@@ -313,8 +320,8 @@ CONTROLS: tuple[Control, ...] = (
         name="center",
         needs=("direct_state",),
         verbs=(
-            Verb("CENTER_DOWN", _center_step(-5)),
-            Verb("CENTER_UP", _center_step(5)),
+            Verb("CENTER_DOWN", _center_step(-5), key="K_u"),
+            Verb("CENTER_UP", _center_step(5), key="K_o"),
             Verb("CENTER", _number_setter(set_center), takes_a_value=True),
         ),
     ),
@@ -322,7 +329,7 @@ CONTROLS: tuple[Control, ...] = (
         name="shape",
         needs=("direct_state",),
         verbs=(
-            Verb("CYCLE_SHAPE", _shape_step(1)),
+            Verb("CYCLE_SHAPE", _shape_step(1), key="K_i"),
             Verb("CYCLE_SHAPE_PREV", _shape_step(-1)),
         ),
     ),
@@ -343,7 +350,7 @@ CONTROLS: tuple[Control, ...] = (
         name="lock",
         needs=("clip_advance_state",),
         verbs=(
-            Verb("TOGGLE_LOCK", _lock_toggled),
+            Verb("TOGGLE_LOCK", _lock_toggled, key="K_COMMA"),
             Verb("LOCK_ON", _lock_set(True)),
             Verb("LOCK_OFF", _lock_set(False)),
         ),
@@ -367,12 +374,13 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="clip",
-        verbs=(Verb("PREV", _step_clip(-1)), Verb("NEXT", _step_clip(1))),
+        verbs=(Verb("PREV", _step_clip(-1), key="K_m"),
+            Verb("NEXT", _step_clip(1), key="K_PERIOD"),),
     ),
     Control(
         name="condemn",
         needs=("discard_clip",),
-        verbs=(Verb("WEIRD", _condemn),),
+        verbs=(Verb("WEIRD", _condemn, key="K_k"),),
     ),
     # The two browse orders every player in the room has, said to the one player
     # with no playlist file to hand it: Genau owns its own sequence, so the order
@@ -385,7 +393,8 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="quarter_cycle",
-        verbs=(Verb(QUARTER_CYCLE_OFFSET_COMMAND, _offset_quarter_cycle),),
+        verbs=(Verb(QUARTER_CYCLE_OFFSET_COMMAND, _offset_quarter_cycle,
+                    key="K_BACKSLASH"),),
     ),
     Control(
         name="pause",
@@ -439,4 +448,27 @@ def _bind(controls: tuple[Control, ...]) -> Mapping[str, tuple[Control, Verb]]:
     return bound
 
 
+def _bind_keys(controls: tuple[Control, ...]) -> Mapping[str, tuple[Control, Verb]]:
+    """The keys the registry declares, by the name of the pygame constant.
+
+    Two verbs on one key is refused the same way and for the same reason as two
+    controls on one verb: whichever the window looked up second would never
+    fire, and nothing would say so.
+    """
+    bound: dict[str, tuple[Control, Verb]] = {}
+    for control in controls:
+        for verb in control.verbs:
+            if verb.key is None:
+                continue
+            if verb.key in bound:
+                _, other = bound[verb.key]
+                raise ValueError(
+                    f"{verb.key} is claimed by both "
+                    f"{other.spelling} and {verb.spelling}"
+                )
+            bound[verb.key] = (control, verb)
+    return bound
+
+
 VERBS: Mapping[str, tuple[Control, Verb]] = _bind(CONTROLS)
+KEYS: Mapping[str, tuple[Control, Verb]] = _bind_keys(CONTROLS)
