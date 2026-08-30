@@ -201,10 +201,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
     cache_dir = cache_dir_for_clips_folder(clips_folder)
 
-    # Start decoding the first clip immediately in a background thread.
-    # This overlaps with pygame init + controller wiring below, so by
-    # the time the main loop starts the first clip is likely already
-    # decoded and ready to display.
+    # A thread, so the decode overlaps pygame init and the controller wiring
+    # below rather than running before them.
     first_clip_path = clip_sequence.current_path
     preload_result: dict = {"frames": None}
 
