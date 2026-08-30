@@ -40,8 +40,8 @@ class ClipJumps:
         video its player last showed — but only when the video is *in* the file,
         and a compilation's clips often are not, so the list comes back leading
         with something else entirely.  The remembered clip is therefore the
-        anchor: play it, and build the volume around it.  A clip that does not
-        belong to the remembered volume is from a session that is over.
+        anchor: play it, and build the compilation around it.  A clip that does
+        not belong to the remembered compilation is from a session that is over.
         """
         if not compilation or video is None:
             return
@@ -52,12 +52,12 @@ class ClipJumps:
 
     def leave_compilation(self) -> None:
         """Note that the playlist was rebuilt from somewhere else — the library's
-        length modes and Fun Time's reload both do that, and either way the volume
-        is no longer what is on screen."""
+        length modes and Fun Time's reload both do that, and either way the
+        compilation is no longer what is on screen."""
         self._compilation = ""
 
     def end_compilation(self, playlist: list[tuple[Path, Path | None]]) -> None:
-        """Leave the volume for *playlist*, without interrupting the video.
+        """Leave the compilation for *playlist*, without interrupting the video.
 
         Leaving is about what "next" will reach, not about what is playing, so
         the clip on screen carries on — it is simply no longer surrounded by its
@@ -69,10 +69,10 @@ class ClipJumps:
         self._compilation = ""
         current = self._session.current_video
         if current not in {video for video, _fs in playlist}:
-            # A quarter of a volume's clips are non-canonical versions of their
-            # group, so the mode's own playlist does not carry them.  Letting one
-            # of those fall out would make leaving yank the video away, which is
-            # the one thing leaving must not do.
+            # A quarter of a compilation's clips are non-canonical versions of
+            # their group, so the mode's own playlist does not carry them.
+            # Letting one of those fall out would make leaving yank the video
+            # away, which is the one thing leaving must not do.
             playlist = [(current, self._funscripts.get(current)), *playlist]
         self._session.replace_playlist(playlist)
 
@@ -89,7 +89,7 @@ class ClipJumps:
         """Put *current*'s compilation in the playlist around it, if it has one.
 
         The clip on screen keeps playing: it survives into the new list, so the
-        session follows it rather than restarting at the volume's first clip.
+        session follows it rather than restarting at the compilation's first clip.
         """
         siblings = self._nav.compilation_playlist(current)
         if not siblings:

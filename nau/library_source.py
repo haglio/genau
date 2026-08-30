@@ -48,9 +48,9 @@ def length_mode_rebuilds(requested: str, current: str, *, in_compilation: bool) 
     otherwise be the quickest way to keep changing what is playing.
 
     Inside a compilation the same words do have work, and are the point:
-    PLAY_COMPILATION swaps the playlist for one volume's clips without touching
-    the mode, so naming a length is the way back out — there an unchanged mode is
-    exactly the case that must rebuild.
+    PLAY_COMPILATION swaps the playlist for one compilation's clips without
+    touching the mode, so naming a length is the way back out — there an
+    unchanged mode is exactly the case that must rebuild.
     """
     return requested != current or in_compilation
 
