@@ -58,6 +58,22 @@ def hud_window_identity(
     return base_title, base_icon
 
 
+def _layered_window(title: str):
+    """This window's transparency, or None where there is no Win32 to ask.
+
+    genau.win32 imports on any platform (it binds its DLLs through a loader that
+    says so rather than raising), but there is nothing to find off Windows, so
+    the view carries no transparency at all rather than one that refuses.
+    """
+    from .win32_loader import WIN32_AVAILABLE
+
+    if not WIN32_AVAILABLE:
+        return None
+    from .win32 import LayeredWindow
+
+    return LayeredWindow(title, HUD_COLOR_KEY)
+
+
 def load_window_icon(window: Window, icon_path: Path | None) -> None:
     if icon_path is None or not icon_path.exists():
         return
@@ -111,6 +127,10 @@ class PygameView:
         # own icon; genau mode is plain "Genau".  Driven off the HUD toggle.
         self._base_title = title
         self._base_icon_path = icon_path
+        # Taken while the caption is still the one the window was made with, and
+        # held: the HUD renames this window, and a handle looked up afterwards
+        # would be a handle found by a caption that had just changed.
+        self._layered = _layered_window(title)
         self._hybrid_title = hybrid_title
         self._hybrid_icon_path = hybrid_icon_path
         self.renderer = Renderer(self.window, accelerated=True)
@@ -302,60 +322,12 @@ class PygameView:
             hybrid_title=self._hybrid_title,
             hybrid_icon=self._hybrid_icon_path,
         )
-        # Set the title BEFORE _apply_layered_window: the HUD transparency finds
-        # this window by its live title, so it must already be the new one.
         self.window.title = title
         load_window_icon(self.window, icon)
-        self._apply_layered_window(active)
-
-    def _find_hwnd(self) -> int:
-        """Find this window's HWND via Win32 FindWindowW.
-
-        pygame.display.get_wm_info() only works with pygame.display windows,
-        not pygame._sdl2.video.Window objects.
-        """
-        import ctypes
-        hwnd = ctypes.windll.user32.FindWindowW(None, self.window.title)
-        return hwnd
-
-    def _apply_layered_window(self, enable: bool) -> None:
-        """Toggle Win32 layered-window color key transparency.
-
-        When enabled, pixels matching HUD_COLOR_KEY (1, 0, 1) become fully
-        transparent, letting Nau's video window beneath show through.
-        """
-        import ctypes
-        import logging
-
-        logger = logging.getLogger(__name__)
-        hwnd = self._find_hwnd()
-        if not hwnd:
-            logger.warning("HUD: could not find window HWND for title %r", self.window.title)
-            return
-
-        GWL_EXSTYLE = -20
-        WS_EX_LAYERED = 0x80000
-        style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        if enable:
-            ctypes.windll.user32.SetWindowLongW(
-                hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED,
-            )
-            LWA_COLORKEY = 0x1
-            # Win32 COLORREF is 0x00BBGGRR
-            colorkey = HUD_COLOR_KEY[0] | (HUD_COLOR_KEY[1] << 8) | (HUD_COLOR_KEY[2] << 16)
-            result = ctypes.windll.user32.SetLayeredWindowAttributes(
-                hwnd, colorkey, 0, LWA_COLORKEY,
-            )
-            if not result:
-                logger.warning("HUD: SetLayeredWindowAttributes failed (error %d)",
-                               ctypes.windll.kernel32.GetLastError())
-            else:
-                logger.info("HUD: layered window enabled (hwnd=%#x, colorkey=%#08x)", hwnd, colorkey)
-        else:
-            ctypes.windll.user32.SetWindowLongW(
-                hwnd, GWL_EXSTYLE, style & ~WS_EX_LAYERED,
-            )
-            logger.info("HUD: layered window disabled")
+        # Order-free now: the transparency holds the handle it took when the
+        # window was made, so the rename above cannot reach it.
+        if self._layered is not None:
+            self._layered.set_transparent(active)
 
     def destroy(self) -> None:
         self._current_texture = None

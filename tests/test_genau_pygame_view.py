@@ -256,14 +256,12 @@ def test_set_hud_mode_true_enables_layered_window(mock_pygame):
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
-    mock_user32 = MagicMock()
-    mock_user32.GetWindowLongW.return_value = 0
-    view._apply_layered_window = MagicMock()
+    view._layered = MagicMock()
 
     view.set_hud_mode(True)
 
     assert view.hud_active is True
-    view._apply_layered_window.assert_called_once_with(True)
+    view._layered.set_transparent.assert_called_once_with(True)
 
 
 def test_set_hud_mode_false_removes_layered_window(mock_pygame):
@@ -271,23 +269,40 @@ def test_set_hud_mode_false_removes_layered_window(mock_pygame):
 
     view = PygameView(width=800, height=600)
     view.hud_active = True
-    view._apply_layered_window = MagicMock()
+    view._layered = MagicMock()
 
     view.set_hud_mode(False)
 
     assert view.hud_active is False
-    view._apply_layered_window.assert_called_once_with(False)
+    view._layered.set_transparent.assert_called_once_with(False)
 
 
 def test_set_hud_mode_noop_when_already_in_requested_state(mock_pygame):
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
-    view._apply_layered_window = MagicMock()
+    view._layered = MagicMock()
 
     view.set_hud_mode(False)  # already False
 
-    view._apply_layered_window.assert_not_called()
+    view._layered.set_transparent.assert_not_called()
+
+
+def test_the_transparency_holds_the_handle_it_took_when_the_window_was_made(mock_pygame):
+    """Not one looked up afterwards: the HUD renames this window, and fun_time
+    separately finds it by caption substring, so a handle resolved after the
+    rename is resolved against a caption that had just changed."""
+    from genau.pygame_view import PygameView
+
+    view = PygameView(width=800, height=600, title="Genau",
+                      hybrid_title="Hybrid Nau+Genau")
+    view._layered = MagicMock()
+    view._layered.hwnd = 0x1234
+
+    view.set_hud_mode(True)
+
+    assert view.window.title == "Hybrid Nau+Genau"
+    assert view._layered.hwnd == 0x1234
 
 
 def test_hud_window_identity_hybrid_when_active_else_base(mock_pygame):
@@ -316,7 +331,7 @@ def test_set_hud_mode_swaps_window_title_to_hybrid_and_back(mock_pygame, tmp_pat
         width=800, height=600, title="Genau",
         hybrid_title="Hybrid Nau+Genau", hybrid_icon_path=tmp_path / "h.ico",
     )
-    view._apply_layered_window = MagicMock()
+    view._layered = MagicMock()
 
     view.set_hud_mode(True)
     assert view.window.title == "Hybrid Nau+Genau"
