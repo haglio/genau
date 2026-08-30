@@ -112,7 +112,7 @@ class TestDropCurrent:
         seq = ClipSequenceController([Path("a.mp4"), Path("b.mp4"), Path("c.mp4")])
         seq.step(1)
 
-        assert seq.drop_current() == Path("c.mp4")
+        assert seq.remove_current() == Path("c.mp4")
         assert seq.count == 2
         assert seq.current_path == Path("c.mp4")
 
@@ -121,12 +121,12 @@ class TestDropCurrent:
         seq.step(-1)
         assert seq.current_path == Path("b.mp4")
 
-        assert seq.drop_current() == Path("a.mp4")
+        assert seq.remove_current() == Path("a.mp4")
         assert seq.count == 1
 
     def test_the_only_clip_is_never_dropped(self):
         """An empty sequence has nothing to show, so the last clip stays."""
         seq = ClipSequenceController([Path("a.mp4")])
 
-        assert seq.drop_current() is None
+        assert seq.remove_current() is None
         assert seq.count == 1

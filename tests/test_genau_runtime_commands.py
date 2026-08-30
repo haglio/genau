@@ -749,13 +749,13 @@ class TestWeirdCommand:
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             paused=Flag(),
             step_clip=lambda _step: None,
-            discard_clip=lambda: calls.append(1),
+            condemn_clip=lambda: calls.append(1),
         )
 
         assert handled is True
         assert calls == [1]
 
-    def test_weird_ignored_without_a_way_to_discard(self):
+    def test_weird_ignored_without_a_way_to_condemn(self):
         handled = _answered(
             "WEIRD",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),

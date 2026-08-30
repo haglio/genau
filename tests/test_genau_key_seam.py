@@ -41,7 +41,7 @@ class FakeSelection:
     def step(self, delta: int) -> None:
         self.step_calls.append(delta)
 
-    def discard_current(self) -> bool:
+    def condemn_current(self) -> bool:
         self.discard_calls += 1
         return True
 
@@ -84,7 +84,7 @@ class Keys:
             engine=self.engine,
             paused=Flag(),
             step_clip=self.selection.step,
-            discard_clip=self.selection.discard_current,
+            condemn_clip=self.selection.condemn_current,
             direct_state=self.direct,
             cruise_control_state=self.cruise,
             clip_advance_state=self.advance,

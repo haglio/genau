@@ -12,14 +12,14 @@ class ClipSelectionController:
         loader,
         renderer,
         notifier,
-        discard_clip=lambda _path: None,
+        condemn_clip=lambda _path: None,
     ):
         self.sequence = sequence
         self.clip_store = clip_store
         self.loader = loader
         self.renderer = renderer
         self.notifier = notifier
-        self.discard_clip = discard_clip
+        self.condemn_clip = condemn_clip
         self._pending_path: Path | None = None
 
     @property
@@ -71,7 +71,7 @@ class ClipSelectionController:
         self._pending_path = path
         self.loader.request_clip_load(path)
 
-    def discard_current(self) -> bool:
+    def condemn_current(self) -> bool:
         """Condemn the clip on screen and move on to the one behind it.
 
         Unlike :meth:`step` there is nothing to defer to: the condemned clip is
@@ -80,11 +80,11 @@ class ClipSelectionController:
         when it is the only clip left — Genau has to keep something on screen.
         """
         condemned = self.sequence.current_path
-        successor = self.sequence.drop_current()
+        successor = self.sequence.remove_current()
         if successor is None:
             return False
 
-        self.discard_clip(condemned)
+        self.condemn_clip(condemned)
         self.clip_store.clip_cache.pop(condemned, None)
         self.set_current_clip(successor)
         return True

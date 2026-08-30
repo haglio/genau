@@ -252,7 +252,7 @@ class GenauRefreshController:
             self._scrub_the_clip(frame_count) if beat.direct_active
             else self.engine.phase
         )
-        self.renderer.display_frame(display_index_for_phase(
+        self.renderer.show_frame_at(display_index_for_phase(
             phase=display_phase,
             frame_count=frame_count,
             auto_active=beat.auto_active,

@@ -29,7 +29,7 @@ def _collaborators() -> dict:
         engine=PlaybackEngine(phase=0.0, last_tick=0.0),
         paused=Flag(),
         step_clip=lambda _step: None,
-        discard_clip=lambda: None,
+        condemn_clip=lambda: None,
         direct_state=DirectControlState(playing=True),
         cruise_control_state=CruiseControlState(),
         set_stroke_phase=lambda _phase: None,

@@ -80,7 +80,7 @@ class Seam:
                 engine=self.engine,
                 paused=self.paused,
                 step_clip=self.selection.step,
-                discard_clip=self.selection.discard_current,
+                condemn_clip=self.selection.condemn_current,
                 direct_state=self.direct,
                 cruise_control_state=self.cruise,
                 set_stroke_phase=self.tcode.set_stroke_phase,

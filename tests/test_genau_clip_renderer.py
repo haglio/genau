@@ -12,7 +12,7 @@ def _make_controller():
 
     controller = ClipRenderController(
         clip_store=clip_store,
-        display_frame_fn=display_calls.append,
+        blit_frame=display_calls.append,
     )
     return controller, clip_store, display_calls
 
@@ -29,33 +29,33 @@ def test_prepare_active_clip_displays_first_frame():
     assert display_calls == ["f0"]
 
 
-def test_display_frame_sends_frame_to_display_fn():
+def test_show_frame_at_blits_that_frame():
     controller, clip_store, display_calls = _make_controller()
     path = Path("demo.mp4")
     clip_store.clip_cache[path] = {"frames": ["f0", "f1", "f2"]}
     controller.set_current_clip_path(path)
 
-    shown = controller.display_frame(1)
+    shown = controller.show_frame_at(1)
 
     assert shown is True
     assert controller.current_frame_index == 1
     assert display_calls == ["f1"]
 
 
-def test_display_frame_skips_when_index_unchanged():
+def test_show_frame_at_skips_when_the_index_has_not_moved():
     controller, clip_store, display_calls = _make_controller()
     path = Path("demo.mp4")
     clip_store.clip_cache[path] = {"frames": ["f0", "f1"]}
     controller.set_current_clip_path(path)
 
-    controller.display_frame(0)
-    controller.display_frame(0)
+    controller.show_frame_at(0)
+    controller.show_frame_at(0)
 
     assert display_calls == ["f0"]
 
 
-def test_display_frame_returns_false_when_no_active_clip_is_loaded():
+def test_show_frame_at_returns_false_when_no_active_clip_is_loaded():
     controller, _clip_store, display_calls = _make_controller()
 
-    assert controller.display_frame(0) is False
+    assert controller.show_frame_at(0) is False
     assert display_calls == []

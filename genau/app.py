@@ -276,7 +276,7 @@ def _build_clip_pipeline(
 ) -> ClipPipeline:
     renderer = ClipRenderController(
         clip_store=clip_store,
-        display_frame_fn=view.display_frame,
+        blit_frame=view.blit_frame,
     )
     loader = ClipLoadController(
         clip_store=clip_store,
@@ -298,7 +298,7 @@ def _build_clip_pipeline(
             loader=loader,
             renderer=renderer,
             notifier=notifier,
-            discard_clip=lambda path: _condemn_clip(path, weird_dir, logger),
+            condemn_clip=lambda path: _condemn_clip(path, weird_dir, logger),
         ),
     )
 
@@ -410,7 +410,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         engine=engine,
         paused=paused,
         step_clip=selection.step,
-        discard_clip=selection.discard_current,
+        condemn_clip=selection.condemn_current,
         direct_state=drive.direct_state,
         cruise_control_state=drive.cruise_control,
         set_stroke_phase=drive.tcode_sender.set_stroke_phase,

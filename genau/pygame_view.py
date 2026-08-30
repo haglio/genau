@@ -206,7 +206,7 @@ class PygameView:
     def set_blank(self, blank: bool) -> None:
         self._blank = blank
 
-    def display_frame(self, frame: np.ndarray) -> None:
+    def blit_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
         self._video_size = (w, h)
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")

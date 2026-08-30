@@ -46,7 +46,7 @@ class FakeRenderer:
     def current_clip_entry(self):
         return self._entry
 
-    def display_frame(self, index: int) -> None:
+    def show_frame_at(self, index: int) -> None:
         self.display_calls.append(index)
 
 
@@ -63,7 +63,7 @@ class FakeSelection:
     def step(self, delta: int) -> None:
         self.step_calls.append(delta)
 
-    def discard_current(self) -> bool:
+    def condemn_current(self) -> bool:
         self.discard_calls += 1
         return True
 
@@ -161,7 +161,7 @@ def _build_controller(
         engine=engine,
         paused=Flag(),
         step_clip=selection.step,
-        discard_clip=selection.discard_current,
+        condemn_clip=selection.condemn_current,
         direct_state=direct_state if direct_state is not None else DirectControlState(),
         cruise_control_state=cruise_control,
         set_stroke_phase=(

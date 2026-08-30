@@ -272,7 +272,7 @@ def _genau_answers(line: str) -> bool:
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             paused=Flag(),
             step_clip=lambda _step: None,
-            discard_clip=lambda: None,
+            condemn_clip=lambda: None,
             direct_state=DirectControlState(playing=True, speed=50, amplitude=60, center=40),
             cruise_control_state=CruiseControlState(),
             set_stroke_phase=lambda _phase: None,

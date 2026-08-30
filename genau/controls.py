@@ -57,7 +57,7 @@ class GenauControls:
     engine: PlaybackEngine
     paused: Flag
     step_clip: Callable[[int], None]
-    discard_clip: Callable[[], None] | None = None
+    condemn_clip: Callable[[], None] | None = None
     direct_state: DirectControlState | None = None
     cruise_control_state: CruiseControlState | None = None
     set_stroke_phase: Callable[[float], None] | None = None
@@ -192,7 +192,7 @@ def _step_clip(step: int) -> Act:
 
 
 def _condemn(controls: GenauControls, _value: str) -> bool:
-    controls.discard_clip()
+    controls.condemn_clip()
     return True
 
 
@@ -336,7 +336,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="condemn",
-        needs=("discard_clip",),
+        needs=("condemn_clip",),
         verbs=(Verb("WEIRD", _condemn, key="K_k"),),
     ),
     # The two browse orders every player in the room has, said to the one player
