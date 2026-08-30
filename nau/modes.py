@@ -2,8 +2,9 @@
 
 Three of them, and they are not the same kind of thing.  The *length mode* is
 the library's own filter — mixed, shorts, full — and changing it rebuilds the
-playlist.  The *compilation* is a volume's clips standing in for the playlist,
-which :mod:`nau.clip_jumps` owns because entering one is what puts you there.
+playlist.  The *compilation* is one anthology's clips standing in for the
+playlist, which :mod:`nau.clip_jumps` owns because entering one is what puts you
+there.
 *F-mode* is Fun Time's filter over whichever of those is running, and Nau cannot
 see it: the narrowed playlist it receives is indistinguishable from any other,
 so the flag has to be said outright for the HUD to be able to show it.
@@ -11,7 +12,7 @@ so the flag has to be said outright for the HUD to be able to show it.
 They are gathered here because the console draws them as one line and the mode
 memory writes them down as one record, and because the two ways out of a
 compilation — naming a length, or leaving without naming one — both need the
-length that was feeding the playlist when the volume was entered.
+length that was feeding the playlist when the compilation was entered.
 
 Lived as four closures over two ``nonlocal``s inside ``nau.app``'s run loop.
 """
@@ -37,8 +38,8 @@ def reload_playlist(session, jumps, resolve) -> None:
     user.
 
     Replaced rather than loaded, so the video on screen carries on: only what
-    "next" reaches has changed.  The volume is left behind with it, because the
-    playlist is no longer the one a compilation put there.
+    "next" reaches has changed.  The compilation is left behind with it, because
+    the playlist is no longer the one a compilation put there.
     """
     if resolve is None:
         return
@@ -102,8 +103,8 @@ class Modes:
     def end_compilation(self) -> None:
         """Out of a compilation without naming a length.
 
-        The mode that was feeding the playlist when the volume was entered is
-        the one still held here, since PLAY_COMPILATION replaces the playlist
+        The mode that was feeding the playlist when the compilation was entered
+        is the one still held here, since PLAY_COMPILATION replaces the playlist
         but not the mode.  The clip on screen keeps playing — leaving is about
         what "next" reaches.
         """
@@ -129,7 +130,7 @@ class Modes:
         return RememberedMode(
             length_mode=self.length_mode,
             compilation=self._jumps.compilation,
-            # Only while inside one: the clip is remembered as the volume's
-            # anchor, and outside a compilation there is no volume to anchor.
+            # Only while inside one: the clip is the compilation's anchor, and
+            # outside a compilation there is nothing to anchor.
             video=str(self._session.current_video) if self._jumps.compilation else "",
         )

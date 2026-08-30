@@ -10,8 +10,8 @@ default.
 The compilation rides along for a stronger reason: entering one swaps Nau's
 playlist *in memory only* — the file Fun Time resumes never sees it — so being
 inside a compilation is remembered here or not at all.  The clip that was on
-screen comes too, because it is the anchor the volume is rebuilt around: Fun
-Time rotates the resumed playlist onto the video its player last showed, but
+screen comes too, because it is the anchor the compilation is rebuilt around:
+Fun Time rotates the resumed playlist onto the video its player last showed, but
 only when that video is *in* the file, and a compilation's clips often are not.
 """
 from __future__ import annotations
