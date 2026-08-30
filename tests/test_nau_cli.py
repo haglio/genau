@@ -139,20 +139,6 @@ class TestResolvePlaylist:
 
 
 class TestBorderless:
-    @pytest.mark.parametrize("option", ["taskbar_identity", "notice_file"])
-    def test_the_parser_always_defines_what_the_app_reads_off_it(self, option):
-        """nau/app.py reads both straight off the namespace.
-
-        It used to reach them through `getattr(args, ..., None)`, defending
-        against a namespace this parser cannot produce -- which reads as a
-        real possibility and is a branch nobody can write a test for. The
-        parser is what makes the plain attribute safe, so the parser is what
-        is pinned.
-        """
-        args = build_parser({}).parse_args([])
-
-        assert hasattr(args, option)
-
     def test_borderless_is_off_by_default_and_on_by_flag(self):
         """Standalone keeps its chrome; Fun Time passes --borderless to drop it."""
         assert build_parser({}).parse_args([]).borderless is False
@@ -311,6 +297,20 @@ class TestTheCommandLineFunTimeLaunchesNauWith:
 
 class TestTheStandaloneFlags:
     """What Nau's own shortcut passes, which Fun Time never does."""
+
+    @pytest.mark.parametrize("option", ["taskbar_identity", "notice_file"])
+    def test_the_parser_always_defines_what_the_app_reads_off_it(self, option):
+        """nau/app.py reads both straight off the namespace.
+
+        It used to reach them through `getattr(args, ..., None)`, defending
+        against a namespace this parser cannot produce -- which reads as a
+        real possibility and is a branch nobody can write a test for. The
+        parser is what makes the plain attribute safe, so the parser is what
+        is pinned.
+        """
+        args = build_parser({}).parse_args([])
+
+        assert hasattr(args, option)
 
     def test_the_library_directories_and_the_silent_run(self, tmp_path):
         args = build_parser({}).parse_args([

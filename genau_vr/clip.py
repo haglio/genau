@@ -64,7 +64,10 @@ def _decode_video_to_numpy_frames(path: Path) -> list[np.ndarray]:
         "pipe:1",
     ]
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, **hidden_subprocess_kwargs())
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        **hidden_subprocess_kwargs(),
+    )
     frames: list[np.ndarray] = []
 
     try:
