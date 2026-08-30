@@ -189,7 +189,10 @@ class GenauRefreshController:
             paused = self.rh_paused["value"]
             sync_pulse_id = shared.sync_pulse_id
 
-        self.notifier.announce_visible(self.renderer.current_clip_path)
+        # Said every tick and heard once: the notifier drops a repeat.  The
+        # clip that goes with it is the clip selection's to announce, and it
+        # already has by the time the first tick runs.
+        self.notifier.notify_visible(True)
 
         update_engine(
             self.engine,
