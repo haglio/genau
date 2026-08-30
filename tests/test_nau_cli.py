@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from nau.cli import (
+    DEFAULT_CONFIG,
     audio_muted,
     build_parser,
     library_source,
@@ -328,6 +329,108 @@ class TestTheStandaloneFlags:
         assert args.state_dir == tmp_path / "state"
         assert args.notice_file == tmp_path / "notice.txt"
         assert audio_muted(args) is True
+
+
+# Every flag this parser offers, with a fabricated value for each, and the
+# namespace it has to produce.  The two views below are the whole orchestrator-
+# facing surface: what an unflagged launch gets, and where each flag lands.
+EVERY_FLAG_ARGV = [
+    "--config", "C:/example/genau_config.json",
+    "--videos-dir", "C:/example/library/videos",
+    "--scripts-dir", "C:/example/library/scripts",
+    "--clips-dir", "C:/example/library/clips",
+    "--state-dir", "C:/example/state",
+    "--metadata-dir", "C:/example/library/metadata",
+    "--notice-file", "C:/example/state/nau_notice.txt",
+    "--playlist", "C:/example/state/nau_playlist.tsv",
+    "--width", "1280",
+    "--height", "1024",
+    "--x", "1920",
+    "--y", "0",
+    "--borderless",
+    "--tcode-host", "10.0.0.7",
+    "--tcode-port", "51000",
+    "--command-file", "C:/example/state/nau_cmd.txt",
+    "--paused-file", "C:/example/state/nau_paused.txt",
+    "--status-file", "C:/example/state/nau_status.txt",
+    "--console-file", "C:/example/state/console.json",
+    "--drive-file", "C:/example/state/drive.txt",
+    "--dashboard-cmd-file", "C:/example/state/dashboard_cmd.txt",
+    "--no-audio",
+    "--taskbar-identity", "Example.Orchestrator",
+]
+
+EVERY_FLAG_LANDS_AS = {
+    "config": Path("C:/example/genau_config.json"),
+    "videos_dir": Path("C:/example/library/videos"),
+    "scripts_dir": Path("C:/example/library/scripts"),
+    "clips_dir": Path("C:/example/library/clips"),
+    "state_dir": Path("C:/example/state"),
+    "metadata_dir": Path("C:/example/library/metadata"),
+    "notice_file": Path("C:/example/state/nau_notice.txt"),
+    "playlist": Path("C:/example/state/nau_playlist.tsv"),
+    "width": 1280,
+    "height": 1024,
+    "x": 1920,
+    "y": 0,
+    "borderless": True,
+    "tcode_host": "10.0.0.7",
+    "tcode_port": 51000,
+    "command_file": Path("C:/example/state/nau_cmd.txt"),
+    "paused_file": Path("C:/example/state/nau_paused.txt"),
+    "status_file": Path("C:/example/state/nau_status.txt"),
+    "console_file": Path("C:/example/state/console.json"),
+    "drive_file": Path("C:/example/state/drive.txt"),
+    "dashboard_cmd_file": Path("C:/example/state/dashboard_cmd.txt"),
+    "no_audio": True,
+    "taskbar_identity": "Example.Orchestrator",
+}
+
+NO_FLAGS_LANDS_AS = {
+    "config": DEFAULT_CONFIG,
+    "videos_dir": None,
+    "scripts_dir": None,
+    "clips_dir": None,
+    "state_dir": None,
+    "metadata_dir": None,
+    "notice_file": None,
+    "playlist": None,
+    "width": 1200,
+    "height": 900,
+    "x": None,
+    "y": None,
+    "borderless": False,
+    "tcode_host": "127.0.0.1",
+    "tcode_port": 50557,
+    "command_file": None,
+    "paused_file": None,
+    "status_file": None,
+    "console_file": None,
+    "drive_file": None,
+    "dashboard_cmd_file": None,
+    "no_audio": False,
+    "taskbar_identity": None,
+}
+
+
+class TestTheWholeSurfaceFunTimeLaunchesThrough:
+    """The parser is an orchestrator contract, so it is written down whole.
+
+    The classes above cover the flags Fun Time passes today; these two cover
+    the ones it does not, which is where a rename or a dropped flag would
+    otherwise go unnoticed until a launch. Both tables are written out here
+    rather than read off the parser, so a flag added, removed, renamed or
+    re-defaulted lands in the diff as the contract change it is.
+    """
+
+    def test_an_unflagged_launch_gets_these_defaults_and_nothing_else(self):
+        """Every dest the app reads, and the value a standalone run sees."""
+        assert vars(build_parser({}).parse_args([])) == NO_FLAGS_LANDS_AS
+
+    def test_every_flag_it_offers_lands_on_the_name_the_app_reads(self):
+        """A spelling that moved fails here as argparse walking out; a dest that
+        moved fails as a key that is not in the table."""
+        assert vars(build_parser({}).parse_args(EVERY_FLAG_ARGV)) == EVERY_FLAG_LANDS_AS
 
 
 class TestTheConfigsOwnDefaults:
