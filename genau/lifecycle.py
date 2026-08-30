@@ -53,11 +53,13 @@ class GenauLifecycleController:
         on_toggle_cruise,
         console_pointer,
         dashboard_cmd_file=None,
+        now_source=time.monotonic,
     ):
         self.renderer = renderer
         self.stop_event = stop_event
         self.notifier = notifier
         self.resize_delay_ms = resize_delay_ms
+        self.now_source = now_source
         self.dashboard_cmd_file = dashboard_cmd_file
         self.console_pointer = console_pointer
         # ESC and SPACE are two spellings of one thing with two rules: ESC plays
@@ -116,12 +118,12 @@ class GenauLifecycleController:
             act()
 
     def _on_resize(self) -> None:
-        self._resize_pending_at = time.monotonic()
+        self._resize_pending_at = self.now_source()
 
     def _flush_pending_resize(self) -> None:
         if self._resize_pending_at is None:
             return
-        elapsed_ms = (time.monotonic() - self._resize_pending_at) * 1000
+        elapsed_ms = (self.now_source() - self._resize_pending_at) * 1000
         if elapsed_ms >= self.resize_delay_ms:
             self._resize_pending_at = None
             self.renderer.prepare_active_clip_for_current_size()

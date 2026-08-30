@@ -381,7 +381,10 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     clip_store = ClipCacheStore(limit=args.clip_cache_size)
 
-    engine = PlaybackEngine(last_tick=time.monotonic())
+    # One clock for the whole frame loop, so the tick and the window cannot
+    # disagree about what time it is within a turn.
+    clock = time.monotonic
+    engine = PlaybackEngine(last_tick=clock())
 
     paused = Flag()
     hud = Flag()
@@ -433,6 +436,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         sync_strength=args.sync_strength,
         set_loading_text=view.set_loading_text,
         logger=logger,
+        now_source=clock,
         read_paused_state=read_paused_state,
         tcode_sender=drive.tcode_sender,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
@@ -453,6 +457,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         stop_event=stop_event,
         notifier=notifier,
         resize_delay_ms=config.genau.resize_debounce_ms,
+        now_source=clock,
         dashboard_cmd_file=dashboard_cmd_file,
         on_toggle_playing=lambda: toggle_playing(drive.direct_state),
         on_pause_playing=lambda: space_action(drive.direct_state, pause_only=args.fun_time),

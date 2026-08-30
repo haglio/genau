@@ -9,7 +9,6 @@ control at all, and the mouse and resize handling that no verb has.
 from __future__ import annotations
 
 import threading
-import time
 
 import pygame
 import pytest
@@ -68,6 +67,16 @@ def _controls() -> GenauControls:
     )
 
 
+class FakeClock:
+    """A clock a test moves by hand."""
+
+    def __init__(self) -> None:
+        self.now = 100.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
 def _build_controller(**overrides):
     renderer = FakeRenderer()
     notifier = FakeNotifier()
@@ -79,8 +88,10 @@ def _build_controller(**overrides):
         "on_toggle_cruise": lambda: None,
     }
     window_keys.update({k: v for k, v in overrides.items() if k in window_keys})
+    clock = overrides.get("now_source") or FakeClock()
     controller = GenauLifecycleController(
         renderer=renderer,
+        now_source=clock,
         controls=overrides.get("controls") or _controls(),
         stop_event=stop_event,
         notifier=notifier,
@@ -89,6 +100,7 @@ def _build_controller(**overrides):
         dashboard_cmd_file=overrides.get("dashboard_cmd_file"),
         **window_keys,
     )
+    controller.clock = clock
     return controller, renderer, pointer, notifier, stop_event
 
 
@@ -195,15 +207,61 @@ class TestClosingTheWindow:
         assert not stop_event.is_set()
 
 
-def test_resize_debounces_prepare_calls():
-    controller, renderer, *_ = _build_controller()
+class TestTheResizeDebounce:
+    """A drag on the window edge fires VIDEORESIZE a hundred times, and each
+    one would re-scale the clip.  The rebuild waits for the drag to settle --
+    and the wait is measured on the loop's own clock now, so these can say what
+    settling means instead of poking the pending timestamp by hand."""
 
-    controller._on_resize()
-    assert renderer.prepare_calls == 0
+    def test_a_resize_does_not_rebuild_the_clip_at_once(self):
+        controller, renderer, *_ = _build_controller()
 
-    controller._resize_pending_at = time.monotonic() - 0.2
-    controller._flush_pending_resize()
-    assert renderer.prepare_calls == 1
+        controller._on_resize()
+        controller._flush_pending_resize()
+
+        assert renderer.prepare_calls == 0
+
+    def test_it_rebuilds_once_the_window_has_been_still_long_enough(self):
+        controller, renderer, *_ = _build_controller()
+        controller._on_resize()
+
+        controller.clock.now += 0.075       # resize_delay_ms
+        controller._flush_pending_resize()
+
+        assert renderer.prepare_calls == 1
+
+    def test_a_moment_short_of_that_is_not_long_enough(self):
+        controller, renderer, *_ = _build_controller()
+        controller._on_resize()
+
+        controller.clock.now += 0.0745
+        controller._flush_pending_resize()
+
+        assert renderer.prepare_calls == 0
+
+    def test_a_resize_part_way_through_starts_the_wait_again(self):
+        """Which is the whole point: a drag is a hundred resizes, and the clip
+        is rebuilt once at the end rather than a hundred times on the way."""
+        controller, renderer, *_ = _build_controller()
+        controller._on_resize()
+
+        controller.clock.now += 0.05
+        controller._on_resize()
+        controller.clock.now += 0.05
+        controller._flush_pending_resize()
+
+        assert renderer.prepare_calls == 0
+
+    def test_it_rebuilds_only_once_per_settled_drag(self):
+        controller, renderer, *_ = _build_controller()
+        controller._on_resize()
+        controller.clock.now += 0.1
+        controller._flush_pending_resize()
+
+        controller.clock.now += 10.0
+        controller._flush_pending_resize()
+
+        assert renderer.prepare_calls == 1
 
 
 class TestConsoleMouse:
