@@ -19,10 +19,19 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
-from typing import Callable, MutableMapping
+from typing import Callable, Mapping, MutableMapping
 
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import DirectControlState
+from player_core.direct_control import (
+    DirectControlState,
+    adjust_amplitude,
+    adjust_center,
+    adjust_speed,
+    cycle_shape,
+    set_amplitude,
+    set_center,
+    set_speed,
+)
 
 from .clip_advance import ClipAdvanceState
 from .engine import PlaybackEngine
@@ -45,3 +54,156 @@ class GenauControls:
     display_state: MutableMapping[str, bool] | None = None
     set_volume: Callable[[int, bool], None] | None = None
     reorder_clips: Callable[[bool], None] | None = None
+
+
+# What a verb does when it lands: move something on the controls, and say whether
+# it could.  The value is the rest of the line after the verb, empty when there
+# was none.
+Act = Callable[[GenauControls, str], bool]
+
+
+@dataclass(frozen=True)
+class Verb:
+    """One spelling an orchestrator may send.
+
+    ``takes_a_value`` is part of the spelling, not a convenience: ``AMP`` alone
+    and ``SPEED_UP 5`` are both refused, because half a command is not a command.
+    """
+
+    spelling: str
+    act: Act
+    takes_a_value: bool = False
+
+
+@dataclass(frozen=True)
+class Control:
+    """One thing a person can move, declared in one place.
+
+    A control used to be spread over four to six files -- a branch in the
+    dispatcher, a parameter and an attribute on the refresh controller, a branch
+    in the key handler, a line in the status file -- with nothing tying the
+    pieces together but the reader's memory.  Here it is one record: what it is
+    called, what it cannot act without, and the verbs that move it.
+
+    ``needs`` names fields of :class:`GenauControls`.  A build that did not wire
+    one of them refuses this control's verbs and logs them, rather than acting on
+    half of what was asked -- the same rule the ``and X is not None`` guard on
+    every branch used to spell out one verb at a time.
+    """
+
+    name: str
+    verbs: tuple[Verb, ...]
+    needs: tuple[str, ...] = ()
+
+    def can_act(self, controls: GenauControls) -> bool:
+        return all(getattr(controls, name) is not None for name in self.needs)
+
+
+def _stepper(step: int) -> Act:
+    """A verb that nudges the hand's speed by a fixed amount."""
+    def act(controls: GenauControls, _value: str) -> bool:
+        adjust_speed(controls.direct_state, step)
+        return True
+    return act
+
+
+def _amplitude_step(step: int) -> Act:
+    def act(controls: GenauControls, _value: str) -> bool:
+        adjust_amplitude(controls.direct_state, step)
+        return True
+    return act
+
+
+def _center_step(step: int) -> Act:
+    def act(controls: GenauControls, _value: str) -> bool:
+        adjust_center(controls.direct_state, step)
+        return True
+    return act
+
+
+def _shape_step(step: int) -> Act:
+    def act(controls: GenauControls, _value: str) -> bool:
+        cycle_shape(controls.direct_state, step)
+        return True
+    return act
+
+
+def _number_setter(setter) -> Act:
+    """A verb that names the value outright: ``AMP 50``, ``SPEED 90``.
+
+    A value that is not a whole number is refused rather than rounded or
+    defaulted -- what arrived was not the command it looked like.
+    """
+    def act(controls: GenauControls, value: str) -> bool:
+        try:
+            number = int(value)
+        except ValueError:
+            return False
+        setter(controls.direct_state, number)
+        return True
+    return act
+
+
+# One entry per thing a person can move.  Add a control by adding a record here;
+# nothing else in the app needs to learn its name.
+CONTROLS: tuple[Control, ...] = (
+    Control(
+        name="speed",
+        needs=("direct_state",),
+        verbs=(
+            Verb("SPEED_DOWN", _stepper(-5)),
+            Verb("SPEED_UP", _stepper(5)),
+            Verb("SPEED", _number_setter(set_speed), takes_a_value=True),
+        ),
+    ),
+    Control(
+        name="amplitude",
+        needs=("direct_state",),
+        verbs=(
+            Verb("AMPLITUDE_DOWN", _amplitude_step(-10)),
+            Verb("AMPLITUDE_UP", _amplitude_step(10)),
+            Verb("AMP", _number_setter(set_amplitude), takes_a_value=True),
+        ),
+    ),
+    Control(
+        name="center",
+        needs=("direct_state",),
+        verbs=(
+            Verb("CENTER_DOWN", _center_step(-5)),
+            Verb("CENTER_UP", _center_step(5)),
+            Verb("CENTER", _number_setter(set_center), takes_a_value=True),
+        ),
+    ),
+    Control(
+        name="shape",
+        needs=("direct_state",),
+        verbs=(
+            Verb("CYCLE_SHAPE", _shape_step(1)),
+            Verb("CYCLE_SHAPE_PREV", _shape_step(-1)),
+        ),
+    ),
+)
+
+
+def _bind(controls: tuple[Control, ...]) -> Mapping[str, tuple[Control, Verb]]:
+    """Flatten the registry to the map the dispatcher looks a verb up in.
+
+    Two controls claiming one spelling is refused here rather than resolved: the
+    loser would go silently unreachable, which is precisely the drift the
+    registry exists to stop.  It is an import-time answer, so a malformed
+    registry cannot get as far as a running app.
+    """
+    bound: dict[str, tuple[Control, Verb]] = {}
+    for control in controls:
+        for verb in control.verbs:
+            if verb.spelling in bound:
+                other, _ = bound[verb.spelling]
+                raise ValueError(
+                    f"{verb.spelling} is claimed by both "
+                    f"{other.name} and {control.name}"
+                )
+            bound[verb.spelling] = (control, verb)
+    return bound
+
+
+VERBS: Mapping[str, tuple[Control, Verb]] = _bind(CONTROLS)

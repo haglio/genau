@@ -2,16 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from .controls import GenauControls
-from player_core.direct_control import (
-    adjust_speed,
-    adjust_amplitude,
-    adjust_center,
-    cycle_shape,
-    set_amplitude,
-    set_center,
-    set_speed,
-)
+from .controls import VERBS, GenauControls
 from player_core.cruise_control import (
     disable_cruise_control,
     enable_cruise_control,
@@ -48,6 +39,16 @@ def _dispatch(command, controls: GenauControls) -> bool:
     if not command:
         return False
 
+    normalized = command.strip().upper()
+
+    # A verb its control declared: looked up rather than compared against, so
+    # adding one is a record in genau/controls.py and nothing here.
+    said = normalized.split(None, 1)
+    if said:
+        declared = VERBS.get(said[0])
+        if declared is not None:
+            return _act(declared, controls, said[1] if len(said) > 1 else "")
+
     engine = controls.engine
     rh_paused = controls.rh_paused
     step_clip = controls.step_clip
@@ -62,7 +63,6 @@ def _dispatch(command, controls: GenauControls) -> bool:
     set_volume = controls.set_volume
     reorder_clips = controls.reorder_clips
 
-    normalized = command.strip().upper()
     if normalized == "QUIT":
         if stop_event is None:
             return False
@@ -90,22 +90,6 @@ def _dispatch(command, controls: GenauControls) -> bool:
         rh_paused["value"] = False
         if direct_state is not None:
             direct_state.playing = True
-    elif normalized == "SPEED_DOWN" and direct_state is not None:
-        adjust_speed(direct_state, -5)
-    elif normalized == "SPEED_UP" and direct_state is not None:
-        adjust_speed(direct_state, 5)
-    elif normalized == "AMPLITUDE_DOWN" and direct_state is not None:
-        adjust_amplitude(direct_state, -10)
-    elif normalized == "AMPLITUDE_UP" and direct_state is not None:
-        adjust_amplitude(direct_state, 10)
-    elif normalized == "CENTER_DOWN" and direct_state is not None:
-        adjust_center(direct_state, -5)
-    elif normalized == "CENTER_UP" and direct_state is not None:
-        adjust_center(direct_state, 5)
-    elif normalized == "CYCLE_SHAPE" and direct_state is not None:
-        cycle_shape(direct_state)
-    elif normalized == "CYCLE_SHAPE_PREV" and direct_state is not None:
-        cycle_shape(direct_state, -1)
     elif normalized == "TOGGLE_CRUISE" and cruise_control_state is not None:
         _handed_back(toggle_cruise_control(cruise_control_state),
                      set_stroke_phase)
@@ -141,16 +125,8 @@ def _dispatch(command, controls: GenauControls) -> bool:
     elif normalized == "DISPLAY_OFF" and display_state is not None:
         display_state["active"] = False
     else:
-        return _try_numeric_command(
-            normalized, direct_state, clip_advance_state, set_volume)
+        return _try_numeric_command(normalized, clip_advance_state, set_volume)
     return True
-
-
-_NUMERIC_SETTERS = {
-    "AMP": set_amplitude,
-    "CENTER": set_center,
-    "SPEED": set_speed,
-}
 
 
 def _set_volume_command(raw: str, set_volume) -> bool:
@@ -177,9 +153,22 @@ def _set_volume_command(raw: str, set_volume) -> bool:
     return True
 
 
-def _try_numeric_command(
-    normalized: str, direct_state, clip_advance_state, set_volume=None
-) -> bool:
+def _act(declared: tuple, controls: GenauControls, value: str) -> bool:
+    """Run a declared verb, or say why it cannot run.
+
+    Three ways it does not: the control this build did not wire, a value on a
+    verb that takes none, and none on a verb that wants one.  All three read the
+    same to whoever sent it -- nothing happened -- and all three are logged.
+    """
+    control, verb = declared
+    if not control.can_act(controls):
+        return False
+    if verb.takes_a_value != bool(value):
+        return False
+    return verb.act(controls, value)
+
+
+def _try_numeric_command(normalized: str, clip_advance_state, set_volume=None) -> bool:
     parts = normalized.split(None, 1)
     if len(parts) != 2:
         return False
@@ -200,11 +189,7 @@ def _try_numeric_command(
         set_interval(clip_advance_state, value)
         return True
 
-    setter = _NUMERIC_SETTERS.get(keyword)
-    if setter is None or direct_state is None:
-        return False
-    setter(direct_state, value)
-    return True
+    return False
 
 
 def _handed_back(phase, set_stroke_phase) -> None:

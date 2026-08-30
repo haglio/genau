@@ -288,6 +288,13 @@ class TestGenauAnswersEveryVerbWrittenDown:
         spoken = {phrase.split()[0] for phrase in VOICE_COMMANDS.values()}
         assert spoken <= set(GENAU_VERBS)
 
+    def test_no_control_declares_a_verb_that_is_not_written_down(self):
+        """The registry is where verbs are added, so it is where a widening of
+        the vocabulary would first show."""
+        from genau.controls import VERBS
+
+        assert set(VERBS) <= set(GENAU_VERBS)
+
 
 class TestGenauVrAnswersEveryVerbWrittenDown:
     @pytest.mark.parametrize("verb", sorted(GVR_VERBS))
