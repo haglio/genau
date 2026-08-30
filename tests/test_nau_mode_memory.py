@@ -69,6 +69,19 @@ class TestWritingItDownWheneverItMoves:
 
         assert memory.read().length_mode == FULL
 
+    def test_a_mode_it_wrote_itself_is_not_written_again_either(self, tmp_path):
+        """The write has to be recorded by the sync that made it, or the very
+        next frame finds the record stale and writes again -- and so does every
+        frame after it, sixty times a second for the rest of the session."""
+        path = tmp_path / "nau_mode.txt"
+        memory = ModeMemory(path)
+        memory.sync(RememberedMode(length_mode=FULL))
+        path.unlink()
+
+        memory.sync(RememberedMode(length_mode=FULL))
+
+        assert not path.exists()
+
     def test_what_was_read_back_at_startup_counts_as_already_written(self, tmp_path):
         """Nau opens on the mode it closed in, so the first frame's record
         matches the file and must not rewrite it."""
