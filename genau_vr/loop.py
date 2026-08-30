@@ -92,7 +92,6 @@ def controls_for(
     cruise: CruiseControlState,
     audio,
     stop_event: threading.Event,
-    rh_paused: dict,
 ) -> GenauVrControls:
     """Everything a command may move, built once where the parts are.
 
@@ -105,7 +104,6 @@ def controls_for(
             engine.phase = 0.0
 
     return GenauVrControls(
-        rh_paused=rh_paused,
         step_clip=step_clip,
         direct_state=state,
         cruise_control_state=cruise,
@@ -128,7 +126,6 @@ def run_loop(
 
     state = controls.direct_state
     cruise = controls.cruise_control_state
-    rh_paused = controls.rh_paused
     stop_event = controls.stop_event
     pitch = PitchControl()
     last_time = time.monotonic()
@@ -155,7 +152,7 @@ def run_loop(
 
         tick_cruise_control(state, cruise, now)
 
-        playing = state.playing and not rh_paused["value"]
+        playing = state.playing
         update_engine(
             engine,
             now=now,

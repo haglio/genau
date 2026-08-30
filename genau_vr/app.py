@@ -212,7 +212,6 @@ def _start(argv: list[str] | None) -> None:
         _start_voice(config, cmd_file)
 
     stop_event = threading.Event()
-    rh_paused: dict[str, bool] = {"value": False}
 
     logger.info(
         "Entering VR loop (speed=%d, BPM=%.1f, tcode=%s:%d)",
@@ -223,8 +222,7 @@ def _start(argv: list[str] | None) -> None:
         carousel = ClipCarousel(clip_list, frames, audio=audio)
         run_loop(
             session, renderer, engine,
-            controls_for(carousel, engine, state, cruise, audio,
-                         stop_event, rh_paused),
+            controls_for(carousel, engine, state, cruise, audio, stop_event),
             carousel, tcode_sender, cmd_file, _consume_command_file,
         )
     except KeyboardInterrupt:

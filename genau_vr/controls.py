@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
-from typing import Callable, MutableMapping
+from typing import Callable
 
 from genau.control_registry import Control, Verb, bind
 
@@ -45,7 +45,6 @@ class GenauVrControls:
     collaborator is absent is refused and logged rather than half-acted-on.
     """
 
-    rh_paused: MutableMapping[str, bool]
     step_clip: Callable[[int], None]
     direct_state: DirectControlState | None = None
     cruise_control_state: CruiseControlState | None = None
@@ -69,10 +68,16 @@ def _step_clip(step: int) -> Act:
 
 
 def _playing(playing: bool) -> Act:
+    """PAUSE and RESUME, on the one flag GenauVR has.
+
+    Genau carries this twice -- a box fed by the paused file an orchestrator
+    writes, and the hand's own flag -- because there the two have separate
+    sources.  GenauVR has no paused file and never had: the box arrived with the
+    copy, was written on the same line as the hand every time, and read nowhere
+    else.  There is one fact here, and it is the hand's.
+    """
     def act(controls: GenauVrControls, _value: str) -> bool:
-        controls.rh_paused["value"] = not playing
-        if controls.direct_state is not None:
-            controls.direct_state.playing = playing
+        controls.direct_state.playing = playing
         return True
     return act
 
@@ -171,6 +176,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="pause",
+        needs=("direct_state",),
         verbs=(Verb("PAUSE", _playing(False)), Verb("RESUME", _playing(True))),
     ),
 )

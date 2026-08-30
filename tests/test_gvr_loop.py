@@ -103,7 +103,7 @@ def _frames(count: int) -> list[np.ndarray]:
 
 
 def _run(session, renderer, *, commands=(), speed=50, clips=("alpha.mp4",),
-         frames=4, playing=True, paused=False):
+         frames=4, playing=True):
     from genau_vr.carousel import ClipCarousel
     from genau_vr.loop import controls_for, run_loop
 
@@ -115,7 +115,7 @@ def _run(session, renderer, *, commands=(), speed=50, clips=("alpha.mp4",),
         audio=MagicMock(), decode=lambda _path: _frames(frames),
     )
     controls = controls_for(carousel, engine, state, CruiseControlState(),
-                            MagicMock(), threading.Event(), {"value": paused})
+                            MagicMock(), threading.Event())
     run_loop(session, renderer, engine, controls, carousel, MagicMock(),
              Path("genau_vr_cmd.txt"),
              lambda _path: said.pop(0) if said else None)
@@ -255,7 +255,7 @@ class TestSteppingTheClipFromAVerb:
         )
         controls = controls_for(carousel, engine, DirectControlState(playing=True),
                                 CruiseControlState(), MagicMock(),
-                                threading.Event(), {"value": False})
+                                threading.Event())
         return engine, carousel, controls
 
     def test_a_new_clip_starts_at_its_own_top(self):

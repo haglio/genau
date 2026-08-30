@@ -300,7 +300,6 @@ def _gvr_answers(line: str) -> bool:
 
     with _unanswered("genau_vr.runtime_commands") as refused:
         apply_runtime_command(line, GenauVrControls(
-            rh_paused={"value": False},
             step_clip=lambda _step: None,
             direct_state=DirectControlState(playing=True, speed=50, amplitude=60, center=40),
             cruise_control_state=CruiseControlState(),

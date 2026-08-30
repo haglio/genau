@@ -5,7 +5,7 @@ the ``genau_vr_cmd.txt`` file channel both arrive here and nowhere else.  So the
 table below is the contract — one row per verb, naming *exactly* what that verb
 changes — and the assertion is that everything else stayed where it was.  A verb
 rewired to a sibling action (AMP to the center setter), mis-signed (SPEED_DOWN
-speeding up) or inverted (PAUSE clearing the paused flag) moves a key the row
+speeding up) or inverted (PAUSE setting the hand playing) moves a key the row
 does not name, or fails to move the one it does, and dies here.
 
 The collaborators are real: a real ``DirectControlState``, a real
@@ -81,7 +81,6 @@ class Runtime:
 
     def __init__(self, **start) -> None:
         self.engine = PlaybackEngine(phase=start.get("phase", 0.5))
-        self.paused = {"value": start.get("paused", False)}
         self.stepper = ClipStepper()
         self.audio = AudioSink()
         self.stop_event = threading.Event()
@@ -104,7 +103,6 @@ class Runtime:
         """
         with _nothing_logged() as unanswered:
             apply_runtime_command(command, GenauVrControls(
-                rh_paused=self.paused,
                 step_clip=self.stepper,
                 direct_state=self.direct if direct_state is ... else direct_state,
                 cruise_control_state=self.cruise,
@@ -121,7 +119,6 @@ class Runtime:
         its neighbor's action.
         """
         return {
-            "paused": self.paused["value"],
             "playing": self.direct.playing,
             "speed": self.direct.speed,
             "amplitude": self.direct.amplitude,
@@ -145,8 +142,8 @@ HANDLED = [
     ("QUIT", {}, {"stopping": True}),
     ("PREV", {}, {"steps": (-1,)}),
     ("NEXT", {}, {"steps": (1,)}),
-    ("PAUSE", {}, {"paused": True, "playing": False}),
-    ("RESUME", {"paused": True, "playing": False}, {"paused": False, "playing": True}),
+    ("PAUSE", {}, {"playing": False}),
+    ("RESUME", {"playing": False}, {"playing": True}),
     ("SPEED_DOWN", {}, {"speed": 45}),
     ("SPEED_UP", {}, {"speed": 55}),
     ("AMPLITUDE_DOWN", {}, {"amplitude": 50}),
@@ -192,7 +189,7 @@ class TestTheSpellingOfAVerb:
         runtime = Runtime()
 
         assert runtime.apply("  pause \n") is True
-        assert runtime.state()["paused"] is True
+        assert runtime.state()["playing"] is False
 
     def test_a_numeric_verb_is_read_the_same_way(self):
         runtime = Runtime()
@@ -252,12 +249,13 @@ class TestWhatTheRuntimeWasNotGiven:
 
         assert runtime.apply(verb, direct_state=None) is False
 
-    def test_pause_still_works_without_the_stroke_state(self):
-        """The paused flag is the loop's own, so pausing never needed it."""
+    def test_pause_is_refused_without_the_hand_it_would_stop(self):
+        """It used to move a second flag as well, which had no source in this
+        app and nothing else reading it; with that gone there is one fact here
+        and it is the hand's."""
         runtime = Runtime()
 
-        assert runtime.apply("PAUSE", direct_state=None) is True
-        assert runtime.state()["paused"] is True
+        assert runtime.apply("PAUSE", direct_state=None) is False
 
     @pytest.mark.parametrize("verb", ["QUIT", "VOLUME_UP", "CRUISE_ON"])
     def test_a_verb_whose_collaborator_is_missing_is_named_on_the_log(self, verb, caplog):
@@ -271,8 +269,7 @@ class TestWhatTheRuntimeWasNotGiven:
 
         with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
             apply_runtime_command(verb, GenauVrControls(
-                rh_paused=runtime.paused, step_clip=runtime.stepper,
-                direct_state=runtime.direct,
+                step_clip=runtime.stepper, direct_state=runtime.direct,
             ))
 
         assert verb in caplog.text
@@ -332,8 +329,7 @@ def test_an_unknown_verb_is_named_on_the_log(caplog):
 
     with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
         apply_runtime_command("NOT_A_VERB", GenauVrControls(
-            rh_paused=runtime.paused, step_clip=runtime.stepper,
-            direct_state=runtime.direct))
+            step_clip=runtime.stepper, direct_state=runtime.direct))
 
     assert "NOT_A_VERB" in caplog.text
 
@@ -343,7 +339,6 @@ def test_a_verb_it_acts_on_says_nothing(caplog):
 
     with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
         apply_runtime_command("NEXT", GenauVrControls(
-            rh_paused=runtime.paused, step_clip=runtime.stepper,
-            direct_state=runtime.direct))
+            step_clip=runtime.stepper, direct_state=runtime.direct))
 
     assert caplog.records == []
