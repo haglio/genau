@@ -7,9 +7,8 @@
 
 ``sanitize_guard`` can only refuse a term it has been told about, which leaves
 one hole it cannot close on its own: a performer name nobody has ever added
-passes the hook, the suite and CI alike. That is not hypothetical -- it is how
-every value that reached a public ``main`` got there, and each one of them was
-a folder name or a filename fragment sitting in the library the whole time.
+passes the hook, the suite and CI alike -- and a name like that is a folder
+name or a filename fragment sitting in the library the whole time.
 
 So harvest them. A value can only be copied into a fixture if it exists in the
 library, and if it exists in the library this can find it first. That turns the
@@ -276,9 +275,8 @@ def siblings_of(repo: Path) -> list[Path]:
     Anchored on the primary checkout, never on *repo* itself. A worktree lives
     at ``<primary>/.claude/worktrees/<name>``, so its neighbours are other
     worktrees -- and everything here runs in a worktree. Taking those as the
-    siblings quietly halved the job: the collision check saw a couple of
-    checkouts instead of all eleven, so three ordinary project words survived it
-    and turned three repos red the moment the list synced.
+    siblings would show the collision check a couple of checkouts instead of
+    all eleven, and let an ordinary project word through into every list.
     """
     primary = primary_of(repo)
     return sorted(
