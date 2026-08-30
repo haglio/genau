@@ -10,6 +10,8 @@ from pathlib import Path
 import glfw
 from OpenGL import GL
 
+from genau.tick_failures import TickFailures
+
 # Bound here, at the same point in this module as before, where the loader is
 # there.  Where it is not the name stays bound — to None — so this module still
 # imports and a session says which loader it wanted rather than dying at the
@@ -44,6 +46,7 @@ class VRSession:
             )
         self.running = True
         self._window = None
+        self._controller_failures = TickFailures(logger, what="controller sync")
         self._instance = None
         self._session = None
         self._space = None
@@ -282,7 +285,14 @@ class VRSession:
         return bool(self._window) and glfw.window_should_close(self._window)
 
     def sync_controller(self) -> None:
-        """Sync controller actions and update thumbstick state."""
+        """Read the controller, so the thumbstick can tilt the picture.
+
+        A runtime that will not answer used to be discarded outright: the
+        thumbstick simply stopped working and the log said nothing, for the
+        whole session.  It says so once now, and counts the rest -- this runs
+        every frame, so one line per failure would be the flood the silence was
+        avoiding.
+        """
         if not self._actions_attached or self._action_set is None:
             return
         try:
@@ -302,8 +312,10 @@ class VRSession:
                 self.thumbstick_y = state.current_state
             else:
                 self.thumbstick_y = 0.0
-        except xr.ResultException:
-            pass
+        except xr.ResultException as exc:
+            self._controller_failures.failed(exc)
+            return
+        self._controller_failures.worked()
 
     def frame_begin(self) -> tuple[bool, int, list[xr.View]]:
         frame_state = xr.wait_frame(self._session, xr.FrameWaitInfo())

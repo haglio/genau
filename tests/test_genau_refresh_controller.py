@@ -267,7 +267,7 @@ def test_refresh_reports_exceptions():
     built["controller"].refresh()
 
     said = built["logger"].error.call_args
-    assert said[0][0] == "refresh failed"
+    assert said[0][0] % said[0][1:] == "refresh failed"
     assert isinstance(said[1]["exc_info"], RuntimeError)
 
 

@@ -22,12 +22,37 @@ def said(caplog):
     return caplog
 
 
-def _failures() -> TickFailures:
-    return TickFailures(logging.getLogger("test.tick"))
+def _failures(what: str = "refresh") -> TickFailures:
+    return TickFailures(logging.getLogger("test.tick"), what)
 
 
 def _levels(caplog) -> list[str]:
     return [record.levelname for record in caplog.records]
+
+
+class TestWhatFailed:
+    """One log can carry two of these -- Genau's tick and GenauVR's controller
+    sync -- so each says which it is."""
+
+    def test_the_name_it_was_given_is_in_every_line(self):
+        import logging as _logging
+
+        records = []
+
+        class _Collect(_logging.Handler):
+            def emit(self, record):
+                records.append(record.getMessage())
+
+        logger = _logging.getLogger("test.named")
+        logger.setLevel(_logging.DEBUG)
+        logger.addHandler(_Collect())
+        failures = TickFailures(logger, "controller sync")
+
+        failures.failed(RuntimeError("the runtime would not answer"))
+        failures.failed(RuntimeError("the runtime would not answer"))
+        failures.worked()
+
+        assert all("controller sync" in line for line in records), records
 
 
 class TestTheFirstOfAKind:
