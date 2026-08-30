@@ -55,6 +55,36 @@ class SpySession:
         self.calls.append(("set_volume", volume))
 
 
+class TestAnUnhandledCommand:
+    """The dispatcher says so itself, because it is the only thing that knows.
+
+    Fun Time is written against this: `command_dispatch.py` routes
+    CYCLE_PROJECTION and RECENTER to Nau's channel with the comment "so the
+    desktop Nau simply logs it as unknown" -- verbs only FunTimeVR's player
+    answers. Before this they were dropped in silence.
+    """
+
+    def test_an_unknown_verb_is_named_on_the_log(self, caplog):
+        with caplog.at_level("WARNING", logger="nau.runtime"):
+            apply_command("CYCLE_PROJECTION", SpySession())
+
+        assert "CYCLE_PROJECTION" in caplog.text
+
+    def test_a_verb_this_build_did_not_wire_is_named_too(self, caplog):
+        """A collaborator the app left out is as unanswerable as a typo, and
+        just as much worth seeing."""
+        with caplog.at_level("WARNING", logger="nau.runtime"):
+            apply_command("TOGGLE_LENGTH_MODE", SpySession())
+
+        assert "TOGGLE_LENGTH_MODE" in caplog.text
+
+    def test_a_verb_it_acts_on_says_nothing(self, caplog):
+        with caplog.at_level("WARNING", logger="nau.runtime"):
+            apply_command("NEXT", SpySession())
+
+        assert caplog.records == []
+
+
 class TestApplyCommand:
     def test_it_answers_nothing_because_nothing_asks(self):
         """nau/app.py, the one production caller, calls it as a statement.

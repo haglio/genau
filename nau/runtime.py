@@ -7,15 +7,37 @@ the argument, when present, is TAB-separated into video and funscript.
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from .session import MAX_SPEED_RATE, MIN_SPEED_RATE
+
+logger = logging.getLogger(__name__)
 
 SEEK_STEP_MS = 10_000
 SPEED_STEP = 0.25
 
 
-def apply_command(
+def apply_command(command: str, session, **collaborators) -> None:
+    """Act on one line of the command file, or say on the log that we cannot.
+
+    The dispatcher reports an unanswered verb itself rather than returning a
+    flag for a caller to check: it is the only thing that knows, and there is
+    one of it rather than one per call site. Two kinds land here — a verb no
+    branch matches, and a verb whose collaborator this build did not wire —
+    and both mean the same thing to whoever sent it, which is that nothing
+    happened.
+
+    Fun Time is written against this. ``command_dispatch.py`` routes
+    CYCLE_PROJECTION and RECENTER to Nau's channel with the comment "so the
+    desktop Nau simply logs it as unknown": verbs only FunTimeVR's player
+    answers, sent to whoever holds the main slot.
+    """
+    if not _dispatch(command, session, **collaborators):
+        logger.warning("Unhandled command: %s", command.strip())
+
+
+def _dispatch(
     command: str,
     session,
     *,
@@ -32,10 +54,10 @@ def apply_command(
     set_f_mode=None,
     set_volume_hud=None,
     set_display=None,
-) -> None:
+) -> bool:
     parts = command.strip().split(None, 1)
     if not parts:
-        return
+        return False
     keyword = parts[0].upper()
     arg = parts[1].strip() if len(parts) > 1 else ""
 
@@ -52,9 +74,9 @@ def apply_command(
     elif keyword == "SPEED_DOWN":
         session.adjust_speed(-SPEED_STEP)
     elif keyword == "SET_SPEED":
-        _set_speed(session, arg)
+        return _set_speed(session, arg)
     elif keyword == "SET_VOLUME":
-        _set_volume(session, arg, set_volume_hud)
+        return _set_volume(session, arg, set_volume_hud)
     elif keyword == "RECORD_DOWN":
         session.record_down()
     elif keyword == "RECORD_UP":
@@ -64,7 +86,7 @@ def apply_command(
     elif keyword == "LOOP_CANCEL":
         session.loop_cancel()
     elif keyword == "SET_LOOP":
-        _set_loop(session, arg)
+        return _set_loop(session, arg)
     elif keyword == "TOGGLE_LOCK":
         session.toggle_lock()
     elif keyword in ("LOCK_ON", "LOCK_OFF"):
@@ -86,50 +108,50 @@ def apply_command(
             reload_playlist()
     elif keyword == "TOGGLE_LENGTH_MODE":
         if toggle_length_mode is None:
-            return
+            return False
         toggle_length_mode()
     elif keyword == "SET_LENGTH_MODE":
         if set_length_mode is None or not arg:
-            return
+            return False
         set_length_mode(arg)
     elif keyword == "PLAY_COMPILATION":
         if play_compilation is None:
-            return
+            return False
         play_compilation()
     elif keyword == "PLAY_FULL_VID":
         if play_full_vid is None:
-            return
+            return False
         play_full_vid()
     elif keyword == "PLAY_CLIP_JUMP":
         if play_clip_jump is None:
-            return
+            return False
         play_clip_jump()
     elif keyword == "JUMP_TO_FUNSCRIPT":
         # Past the quiet stretch, to where this video's scripting starts again.
         if jump_to_funscript is None:
-            return
+            return False
         jump_to_funscript()
     elif keyword == "NEXT_FUNSCRIPTED":
         # Give up on this video for the next scripted one, at its action.
         if next_funscripted is None:
-            return
+            return False
         next_funscripted()
     elif keyword == "END_COMPILATION":
         # Out of a compilation without naming a length: back to the mode that was
         # feeding the playlist when it was entered.
         if end_compilation is None:
-            return
+            return False
         end_compilation()
     elif keyword == "SET_TCODE_ENABLED":
         if not arg:
-            return
+            return False
         session.set_tcode_enabled(arg != "0")
     elif keyword == "SET_F_MODE":
         # F-mode narrows the playlist Fun Time writes to the scripted videos.
         # Nau receives the result and cannot tell it from any other playlist, so
         # the flag has to be said outright for the HUD to be able to show it.
         if set_f_mode is None or not arg:
-            return
+            return False
         set_f_mode(arg != "0")
     elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
         # Whether Nau owns the main slot's rect right now, which is not the same as
@@ -138,18 +160,22 @@ def apply_command(
         # without this an alt-tab back lands on the frame it was paused on.  The
         # mirror of the DISPLAY_ON/DISPLAY_OFF Genau is sent (see nau.display).
         if set_display is None:
-            return
+            return False
         set_display(keyword == "DISPLAY_ON")
     elif keyword == "QUIT":
         if stop_event is None:
-            return
+            return False
         stop_event.set()
+    else:
+        return False
+    return True
 
 
-def _set_speed(session, arg: str) -> None:
+def _set_speed(session, arg: str) -> bool:
     """SET_SPEED <min|max|multiplier> -> absolute playback rate.
 
-    A missing or non-numeric argument leaves the rate where it was.
+    False on a missing or non-numeric argument, which :func:`apply_command`
+    turns into the log line; the rate is left where it was.
     """
     key = arg.lower()
     if key == "min":
@@ -160,46 +186,50 @@ def _set_speed(session, arg: str) -> None:
         try:
             session.set_speed(float(arg))
         except ValueError:
-            return
+            return False
+    return True
 
 
-def _set_loop(session, arg: str) -> None:
+def _set_loop(session, arg: str) -> bool:
     """SET_LOOP <in_ms> <out_ms> -> a loop this player was left running.
 
     The one piece of Nau's state an orchestrator has to hand back rather than
     rebuild: a loop is a range inside one video, so it dies with the process
     while everything else rides in on the playlist or a flag file.  The bounds
     come straight off the status file this player published, already snapped, so
-    they are asserted rather than marked.  Anything that will not read as two
-    numbers leaves the player as it was.
+    they are asserted rather than marked.  False on anything it cannot read as
+    two numbers, which :func:`apply_command` turns into the log line.
     """
     in_part, _, out_part = arg.partition(" ")
     try:
         in_ms, out_ms = int(in_part), int(out_part)
     except ValueError:
-        return
+        return False
     session.restore_loop(in_ms, out_ms)
+    return True
 
 
-def _set_volume(session, arg: str, set_volume_hud=None) -> None:
+def _set_volume(session, arg: str, set_volume_hud=None) -> bool:
     """SET_VOLUME <0-100> [muted] -> the main slot's sound level.
 
     The mute comes as a flag of its own rather than as a level of zero.  Zero is
-    what an audio *sink* needs, but a control that has to be looked at cannot
-    tell silent from turned-all-the-way-down from it —
+    what an audio *sink* needs and all Fun Time used to send, but a control that
+    has to be looked at cannot tell silent from turned-all-the-way-down from it —
     and unmuting has to come back to the level the speaker chose.  So the level is
     what is drawn, the mute is drawn over it, and the audible loudness is worked
-    out here.  A missing or non-numeric level leaves the sound where it was.
+    out here.  False on a missing or non-numeric level, which
+    :func:`apply_command` turns into the log line.
     """
     level, _, muted_arg = arg.partition(" ")
     try:
         volume = int(level)
     except ValueError:
-        return
+        return False
     muted = muted_arg.strip() not in ("", "0")
     session.set_volume(0 if muted else volume)
     if set_volume_hud is not None:
         set_volume_hud(volume, muted)
+    return True
 
 
 def _record_tap(session) -> None:

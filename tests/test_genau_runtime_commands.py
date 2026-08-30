@@ -1,6 +1,9 @@
 """Tests for genau.runtime_commands."""
 from __future__ import annotations
 
+import logging
+from contextlib import contextmanager
+
 import threading
 
 import pytest
@@ -15,13 +18,46 @@ from player_core.cruise_control import CruiseControlState
 from genau.clip_advance import MAX_INTERVAL_S, MIN_INTERVAL_S, ClipAdvanceState
 
 
+@contextmanager
+def _nothing_logged():
+    """Collect the dispatcher's warnings for the duration of one call."""
+    records: list[logging.LogRecord] = []
+
+    class _Collect(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    logger = logging.getLogger("genau.runtime_commands")
+    handler = _Collect()
+    logger.addHandler(handler)
+    previous, logger.propagate = logger.propagate, False
+    try:
+        yield records
+    finally:
+        logger.removeHandler(handler)
+        logger.propagate = previous
+
+
+def _answered(command, **collaborators) -> bool:
+    """Run one verb; True when the dispatcher answered it.
+
+    The dispatcher returns nothing — an unanswered verb goes on the log, which
+    is the only place production can see it — so every case below asks the log
+    the same question it used to ask the return value.
+    """
+    with _nothing_logged() as unanswered:
+        apply_runtime_command(command, **collaborators)
+    return not unanswered
+
+
+
 class TestApplyRuntimeCommand:
     def test_prev_steps_backward(self):
         steps: list[int] = []
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "PREV",
             engine=engine,
             rh_paused=rh_paused,
@@ -36,7 +72,7 @@ class TestApplyRuntimeCommand:
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "NEXT",
             engine=engine,
             rh_paused=rh_paused,
@@ -50,7 +86,7 @@ class TestApplyRuntimeCommand:
         engine = PlaybackEngine(phase=0.1, last_tick=0.0)
         rh_paused = {"value": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             QUARTER_CYCLE_OFFSET_COMMAND,
             engine=engine,
             rh_paused=rh_paused,
@@ -64,7 +100,7 @@ class TestApplyRuntimeCommand:
         engine = PlaybackEngine(phase=0.9, last_tick=0.0)
         rh_paused = {"value": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             QUARTER_CYCLE_OFFSET_COMMAND,
             engine=engine,
             rh_paused=rh_paused,
@@ -85,7 +121,7 @@ class TestApplyRuntimeCommand:
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         ds = DirectControlState(playing=True, speed=50)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             verb,
             engine=engine,
             rh_paused={"value": False},
@@ -101,7 +137,7 @@ class TestApplyRuntimeCommand:
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "PAUSE",
             engine=engine,
             rh_paused=rh_paused,
@@ -115,7 +151,7 @@ class TestApplyRuntimeCommand:
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": True}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "RESUME",
             engine=engine,
             rh_paused=rh_paused,
@@ -160,7 +196,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, speed=50)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "SPEED_DOWN",
             engine=engine,
             rh_paused=rh_paused,
@@ -176,7 +212,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, speed=50)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "SPEED_UP",
             engine=engine,
             rh_paused=rh_paused,
@@ -192,7 +228,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, amplitude=80)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "AMPLITUDE_DOWN",
             engine=engine,
             rh_paused=rh_paused,
@@ -208,7 +244,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, amplitude=80)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "AMPLITUDE_UP",
             engine=engine,
             rh_paused=rh_paused,
@@ -224,7 +260,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "CENTER_DOWN",
             engine=engine,
             rh_paused=rh_paused,
@@ -240,7 +276,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "CENTER_UP",
             engine=engine,
             rh_paused=rh_paused,
@@ -257,7 +293,7 @@ class TestApplyRuntimeCommand:
         ds = DirectControlState(playing=True)
         assert ds.shape == WaveformShape.SINE
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "CYCLE_SHAPE",
             engine=engine,
             rh_paused=rh_paused,
@@ -274,7 +310,7 @@ class TestApplyRuntimeCommand:
         ds = DirectControlState(playing=True)
         assert ds.shape == WaveformShape.SINE
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "CYCLE_SHAPE_PREV",
             engine=engine,
             rh_paused=rh_paused,
@@ -290,7 +326,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         auto = CruiseControlState(active=False)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "TOGGLE_CRUISE",
             engine=engine,
             rh_paused=rh_paused,
@@ -307,7 +343,7 @@ class TestApplyRuntimeCommand:
 
         for cmd in ("SPEED_DOWN", "SPEED_UP", "AMPLITUDE_DOWN", "AMPLITUDE_UP",
                      "CENTER_DOWN", "CENTER_UP", "CYCLE_SHAPE"):
-            handled = apply_runtime_command(
+            handled = _answered(
                 cmd,
                 engine=engine,
                 rh_paused=rh_paused,
@@ -319,7 +355,7 @@ class TestApplyRuntimeCommand:
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "TOGGLE_CRUISE",
             engine=engine,
             rh_paused=rh_paused,
@@ -333,7 +369,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         cc = CruiseControlState(active=False)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "CRUISE_ON",
             engine=engine,
             rh_paused=rh_paused,
@@ -349,7 +385,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         cc = CruiseControlState(active=True)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "CRUISE_OFF",
             engine=engine,
             rh_paused=rh_paused,
@@ -365,7 +401,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
 
         for cmd in ("CRUISE_ON", "CRUISE_OFF"):
-            handled = apply_runtime_command(
+            handled = _answered(
                 cmd,
                 engine=engine,
                 rh_paused=rh_paused,
@@ -378,7 +414,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, amplitude=80)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "AMP 50",
             engine=engine,
             rh_paused=rh_paused,
@@ -394,7 +430,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "CENTER 80",
             engine=engine,
             rh_paused=rh_paused,
@@ -410,7 +446,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True, speed=50)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "SPEED 30",
             engine=engine,
             rh_paused=rh_paused,
@@ -426,7 +462,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
 
         for cmd in ("AMP 50", "CENTER 80", "SPEED 30"):
-            handled = apply_runtime_command(
+            handled = _answered(
                 cmd,
                 engine=engine,
                 rh_paused=rh_paused,
@@ -439,7 +475,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True)
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "AMP abc",
             engine=engine,
             rh_paused=rh_paused,
@@ -454,7 +490,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         stop = threading.Event()
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "QUIT",
             engine=engine,
             rh_paused=rh_paused,
@@ -469,7 +505,7 @@ class TestApplyRuntimeCommand:
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         rh_paused = {"value": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "QUIT",
             engine=engine,
             rh_paused=rh_paused,
@@ -483,7 +519,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         steps: list[int] = []
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "UNKNOWN",
             engine=engine,
             rh_paused=rh_paused,
@@ -500,7 +536,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         hud = {"active": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "HUD_ON",
             engine=engine,
             rh_paused=rh_paused,
@@ -516,7 +552,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         hud = {"active": True}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "HUD_OFF",
             engine=engine,
             rh_paused=rh_paused,
@@ -532,7 +568,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
 
         for cmd in ("HUD_ON", "HUD_OFF"):
-            handled = apply_runtime_command(
+            handled = _answered(
                 cmd,
                 engine=engine,
                 rh_paused=rh_paused,
@@ -545,7 +581,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         display = {"active": True}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "DISPLAY_OFF",
             engine=engine,
             rh_paused=rh_paused,
@@ -561,7 +597,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         display = {"active": False}
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "DISPLAY_ON",
             engine=engine,
             rh_paused=rh_paused,
@@ -597,7 +633,7 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
 
         for cmd in ("DISPLAY_ON", "DISPLAY_OFF"):
-            handled = apply_runtime_command(
+            handled = _answered(
                 cmd,
                 engine=engine,
                 rh_paused=rh_paused,
@@ -608,7 +644,7 @@ class TestApplyRuntimeCommand:
 
 class TestClipAdvanceCommands:
     def _apply(self, command, aa):
-        return apply_runtime_command(
+        return _answered(
             command,
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             rh_paused={"value": False},
@@ -617,7 +653,7 @@ class TestClipAdvanceCommands:
         )
 
     def _apply_volume(self, command, on_volume):
-        return apply_runtime_command(
+        return _answered(
             command,
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             rh_paused={"value": False},
@@ -699,7 +735,7 @@ class TestClipAdvanceCommands:
             "TOGGLE_LOCK", "LOCK_ON", "LOCK_OFF",
             "CLIP_SECONDS_UP", "CLIP_SECONDS_DOWN", "CLIP_SECONDS 30",
         ):
-            handled = apply_runtime_command(
+            handled = _answered(
                 cmd,
                 engine=engine,
                 rh_paused={"value": False},
@@ -712,7 +748,7 @@ class TestWeirdCommand:
     def test_weird_condemns_the_clip_on_screen(self):
         calls: list[int] = []
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "WEIRD",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             rh_paused={"value": False},
@@ -724,7 +760,7 @@ class TestWeirdCommand:
         assert calls == [1]
 
     def test_weird_ignored_without_a_way_to_discard(self):
-        handled = apply_runtime_command(
+        handled = _answered(
             "WEIRD",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             rh_paused={"value": False},
@@ -742,7 +778,7 @@ class TestBrowseOrderCommands:
     def test_latest_asks_for_newest_first(self):
         asked: list[bool] = []
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "LATEST",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             rh_paused={"value": False},
@@ -756,7 +792,7 @@ class TestBrowseOrderCommands:
     def test_shuffle_asks_for_a_reshuffle(self):
         asked: list[bool] = []
 
-        handled = apply_runtime_command(
+        handled = _answered(
             "SHUFFLE",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             rh_paused={"value": False},
@@ -769,7 +805,7 @@ class TestBrowseOrderCommands:
 
     def test_ignored_without_a_way_to_reorder(self):
         for cmd in ("LATEST", "SHUFFLE"):
-            handled = apply_runtime_command(
+            handled = _answered(
                 cmd,
                 engine=PlaybackEngine(phase=0.0, last_tick=0.0),
                 rh_paused={"value": False},
@@ -777,3 +813,38 @@ class TestBrowseOrderCommands:
             )
 
             assert handled is False, f"{cmd} should be ignored without reorder_clips"
+
+
+class TestAnUnhandledCommand:
+    """The dispatcher says so itself, because it is the only thing that knows.
+
+    Genau's channel takes what Fun Time posts and what its own voice grammar
+    hears; a verb from a build that has moved on, or one whose collaborator
+    this app did not wire, used to be dropped without a word.
+    """
+
+    def _run(self, command, caplog, **collaborators):
+        with caplog.at_level("WARNING", logger="genau.runtime_commands"):
+            apply_runtime_command(
+                command,
+                engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+                rh_paused={"value": False},
+                step_clip=lambda _step: None,
+                **collaborators,
+            )
+
+    def test_an_unknown_verb_is_named_on_the_log(self, caplog):
+        self._run("CYCLE_PROJECTION", caplog)
+
+        assert "CYCLE_PROJECTION" in caplog.text
+
+    def test_a_verb_this_build_did_not_wire_is_named_too(self, caplog):
+        """SPEED_UP with no stroke state: as unanswerable as a typo."""
+        self._run("SPEED_UP", caplog)
+
+        assert "SPEED_UP" in caplog.text
+
+    def test_a_verb_it_acts_on_says_nothing(self, caplog):
+        self._run("NEXT", caplog)
+
+        assert caplog.records == []
