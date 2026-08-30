@@ -21,6 +21,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from genau.clip_advance import ClipAdvanceState
+from genau.controls import GenauControls
 from genau.engine import PlaybackEngine
 from genau.refresh_controller import GenauRefreshController
 from genau.state import SharedState
@@ -74,13 +75,26 @@ class Seam:
         self.command_file = tmp_path / "genau_cmd.txt"
 
         self.controller = GenauRefreshController(
+            controls=GenauControls(
+                engine=self.engine,
+                rh_paused=self.paused,
+                step_clip=self.selection.step,
+                discard_clip=self.selection.discard_current,
+                direct_state=self.direct,
+                cruise_control_state=self.cruise,
+                set_stroke_phase=self.tcode.set_stroke_phase,
+                clip_advance_state=self.advance,
+                stop_event=self.stop_event,
+                hud_state=self.hud,
+                display_state=self.display,
+                set_volume=lambda level, muted: self.volumes.append((level, muted)),
+                reorder_clips=self.reorders.append,
+            ),
             state=SharedState(),
             loader=FakeLoader(),
             notifier=FakeNotifier(),
             renderer=FakeRenderer(path=Path("example.mp4")),
             selection=self.selection,
-            engine=self.engine,
-            rh_paused=self.paused,
             command_file=self.command_file,
             paused_file=tmp_path / "genau_paused.txt",
             beats_per_loop=4.0,
@@ -90,15 +104,7 @@ class Seam:
             logger=MagicMock(),
             now_source=lambda: NOW,
             read_paused_state=lambda _path, logger=None: self.paused["value"],
-            direct_state=self.direct,
             tcode_sender=self.tcode,
-            cruise_control=self.cruise,
-            clip_advance=self.advance,
-            hud_state=self.hud,
-            display_state=self.display,
-            set_volume=lambda level, muted: self.volumes.append((level, muted)),
-            reorder_clips=self.reorders.append,
-            stop_event=self.stop_event,
         )
 
     def send(self, line: str) -> None:

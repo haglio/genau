@@ -21,6 +21,7 @@ from .clip_renderer import ClipRenderController
 from .clip_runtime import ClipCacheStore, DecodeRequestState
 from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
+from .controls import GenauControls
 from .lifecycle import GenauLifecycleController
 from .notifier import GenauNotifier
 from .pygame_view import PygameView
@@ -341,14 +342,32 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         logger.info("Browsing %s (%d clips)",
                     "newest-first" if recent else "reshuffled", len(clips))
 
+    # Everything a command, a key or a console press can move, in one place: the
+    # tick drains commands into it and the window's keys move the same object,
+    # so the two paths into a control cannot drift apart.
+    controls = GenauControls(
+        engine=engine,
+        rh_paused=rh_paused,
+        step_clip=selection.step,
+        discard_clip=selection.discard_current,
+        direct_state=direct_state,
+        cruise_control_state=cruise_control,
+        set_stroke_phase=tcode_sender.set_stroke_phase,
+        clip_advance_state=clip_advance,
+        stop_event=stop_event,
+        hud_state=hud_state,
+        display_state=display_state,
+        set_volume=view.set_volume,
+        reorder_clips=_reorder_clips,
+    )
+
     refresh_controller = GenauRefreshController(
+        controls=controls,
         state=state,
         loader=loader,
         notifier=notifier,
         renderer=renderer,
         selection=selection,
-        engine=engine,
-        rh_paused=rh_paused,
         command_file=command_file,
         paused_file=paused_file,
         beats_per_loop=args.beats_per_loop,
@@ -357,10 +376,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_loading_text=view.set_loading_text,
         logger=logger,
         read_paused_state=read_paused_state,
-        direct_state=direct_state,
         tcode_sender=tcode_sender,
-        cruise_control=cruise_control,
-        clip_advance=clip_advance,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
         # Named by whoever launched us when there is one: standalone this is our
         # own state dir, but under Fun Time the reader is Nau, which is told the
@@ -369,13 +385,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         console_file=Path(args.console_file) if args.console_file else None,
         set_console=view.set_console,
         present_scene=view.present,
-        stop_event=stop_event,
-        hud_state=hud_state,
         set_hud_mode=view.set_hud_mode,
         set_blank=view.set_blank,
-        display_state=display_state,
-        set_volume=view.set_volume,
-        reorder_clips=_reorder_clips,
     )
     from .clip_advance import toggle_lock
     from player_core.cruise_control import toggle_cruise_control

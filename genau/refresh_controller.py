@@ -31,13 +31,12 @@ class GenauRefreshController:
     def __init__(
         self,
         *,
+        controls: GenauControls,
         state,
         loader,
         notifier,
         renderer,
         selection,
-        engine,
-        rh_paused,
         command_file: Path,
         paused_file: Path,
         beats_per_loop: float,
@@ -45,33 +44,33 @@ class GenauRefreshController:
         sync_strength: float,
         set_loading_text,
         logger,
-        direct_state,
         now_source=time.monotonic,
         consume_command=consume_command_file,
         read_paused_state=None,
         tcode_sender=None,
-        cruise_control=None,
-        clip_advance=None,
         broker_cmd_file: Path | None = None,
         drive_file: Path | None = None,
         console_file: Path | None = None,
         set_console=None,
         present_scene=None,
-        stop_event=None,
-        hud_state=None,
         set_hud_mode=None,
         set_blank=None,
-        display_state=None,
-        set_volume=None,
-        reorder_clips=None,
     ):
+        self.controls = controls
+        # The seven the tick itself reads, named here rather than reached for
+        # through the controls on every line below.
+        self.engine = controls.engine
+        self.rh_paused = controls.rh_paused
+        self.direct_state = controls.direct_state
+        self.cruise_control = controls.cruise_control_state
+        self.clip_advance = controls.clip_advance_state
+        self.hud_state = controls.hud_state
+        self.display_state = controls.display_state
         self.state = state
         self.loader = loader
         self.notifier = notifier
         self.renderer = renderer
         self.selection = selection
-        self.engine = engine
-        self.rh_paused = rh_paused
         self.command_file = command_file
         self.paused_file = paused_file
         self.beats_per_loop = beats_per_loop
@@ -82,10 +81,7 @@ class GenauRefreshController:
         self.now_source = now_source
         self.consume_command = consume_command
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
-        self.direct_state = direct_state
         self.tcode_sender = tcode_sender
-        self.cruise_control = cruise_control
-        self.clip_advance = clip_advance
         self.broker_cmd_file = broker_cmd_file
         self.drive_file = drive_file
         self.console_file = console_file
@@ -97,37 +93,15 @@ class GenauRefreshController:
         self._last_console_read = 0.0
         self.set_console = set_console or (lambda _console: None)
         self.present_scene = present_scene or (lambda: None)
-        self.hud_state = hud_state
         self.set_hud_mode = set_hud_mode or (lambda _active: None)
         self.set_blank = set_blank or (lambda _blank: None)
-        self.display_state = display_state
-        # Built once, where the app is wired: the drain below hands it over
-        # whole rather than naming thirteen collaborators every tick.
-        self.controls = GenauControls(
-            engine=engine,
-            rh_paused=rh_paused,
-            step_clip=selection.step,
-            discard_clip=selection.discard_current,
-            direct_state=direct_state,
-            cruise_control_state=cruise_control,
-            set_stroke_phase=(
-                tcode_sender.set_stroke_phase if tcode_sender is not None else None
-            ),
-            clip_advance_state=clip_advance,
-            stop_event=stop_event,
-            hud_state=hud_state,
-            display_state=display_state,
-            # A Genau with no chip to draw still answers SET_VOLUME: the level is
-            # the orchestrator's, and refusing it would put an unhandled verb on
-            # the log every time the room's volume moved.
-            set_volume=set_volume or (lambda _level, _muted: None),
-            reorder_clips=reorder_clips,
+        self._prev_hud_active: bool = (
+            self.hud_state["active"] if self.hud_state is not None else False
         )
-        self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
         # Seeded from the state itself, so a PAUSE queued before the first
         # refresh reads as a real falling edge against the state the controller
         # was built in.
-        self._prev_playing: bool = direct_state.playing
+        self._prev_playing: bool = self.direct_state.playing
         # Which half of the clip is showing, and what is known about the end
         # the stroke is at — see :meth:`_scrub_the_clip`.
         self._scrub = ClipScrub()

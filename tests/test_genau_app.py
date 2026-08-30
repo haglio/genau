@@ -130,11 +130,19 @@ class TestTheOneHandEveryPartIsGiven:
     def test_only_one_hand_is_ever_built(self):
         assert len(_calls(_startup(), "DirectControlState")) == 1
 
-    def test_the_sender_and_the_tick_are_given_that_same_hand(self):
+    def test_the_sender_and_the_controls_are_given_that_same_hand(self):
         startup = _startup()
 
         assert _keyword(_call(startup, "RateLimitedTCodeSender"), "direct_state") == "direct_state"
-        assert _keyword(_call(startup, "GenauRefreshController"), "direct_state") == "direct_state"
+        assert _keyword(_call(startup, "GenauControls"), "direct_state") == "direct_state"
+
+    def test_the_tick_is_driven_by_the_controls_that_were_built_here(self):
+        """One object, so a command and a key move the same thing.  Build the
+        tick its own and the two paths into every control drift apart silently."""
+        startup = _startup()
+
+        assert len(_calls(startup, "GenauControls")) == 1
+        assert _keyword(_call(startup, "GenauRefreshController"), "controls") == "controls"
 
     def test_only_one_cruise_stack_and_one_clip_advance_are_built(self):
         startup = _startup()

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 
 from player_core.cruise_control import CruiseControlState
 from genau.clip_advance import ClipAdvanceState
+from genau.controls import GenauControls
 from player_core.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
 from genau.refresh_controller import GenauRefreshController
@@ -153,14 +154,31 @@ def _build_controller(
     selection = FakeSelection(pending_clip_name=pending_clip_name)
     engine = PlaybackEngine(phase=0.25, last_tick=5.0)
     logger = MagicMock()
+    controls = GenauControls(
+        engine=engine,
+        rh_paused={"value": False},
+        step_clip=selection.step,
+        discard_clip=selection.discard_current,
+        direct_state=direct_state if direct_state is not None else DirectControlState(),
+        cruise_control_state=cruise_control,
+        set_stroke_phase=(
+            tcode_sender.set_stroke_phase if tcode_sender is not None else None
+        ),
+        clip_advance_state=clip_advance,
+        hud_state=hud_state,
+        display_state=display_state,
+        # A Genau with no chip to draw still answers SET_VOLUME: the level is the
+        # orchestrator's, and refusing it would put an unhandled verb on the log
+        # every time the room's volume moved.
+        set_volume=lambda _level, _muted: None,
+    )
     controller = GenauRefreshController(
+        controls=controls,
         state=state or SharedState(),
         loader=loader,
         notifier=notifier,
         renderer=renderer,
         selection=selection,
-        engine=engine,
-        rh_paused={"value": False},
         # Absolute scratch paths: the controller writes genau_status.txt next
         # to the command file, so a relative path would pollute pytest's CWD.
         command_file=Path(tempfile.mkdtemp(prefix="genau-refresh-")) / "command.txt",
@@ -173,17 +191,12 @@ def _build_controller(
         now_source=lambda: 5.0,
         consume_command=lambda _path, logger=None: (commands if commands is not None else ([command] if command else [])),
         read_paused_state=lambda _path, logger=None: paused_state,
-        direct_state=direct_state if direct_state is not None else DirectControlState(),
         tcode_sender=tcode_sender,
-        cruise_control=cruise_control,
-        clip_advance=clip_advance,
         broker_cmd_file=broker_cmd_file,
         set_console=consoles.append,
         present_scene=lambda: present_calls.append(1),
-        hud_state=hud_state,
         set_hud_mode=set_hud_mode or hud_mode_calls.append,
         set_blank=blank_calls.append,
-        display_state=display_state,
     )
     return {
         "controller": controller,
