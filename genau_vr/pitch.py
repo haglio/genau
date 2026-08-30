@@ -14,7 +14,7 @@ import numpy as np
 
 from .projection import pitch_rotation_matrix
 
-# How far off centre the stick has to be before it counts.  A resting stick
+# How far off center the stick has to be before it counts.  A resting stick
 # reports small non-zero values, and without this the picture drifts on its own.
 THUMBSTICK_DEADZONE = 0.1
 

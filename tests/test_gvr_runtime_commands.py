@@ -4,7 +4,7 @@
 the ``genau_vr_cmd.txt`` file channel both arrive here and nowhere else.  So the
 table below is the contract — one row per verb, naming *exactly* what that verb
 changes — and the assertion is that everything else stayed where it was.  A verb
-rewired to a sibling action (AMP to the centre setter), mis-signed (SPEED_DOWN
+rewired to a sibling action (AMP to the center setter), mis-signed (SPEED_DOWN
 speeding up) or inverted (PAUSE clearing the paused flag) moves a key the row
 does not name, or fails to move the one it does, and dies here.
 
@@ -118,7 +118,7 @@ class Runtime:
 
         Read as a whole rather than field by field so a row asserts what a verb
         does *and* what it leaves alone — the half that catches a verb wired to
-        its neighbour's action.
+        its neighbor's action.
         """
         return {
             "paused": self.paused["value"],
@@ -139,8 +139,8 @@ class Runtime:
 # verb, the state it starts from, and the ONLY keys it may move.
 #
 # The starting state is chosen so every move is visible: amplitude 60 leaves the
-# centre free to travel (half-range 30, so 30..70), speed 50 is clear of both
-# clamps, and TRIANGLE has a distinct neighbour in each direction.
+# center free to travel (half-range 30, so 30..70), speed 50 is clear of both
+# clamps, and TRIANGLE has a distinct neighbor in each direction.
 HANDLED = [
     ("QUIT", {}, {"stopping": True}),
     ("PREV", {}, {"steps": (-1,)}),
@@ -161,8 +161,8 @@ HANDLED = [
     ("VOLUME_UP", {}, {"volume": 0.35}),
     ("VOLUME_DOWN", {}, {"volume": 0.15}),
     # The three that carry a number.  AMP and CENTER land on different fields —
-    # amplitude re-clamps the centre it already has, where CENTER sets the
-    # centre the player asked for — which is what tells the two setters apart.
+    # amplitude re-clamps the center it already has, where CENTER sets the
+    # center the player asked for — which is what tells the two setters apart.
     ("AMP 80", {}, {"amplitude": 80}),
     ("CENTER 65", {}, {"center": 65, "intended_center": 65}),
     ("SPEED 90", {}, {"speed": 90}),
@@ -181,7 +181,7 @@ def test_a_verb_moves_what_it_names_and_nothing_else(verb, start, moves):
 
     handled = runtime.apply(verb)
 
-    assert handled is True, f"{verb} was not recognised"
+    assert handled is True, f"{verb} was not recognized"
     assert runtime.state() == {**before, **moves}
 
 
@@ -264,7 +264,7 @@ class TestWhatTheRuntimeWasNotGiven:
         """The stop event, the audio player and the cruise state, each left out.
 
         Naming it is the whole answer now: the dispatcher returns nothing, so a
-        verb the app cannot honour is a log line rather than a flag nobody
+        verb the app cannot honor is a log line rather than a flag nobody
         reads. Saying nothing would have the sender believe it landed.
         """
         runtime = Runtime()

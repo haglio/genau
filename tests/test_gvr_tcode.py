@@ -151,7 +151,7 @@ class TestHowOftenItSends:
 
 class TestWhereTheStrokeIsSentTo:
     """The position is the waveform read at the accumulated stroke phase, inside
-    the range amplitude and centre leave it."""
+    the range amplitude and center leave it."""
 
     def test_the_foot_of_a_full_swing_is_the_bottom_of_the_range(self):
         sink = RecordingSink()
@@ -169,7 +169,7 @@ class TestWhereTheStrokeIsSentTo:
         assert sink.sent[0].startswith("L09999")
 
     def test_a_narrowed_amplitude_narrows_both_ends(self):
-        """Half the travel, centred: the swing runs the middle quarter to
+        """Half the travel, centered: the swing runs the middle quarter to
         three-quarters of the range rather than all of it."""
         sink = RecordingSink()
         sender = _sender(sink, amplitude=50, intended_center=50)
@@ -179,7 +179,7 @@ class TestWhereTheStrokeIsSentTo:
 
         assert [c.split("I")[0] for c in sink.sent] == ["L02500", "L07499"]
 
-    def test_a_raised_centre_lifts_the_whole_swing(self):
+    def test_a_raised_center_lifts_the_whole_swing(self):
         sink = RecordingSink()
         sender = _sender(sink, amplitude=40, intended_center=70)
 

@@ -11,7 +11,7 @@ So this drives the whole path once per verb: a line written into a real
 ``genau_cmd.txt``, drained by the real file channel inside a real
 ``refresh()``, and asserted against the one thing it is supposed to move --
 *and* against everything it must leave alone, which is the half that catches a
-verb wired to its neighbour's collaborator.
+verb wired to its neighbor's collaborator.
 """
 from __future__ import annotations
 
@@ -45,8 +45,8 @@ class Seam:
     """A Genau with every collaborator wired, spoken to through its command file.
 
     The starting state is chosen so every move is visible: amplitude 60 leaves
-    the centre free to travel (30..70), speed 50 is clear of both clamps, and
-    TRIANGLE has a distinct neighbour in each direction.
+    the center free to travel (30..70), speed 50 is clear of both clamps, and
+    TRIANGLE has a distinct neighbor in each direction.
     """
 
     def __init__(self, tmp_path: Path, **start):

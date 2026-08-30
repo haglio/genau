@@ -68,7 +68,7 @@ def quit_requested(events) -> bool:
     return False
 
 
-class LoadingCancelled(Exception):
+class LoadingCanceled(Exception):
     """The user closed the loading window before the library finished."""
 
 
@@ -94,7 +94,7 @@ class LoadingScreen:
     Also Nau's progress callback: ``update`` has the signature
     :func:`nau.library_source.build_library_source` reports through, so the
     screen is handed straight to the build.  Every update pumps the window's
-    event queue — both to keep Windows from greying the window out as
+    event queue — both to keep Windows from graying the window out as
     unresponsive, and to notice the close button.
 
     Not unit-tested: it needs a real display.  Its decisions are the module
@@ -111,7 +111,7 @@ class LoadingScreen:
     def update(self, phase: str, done: int = 0, total: int = 0) -> None:
         """Progress callback: repaint if due, and raise if the user gave up."""
         if quit_requested(pygame.event.get()):
-            raise LoadingCancelled
+            raise LoadingCanceled
         now = time.monotonic()
         if not repaint_due(
             phase=phase, last_phase=self._last_phase, now=now, last_paint_s=self._last_paint_s,
@@ -124,7 +124,7 @@ class LoadingScreen:
         width, height = self._surface.get_size()
         self._surface.fill(_BACKGROUND)
 
-        # Name over message over bar, laid out as one block and centred as one,
+        # Name over message over bar, laid out as one block and centered as one,
         # so the group sits in the middle of whatever rect Nau was given.
         title = self._title_font.render("Nau", True, _PINK)
         line = self._message_font.render(message, True, _TEXT)

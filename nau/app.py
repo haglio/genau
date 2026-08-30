@@ -39,7 +39,7 @@ from .funscript_jumps import FunscriptJumps
 from .input import Input
 from player_core.console_hud import ConsolePainter
 from .notice import NoticeWriter
-from .loading import LoadingCancelled, LoadingScreen
+from .loading import LoadingCanceled, LoadingScreen
 from .overlay import HeatmapStrip, LoopThumbCapture
 from .painter import HUD_OVERLAYS, ConsolePanel, Painter
 from .runtime import apply_command
@@ -240,7 +240,7 @@ def _run(args) -> int:
         source = library_source(args, on_progress=loading.update)
         pairs = resolve_playlist(
             args, source=source, mode=remembered.length_mode or DEFAULT_MODE)
-    except LoadingCancelled:
+    except LoadingCanceled:
         logger.info("Closed while loading; never started playback")
         pygame.quit()
         return 0

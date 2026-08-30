@@ -12,7 +12,7 @@ instead, built once where the app is wired and handed whole.
 
 Optional means *this build did not wire it* -- a Genau launched without a cruise
 stack, a test that only cares about the clip sequence.  A verb whose collaborator
-is absent is refused and logged rather than half-acted-on, which is the behaviour
+is absent is refused and logged rather than half-acted-on, which is the behavior
 :func:`genau.runtime_commands.apply_runtime_command` documents.
 """
 from __future__ import annotations

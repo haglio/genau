@@ -273,7 +273,7 @@ class TestAKeyAndItsVerbAgree:
         free-running one and the hand jumps.  Both reach the same
         toggle_cruise_control; only one reads what it returns.
 
-        Held rather than fixed because this item is behaviour-preserving -- see
+        Held rather than fixed because this item is behavior-preserving -- see
         CHANGELOG.md, 2026-08-30 -- and the fix is to give the key the verb.
         """
         from genau.runtime_commands import apply_runtime_command

@@ -10,11 +10,11 @@ reads as absent.
 
 So the set is written out here, and gated from two sides that fail differently:
 
-* **behaviour** — every verb below is answered by a fully-wired dispatcher, and
+* **behavior** — every verb below is answered by a fully-wired dispatcher, and
   every retired spelling still is not.  This catches a verb *dropped* or
   *re-spelled* by a restructure, whatever shape the dispatcher takes.
 * **source** — the uppercase literals in the package equal these verbs plus the
-  named non-verbs.  This catches a verb *added*, which no behavioural probe can
+  named non-verbs.  This catches a verb *added*, which no behavioral probe can
   discover, and it holds whether the verbs live in an elif chain, a table, an
   enum or a module of their own.
 

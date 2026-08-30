@@ -208,7 +208,7 @@ def _rgba(bar, y, x):
 
 class TestHeatmapBgra:
     def _framed_strip(self, win_w=200):
-        # Production builds the colour row at the inset track width, then frames
+        # Production builds the color row at the inset track width, then frames
         # it to full window width.
         from nau.overlay import heatmap_bgra
         from player_core.timeline import bar_track_x

@@ -876,7 +876,7 @@ class TestCycleVersion:
         """Two members cannot say which way the cycle goes -- forward and
         backward are the same step modulo two -- and CYCLE_VERSION is a command
         Fun Time sends and a HUD control, so the order it walks a family is the
-        observable behaviour.
+        observable behavior.
 
         The index orders members largest-first, which is the order the library
         builds it in: the canonical file, then its smaller versions.

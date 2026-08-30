@@ -33,7 +33,7 @@ def test_no_dead_code():
 # nothing uses, a redefinition that shadows the first, a local assigned and
 # never read. Vulture sees none of them -- it treats an import as used when
 # the same name appears in any other file it scans, so a stray `import json`
-# in one module hides behind a real one in its neighbour.
+# in one module hides behind a real one in its neighbor.
 _DEAD_CODE_LINT_RULES = "F401,F811,F841"
 
 # ARG names the same class one level out: a parameter the body never reads.

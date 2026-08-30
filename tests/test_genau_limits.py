@@ -2,7 +2,7 @@
 
 The status file Fun Time reads and the drive readout Nau draws are two
 publications of one fact, and they used to work it out separately: the same six
-booleans and the same `half = amplitude // 2` centre clamp, in two modules, with
+booleans and the same `half = amplitude // 2` center clamp, in two modules, with
 a comment in one of them naming the duplication.  A change to the clamp had to
 be made in both or the console dimmed an arrow the status file called live.
 """
@@ -35,15 +35,15 @@ class TestTheTravelEnds:
         assert (limits.amp_at_max, limits.amp_at_min) == (False, False)
 
 
-class TestTheCentreIsClampedByTheTravel:
-    """The centre cannot push a stroke off the top or bottom of the device, so
+class TestTheCenterIsClampedByTheTravel:
+    """The center cannot push a stroke off the top or bottom of the device, so
     the range it has is what the travel leaves it: half the travel in from each
     end.  This is the rule the two publications used to spell out separately."""
 
     @pytest.mark.parametrize(
         "amplitude, at_max, at_min",
         [
-            # A 60 travel leaves the centre 30..70.
+            # A 60 travel leaves the center 30..70.
             (60, 70, 30),
             # A full travel leaves it nowhere to go: 50 is both ends at once.
             (100, 50, 50),
@@ -60,7 +60,7 @@ class TestTheCentreIsClampedByTheTravel:
         assert top.ctr_at_max is True
         assert bottom.ctr_at_min is True
 
-    def test_a_centre_inside_that_range_dims_neither(self):
+    def test_a_center_inside_that_range_dims_neither(self):
         limits = _limits(amplitude=60, center=50, intended_center=50)
 
         assert (limits.ctr_at_max, limits.ctr_at_min) == (False, False)

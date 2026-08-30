@@ -157,7 +157,7 @@ class TestTheTouchTheTraceChose:
 
     def test_a_ramped_handoff_has_no_touch_down_to_name(self):
         """A stroke whose floor sits above the park never comes down onto it:
-        the grey ramps instead, and there is no touch."""
+        the gray ramps instead, and there is no touch."""
         ramped = self._latched(
             top=0.12, touch=None,
             key=DriveKey(center=50, amplitude=80, speed=50, let_go=None))

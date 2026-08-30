@@ -3,7 +3,7 @@
 Six booleans, published twice: the status file Fun Time reads has them so its
 dashboard can dim a button, and the drive readout Nau draws has them so the
 console can dim an arrow.  They are two publications of one fact, and they used
-to be worked out separately, including the centre clamp -- so a change to the
+to be worked out separately, including the center clamp -- so a change to the
 clamp had to be made in both places or the console dimmed an arrow the status
 file called live.
 """
@@ -25,7 +25,7 @@ class ControlLimits:
 
 
 def control_limits(direct: DirectControlState) -> ControlLimits:
-    # The centre's range is what the travel leaves it: it cannot push a stroke
+    # The center's range is what the travel leaves it: it cannot push a stroke
     # off the top or bottom of the device, so it stops half a travel in from
     # each end.
     half = direct.amplitude // 2

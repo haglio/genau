@@ -253,7 +253,7 @@ _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
 def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
     """The bottom heatmap strip as a BGRA array, or None when there is nothing
     to draw.  Uses the same inset, floated, bordered frame and full-height marks
-    as the plain bar, with the funscript heatmap as the track fill.  The colour
+    as the plain bar, with the funscript heatmap as the track fill.  The color
     row must have been built at the track width (``bar_track_x(width)``)."""
     strip_h = heatmap.height
     if strip_h <= 0 or not heatmap.colors:
@@ -261,7 +261,7 @@ def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
     bar, x0, x1, y0, y1 = framed_track(width, strip_h)
     row = np.asarray(heatmap.colors, dtype=np.uint8)  # (track_w, 3) RGB
     track_w = len(row)
-    x1 = x0 + track_w  # the colour row defines the exact track width
+    x1 = x0 + track_w  # the color row defines the exact track width
     bar[y0:y1, x0:x1, 0] = row[np.newaxis, :, 2]
     bar[y0:y1, x0:x1, 1] = row[np.newaxis, :, 1]
     bar[y0:y1, x0:x1, 2] = row[np.newaxis, :, 0]

@@ -248,7 +248,7 @@ class TestStaleness:
 
 class TestSiblings:
     def _family(self, tmp_path: Path) -> Path:
-        """Three neighbouring checkouts, two of which keep a blocklist.
+        """Three neighboring checkouts, two of which keep a blocklist.
 
         ``here`` is a real repo: without that, resolving its primary walks up
         into whatever repo the test itself is running inside, and the assertion
@@ -268,7 +268,7 @@ class TestSiblings:
         assert [p.name for p in siblings_of(self._family(tmp_path))] == ["kin"]
 
     def test_from_a_worktree_it_still_finds_the_real_siblings(self, tmp_path: Path):
-        """The whole point. A worktree's own neighbours are other worktrees, so
+        """The whole point. A worktree's own neighbors are other worktrees, so
         anchoring on it hid most of the family — and the collision check that
         keeps ordinary words off the list is only as good as the checkouts it
         can see. Three project words got through exactly this way.
