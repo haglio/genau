@@ -101,27 +101,87 @@ class TestTheStatusFileNauPublishes:
         assert gate.asked == 0
 
 
-def _run_loop_lines() -> tuple[int, int, int]:
-    """Where three things sit inside `_run`'s loop: the status write, the line a
-    blanked frame skips out at, and the painting.
+def _run_body() -> ast.FunctionDef:
+    """`_run`'s syntax tree.
 
-    Read off the source, the way tests/test_session_quit.py reads its own
-    guarantee, and for the same reason: the loop needs a real window and the
-    libmpv DLL, so it cannot be run here at all.
+    Read off the source, the way tests/test_session_quit.py and
+    test_focus_clickthrough read their own guarantees, and for the same reason:
+    the loop needs a real window and the libmpv DLL, so it cannot be run here at
+    all.  What that leaves testable is the wiring -- which part is handed what,
+    and in which order -- and the wiring is where the parts this module was
+    split into can be joined up wrong.
     """
     tree = ast.parse((Path(__file__).resolve().parents[1] / "nau" / "app.py")
                      .read_text(encoding="utf-8"))
-    run = next(n for n in ast.walk(tree)
-               if isinstance(n, ast.FunctionDef) and n.name == "_run")
+    return next(n for n in ast.walk(tree)
+                if isinstance(n, ast.FunctionDef) and n.name == "_run")
+
+
+def _call(where: ast.AST, spelling: str) -> ast.Call:
+    """The one call written exactly as *spelling* in *where*."""
+    calls = [n for n in ast.walk(where)
+             if isinstance(n, ast.Call) and ast.unparse(n.func) == spelling]
+    assert len(calls) == 1, f"expected one {spelling}(), found {len(calls)}"
+    return calls[0]
+
+
+def _said(node: ast.AST) -> str:
+    return ast.unparse(node)
+
+
+def _run_loop_lines() -> tuple[int, int, int]:
+    """The status write, the line a blanked frame skips out at, and the painting."""
+    run = _run_body()
     loop = next(n for n in ast.walk(run) if isinstance(n, ast.While))
-
-    def called(name: str) -> int:
-        return next(n.lineno for n in ast.walk(loop)
-                    if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-                    and n.func.attr == name)
-
     skip = next(n.lineno for n in ast.walk(loop) if isinstance(n, ast.Continue))
-    return called("write"), skip, called("paint")
+    return (_call(loop, "status_writer.write").lineno, skip,
+            _call(loop, "painter.paint").lineno)
+
+
+class TestHowTheSevenPartsAreJoinedUp:
+    """`_run` assembles the parts this module was split into, and nothing can
+    run it: it needs a window and libmpv.  So the joins are read off the source
+    instead -- each of these is a mis-wiring that leaves every unit test in the
+    suite green, because every unit is correct and only the wiring between them
+    is wrong.
+    """
+
+    def test_the_status_file_asks_the_gate_the_painting_fills(self):
+        """The latch is written in one place only -- the trace, reached through
+        the console panel while a frame is painted -- and read in one other, the
+        status writer.  Hand those two different gates and the file publishes an
+        empty handoff touch for the life of the process, which is the arbiter
+        going back to its own read of the wave: the exact split this player's
+        trace exists to close."""
+        run = _run_body()
+        built = [n for n in ast.walk(run)
+                 if isinstance(n, ast.Call) and getattr(n.func, "id", None) == "DriveGate"]
+
+        assert len(built) == 1, "two gates: one of them is never filled"
+        assert _said(_call(run, "_status_writer").args[1]) == "drive_gate"
+        assert _said(_call(run, "ConsolePanel").keywords[1].value) == "drive_gate"
+
+    def test_the_painting_is_told_where_the_pointer_is(self):
+        """The hover is the one thing on the panel the mouse owns rather than
+        the player, so it comes in per frame.  Passed None, every control on the
+        HUD stops lighting up under the cursor and nothing else changes."""
+        assert _said(_call(_run_body(), "painter.paint").keywords[0].value) == "pointer.hover"
+
+    def test_both_parts_are_given_the_window_the_way_round_it_was_measured(self):
+        """One `screen.get_size()` at the top of the frame feeds both, and the
+        pair is (width, height) in both.  Transposed, every overlay is laid out
+        against a 600x1000 window in a 1000x600 one and every press maps to the
+        wrong place."""
+        run = _run_body()
+
+        assert [_said(a) for a in _call(run, "painter.paint").args] == ["win_w", "win_h"]
+        assert [_said(a) for a in _call(run, "window_input.deal").args[1:]] == ["win_w", "win_h"]
+
+    def test_the_mode_is_written_down_out_of_the_modes_themselves(self):
+        """Dropped, Nau writes nau_mode.txt once at startup and never again: the
+        next session opens on this one's playlist while the HUD names a mode
+        from before it, and a compilation entered here is lost outright."""
+        assert _said(_call(_run_body(), "memory.sync").args[0]) == "modes.remembered"
 
 
 class TestWhatABlankedFrameStillDoes:
@@ -169,7 +229,7 @@ class TestWhenSomethingCosmeticFails:
             surface = app._load_icon_surface()
 
         assert surface is None
-        assert "icon" in caplog.text.lower()
+        assert "icon" in caplog.records[0].getMessage().lower()
 
 
 class TestWhichConfigTheFlagsAreReadAgainst:
