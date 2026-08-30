@@ -3,19 +3,6 @@ from __future__ import annotations
 import logging
 
 from .controls import VERBS, GenauControls
-from player_core.cruise_control import (
-    disable_cruise_control,
-    enable_cruise_control,
-    toggle_cruise_control,
-)
-from .clip_advance import (
-    adjust_interval,
-    set_interval,
-    set_locked,
-    toggle_lock,
-)
-
-
 logger = logging.getLogger(__name__)
 
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
@@ -54,9 +41,6 @@ def _dispatch(command, controls: GenauControls) -> bool:
     step_clip = controls.step_clip
     discard_clip = controls.discard_clip
     direct_state = controls.direct_state
-    cruise_control_state = controls.cruise_control_state
-    set_stroke_phase = controls.set_stroke_phase
-    clip_advance_state = controls.clip_advance_state
     stop_event = controls.stop_event
     hud_state = controls.hud_state
     display_state = controls.display_state
@@ -90,29 +74,6 @@ def _dispatch(command, controls: GenauControls) -> bool:
         rh_paused["value"] = False
         if direct_state is not None:
             direct_state.playing = True
-    elif normalized == "TOGGLE_CRUISE" and cruise_control_state is not None:
-        _handed_back(toggle_cruise_control(cruise_control_state),
-                     set_stroke_phase)
-    elif normalized == "CRUISE_ON" and cruise_control_state is not None:
-        enable_cruise_control(cruise_control_state)
-    elif normalized == "CRUISE_OFF" and cruise_control_state is not None:
-        _handed_back(disable_cruise_control(cruise_control_state),
-                     set_stroke_phase)
-    # The lock, under the same three verbs Nau answers to, because it is the same
-    # thing on both: hold what is on screen, or let it move on.  Whichever player
-    # owns the main slot gets them, and the one padlock on the console is what
-    # sends them.
-    elif normalized == "TOGGLE_LOCK" and clip_advance_state is not None:
-        toggle_lock(clip_advance_state)
-    elif normalized in ("LOCK_ON", "LOCK_OFF") and clip_advance_state is not None:
-        set_locked(clip_advance_state, normalized == "LOCK_ON")
-    # How long a clip holds the screen, a second at a time.  Named for the number
-    # rather than for the auto-advance that spends it, so the verb reads as what
-    # the orchestrator's reference shows and what its speaker says aloud.
-    elif normalized == "CLIP_SECONDS_DOWN" and clip_advance_state is not None:
-        adjust_interval(clip_advance_state, -1)
-    elif normalized == "CLIP_SECONDS_UP" and clip_advance_state is not None:
-        adjust_interval(clip_advance_state, 1)
     elif normalized == "HUD_ON" and hud_state is not None:
         hud_state["active"] = True
     elif normalized == "HUD_OFF" and hud_state is not None:
@@ -125,7 +86,7 @@ def _dispatch(command, controls: GenauControls) -> bool:
     elif normalized == "DISPLAY_OFF" and display_state is not None:
         display_state["active"] = False
     else:
-        return _try_numeric_command(normalized, clip_advance_state, set_volume)
+        return _try_numeric_command(normalized, set_volume)
     return True
 
 
@@ -168,34 +129,12 @@ def _act(declared: tuple, controls: GenauControls, value: str) -> bool:
     return verb.act(controls, value)
 
 
-def _try_numeric_command(normalized: str, clip_advance_state, set_volume=None) -> bool:
+def _try_numeric_command(normalized: str, set_volume=None) -> bool:
     parts = normalized.split(None, 1)
     if len(parts) != 2:
         return False
     keyword, raw_value = parts
     if keyword == "SET_VOLUME":
         return _set_volume_command(raw_value, set_volume)
-    try:
-        value = int(raw_value)
-    except ValueError:
-        return False
-
-    # "clip seconds thirty" names the seconds a clip holds the screen.  It says
-    # nothing about the lock: a held clip stays held, and this is the pace it
-    # will move at once it is let go.
-    if keyword == "CLIP_SECONDS":
-        if clip_advance_state is None:
-            return False
-        set_interval(clip_advance_state, value)
-        return True
-
     return False
 
-
-def _handed_back(phase, set_stroke_phase) -> None:
-    """Cruise control letting go says where the single wave should pick up — at
-    the phase of the wave that had most of the travel, which is the one the
-    device was mostly following. Nowhere to put it (a caller with no sender) and
-    the stroke simply resumes on its own free-running phase."""
-    if phase is not None and set_stroke_phase is not None:
-        set_stroke_phase(phase)

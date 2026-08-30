@@ -21,7 +21,12 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Mapping, MutableMapping
 
-from player_core.cruise_control import CruiseControlState
+from player_core.cruise_control import (
+    CruiseControlState,
+    disable_cruise_control,
+    enable_cruise_control,
+    toggle_cruise_control,
+)
 from player_core.direct_control import (
     DirectControlState,
     adjust_amplitude,
@@ -33,7 +38,13 @@ from player_core.direct_control import (
     set_speed,
 )
 
-from .clip_advance import ClipAdvanceState
+from .clip_advance import (
+    ClipAdvanceState,
+    adjust_interval,
+    set_interval,
+    set_locked,
+    toggle_lock,
+)
 from .engine import PlaybackEngine
 
 
@@ -144,6 +155,61 @@ def _number_setter(setter) -> Act:
     return act
 
 
+def _handed_back(controls: GenauControls, phase) -> None:
+    """Cruise control letting go says where the single wave should pick up — at
+    the phase of the wave that had most of the travel, which is the one the
+    device was mostly following.  Nowhere to put it (a build with no sender) and
+    the stroke simply resumes on its own free-running phase."""
+    if phase is not None and controls.set_stroke_phase is not None:
+        controls.set_stroke_phase(phase)
+
+
+def _cruise_toggled(controls: GenauControls, _value: str) -> bool:
+    _handed_back(controls, toggle_cruise_control(controls.cruise_control_state))
+    return True
+
+
+def _cruise_on(controls: GenauControls, _value: str) -> bool:
+    enable_cruise_control(controls.cruise_control_state)
+    return True
+
+
+def _cruise_off(controls: GenauControls, _value: str) -> bool:
+    _handed_back(controls, disable_cruise_control(controls.cruise_control_state))
+    return True
+
+
+def _lock_toggled(controls: GenauControls, _value: str) -> bool:
+    toggle_lock(controls.clip_advance_state)
+    return True
+
+
+def _lock_set(locked: bool) -> Act:
+    def act(controls: GenauControls, _value: str) -> bool:
+        set_locked(controls.clip_advance_state, locked)
+        return True
+    return act
+
+
+def _interval_step(step: int) -> Act:
+    def act(controls: GenauControls, _value: str) -> bool:
+        adjust_interval(controls.clip_advance_state, step)
+        return True
+    return act
+
+
+def _interval_named(controls: GenauControls, value: str) -> bool:
+    """"clip seconds thirty" names the seconds a clip holds the screen.  It says
+    nothing about the lock: a held clip stays held, and this is the pace it will
+    move at once it is let go."""
+    try:
+        seconds = int(value)
+    except ValueError:
+        return False
+    set_interval(controls.clip_advance_state, seconds)
+    return True
+
+
 # One entry per thing a person can move.  Add a control by adding a record here;
 # nothing else in the app needs to learn its name.
 CONTROLS: tuple[Control, ...] = (
@@ -180,6 +246,40 @@ CONTROLS: tuple[Control, ...] = (
         verbs=(
             Verb("CYCLE_SHAPE", _shape_step(1)),
             Verb("CYCLE_SHAPE_PREV", _shape_step(-1)),
+        ),
+    ),
+    Control(
+        name="cruise",
+        needs=("cruise_control_state",),
+        verbs=(
+            Verb("TOGGLE_CRUISE", _cruise_toggled),
+            Verb("CRUISE_ON", _cruise_on),
+            Verb("CRUISE_OFF", _cruise_off),
+        ),
+    ),
+    # The lock, under the same three verbs Nau answers to, because it is the same
+    # thing on both: hold what is on screen, or let it move on.  Whichever player
+    # owns the main slot gets them, and the one padlock on the console is what
+    # sends them.
+    Control(
+        name="lock",
+        needs=("clip_advance_state",),
+        verbs=(
+            Verb("TOGGLE_LOCK", _lock_toggled),
+            Verb("LOCK_ON", _lock_set(True)),
+            Verb("LOCK_OFF", _lock_set(False)),
+        ),
+    ),
+    # How long a clip holds the screen, a second at a time.  Named for the number
+    # rather than for the auto-advance that spends it, so the verb reads as what
+    # the orchestrator's reference shows and what its speaker says aloud.
+    Control(
+        name="clip_seconds",
+        needs=("clip_advance_state",),
+        verbs=(
+            Verb("CLIP_SECONDS_DOWN", _interval_step(-1)),
+            Verb("CLIP_SECONDS_UP", _interval_step(1)),
+            Verb("CLIP_SECONDS", _interval_named, takes_a_value=True),
         ),
     ),
 )
