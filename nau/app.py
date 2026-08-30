@@ -284,14 +284,15 @@ def _run(args) -> int:
     funscript_jumps = FunscriptJumps(session, notices)
     # Entering a compilation swaps the playlist in memory only, and Fun Time can
     # only rotate its resumed file onto a video the file contains — which a
-    # compilation's clips often are not.  So the clip is remembered too, and the
-    # volume comes back around it rather than around whatever the list leads with.
+    # compilation's clips often are not.  So the clip is remembered too, and
+    # the compilation comes back around it rather than around whatever the list
+    # leads with.
     jumps.resume(
         remembered.compilation,
         Path(remembered.video) if remembered.video else None,
     )
-    # The length filter, the volume and Fun Time's own narrowing, as the console
-    # draws them and the memory keeps them.  See nau.modes.
+    # The length filter, the compilation and Fun Time's own narrowing, as the
+    # console draws them and the memory keeps them.  See nau.modes.
     modes = Modes(source, session, jumps, remembered=remembered.length_mode)
     # RELOAD_PLAYLIST: Fun Time owns the playlist file when it passes one, and
     # rewrites it whenever the room's selection changes.  Standalone there is
@@ -342,7 +343,7 @@ def _run(args) -> int:
 
         # Write the mode down whenever it moves, whichever path moved it, so the
         # next session — which opens on this one's resumed playlist — can name it
-        # and re-enter the volume it was in.  Above the painting, because a
+        # and re-enter the compilation it was in.  Above the painting, because a
         # blanked Nau still navigates: in genau mode the `[`/`]` keys drive it in
         # the background, and where they leave it is what the next session opens
         # on whether or not anyone was looking.
