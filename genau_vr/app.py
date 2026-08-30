@@ -7,13 +7,10 @@ from __future__ import annotations
 import argparse
 import ctypes
 import logging
-import math
 import threading
 import time
 from pathlib import Path
 from typing import IO
-
-import numpy as np
 
 from app_support.logging_utils import (
     configure_logging,
@@ -25,20 +22,16 @@ from . import vr_runtime
 from .audio import AudioPlayer
 from .clip import load_clip
 from .config import DEFAULT_CONFIG, VrConfig, clips_to_play, load_config
-from .cruise_control import CruiseControlState, tick_cruise_control
+from .cruise_control import CruiseControlState
+from .carousel import ClipCarousel
+from .loop import controls_for, run_loop
 from .playback import (
     DirectControlState,
     PlaybackEngine,
     RateLimitedTCodeSender,
     UdpTCodeSink,
     WaveformShape,
-    display_index_for_phase,
-    display_phase_for_position,
-    update_engine,
 )
-from .projection import fov_to_projection_matrix, pose_to_view_matrix
-from .controls import GenauVrControls
-from .runtime_commands import apply_runtime_command
 
 logger = logging.getLogger(__name__)
 
@@ -227,8 +220,13 @@ def _start(argv: list[str] | None) -> None:
     )
 
     try:
-        _run_loop(session, renderer, engine, state, cruise, tcode_sender,
-                  frames, clip_list, audio, cmd_file, stop_event, rh_paused)
+        carousel = ClipCarousel(clip_list, frames, audio=audio)
+        run_loop(
+            session, renderer, engine,
+            controls_for(carousel, engine, state, cruise, audio,
+                         stop_event, rh_paused),
+            carousel, tcode_sender, cmd_file, _consume_command_file,
+        )
     except KeyboardInterrupt:
         logger.info("Interrupted")
     finally:
@@ -237,145 +235,3 @@ def _start(argv: list[str] | None) -> None:
         renderer.close()
         session.close()
         logger.info("Shutdown complete")
-
-
-def _pitch_rotation_matrix(angle: float) -> np.ndarray:
-    """Build a 4x4 rotation matrix around the X axis (pitch)."""
-    c, s = math.cos(angle), math.sin(angle)
-    mat = np.eye(4, dtype=np.float32)
-    mat[1, 1] = c
-    mat[1, 2] = -s
-    mat[2, 1] = s
-    mat[2, 2] = c
-    return mat
-
-
-def _run_loop(
-    session,
-    renderer,
-    engine: PlaybackEngine,
-    state: DirectControlState,
-    cruise: CruiseControlState,
-    tcode_sender: RateLimitedTCodeSender,
-    frames: list[np.ndarray],
-    clip_list: list[Path],
-    audio: AudioPlayer,
-    cmd_file: Path,
-    stop_event: threading.Event,
-    rh_paused: dict,
-) -> None:
-    import glfw
-
-    clip_index = 0
-    frame_count = len(frames)
-    last_frame_idx = -1
-    pitch_offset = 0.0
-    last_time = time.monotonic()
-    def step_clip(delta: int) -> None:
-        nonlocal frames, frame_count, last_frame_idx, clip_index
-        if len(clip_list) <= 1:
-            return
-        clip_index = (clip_index + delta) % len(clip_list)
-        new_path = clip_list[clip_index]
-        logger.info("Switching to clip: %s", new_path.name)
-        frames = load_clip(new_path)
-        frame_count = len(frames)
-        last_frame_idx = -1
-        engine.phase = 0.0
-        audio.load_for_clip(new_path)
-
-    # Everything a command may move, built once rather than named six at a time
-    # on every line the channel carries.
-    controls = GenauVrControls(
-        rh_paused=rh_paused,
-        step_clip=step_clip,
-        direct_state=state,
-        cruise_control_state=cruise,
-        stop_event=stop_event,
-        audio_player=audio,
-    )
-
-    while session.running and not stop_event.is_set():
-        session.poll_events()
-        if not session.running:
-            break
-
-        if glfw.window_should_close(session._window):
-            break
-
-        if not session.session_ready:
-            glfw.poll_events()
-            time.sleep(0.01)
-            continue
-
-        should_render, display_time, views = session.frame_begin()
-
-        now = time.monotonic()
-        dt = now - last_time
-        last_time = now
-
-        command = _consume_command_file(cmd_file)
-        if command:
-            apply_runtime_command(command, controls)
-
-        tick_cruise_control(state, cruise, now)
-
-        update_engine(
-            engine,
-            now=now,
-            auto_active=True,
-            raw_bpm=state.bpm,
-            beats_per_loop=1.0,
-            bpm_smoothing=0.14,
-            paused=not state.playing or rh_paused["value"],
-        )
-
-        tcode_sender.maybe_send(engine.phase, now)
-
-        session.sync_controller()
-        if abs(session.thumbstick_y) > 0.1:  # deadzone
-            pitch_offset -= session.thumbstick_y * dt * 1.5  # ~85°/sec at full tilt
-            pitch_offset = max(-math.pi / 2, min(math.pi / 2, pitch_offset))
-
-        display_phase = display_phase_for_position(engine.phase, state.shape)
-        frame_idx = display_index_for_phase(
-            phase=display_phase,
-            frame_count=frame_count,
-            auto_active=state.playing and not rh_paused["value"],
-            current_frame_index=last_frame_idx if last_frame_idx >= 0 else None,
-        )
-
-        if frame_idx != last_frame_idx:
-            renderer.upload_frame(frames[frame_idx])
-            last_frame_idx = frame_idx
-
-        if should_render and views:
-            pitch_mat = _pitch_rotation_matrix(pitch_offset) if pitch_offset != 0.0 else None
-
-            for eye_index, view in enumerate(views):
-                session.bind_eye_framebuffer(eye_index)
-
-                proj = fov_to_projection_matrix(
-                    view.fov.angle_left,
-                    view.fov.angle_right,
-                    view.fov.angle_up,
-                    view.fov.angle_down,
-                    0.05,
-                    100.0,
-                )
-                view_mat = pose_to_view_matrix(
-                    (0.0, 0.0, 0.0),
-                    (view.pose.orientation.x, view.pose.orientation.y,
-                     view.pose.orientation.z, view.pose.orientation.w),
-                )
-
-                vp = proj @ view_mat
-                if pitch_mat is not None:
-                    vp = vp @ pitch_mat
-                inv_vp = np.linalg.inv(vp)
-                renderer.render_eye(eye_index, inv_vp)
-
-                session.release_eye_framebuffer(eye_index)
-
-        session.frame_end(display_time, views)
-        glfw.poll_events()

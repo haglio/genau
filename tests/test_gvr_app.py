@@ -1,11 +1,9 @@
 """Tests for genau_vr.app startup error handling."""
 from __future__ import annotations
 
-import math
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 
 from genau_vr.vr_runtime import Probe, Readiness
@@ -228,33 +226,3 @@ class TestFindingAClipsAudio:
         (tmp_path / "clips").mkdir()
 
         assert AudioPlayer._find_audio(tmp_path / "clips" / "scene one.mp4") is None
-
-
-class TestTiltingTheView:
-    """The controller's pitch adjustment, as a rotation about the X axis."""
-
-    def test_a_quarter_turn_takes_up_onto_the_axis_pointing_away(self):
-        """Up is +Y and away is -Z in this space, so a positive quarter turn
-        tips the view down toward the floor.  Flip the sign and the controller
-        pitches the other way."""
-        from genau_vr.app import _pitch_rotation_matrix
-
-        turned = _pitch_rotation_matrix(math.pi / 2) @ np.array(
-            [0.0, 1.0, 0.0, 1.0], dtype=np.float32)
-
-        assert turned[:3] == pytest.approx([0.0, 0.0, 1.0], abs=1e-6)
-
-    def test_no_turn_leaves_every_axis_where_it_was(self):
-        from genau_vr.app import _pitch_rotation_matrix
-
-        assert _pitch_rotation_matrix(0.0) == pytest.approx(np.eye(4))
-
-    def test_it_only_touches_the_two_axes_it_turns_between(self):
-        """X is the axis being turned about and W carries the translation, so a
-        rotation that moved either would drag the whole scene with it."""
-        from genau_vr.app import _pitch_rotation_matrix
-
-        turned = _pitch_rotation_matrix(math.pi / 3)
-
-        assert turned[0] == pytest.approx([1.0, 0.0, 0.0, 0.0])
-        assert turned[3] == pytest.approx([0.0, 0.0, 0.0, 1.0])

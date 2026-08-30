@@ -270,6 +270,17 @@ class VRSession:
     def session_ready(self) -> bool:
         return self._session_begun
 
+    @property
+    def window_close_requested(self) -> bool:
+        """Whether the little desktop window has been asked to close.
+
+        The headset has no close box; that window is how a session started from
+        a shortcut is ended without one.  Asked here rather than reached for
+        through the window itself, so how the session holds its window stays the
+        session's business.
+        """
+        return bool(self._window) and glfw.window_should_close(self._window)
+
     def sync_controller(self) -> None:
         """Sync controller actions and update thumbstick state."""
         if not self._actions_attached or self._action_set is None:
