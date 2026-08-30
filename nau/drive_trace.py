@@ -19,10 +19,9 @@ park over the same one — so the picture and the wire share one schedule.
 
 Two disciplines keep the picture still while it slides:
 
-* The stroke is only ever asked WHAT HEIGHT, never WHEN.  Asking the live
-  stroke when anything happens (its next floor-touch, its own let-go) gave
-  answers that moved under the picture every publish — the flicker, the
-  vanishing final cycle.
+* The stroke is only ever asked WHAT HEIGHT, never WHEN.  A live stroke asked
+  *when* something happens — its next floor-touch, its own let-go — answers
+  differently every publish, and the picture would move with it.
 * Every read is anchored to something that does not move.  The one number that
   cannot be recomputed — the height Genau was at when it let go — arrives
   latched in Genau's own publish (``DriveHud.let_go``), captured at the source
@@ -101,15 +100,13 @@ def drive_readout(
     is there to take the gaps.  Who holds the device right now is read off the
     publish itself — ``let_go`` is set exactly while Genau has handed it over —
     rather than off the console's round-tripped state, which trails the arbiter
-    by a couple of publish intervals and lied to the picture at every seam.
+    by a couple of publish intervals.
 
     *descent_tops* is the caller's latch, one entry per approaching turn: a
     descent's top is SELECTED once and then held, re-selected only when
     something real moves it (the controls, a handoff, the wave realigning
-    after an OmniPause).  Re-read live every frame instead, the top breathed
-    with the beat between Genau's publish cadence and the frame clock, and the
-    seam flickered between "blue ends on the park" and a slightly diagonal
-    ramp, frame to frame.
+    after an OmniPause).  Re-read live every frame it would breathe with the
+    beat between Genau's publish cadence and the frame clock.
 
     The span is Genau's own — it publishes the number with its trace — scaled by
     the playback rate, because the trace covers wall-clock time and at double
@@ -143,9 +140,9 @@ def drive_readout(
     def stroke_at(index: float) -> float:
         """The published stroke at a possibly fractional sample offset.
 
-        Interpolated, not rounded: a rounded index snapped between neighbours
-        as the playhead crossed each half-knot, and every read that fed a ramp
-        top or a future wave shimmered by a whole sample's height.
+        Interpolated, not rounded: the index falls between samples, and a
+        rounded one moves by a whole sample's height every time the playhead
+        crosses a half-knot.
         """
         if index <= 0:
             return stroke[0]
@@ -160,9 +157,8 @@ def drive_readout(
     # Where a future resumed stroke opens inside the published buffer.  A
     # takeover always rests the phase first, so every future Genau turn begins
     # at the stroke's floor: parked, the publish already starts there (offset
-    # 0); live, the floor is wherever the buffer's lowest sample sits.  Without
-    # this the future blue was read at fixed offsets into a buffer that scrolls,
-    # and it treadmilled in place while everything around it stood still.
+    # 0); live, the floor is wherever the buffer's lowest sample sits.  A fixed
+    # offset into a buffer that scrolls would treadmill in place.
     resume_base = 0.0
     if stroke is not None and base.let_go is None:
         resume_base = float(min(range(TRACE_SAMPLES), key=stroke.__getitem__))
@@ -247,14 +243,13 @@ def drive_readout(
             # the now-frozen one cannot re-answer it — carried.  Every OTHER
             # re-key (the wave realigning after a resume, a control moving the
             # floor) is a real change of plan, and the touch is re-chosen with
-            # it: carried across a resume, the old wave's touch cut the new
-            # wave anywhere.
+            # it — the old wave's touch means nothing on the new one.
             touch = latched[2]
         else:
             touch = park_touch_after(turn_start, prev_began)
         # Never latched off a parked publish before its turn: right after a
-        # rewind the publish is still the frozen pre-rewind wave for a beat,
-        # and a forecast latched from it froze the stale wave's touch.  The
+        # rewind the publish is still the frozen pre-rewind wave for a beat, so
+        # a forecast latched from it would freeze the stale wave's touch.  The
         # live publish arrives within a tick; until then the choice stays a
         # forecast.
         frozen = (position_ms >= turn_start - round(_TOUCH_FREEZE_AHEAD_MS * speed)
@@ -307,10 +302,10 @@ def drive_readout(
                 if sample_ms <= touch and base.let_go is None:
                     # The extension belongs to the stretch ENDING here, not to
                     # the script turn these samples sit inside — and it is only
-                    # drawn while Genau really still has the device.  Drawn off
-                    # a parked publish (a rewind landing just past a boundary),
-                    # it was a stroke nobody was making, re-anchoring under the
-                    # playhead into a cliff.
+                    # drawn while Genau really still has the device.  Off a
+                    # parked publish (a rewind landing just past a boundary) it
+                    # would be a stroke nobody is making, re-anchoring under
+                    # the playhead into a cliff.
                     prev_began, _ = script.turn_bounds_at(max(turn_start - 1, 0))
                     value = genau_height(sample_ms, prev_began)
                     feather_ms = round(_SEAM_FEATHER_MS * speed)
@@ -348,9 +343,9 @@ def drive_readout(
     # only while the playhead is inside live blue — where it IS the line, at the
     # device's own finer rate.  Everywhere else (both ramps, the plan, the
     # rests) the height comes from the same function that drew the line, so the
-    # dot can never ride a line that is not there: keying this on the console's
-    # osr2 instead put the dot on Genau's frozen position over a grey ramp at
-    # every handoff, for as long as the console lagged the arbiter.
+    # dot can never ride a line that is not there.  Keyed on the console's osr2
+    # instead it would sit on Genau's frozen position over a grey ramp at every
+    # handoff, for as long as the console lags the arbiter.
     height, who_now = at(position_ms, script.planned_position_at(position_ms) / 100)
     if who_now == DRIVEN_BY_GENAU:
         marker = base.position
@@ -360,19 +355,19 @@ def drive_readout(
         base,
         # Who has the device AT THE PLAYHEAD, from the same function that drew
         # the line under the dot — the console's pill reads this, so the pill
-        # and the line cannot disagree.  The round-tripped osr2 state flipped
-        # the pill at the arbiter's decision, seconds before the dot finished
-        # riding the blue it was still drawn on.
+        # and the line cannot disagree.  The round-tripped osr2 state flips at
+        # the arbiter's decision, seconds before the dot finishes riding the
+        # blue it is still drawn on.
         driven=who_now,
         waveform=tuple(values),
         slide=slide,
         edge=edge,
         # Always said, even for a single run: the painter's fallback colour for
         # an empty ``segments`` is the OSR2 state, and that state trails the
-        # arbiter by a beat at every handoff — the whole stroke flashed the
-        # script's green for a frame each time the device changed hands.  The
-        # marks are stable while the picture is, so the readout still compares
-        # equal to itself between repaints.
+        # arbiter by a beat at every handoff, so an empty one would flash the
+        # script's green over the whole stroke as the device changes hands.
+        # The marks are stable while the picture is, so the readout still
+        # compares equal to itself between repaints.
         segments=tuple(marks),
         position=marker,
     )
