@@ -253,6 +253,24 @@ tests/test_genau_lifecycle.py::TestTheMapIsTheRegistrys::test_every_key_a_contro
 tests/test_genau_lifecycle.py::TestTheMapIsTheRegistrys::test_the_map_holds_those_and_nothing_else
 tests/test_genau_lifecycle.py::TestTheMapIsTheRegistrys::test_the_windows_own_three_are_in_it_too
 tests/test_genau_lifecycle.py::test_resize_debounces_prepare_calls
+tests/test_genau_limits.py::TestBothPublicationsReadTheSameSix::test_the_status_file_says_what_the_readout_was_told[['amplitude', 'center', 'intended_center']0]
+tests/test_genau_limits.py::TestBothPublicationsReadTheSameSix::test_the_status_file_says_what_the_readout_was_told[['amplitude', 'center', 'intended_center']1]
+tests/test_genau_limits.py::TestBothPublicationsReadTheSameSix::test_the_status_file_says_what_the_readout_was_told[['amplitude']0]
+tests/test_genau_limits.py::TestBothPublicationsReadTheSameSix::test_the_status_file_says_what_the_readout_was_told[['amplitude']1]
+tests/test_genau_limits.py::TestBothPublicationsReadTheSameSix::test_the_status_file_says_what_the_readout_was_told[['speed']0]
+tests/test_genau_limits.py::TestBothPublicationsReadTheSameSix::test_the_status_file_says_what_the_readout_was_told[['speed']1]
+tests/test_genau_limits.py::TestBothPublicationsReadTheSameSix::test_the_status_file_says_what_the_readout_was_told[[]]
+tests/test_genau_limits.py::TestTheCentreIsClampedByTheTravel::test_a_centre_inside_that_range_dims_neither
+tests/test_genau_limits.py::TestTheCentreIsClampedByTheTravel::test_a_full_travel_dims_both_at_once
+tests/test_genau_limits.py::TestTheCentreIsClampedByTheTravel::test_the_range_is_half_the_travel_in_from_each_end[0-100-0]
+tests/test_genau_limits.py::TestTheCentreIsClampedByTheTravel::test_the_range_is_half_the_travel_in_from_each_end[100-50-50]
+tests/test_genau_limits.py::TestTheCentreIsClampedByTheTravel::test_the_range_is_half_the_travel_in_from_each_end[60-70-30]
+tests/test_genau_limits.py::TestTheSpeed::test_a_speed_between_them_dims_neither
+tests/test_genau_limits.py::TestTheSpeed::test_the_fastest_dims_only_the_up_arrow
+tests/test_genau_limits.py::TestTheSpeed::test_the_slowest_dims_only_the_down_arrow
+tests/test_genau_limits.py::TestTheTravelEnds::test_a_travel_at_the_bottom_dims_only_the_down_arrow
+tests/test_genau_limits.py::TestTheTravelEnds::test_a_travel_at_the_top_dims_only_the_up_arrow
+tests/test_genau_limits.py::TestTheTravelEnds::test_a_travel_in_between_dims_neither
 tests/test_genau_load_clip_frames.py::test_load_clip_frames_falls_back_to_ffmpeg
 tests/test_genau_load_clip_frames.py::test_load_clip_frames_from_cache
 tests/test_genau_notifier.py::test_close_closes_socket

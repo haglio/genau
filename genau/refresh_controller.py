@@ -13,6 +13,7 @@ from player_core.drive_readout import TRACE_SAMPLES, DriveHud, publish_drive
 from .engine import update_engine
 from .controls import GenauControls
 from .device_handoff import DeviceHandoff
+from .limits import control_limits
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
 from .status_writer import write_status_file
@@ -285,9 +286,7 @@ class GenauRefreshController:
         )
 
     def _build_drive_hud(self) -> DriveHud:
-        from player_core.direct_control import (
-            MAX_SPEED, MIN_BPM, MIN_SPEED, POSITION_MAX,
-        )
+        from player_core.direct_control import MIN_BPM, POSITION_MAX
 
         ds = self.direct_state
         position = 0
@@ -308,10 +307,9 @@ class GenauRefreshController:
         # learn it — two spans would make a handoff look like a jump.
         display_seconds = 60.0 * self.beats_per_loop / MIN_BPM
 
-        # Which arrow would do nothing — the readout dims those.  The centre's
-        # range is what the amplitude leaves it (it cannot push a stroke off the
-        # top or bottom of the device), the same clamp the status file uses.
-        half = ds.amplitude // 2
+        # Which arrow would do nothing — the readout dims those.  The same six
+        # the status file publishes, from the same answer.
+        limits = control_limits(ds)
         return DriveHud(
             speed=ds.speed,
             amplitude=ds.amplitude,
@@ -321,12 +319,12 @@ class GenauRefreshController:
             advance_interval=(
                 self.clip_advance.interval if self.clip_advance else 0
             ),
-            spd_at_max=ds.speed >= MAX_SPEED,
-            spd_at_min=ds.speed <= MIN_SPEED,
-            amp_at_max=ds.amplitude >= 100,
-            amp_at_min=ds.amplitude <= 0,
-            ctr_at_max=ds.center >= 100 - half,
-            ctr_at_min=ds.center <= half,
+            spd_at_max=limits.spd_at_max,
+            spd_at_min=limits.spd_at_min,
+            amp_at_max=limits.amp_at_max,
+            amp_at_min=limits.amp_at_min,
+            ctr_at_max=limits.ctr_at_max,
+            ctr_at_min=limits.ctr_at_min,
             trace_seconds=display_seconds,
             let_go=let_go,
             waveform=tuple(self._trace(
