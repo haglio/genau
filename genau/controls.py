@@ -72,6 +72,11 @@ class GenauControls:
 # was none.
 Act = Callable[[GenauControls, str], bool]
 
+# Fun Time's spelling for the quarter-turn of the stroke's phase.  Named because
+# two spellings of it once shipped side by side, which is the drift a literal per
+# branch invites.
+QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
+
 
 @dataclass(frozen=True)
 class Verb:
@@ -210,6 +215,79 @@ def _interval_named(controls: GenauControls, value: str) -> bool:
     return True
 
 
+def _quit(controls: GenauControls, _value: str) -> bool:
+    controls.stop_event.set()
+    return True
+
+
+def _step_clip(step: int) -> Act:
+    def act(controls: GenauControls, _value: str) -> bool:
+        controls.step_clip(step)
+        return True
+    return act
+
+
+def _condemn(controls: GenauControls, _value: str) -> bool:
+    controls.discard_clip()
+    return True
+
+
+def _reorder(recent: bool) -> Act:
+    def act(controls: GenauControls, _value: str) -> bool:
+        controls.reorder_clips(recent)
+        return True
+    return act
+
+
+def _offset_quarter_cycle(controls: GenauControls, _value: str) -> bool:
+    controls.engine.phase = (controls.engine.phase + 0.25) % 1.0
+    return True
+
+
+def _playing(playing: bool) -> Act:
+    """PAUSE and RESUME move both halves of one fact.
+
+    The box is what an orchestrator's paused file feeds and what the tick reads;
+    the hand's own flag is what the stroke follows.  A build with no hand still
+    answers -- the room is paused either way.
+    """
+    def act(controls: GenauControls, _value: str) -> bool:
+        controls.rh_paused["value"] = not playing
+        if controls.direct_state is not None:
+            controls.direct_state.playing = playing
+        return True
+    return act
+
+
+def _box_set(field_name: str, key: str, value: bool) -> Act:
+    def act(controls: GenauControls, _value: str) -> bool:
+        getattr(controls, field_name)[key] = value
+        return True
+    return act
+
+
+def _volume_shown(controls: GenauControls, value: str) -> bool:
+    """``SET_VOLUME <level> [muted]`` — the sound level Fun Time is publishing.
+
+    Genau neither owns the level (the orchestrator does, for the whole primary
+    display) nor plays the audio: a companion process carries the clip music.
+    What arrives here is only what the chip Genau draws should show, which is why
+    the mute rides alongside the level — a level of zero cannot say whether the
+    speaker is off or turned all the way down, nor what unmuting returns to.
+
+    The mute is optional so an orchestrator that sends the level alone still
+    moves the slider rather than being ignored outright.
+    """
+    said = value.split()
+    try:
+        level = int(said[0])
+        muted = bool(int(said[1])) if len(said) > 1 else False
+    except (IndexError, ValueError):
+        return False
+    controls.set_volume(level, muted)
+    return True
+
+
 # One entry per thing a person can move.  Add a control by adding a record here;
 # nothing else in the app needs to learn its name.
 CONTROLS: tuple[Control, ...] = (
@@ -281,6 +359,61 @@ CONTROLS: tuple[Control, ...] = (
             Verb("CLIP_SECONDS_UP", _interval_step(1)),
             Verb("CLIP_SECONDS", _interval_named, takes_a_value=True),
         ),
+    ),
+    Control(
+        name="quit",
+        needs=("stop_event",),
+        verbs=(Verb("QUIT", _quit),),
+    ),
+    Control(
+        name="clip",
+        verbs=(Verb("PREV", _step_clip(-1)), Verb("NEXT", _step_clip(1))),
+    ),
+    Control(
+        name="condemn",
+        needs=("discard_clip",),
+        verbs=(Verb("WEIRD", _condemn),),
+    ),
+    # The two browse orders every player in the room has, said to the one player
+    # with no playlist file to hand it: Genau owns its own sequence, so the order
+    # is a verb rather than a rewritten list, and answering it rescans the clips
+    # folder — which is most of what Latest is for.
+    Control(
+        name="browse_order",
+        needs=("reorder_clips",),
+        verbs=(Verb("LATEST", _reorder(True)), Verb("SHUFFLE", _reorder(False))),
+    ),
+    Control(
+        name="quarter_cycle",
+        verbs=(Verb(QUARTER_CYCLE_OFFSET_COMMAND, _offset_quarter_cycle),),
+    ),
+    Control(
+        name="pause",
+        verbs=(Verb("PAUSE", _playing(False)), Verb("RESUME", _playing(True))),
+    ),
+    Control(
+        name="hud",
+        needs=("hud_state",),
+        verbs=(
+            Verb("HUD_ON", _box_set("hud_state", "active", True)),
+            Verb("HUD_OFF", _box_set("hud_state", "active", False)),
+        ),
+    ),
+    # Whether Genau owns the screen right now, which is not the same as whether
+    # the hand is stroking: an orchestrator switching to a mode Genau doesn't
+    # display sends DISPLAY_OFF, and Genau goes dark without touching playback.
+    Control(
+        name="display",
+        needs=("display_state",),
+        verbs=(
+            Verb("DISPLAY_ON", _box_set("display_state", "active", True)),
+            Verb("DISPLAY_OFF", _box_set("display_state", "active", False)),
+        ),
+    ),
+    Control(
+        name="volume",
+        needs=("set_volume",),
+        verbs=(Verb("SET_VOLUME", _volume_shown, takes_a_value=True),),
     ),
 )
 

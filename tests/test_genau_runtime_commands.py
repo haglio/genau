@@ -8,11 +8,8 @@ import threading
 
 import pytest
 
-from genau.controls import GenauControls
-from genau.runtime_commands import (
-    QUARTER_CYCLE_OFFSET_COMMAND,
-    apply_runtime_command,
-)
+from genau.controls import QUARTER_CYCLE_OFFSET_COMMAND, GenauControls
+from genau.runtime_commands import apply_runtime_command
 from genau.engine import PlaybackEngine
 from player_core.direct_control import DirectControlState, WaveformShape
 from player_core.cruise_control import CruiseControlState
