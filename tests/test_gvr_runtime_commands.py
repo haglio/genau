@@ -17,6 +17,9 @@ recording calls.
 """
 from __future__ import annotations
 
+import logging
+from contextlib import contextmanager
+
 import threading
 
 import pytest
@@ -25,6 +28,26 @@ from genau_vr.cruise_control import CruiseControlState
 from genau_vr.playback import DirectControlState, PlaybackEngine, WaveformShape
 from genau_vr.runtime_commands import apply_runtime_command
 from genau_vr.voice import VOICE_COMMANDS
+
+
+@contextmanager
+def _nothing_logged():
+    """Collect the dispatcher's warnings for the duration of one call."""
+    records: list[logging.LogRecord] = []
+
+    class _Collect(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    logger = logging.getLogger("genau_vr.runtime_commands")
+    handler = _Collect()
+    logger.addHandler(handler)
+    previous, logger.propagate = logger.propagate, False
+    try:
+        yield records
+    finally:
+        logger.removeHandler(handler)
+        logger.propagate = previous
 
 
 class ClipStepper:
@@ -71,15 +94,24 @@ class Runtime:
         )
 
     def apply(self, command: str, *, direct_state: object = ...) -> bool:
-        return apply_runtime_command(
-            command,
-            rh_paused=self.paused,
-            step_clip=self.stepper,
-            direct_state=self.direct if direct_state is ... else direct_state,
-            cruise_control_state=self.cruise,
-            stop_event=self.stop_event,
-            audio_player=self.audio,
-        )
+        """Run one verb; True when the dispatcher answered it.
+
+        The dispatcher returns nothing — an unanswered verb goes on the log,
+        which is the only place production can see it — so "was this verb
+        answered?" is asked of the log, and every table below goes on asking
+        it the same way.
+        """
+        with _nothing_logged() as unanswered:
+            apply_runtime_command(
+                command,
+                rh_paused=self.paused,
+                step_clip=self.stepper,
+                direct_state=self.direct if direct_state is ... else direct_state,
+                cruise_control_state=self.cruise,
+                stop_event=self.stop_event,
+                audio_player=self.audio,
+            )
+        return not unanswered
 
     def state(self) -> dict:
         """Everything a verb could observably move, in one dict.
@@ -227,35 +259,24 @@ class TestWhatTheRuntimeWasNotGiven:
         assert runtime.apply("PAUSE", direct_state=None) is True
         assert runtime.state()["paused"] is True
 
-    def test_quit_without_a_stop_event_is_refused(self):
-        """Nothing to stop means the ask cannot be honoured, and saying it was
-        would have the caller believe the session is coming down."""
+    @pytest.mark.parametrize("verb", ["QUIT", "VOLUME_UP", "CRUISE_ON"])
+    def test_a_verb_whose_collaborator_is_missing_is_named_on_the_log(self, verb, caplog):
+        """The stop event, the audio player and the cruise state, each left out.
+
+        Naming it is the whole answer now: the dispatcher returns nothing, so a
+        verb the app cannot honour is a log line rather than a flag nobody
+        reads. Saying nothing would have the sender believe it landed.
+        """
         runtime = Runtime()
 
-        handled = apply_runtime_command(
-            "QUIT", rh_paused=runtime.paused, step_clip=runtime.stepper, direct_state=runtime.direct,
-        )
+        with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
+            apply_runtime_command(
+                verb, rh_paused=runtime.paused, step_clip=runtime.stepper,
+                direct_state=runtime.direct,
+            )
 
-        assert handled is False
+        assert verb in caplog.text
         assert runtime.state()["stopping"] is False
-
-    def test_a_volume_verb_is_refused_without_an_audio_player(self):
-        runtime = Runtime()
-
-        handled = apply_runtime_command(
-            "VOLUME_UP", rh_paused=runtime.paused, step_clip=runtime.stepper, direct_state=runtime.direct,
-        )
-
-        assert handled is False
-
-    def test_a_cruise_verb_is_refused_without_the_cruise_state(self):
-        runtime = Runtime()
-
-        handled = apply_runtime_command(
-            "CRUISE_ON", rh_paused=runtime.paused, step_clip=runtime.stepper, direct_state=runtime.direct,
-        )
-
-        assert handled is False
 
 
 class TestTheVerbsVoiceControlCanSay:
@@ -298,3 +319,29 @@ class TestTheVerbsVoiceControlCanSay:
 
         assert (runtime.direct.amplitude, runtime.direct.intended_center,
                 runtime.direct.speed) == (50, 30, 70)
+
+
+def test_an_unknown_verb_is_named_on_the_log(caplog):
+    """The dispatcher says so itself, because it is the only thing that knows.
+
+    GenauVR's channel has one writer, the voice listener, so an unanswered
+    verb means a phrase reached a branch that is no longer there — which is
+    worth a line rather than silence.
+    """
+    runtime = Runtime()
+
+    with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
+        apply_runtime_command("NOT_A_VERB", rh_paused=runtime.paused,
+                              step_clip=runtime.stepper, direct_state=runtime.direct)
+
+    assert "NOT_A_VERB" in caplog.text
+
+
+def test_a_verb_it_acts_on_says_nothing(caplog):
+    runtime = Runtime()
+
+    with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
+        apply_runtime_command("NEXT", rh_paused=runtime.paused,
+                              step_clip=runtime.stepper, direct_state=runtime.direct)
+
+    assert caplog.records == []
