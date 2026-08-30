@@ -15,6 +15,16 @@ def _resolve_path(base: Path, raw: str) -> Path:
     return p if p.is_absolute() else (base / p).resolve()
 
 
+# The four files the orchestrator channel is made of.  Named here rather than
+# spelled at the point of use: the status file's name used to be a literal in
+# the middle of the refresh loop, which is how it came to be rooted somewhere
+# the other three are not.
+GENAU_CMD_FILENAME = "genau_cmd.txt"
+GENAU_PAUSED_FILENAME = "genau_paused.txt"
+GENAU_STATUS_FILENAME = "genau_status.txt"
+GENAU_DRIVE_FILENAME = "genau_drive.txt"
+
+
 @dataclass(frozen=True)
 class VoiceConfig:
     model_path: str = "vosk-model-small-en-us-0.15"
@@ -51,11 +61,11 @@ class ProjectConfig:
 
     @property
     def genau_cmd_file(self) -> Path:
-        return self.state_dir / "genau_cmd.txt"
+        return self.state_dir / GENAU_CMD_FILENAME
 
     @property
     def genau_paused_file(self) -> Path:
-        return self.state_dir / "genau_paused.txt"
+        return self.state_dir / GENAU_PAUSED_FILENAME
 
     @property
     def genau_drive_file(self) -> Path:
@@ -64,7 +74,7 @@ class ProjectConfig:
         In Hybrid the readout belongs to Nau's console — the controls that move
         these numbers are on it — so Genau publishes rather than paints.
         """
-        return self.state_dir / "genau_drive.txt"
+        return self.state_dir / GENAU_DRIVE_FILENAME
 
     @property
     def logs_dir(self) -> Path:

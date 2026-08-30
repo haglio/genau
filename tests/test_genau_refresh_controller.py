@@ -137,6 +137,8 @@ def _build_controller(
     hud_state: dict | None = None,
     set_hud_mode=None,
     display_state: dict | None = None,
+    command_file: Path | None = None,
+    status_file: Path | None = None,
 ):
     loading_texts: list[str | None] = []
     consoles: list = []
@@ -181,7 +183,9 @@ def _build_controller(
         selection=selection,
         # Absolute scratch paths: the controller writes genau_status.txt next
         # to the command file, so a relative path would pollute pytest's CWD.
-        command_file=Path(tempfile.mkdtemp(prefix="genau-refresh-")) / "command.txt",
+        command_file=command_file or (
+            Path(tempfile.mkdtemp(prefix="genau-refresh-")) / "command.txt"),
+        status_file=status_file,
         paused_file=Path("paused.txt"),
         beats_per_loop=4.0,
         bpm_smoothing=0.5,
@@ -810,9 +814,8 @@ def test_hud_state_included_in_status_file(tmp_path):
     built = _build_controller(
         entry=entry, direct_state=dc, tcode_sender=tcode,
         cruise_control=cruise, hud_state=hud,
+        command_file=tmp_path / "genau_cmd.txt",
     )
-    # Point the command file parent at tmp_path so status file lands there
-    built["controller"].command_file = tmp_path / "genau_cmd.txt"
 
     built["controller"].refresh()
 
@@ -820,6 +823,44 @@ def test_hud_state_included_in_status_file(tmp_path):
     assert status_path.exists()
     text = status_path.read_text(encoding="utf-8")
     assert "hud=1" in text
+
+
+class TestWhereTheStatusFileGoes:
+    """Fun Time's dashboard, dispatch loop and sequencer all read this file, so
+    where it lands is a contract rather than a detail."""
+
+    @staticmethod
+    def _ticked(tmp_path, **over):
+        built = _build_controller(
+            entry={"frames": [object() for _ in range(4)]},
+            direct_state=DirectControlState(playing=True, bpm=120.0),
+            tcode_sender=FakeTCodeSender(),
+            cruise_control=CruiseControlState(),
+            **over,
+        )
+        built["controller"].refresh()
+        return built["controller"]
+
+    def test_it_goes_beside_the_command_file_when_nobody_names_it(self, tmp_path):
+        """Which is where every version of Fun Time so far has looked."""
+        self._ticked(tmp_path, command_file=tmp_path / "genau_cmd.txt")
+
+        assert (tmp_path / "genau_status.txt").exists()
+
+    def test_a_launcher_that_names_one_gets_that_one(self, tmp_path):
+        named = tmp_path / "elsewhere" / "genau_status.txt"
+
+        self._ticked(tmp_path, command_file=tmp_path / "genau_cmd.txt",
+                     status_file=named)
+
+        assert named.exists()
+        assert not (tmp_path / "genau_status.txt").exists()
+
+    def test_it_is_named_once_rather_than_rebuilt_every_tick(self, tmp_path):
+        """Resolved once, so nothing can move it mid-session."""
+        controller = self._ticked(tmp_path, command_file=tmp_path / "genau_cmd.txt")
+
+        assert controller.status_file == tmp_path / "genau_status.txt"
 
 
 def test_the_frame_shown_is_where_the_device_is():

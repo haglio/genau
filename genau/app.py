@@ -98,6 +98,9 @@ def build_parser(config) -> argparse.ArgumentParser:
                     help="Where a press on the console posts its Fun Time command")
     ap.add_argument("--drive-file", default=None,
                     help="Where to publish the drive readout for Nau to draw in Hybrid")
+    ap.add_argument("--status-file", default=None,
+                    help="Where to publish what the hand is doing; defaults to "
+                         "beside the command file, which is where it has always gone")
     ap.add_argument("--start-clip", default=None,
                     help="Open on this clip rather than the top of the folder — how "
                          "an orchestrator resumes the clip its last session left up")
@@ -381,6 +384,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         read_paused_state=read_paused_state,
         tcode_sender=tcode_sender,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
+        status_file=Path(args.status_file) if args.status_file else None,
         # Named by whoever launched us when there is one: standalone this is our
         # own state dir, but under Fun Time the reader is Nau, which is told the
         # path by Fun Time and must be told the same one.

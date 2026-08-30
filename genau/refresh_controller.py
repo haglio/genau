@@ -10,6 +10,7 @@ from player_core.file_channel import consume_command_file
 
 from .engine import update_engine
 from .clip_advance import tick_clip_advance
+from .config import GENAU_STATUS_FILENAME
 from .controls import GenauControls
 from .device_handoff import DeviceHandoff
 from .drive_readout import DriveReadout
@@ -40,6 +41,7 @@ class GenauRefreshController:
         read_paused_state=None,
         tcode_sender=None,
         broker_cmd_file: Path | None = None,
+        status_file: Path | None = None,
         drive_file: Path | None = None,
         console_file: Path | None = None,
         set_console=None,
@@ -74,6 +76,11 @@ class GenauRefreshController:
         self.consume_command = consume_command
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
         self.tcode_sender = tcode_sender
+        # Beside the command file when nobody named one: standalone that is our
+        # own state dir, and under an orchestrator that has not been told to
+        # name it, it is wherever the orchestrator put the command channel --
+        # which is where every version of Fun Time so far has looked.
+        self.status_file = status_file or command_file.parent / GENAU_STATUS_FILENAME
         self.handoff = DeviceHandoff(
             playing=self.direct_state.playing,
             tcode_sender=tcode_sender,
@@ -261,10 +268,9 @@ class GenauRefreshController:
     def _publish_status(self) -> None:
         if self.cruise_control is None:
             return
-        status_path = self.command_file.parent / "genau_status.txt"
         hud_on = self.hud_state["active"] if self.hud_state is not None else False
         write_status_file(
-            status_path,
+            self.status_file,
             self.direct_state,
             self.cruise_control,
             clip_advance=self.clip_advance,
