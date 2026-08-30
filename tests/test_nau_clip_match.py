@@ -270,7 +270,7 @@ class TestMatchLibrary:
         """Two scenes of a performer whose names share a prefix, and her clip."""
         return _library(tmp_path, (
             ("other/redacted_540-pacI21CK.mp4", 1, {}),
-            ("other/redacted POV BJ 4k 60fps.mp4", 1, {}),
+            ("other/redacted Beta Cut 4k 60fps.mp4", 1, {}),
             ("w/redacted - Scene Three 8.mp4", 1,
              {"clip": {"compilation": "Vol7", "index": 4, "performer": "redacted"}}),
         ))
@@ -428,7 +428,7 @@ class TestMatchLibrary:
 
     def test_separates_two_scenes_whose_names_share_a_prefix(self, tmp_path):
         """Two scenes of one performer can share a name prefix without being the
-        same video — "redacted_540-hash" and "redacted POV BJ 4k". Folding them
+        same video — "redacted_540-hash" and "redacted Beta Cut 4k". Folding them
         would decode one and leave the other unmatchable, so a cut is only
         another's version when the whole reduced title agrees, not its start."""
         _, meta, entries = self._two_scenes_one_clip(tmp_path)
