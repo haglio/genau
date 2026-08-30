@@ -96,19 +96,15 @@ def tick_clip_advance(
     # decode that never got its turn on screen.  Two guards below hold the
     # count until a clip has genuinely arrived.
     if on_screen_clip is None:
-        # Nothing has settled on screen yet (still decoding): don't count.
         return
 
     if on_screen_clip != state._clip:
-        # A new clip reached the screen — start its interval from this frame.
         state._clip = on_screen_clip
         state._elapsed = 0.0
         state._awaiting_switch = False
         return
 
     if state._awaiting_switch:
-        # Already asked to move on; wait for that clip to arrive (the branch
-        # above) before counting again, so one slow load can't stack more.
         return
 
     if dt <= 0 or dt > 1.0:

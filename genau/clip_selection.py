@@ -68,7 +68,6 @@ class ClipSelectionController:
             self._switch_to(path)
             return
 
-        # Defer — keep rendering the old clip while the new one loads
         self._pending_path = path
         self.loader.request_clip_load(path)
 
