@@ -9,7 +9,10 @@ two names the same way and says the same thing.
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
+
+import pytest
 
 from nau.cli import build_parser
 
@@ -151,3 +154,73 @@ class TestWhichConfigTheFlagsAreReadAgainst:
             monkeypatch, ["--config", str(config), "--tcode-port", "50999"])
 
         assert args.tcode_port == 50999
+
+
+class Spy:
+    """Every method asked of it is recorded under its own name, so a keyword
+    wired to the wrong collaborator shows up as the wrong label."""
+
+    def __init__(self, label: str, log: list) -> None:
+        self._label = label
+        self._log = log
+
+    def __getattr__(self, name: str):
+        def record(*args, **kwargs):
+            self._log.append((self._label, name, args, kwargs))
+        return record
+
+
+class TestWhichCollaboratorEachVerbReaches:
+    """Thirteen callbacks are handed to the dispatcher by keyword, in fourteen
+    lines, and two of them swapped would be invisible: every verb would still
+    be answered, and the suite would stay green while PLAY_FULL_VID played a
+    clip jump.  The dispatcher's own tests pin the keyword-to-behaviour half;
+    this pins the wiring-to-keyword half, which is the half nothing had.
+    """
+
+    VERBS = [
+        ("RELOAD_PLAYLIST", "take_up_playlist", "__call__"),
+        ("TOGGLE_LENGTH_MODE", "modes", "toggle_length"),
+        ("SET_LENGTH_MODE shorts", "modes", "set_length"),
+        ("END_COMPILATION", "modes", "end_compilation"),
+        ("SET_F_MODE 1", "modes", "set_f_mode"),
+        ("PLAY_COMPILATION", "jumps", "play_compilation"),
+        ("PLAY_FULL_VID", "jumps", "play_full_vid"),
+        ("PLAY_CLIP_JUMP", "jumps", "play_clip_jump"),
+        ("JUMP_TO_FUNSCRIPT", "funscript_jumps", "jump_to_funscript"),
+        ("NEXT_FUNSCRIPTED", "funscript_jumps", "next_funscripted"),
+        ("SET_VOLUME 40", "volume", "set"),
+        ("DISPLAY_ON", "display", "set_active"),
+    ]
+
+    def _commands(self, log):
+        from nau.app import _commands
+        return _commands(
+            Spy("session", log), threading.Event(),
+            modes=Spy("modes", log), jumps=Spy("jumps", log),
+            funscript_jumps=Spy("funscript_jumps", log), volume=Spy("volume", log),
+            display=Spy("display", log),
+            take_up_playlist=lambda: log.append(("take_up_playlist", "__call__", (), {})),
+        )
+
+    @pytest.mark.parametrize("command, who, what", VERBS)
+    def test_it_reaches_that_one_and_no_other(self, command, who, what):
+        log: list = []
+
+        self._commands(log)(command)
+
+        assert [(label, name) for label, name, *_ in log
+                if label != "session"] == [(who, what)]
+
+    def test_quit_sets_the_stop_event_rather_than_asking_anyone(self):
+        """The only verb that ends the loop itself; everything else in a
+        session goes through the dashboard."""
+        from nau.app import _commands
+        log: list = []
+        stop_event = threading.Event()
+        _commands(Spy("session", log), stop_event, modes=Spy("modes", log),
+                  jumps=Spy("jumps", log), funscript_jumps=Spy("fj", log),
+                  volume=Spy("volume", log), display=Spy("display", log),
+                  take_up_playlist=lambda: None)("QUIT")
+
+        assert stop_event.is_set()
