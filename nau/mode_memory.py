@@ -36,6 +36,10 @@ class ModeMemory:
 
     def __init__(self, path: Path | None) -> None:
         self._path = path
+        # What is already written down, so the player can ask this every frame
+        # without rewriting the same three lines sixty times a second.  None
+        # until something has been read or written: the file may not exist.
+        self._written: RememberedMode | None = None
 
     def read(self) -> RememberedMode:
         """What was remembered, with anything unrecognised left empty.
@@ -46,14 +50,29 @@ class ModeMemory:
         """
         fields = self._fields()
         length_mode = fields.get("length_mode", "")
-        return RememberedMode(
+        self._written = RememberedMode(
             length_mode=length_mode if length_mode in LENGTH_MODES else "",
             compilation=fields.get("compilation", ""),
             video=fields.get("video", ""),
         )
+        return self._written
+
+    def sync(self, mode: RememberedMode) -> bool:
+        """Write *mode* down if it is not what is down already, and say whether
+        that happened.
+
+        The mode moves on several paths -- a key, a command from Fun Time,
+        leaving a compilation -- so there is no one moment to write it at, and
+        the player simply says this every frame.
+        """
+        if mode == self._written:
+            return False
+        self.write(mode)
+        return True
 
     def write(self, mode: RememberedMode) -> None:
         """Remember *mode*; a write that cannot land is simply not remembered."""
+        self._written = mode
         if self._path is None:
             return
         text = (f"length_mode={mode.length_mode}\ncompilation={mode.compilation}\n"

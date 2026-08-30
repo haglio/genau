@@ -337,10 +337,7 @@ def _run(args) -> int:
         # blanked Nau still navigates: in genau mode the `[`/`]` keys drive it in
         # the background, and where they leave it is what the next session opens
         # on whether or not anyone was looking.
-        mode_now = modes.remembered
-        if mode_now != remembered:
-            remembered = mode_now
-            memory.write(mode_now)
+        memory.sync(modes.remembered)
 
         # Black while Genau owns the main slot's rect, and none of the work below
         # that builds a picture nobody can see.  Everything above still runs:
