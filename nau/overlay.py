@@ -204,6 +204,44 @@ def time_to_x(ms: float, start_ms: float, end_ms: float, width: int) -> int:
     return max(0, min(width - 1, int((ms - start_ms) / span * width)))
 
 
+def loop_thumbnail_xys(
+    heatmap: HeatmapStrip,
+    thumbs: LoopThumbCapture,
+    bounds: tuple[int, int],
+    *,
+    track: tuple[int, int],
+    win_w: int,
+    win_h: int,
+) -> tuple[tuple[int, int] | None, tuple[int, int] | None]:
+    """Where the loop's in and out frames go: ``(in_xy, out_xy)``, either None
+    while that frame has not been grabbed.
+
+    Each sits above its own mark on the inset *track* — centered on it, kept
+    on-screen, and stepped apart when the two marks are close enough that the
+    frames would overlap — and clear of the timeline row itself, whose height
+    is the strip's where there is a funscript and the plain bar's where there
+    is not.  Pure geometry: the grabbing and the drawing are the caller's, and
+    what it is told here is only where to put them.
+    """
+    start_ms, end_ms = heatmap.window
+    tx0, tx1 = track
+    track_w = tx1 - tx0
+    in_x = tx0 + time_to_x(bounds[0], start_ms, end_ms, track_w)
+    out_x = tx0 + time_to_x(bounds[1], start_ms, end_ms, track_w)
+    in_t, out_t = thumbs.in_thumb, thumbs.out_thumb
+    ix, ox = label_xs(
+        in_x, out_x,
+        in_t.shape[1] if in_t is not None else 1,
+        out_t.shape[1] if out_t is not None else 1,
+        win_w,
+    )
+    above = win_h - timeline_height(heatmap) - 2
+    return (
+        (ix, above - in_t.shape[0]) if in_t is not None else None,
+        (ox, above - out_t.shape[0]) if out_t is not None else None,
+    )
+
+
 # --- RGBA overlay rendering (BGRA arrays for mpv overlay_add) -----------------
 # mpv owns the window and hardware-decodes the video; Nau's overlays go on top
 # as BGRA bitmaps.  No pygame — these produce plain numpy arrays.  The scrubber
