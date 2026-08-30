@@ -740,6 +740,7 @@ tests/test_nau_app.py::TestTheStatusFileNauPublishes::test_a_player_nobody_asked
 tests/test_nau_app.py::TestTheStatusFileNauPublishes::test_a_status_carries_the_touch_the_trace_had_chosen_by_then
 tests/test_nau_app.py::TestTheStatusFileNauPublishes::test_no_touch_chosen_yet_publishes_the_empty_field
 tests/test_nau_app.py::TestTheStatusFileNauPublishes::test_the_gate_is_not_asked_at_all_when_there_is_no_file
+tests/test_nau_app.py::TestWhenSomethingCosmeticFails::test_an_icon_it_cannot_read_is_said_rather_than_swallowed
 tests/test_nau_cli.py::TestAudioMuted::test_default_is_unmuted
 tests/test_nau_cli.py::TestAudioMuted::test_env_mutes
 tests/test_nau_cli.py::TestAudioMuted::test_no_audio_flag_mutes
