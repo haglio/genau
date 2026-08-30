@@ -261,7 +261,23 @@ def test_refresh_reports_exceptions():
 
     built["controller"].refresh()
 
-    built["logger"].exception.assert_called_once_with("refresh failed")
+    said = built["logger"].error.call_args
+    assert said[0][0] == "refresh failed"
+    assert isinstance(said[1]["exc_info"], RuntimeError)
+
+
+def test_a_fault_that_repeats_every_frame_is_said_once():
+    """The loop calls refresh again immediately at up to 120fps, so a
+    persistent fault used to write thousands of tracebacks a second into the
+    state directory the three other IPC files live in."""
+    built = _build_controller(entry=None)
+    built["renderer"].current_clip_entry = MagicMock(side_effect=RuntimeError("kaboom"))
+
+    for _ in range(100):
+        built["controller"].refresh()
+
+    assert built["logger"].error.call_count == 1
+    assert built["logger"].debug.call_count == 99
 
 
 def test_refresh_sets_loading_text_when_pending_clip():

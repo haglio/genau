@@ -13,6 +13,7 @@ from .clip_advance import tick_clip_advance
 from .controls import GenauControls
 from .device_handoff import DeviceHandoff
 from .drive_readout import DriveReadout
+from .tick_failures import TickFailures
 from .refresh_logic import Beat, display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
 from .status_writer import write_status_file
@@ -68,6 +69,7 @@ class GenauRefreshController:
         self.sync_strength = sync_strength
         self.set_loading_text = set_loading_text
         self.logger = logger
+        self.failures = TickFailures(logger)
         self.now_source = now_source
         self.consume_command = consume_command
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
@@ -99,8 +101,13 @@ class GenauRefreshController:
     def refresh(self) -> None:
         try:
             self._refresh_once()
-        except Exception:
-            self.logger.exception("refresh failed")
+        except Exception as exc:
+            # Said once per kind rather than every frame: the loop calls this
+            # again immediately, so a persistent fault would otherwise fill the
+            # state directory the IPC files live in.
+            self.failures.failed(exc)
+            return
+        self.failures.worked()
 
     def _refresh_once(self) -> None:
         """One turn of the loop, in the order the order matters.
