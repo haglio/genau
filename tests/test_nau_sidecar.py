@@ -49,7 +49,7 @@ class TestReadSidecar:
 class TestReadClip:
     def test_reads_the_clip_object(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        video = _write(lib, meta, "w/Ann Bly - POV Scene 2.mp4", {
+        video = _write(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", {
             "video": {"action": "Alpha"},
             "clip": {"compilation": "Vol6", "index": 9, "performer": "Ann Bly"},
         })

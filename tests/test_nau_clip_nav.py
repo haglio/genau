@@ -28,12 +28,12 @@ class TestClipNav:
     def _nav(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clips = [
-            _clip(lib, meta, "w/Ann Bly - POV Scene 2.mp4", "Vol6", 9, "POV Scene 2", "Ann Bly"),
+            _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", "Vol6", 9, "Alpha Scene 2", "Ann Bly"),
             _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1, "Scene Two", "Jane Doe"),
-            _clip(lib, meta, "w/Ada Roe - POV Scene 2.mp4", "Vol6", 7, "POV Scene 2", "Ada Roe"),
+            _clip(lib, meta, "w/Ada Roe - Alpha Scene 2.mp4", "Vol6", 7, "Alpha Scene 2", "Ada Roe"),
             _clip(lib, meta, "w/Bryn Vance - Taylor Rain.mp4", "Vol10", 1, "Taylor Rain's Offroad Adventure", "Bryn Vance"),
         ]
-        full = _sidecar(lib, meta, "other/POV Scene 2 - Ann Bly 1080p.mp4", {})
+        full = _sidecar(lib, meta, "other/Alpha Scene 2 - Ann Bly 1080p.mp4", {})
         nav = ClipNav.build([*clips, full], meta)
         return nav, clips, full
 
@@ -69,7 +69,7 @@ class TestClipNav:
 
     def test_full_vid_of_matches_source_and_performer(self, tmp_path):
         nav, clips, full = self._nav(tmp_path)
-        # Ann Bly clip -> the "POV Scene 2 - Ann Bly" full scene
+        # Ann Bly clip -> the "Alpha Scene 2 - Ann Bly" full scene
         assert nav.full_vid_of(clips[0]) == full
 
     def test_full_vid_of_none_when_absent(self, tmp_path):
@@ -102,7 +102,7 @@ class TestClipNav:
         original = _clip(lib, meta, "w/Jane Doe - Scene Two.mp4", "Vol6", 1, "Scene Two", "Jane Doe")
         upscaled = _clip(lib, meta, "w/Jane Doe - Scene Two_apo8_iris2.mp4", "Vol6", 1, "Scene Two", "Jane Doe")
         upscaled.write_bytes(b"x" * 500)  # the enhanced file is the bigger one
-        other = _clip(lib, meta, "w/Marlow Sterne - POV 1.mp4", "Vol6", 2, "POV Scene 1", "Marlow Sterne")
+        other = _clip(lib, meta, "w/Marlow Sterne - Alpha 1.mp4", "Vol6", 2, "Alpha Scene 1", "Marlow Sterne")
         nav = ClipNav.build([original, upscaled, other], meta)
 
         playlist = nav.compilation_playlist(original)
@@ -149,8 +149,8 @@ class TestClipNav:
     def test_clip_jump_never_returns_the_file_you_are_on(self, tmp_path):
         """A clip matches its own name; returning it just replayed the video."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        clip = _clip(lib, meta, "w/Ann Bly - POV Scene 2.mp4", "Vol6", 9,
-                     "POV Scene 2", "Ann Bly")
+        clip = _clip(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", "Vol6", 9,
+                     "Alpha Scene 2", "Ann Bly")
         nav = ClipNav.build([clip], meta)
 
         assert nav.clip_of(clip) is None
@@ -218,7 +218,7 @@ class TestRecordedMatch:
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         family = {"version": {"group": "redacted_540-pacI21CK"}}
         original = _sidecar(lib, meta, "other/redacted_540-pacI21CK.mp4", family)
-        upscale = _sidecar(lib, meta, "other/redacted POV BJ 4k 60fps.mp4", family)
+        upscale = _sidecar(lib, meta, "other/redacted Beta Cut 4k 60fps.mp4", family)
         upscale.write_bytes(b"x" * 600)
         clip = _clip(lib, meta, "w/redacted - Scene Three 8.mp4", "Vol7", 4,
                      "Scene Three 8", "redacted",

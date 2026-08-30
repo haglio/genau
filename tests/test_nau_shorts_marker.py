@@ -15,7 +15,7 @@ def _clip_entry(lib: Path, meta: Path, rel: str) -> LibraryEntry:
     side = (meta / v.relative_to(lib)).with_suffix(".json")
     side.parent.mkdir(parents=True, exist_ok=True)
     side.write_text(json.dumps({"clip": {"compilation": "Vol6", "index": 9,
-                                         "source": "POV Scene 2", "performer": "Ann Bly"}}))
+                                         "source": "Alpha Scene 2", "performer": "Ann Bly"}}))
     return LibraryEntry(video=v, funscript=None, size=100)
 
 
@@ -28,7 +28,7 @@ def _plain_entry(lib: Path, rel: str) -> LibraryEntry:
 
 def test_clip_tagged_long_entry_is_a_short_not_full(tmp_path):
     lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-    clip = _clip_entry(lib, meta, "larkin/1 clips/Ann Bly - POV Scene 2.mp4")
+    clip = _clip_entry(lib, meta, "larkin/1 clips/Ann Bly - Alpha Scene 2.mp4")
     plain = _plain_entry(lib, "larkin/0/Long Movie.mp4")
     src = LibrarySource(
         entries=[clip, plain], clips=[],
