@@ -16,10 +16,9 @@ def next_handoff_touch(script, position_ms: int, descent_tops: dict) -> int | No
     script, nothing latched yet).
 
     Published so the arbiter can END Genau's turn exactly where the picture
-    drew the blue ending.  When each side chose its own touch from its own read
-    of the wave, they could pick different troughs — the arbiter stopped the
-    device one touch early, and the leftover drawn blue vanished the moment
-    the dot reached it.  One chooser, the picture; the arbiter follows it.
+    drew the blue ending.  Two readers of the same wave can pick different
+    troughs, and then the device stops a touch short of the line still drawn on
+    screen.  One chooser, the picture; the arbiter follows it.
     """
     if script is None:
         return None

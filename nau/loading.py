@@ -1,10 +1,9 @@
 """Nau's window while the library is being read.
 
-Nau's first visible moment used to be the video: the library walk and the
-duration probe both ran before any window existed, so a cold duration cache
-(one ffprobe per unprobed video) left the user's double-click with nothing on
-screen for as long as it took.  The window now opens first and this paints the
-wait into it.
+The library walk and the duration probe both run before there is a video, and a
+cold duration cache is one ffprobe per unprobed video — long enough that a
+double-click with nothing on screen reads as nothing happening.  The window
+opens first and this paints the wait into it.
 
 The pure decisions — what the line says, how far the bar has gone, whether this
 update is worth a repaint — are module functions so they are unit-testable; the

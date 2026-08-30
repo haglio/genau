@@ -39,9 +39,8 @@ from .status import next_handoff_touch
 #
 # Any seek voids every held choice: the carry rules are written for one
 # continuous approach, and a rewind approaches the SAME boundary again with a
-# realigned wave — the old choice's touch then cuts the new wave anywhere, which
-# is how the blue once overran its own drawn ending by a whole cycle after a few
-# taps of rewind.
+# realigned wave — the old choice's touch cuts the new wave anywhere, and the
+# blue overruns its own drawn ending by a whole cycle.
 _REWIND_MS = -250
 _JUMP_AHEAD_MS = 400
 

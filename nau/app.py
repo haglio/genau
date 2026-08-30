@@ -187,18 +187,17 @@ def _open_window(args):
     also why Fun Time, which waits on this window by caption, now finds it
     within its budget however cold the duration cache is.
 
-    Borderless under Fun Time, like the satellites: the mode this window's title
-    bar used to name is on the in-video HUD now, so the bar only took space.  With
+    Borderless under Fun Time, like the satellites: the mode is on the in-video
+    HUD, so the title bar would carry nothing.  With
     no chrome the client area is the whole rect Fun Time sizes it to, and the
     caption survives only for Alt-Tab and the window lookup.  Standalone it keeps
     its chrome — so the window can be dragged and closed — and its client is sized
     down to leave the video inside the rect.
     """
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
-    # click that focuses this window, so every press on the console had to be
+    # click that focuses this window, so every press on the console has to be
     # made twice — once to wake the window, once to hit the button.  See
-    # player_core.sdl_hints for the whole mechanism; the satellites have asked
-    # for this all along and the main player had not.
+    # player_core.sdl_hints for the whole mechanism.
     deliver_the_focusing_click()
     pygame.init()
     if args.borderless:
