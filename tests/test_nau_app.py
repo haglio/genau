@@ -8,6 +8,7 @@ two names the same way and says the same thing.
 """
 from __future__ import annotations
 
+import ast
 import logging
 import threading
 from pathlib import Path
@@ -15,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from nau.cli import build_parser
+from nau.status import status_fields
 
 
 class StubSession:
@@ -73,7 +75,9 @@ class TestTheStatusFileNauPublishes:
         gate.touch = 4200          # chosen later, while a frame was painted
         writer.write(StubSession())
 
-        assert "handoff_touch_ms=4200" in status.read_text(encoding="utf-8")
+        assert status.read_text(encoding="utf-8") == "".join(
+            f"{key}={value}\n"
+            for key, value in status_fields(StubSession(), 4200).items())
 
     def test_no_touch_chosen_yet_publishes_the_empty_field(self, tmp_path):
         """Zero is a real media time; an arbiter reading one would end Genau's
@@ -95,6 +99,54 @@ class TestTheStatusFileNauPublishes:
         _writer(_args(None), gate)
 
         assert gate.asked == 0
+
+
+def _run_loop_lines() -> tuple[int, int, int]:
+    """Where three things sit inside `_run`'s loop: the status write, the line a
+    blanked frame skips out at, and the painting.
+
+    Read off the source, the way tests/test_session_quit.py reads its own
+    guarantee, and for the same reason: the loop needs a real window and the
+    libmpv DLL, so it cannot be run here at all.
+    """
+    tree = ast.parse((Path(__file__).resolve().parents[1] / "nau" / "app.py")
+                     .read_text(encoding="utf-8"))
+    run = next(n for n in ast.walk(tree)
+               if isinstance(n, ast.FunctionDef) and n.name == "_run")
+    loop = next(n for n in ast.walk(run) if isinstance(n, ast.While))
+
+    def called(name: str) -> int:
+        return next(n.lineno for n in ast.walk(loop)
+                    if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == name)
+
+    skip = next(n.lineno for n in ast.walk(loop) if isinstance(n, ast.Continue))
+    return called("write"), skip, called("paint")
+
+
+class TestWhatABlankedFrameStillDoes:
+    """Fun Time gives the main slot's rect to Genau in genau mode and blanks
+    Nau, and the loop skips everything that builds a picture nobody can see.
+    WHICH side of that skip each step is on is the whole of the rule, and it is
+    load-bearing in both directions.
+    """
+
+    def test_the_status_goes_out_before_the_frame_is_skipped(self):
+        """A blanked Nau is still playing: clipper_save reads its playhead, the
+        dashboard reads its funscript flags, and the loop range lives nowhere
+        else at all.  Below the skip, the file freezes for as long as Genau has
+        the slot -- including the handoff touch, which is the field this
+        player's whole trace exists to publish."""
+        write, skip, _paint = _run_loop_lines()
+
+        assert write < skip
+
+    def test_the_painting_is_what_the_skip_is_for(self):
+        """The other side of it: five overlays and a heatmap rebuild, sixty
+        times a second, on top of a video nobody can see."""
+        _write, skip, paint = _run_loop_lines()
+
+        assert skip < paint
 
 
 class TestWhenSomethingCosmeticFails:
