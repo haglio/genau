@@ -73,7 +73,6 @@ class Runtime:
     def apply(self, command: str, *, direct_state: object = ...) -> bool:
         return apply_runtime_command(
             command,
-            engine=self.engine,
             rh_paused=self.paused,
             step_clip=self.stepper,
             direct_state=self.direct if direct_state is ... else direct_state,
@@ -114,7 +113,6 @@ HANDLED = [
     ("QUIT", {}, {"stopping": True}),
     ("PREV", {}, {"steps": (-1,)}),
     ("NEXT", {}, {"steps": (1,)}),
-    ("OFFSET_QUARTER_CYCLE", {}, {"phase": 0.75}),
     ("PAUSE", {}, {"paused": True, "playing": False}),
     ("RESUME", {"paused": True, "playing": False}, {"paused": False, "playing": True}),
     ("SPEED_DOWN", {}, {"speed": 45}),
@@ -124,7 +122,6 @@ HANDLED = [
     ("CENTER_DOWN", {}, {"center": 35, "intended_center": 35}),
     ("CENTER_UP", {}, {"center": 45, "intended_center": 45}),
     ("CYCLE_SHAPE", {}, {"shape": WaveformShape.ROUNDED_SQUARE}),
-    ("CYCLE_SHAPE_PREV", {}, {"shape": WaveformShape.SINE}),
     ("TOGGLE_CRUISE", {}, {"cruise": True}),
     ("TOGGLE_CRUISE", {"cruise": True}, {"cruise": False}),
     ("CRUISE_ON", {}, {"cruise": True}),
@@ -183,6 +180,10 @@ REFUSED = [
     ("BRIGHTNESS 80", {}),        # a number, for a setter that does not exist
     ("NUDGE25", {}),              # a legacy spelling with no sender in any repo
     ("SLOW_DOWN", {}),            # likewise; the live one is SPEED_DOWN
+    # No voice phrase says either, and the voice listener is the only thing
+    # that writes genau_vr_cmd.txt, so neither could ever have been read here.
+    ("OFFSET_QUARTER_CYCLE", {}),
+    ("CYCLE_SHAPE_PREV", {}),
 ]
 
 
@@ -209,7 +210,7 @@ class TestWhatTheRuntimeWasNotGiven:
     ONLY_WITH_DIRECT_STATE = [
         "SPEED_DOWN", "SPEED_UP",
         "AMPLITUDE_DOWN", "AMPLITUDE_UP", "CENTER_DOWN", "CENTER_UP",
-        "CYCLE_SHAPE", "CYCLE_SHAPE_PREV",
+        "CYCLE_SHAPE",
         "AMP 80", "CENTER 65", "SPEED 90",
     ]
 
@@ -232,8 +233,7 @@ class TestWhatTheRuntimeWasNotGiven:
         runtime = Runtime()
 
         handled = apply_runtime_command(
-            "QUIT", engine=runtime.engine, rh_paused=runtime.paused,
-            step_clip=runtime.stepper, direct_state=runtime.direct,
+            "QUIT", rh_paused=runtime.paused, step_clip=runtime.stepper, direct_state=runtime.direct,
         )
 
         assert handled is False
@@ -243,8 +243,7 @@ class TestWhatTheRuntimeWasNotGiven:
         runtime = Runtime()
 
         handled = apply_runtime_command(
-            "VOLUME_UP", engine=runtime.engine, rh_paused=runtime.paused,
-            step_clip=runtime.stepper, direct_state=runtime.direct,
+            "VOLUME_UP", rh_paused=runtime.paused, step_clip=runtime.stepper, direct_state=runtime.direct,
         )
 
         assert handled is False
@@ -253,8 +252,7 @@ class TestWhatTheRuntimeWasNotGiven:
         runtime = Runtime()
 
         handled = apply_runtime_command(
-            "CRUISE_ON", engine=runtime.engine, rh_paused=runtime.paused,
-            step_clip=runtime.stepper, direct_state=runtime.direct,
+            "CRUISE_ON", rh_paused=runtime.paused, step_clip=runtime.stepper, direct_state=runtime.direct,
         )
 
         assert handled is False
@@ -275,6 +273,19 @@ class TestTheVerbsVoiceControlCanSay:
         runtime = Runtime()
 
         assert runtime.apply(verb) is True, f"{phrase!r} says {verb!r}, which nothing handles"
+
+    def test_every_verb_the_runtime_handles_has_a_phrase_that_reaches_it(self):
+        """And the other way round, which is the half that rots quietly.
+
+        ``genau_vr_cmd.txt`` has exactly one producer -- the voice listener --
+        so a branch of the dispatcher with no phrase pointing at it can never
+        fire.  Two sat there unreachable (OFFSET_QUARTER_CYCLE and
+        CYCLE_SHAPE_PREV) with every test around them green.
+        """
+        spoken = {verb.split()[0] for verb in VOICE_COMMANDS.values()}
+        handled = {verb.split()[0] for verb, _start, _moves in HANDLED}
+
+        assert handled <= spoken, f"handled and unspeakable: {sorted(handled - spoken)}"
 
     def test_the_spoken_numbers_reach_the_setter_they_name(self):
         """The three numeric families are generated from a word list, so a

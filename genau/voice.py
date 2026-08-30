@@ -124,7 +124,7 @@ class VoiceListener:
 
         audio_q: _queue.Queue[bytes] = _queue.Queue()
 
-        def _callback(indata, frames, _time_info, status):
+        def _callback(indata, frames, _time_info, status):  # noqa: ARG001 (sounddevice's signature)
             if status:
                 logger.debug("audio status: %s", status)
             audio_q.put(bytes(indata))

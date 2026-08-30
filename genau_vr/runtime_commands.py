@@ -5,7 +5,6 @@ Copied from Genau's runtime_commands.py.
 from __future__ import annotations
 
 from .playback import (
-    PlaybackEngine,
     adjust_amplitude,
     adjust_center,
     adjust_speed,
@@ -27,7 +26,6 @@ VOLUME_STEP = 0.1
 def apply_runtime_command(
     command,
     *,
-    engine: PlaybackEngine,
     rh_paused,
     step_clip,
     direct_state=None,
@@ -48,8 +46,6 @@ def apply_runtime_command(
         step_clip(-1)
     elif normalized == "NEXT":
         step_clip(1)
-    elif normalized == "OFFSET_QUARTER_CYCLE":
-        engine.phase = (engine.phase + 0.25) % 1.0
     elif normalized == "PAUSE":
         rh_paused["value"] = True
         if direct_state is not None:
@@ -72,8 +68,6 @@ def apply_runtime_command(
         adjust_center(direct_state, 5)
     elif normalized == "CYCLE_SHAPE" and direct_state is not None:
         cycle_shape(direct_state)
-    elif normalized == "CYCLE_SHAPE_PREV" and direct_state is not None:
-        cycle_shape(direct_state, -1)
     elif normalized == "TOGGLE_CRUISE" and cruise_control_state is not None:
         toggle_cruise_control(cruise_control_state)
     elif normalized == "CRUISE_ON" and cruise_control_state is not None:
