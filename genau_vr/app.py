@@ -418,7 +418,6 @@ def _run_loop(
         dt = now - last_time
         last_time = now
 
-        # Process voice commands
         command = _consume_command_file(cmd_file)
         if command:
             apply_runtime_command(
@@ -432,10 +431,8 @@ def _run_loop(
                 audio_player=audio,
             )
 
-        # Tick cruise control
         tick_cruise_control(state, cruise, now)
 
-        # Update engine
         update_engine(
             engine,
             now=now,
@@ -448,13 +445,11 @@ def _run_loop(
 
         tcode_sender.maybe_send(engine.phase, now)
 
-        # Controller pitch adjustment
         session.sync_controller()
         if abs(session.thumbstick_y) > 0.1:  # deadzone
             pitch_offset -= session.thumbstick_y * dt * 1.5  # ~85°/sec at full tilt
             pitch_offset = max(-math.pi / 2, min(math.pi / 2, pitch_offset))
 
-        # Frame selection
         display_phase = display_phase_for_position(engine.phase, state.shape)
         frame_idx = display_index_for_phase(
             phase=display_phase,
