@@ -24,18 +24,5 @@ class GenauNotifier:
         self._send(f"VISIBLE {value}")
         self.last_visible_sent = value
 
-    def announce_visible(self, current_clip_path: Path | None) -> None:
-        """Say the window is up, and which clip is on it.
-
-        Called every tick and speaks once: :meth:`notify_visible` drops a
-        repeat, and the clip only goes out ahead of a `VISIBLE 1` that has
-        not been said yet.  Turning it off is
-        :meth:`notify_visible`\\ ``(False)``, which the lifecycle sends on the
-        way out.
-        """
-        if self.last_visible_sent != 1 and current_clip_path is not None:
-            self.notify_clip(current_clip_path)
-        self.notify_visible(True)
-
     def close(self) -> None:
         self.sock.close()

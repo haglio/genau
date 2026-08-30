@@ -28,10 +28,10 @@ class FakeLoader:
 
 class FakeNotifier:
     def __init__(self):
-        self.announced: list[Path | None] = []
+        self.visible_updates: list[bool] = []
 
-    def announce_visible(self, current_clip_path) -> None:
-        self.announced.append(current_clip_path)
+    def notify_visible(self, is_visible: bool) -> None:
+        self.visible_updates.append(is_visible)
 
 
 class FakeRenderer:
