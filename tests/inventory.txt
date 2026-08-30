@@ -472,8 +472,9 @@ tests/test_gvr_playback.py::TestBpmForSpeed::test_max_speed_gives_max_bpm
 tests/test_gvr_playback.py::TestBpmForSpeed::test_min_speed_gives_min_bpm
 tests/test_gvr_playback.py::TestBpmForSpeed::test_speed_50_is_the_number_the_player_opens_on
 tests/test_gvr_playback.py::TestBpmForSpeed::test_the_middle_of_the_range_is_the_geometric_mean_of_the_ends
-tests/test_gvr_playback.py::TestCycleShapeReverse::test_backward_wraps_from_first_to_last
-tests/test_gvr_playback.py::TestCycleShapeReverse::test_step_minus_one_goes_backward
+tests/test_gvr_playback.py::TestCycleShape::test_it_goes_one_way
+tests/test_gvr_playback.py::TestCycleShape::test_it_walks_the_shapes_in_order
+tests/test_gvr_playback.py::TestCycleShape::test_it_wraps_from_the_last_shape_to_the_first
 tests/test_gvr_playback.py::TestDirectControlState::test_amplitude_default
 tests/test_gvr_playback.py::TestDirectControlState::test_default_state
 tests/test_gvr_playback.py::TestDisplayIndexForPhase::test_a_phase_that_reached_the_end_still_names_a_frame_that_exists
