@@ -29,6 +29,7 @@ from dataclasses import replace
 
 from player_core.drive_readout import DriveHud
 
+from .descent_latch import DescentLatch
 from .drive_trace import drive_readout
 from .status import next_handoff_touch
 
@@ -56,9 +57,9 @@ class DriveGate:
 
     def __init__(self, session) -> None:
         self._session = session
-        # One entry per approaching turn: (key, top, touch-down).  Written by
-        # drive_readout, read by the status file, cleared here.
-        self._tops: dict = {}
+        # One choice per approaching turn.  Written by drive_readout as it
+        # paints, read by the status file, voided here.
+        self._latch = DescentLatch()
         self._video = None
         self._seen_live = False
         self._position = 0
@@ -77,21 +78,21 @@ class DriveGate:
             # A stint without Genau behind the screen: the wave keeps moving
             # while nothing here watches it, so every held forecast is void by
             # the time it could be read again.
-            self._tops.clear()
+            self._latch.void_all()
         if drive is not None:
             if self._video != self._session.current_video:
                 self._video = self._session.current_video
                 self._seen_live = False
-                self._tops.clear()
+                self._latch.void_all()
             moved = position - self._position
             if moved < _REWIND_MS or moved > _JUMP_AHEAD_MS:
-                self._tops.clear()
+                self._latch.void_all()
                 self._stalled = 0
             elif moved == 0:
                 self._stalled += 1
             else:
                 if self._stalled > _STALLED_FRAMES:
-                    self._tops.clear()
+                    self._latch.void_all()
                 self._stalled = 0
             if drive.let_go is None:
                 self._seen_live = True
@@ -104,7 +105,7 @@ class DriveGate:
             position_ms=position,
             speed=self._session.speed,
             genau_behind=genau_behind,
-            descent_tops=self._tops,
+            latch=self._latch,
         )
 
     def handoff_touch(self) -> int | None:
@@ -116,4 +117,4 @@ class DriveGate:
         """
         return next_handoff_touch(
             self._session.current_funscript,
-            int(self._session.position_ms), self._tops)
+            int(self._session.position_ms), self._latch)

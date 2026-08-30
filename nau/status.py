@@ -9,8 +9,10 @@ publishes them.
 """
 from __future__ import annotations
 
+from .descent_latch import DescentLatch
 
-def next_handoff_touch(script, position_ms: int, descent_tops: dict) -> int | None:
+
+def next_handoff_touch(script, position_ms: int, latch: DescentLatch) -> int | None:
     """The touch-down the trace has chosen for the boundary ahead (or the one
     just crossed), in media ms — None when there is none (a raised floor, no
     script, nothing latched yet).
@@ -28,10 +30,10 @@ def next_handoff_touch(script, position_ms: int, descent_tops: dict) -> int | No
         boundary, _ = script.turn_bounds_at(position_ms)
     if boundary is None:
         return None
-    entry = descent_tops.get(boundary)
-    if entry is None:
+    choice = latch.choice_for(boundary)
+    if choice is None:
         return None
-    return entry[2]
+    return choice.touch
 
 
 def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
