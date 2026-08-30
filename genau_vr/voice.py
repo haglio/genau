@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from pathlib import Path
 
 VOICE_COMMANDS: dict[str, str] = {
@@ -81,6 +80,10 @@ def build_grammar(commands: dict[str, str]) -> str:
 
 
 class VoiceListener:
+    """Un-stoppable by design: :meth:`run` is handed to a daemon thread and the
+    listener itself is dropped, so the loop ends when the process does and the
+    audio stream is torn down with it."""
+
     def __init__(
         self,
         *,
@@ -97,13 +100,9 @@ class VoiceListener:
         self.confidence_threshold = confidence_threshold
         self.device_index = device_index
         self.sample_rate = sample_rate
-        self._stop = threading.Event()
 
     def _write_command(self, command: str) -> None:
         self.cmd_file.write_text(command, encoding="utf-8")
-
-    def stop(self) -> None:
-        self._stop.set()
 
     def run(self) -> None:
         if not VOICE_AVAILABLE:
@@ -135,7 +134,7 @@ class VoiceListener:
                 device=self.device_index,
                 callback=_callback,
             ):
-                while not self._stop.is_set():
+                while True:
                     try:
                         data = audio_q.get(timeout=0.5)
                     except _queue.Empty:
@@ -148,7 +147,5 @@ class VoiceListener:
                         if command:
                             logger.info("Voice command: %s", command)
                             self._write_command(command)
-
-            logger.info("Voice control stopped")
         except Exception:
             logger.exception("Voice control thread crashed")
