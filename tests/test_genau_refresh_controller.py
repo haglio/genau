@@ -887,3 +887,66 @@ def test_the_controller_cannot_be_built_without_a_direct_state():
             set_loading_text=lambda _text: None,
             logger=MagicMock(),
         )
+
+
+class TestTheOrderTheTickDoesThingsIn:
+    """The tick's sequence is load-bearing and was held together by comments.
+
+    Each of these is a reordering that leaves every unit test green, because
+    every part is correct and only the order between them is wrong.  Read off
+    the syntax tree, because most of them cannot be seen from outside a tick:
+    two of the steps write files, one paints, and the rest move state that the
+    next step reads.
+    """
+
+    @staticmethod
+    def _steps() -> list[str]:
+        """The calls `_refresh_once` makes, in source order."""
+        import ast
+        from pathlib import Path
+
+        source = (Path(__file__).resolve().parents[1]
+                  / "genau" / "refresh_controller.py").read_text(encoding="utf-8")
+        body = next(n for n in ast.walk(ast.parse(source))
+                    if isinstance(n, ast.FunctionDef) and n.name == "_refresh_once")
+        calls = [n for n in ast.walk(body) if isinstance(n, ast.Call)]
+        # ast.walk is breadth-first, so a call inside a branch would otherwise
+        # sort after one written below it.
+        calls.sort(key=lambda n: (n.lineno, n.col_offset))
+        return [ast.unparse(n.func) for n in calls]
+
+    def _before(self, first: str, second: str) -> None:
+        steps = self._steps()
+        assert first in steps, f"{first} is not in the tick"
+        assert second in steps, f"{second} is not in the tick"
+        assert steps.index(first) < steps.index(second), f"{first} must precede {second}"
+
+    def test_commands_are_drained_before_anything_reads_what_they_moved(self):
+        """A PAUSE that lands this tick has to be a falling edge this tick, not
+        next: drained late, the stroke goes out once more after the hand stopped
+        and the broker is told a tick behind."""
+        self._before("self._drain_commands", "self._who_is_driving")
+        self._before("self._drain_commands", "self.handoff.watch")
+        self._before("self._drain_commands", "self.tcode_sender.maybe_send")
+
+    def test_the_clip_that_finished_decoding_is_adopted_before_it_is_drawn(self):
+        """Adopted after, a clip is one tick late on screen every time one
+        loads, and the advance times its interval against the old one."""
+        self._before("self._adopt_whatever_finished_decoding", "self._show_the_frame")
+
+    def test_who_is_driving_is_settled_before_the_engine_is_told_anything(self):
+        self._before("self._who_is_driving", "update_engine")
+
+    def test_the_engine_moves_before_the_frame_is_chosen_from_its_phase(self):
+        """Chosen first, every frame is the one the phase had last tick."""
+        self._before("update_engine", "self._show_the_frame")
+
+    def test_the_frame_is_shown_before_the_scene_is_presented(self):
+        """Presented first and the window shows the previous frame for a whole
+        turn, which is a visible stutter at 120fps."""
+        self._before("self._show_the_frame", "self.present_scene")
+
+    def test_the_status_file_goes_out_last_saying_what_this_tick_did(self):
+        steps = self._steps()
+
+        assert steps[-1] == "self._publish_status"
