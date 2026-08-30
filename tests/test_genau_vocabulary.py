@@ -212,14 +212,14 @@ def _unanswered(logger_name: str):
 def _genau_answers(line: str) -> bool:
     """Send one line to a Genau dispatcher with every collaborator wired."""
     from genau.clip_advance import ClipAdvanceState
+    from genau.controls import GenauControls
     from genau.engine import PlaybackEngine
     from genau.runtime_commands import apply_runtime_command
     from player_core.cruise_control import CruiseControlState
     from player_core.direct_control import DirectControlState
 
     with _unanswered("genau.runtime_commands") as refused:
-        apply_runtime_command(
-            line,
+        apply_runtime_command(line, GenauControls(
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
             rh_paused={"value": False},
             step_clip=lambda _step: None,
@@ -233,7 +233,7 @@ def _genau_answers(line: str) -> bool:
             display_state={"active": True},
             set_volume=lambda _level, _muted: None,
             reorder_clips=lambda _recent: None,
-        )
+        ))
     return not refused
 
 

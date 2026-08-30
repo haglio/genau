@@ -11,6 +11,7 @@ from player_core.direct_control import DirectControlState
 
 from genau.clip_advance import ClipAdvanceState
 from genau.engine import PlaybackEngine
+from genau.controls import GenauControls
 from genau.runtime_commands import apply_runtime_command
 from genau.voice import (
     VOICE_COMMANDS,
@@ -124,7 +125,7 @@ class TestVoiceCommands:
         place production can see one.
         """
         with caplog.at_level("WARNING", logger="genau.runtime_commands"):
-            apply_runtime_command(verb, **_collaborators())
+            apply_runtime_command(verb, GenauControls(**_collaborators()))
 
         assert caplog.records == [], (
             f"{phrase!r} says {verb!r}, which nothing handles")

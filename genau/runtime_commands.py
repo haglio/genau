@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from .engine import PlaybackEngine
+from .controls import GenauControls
 from player_core.direct_control import (
     adjust_speed,
     adjust_amplitude,
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
 
 
-def apply_runtime_command(command, **collaborators) -> None:
+def apply_runtime_command(command, controls: GenauControls) -> None:
     """Act on one command, or say on the log that we cannot.
 
     The dispatcher reports an unanswered verb itself rather than returning a
@@ -40,29 +40,27 @@ def apply_runtime_command(command, **collaborators) -> None:
     and both mean the same thing to whoever sent it, which is that nothing
     happened.
     """
-    if not _dispatch(command, **collaborators):
+    if not _dispatch(command, controls):
         logger.warning("Unhandled command: %s", str(command).strip())
 
 
-def _dispatch(
-    command,
-    *,
-    engine: PlaybackEngine,
-    rh_paused,
-    step_clip,
-    discard_clip=None,
-    direct_state=None,
-    cruise_control_state=None,
-    set_stroke_phase=None,
-    clip_advance_state=None,
-    stop_event=None,
-    hud_state=None,
-    display_state=None,
-    set_volume=None,
-    reorder_clips=None,
-) -> bool:
+def _dispatch(command, controls: GenauControls) -> bool:
     if not command:
         return False
+
+    engine = controls.engine
+    rh_paused = controls.rh_paused
+    step_clip = controls.step_clip
+    discard_clip = controls.discard_clip
+    direct_state = controls.direct_state
+    cruise_control_state = controls.cruise_control_state
+    set_stroke_phase = controls.set_stroke_phase
+    clip_advance_state = controls.clip_advance_state
+    stop_event = controls.stop_event
+    hud_state = controls.hud_state
+    display_state = controls.display_state
+    set_volume = controls.set_volume
+    reorder_clips = controls.reorder_clips
 
     normalized = command.strip().upper()
     if normalized == "QUIT":

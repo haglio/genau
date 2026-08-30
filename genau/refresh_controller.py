@@ -11,6 +11,7 @@ from player_core.console_hud import ConsoleHud, ModeHud
 
 from player_core.drive_readout import TRACE_SAMPLES, DriveHud, publish_drive
 from .engine import update_engine
+from .controls import GenauControls
 from .refresh_logic import display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
 from .status_writer import write_status_file
@@ -96,13 +97,32 @@ class GenauRefreshController:
         self._last_console_read = 0.0
         self.set_console = set_console or (lambda _console: None)
         self.present_scene = present_scene or (lambda: None)
-        self.stop_event = stop_event
         self.hud_state = hud_state
         self.set_hud_mode = set_hud_mode or (lambda _active: None)
         self.set_blank = set_blank or (lambda _blank: None)
         self.display_state = display_state
-        self.set_volume = set_volume or (lambda _level, _muted: None)
-        self.reorder_clips = reorder_clips
+        # Built once, where the app is wired: the drain below hands it over
+        # whole rather than naming thirteen collaborators every tick.
+        self.controls = GenauControls(
+            engine=engine,
+            rh_paused=rh_paused,
+            step_clip=selection.step,
+            discard_clip=selection.discard_current,
+            direct_state=direct_state,
+            cruise_control_state=cruise_control,
+            set_stroke_phase=(
+                tcode_sender.set_stroke_phase if tcode_sender is not None else None
+            ),
+            clip_advance_state=clip_advance,
+            stop_event=stop_event,
+            hud_state=hud_state,
+            display_state=display_state,
+            # A Genau with no chip to draw still answers SET_VOLUME: the level is
+            # the orchestrator's, and refusing it would put an unhandled verb on
+            # the log every time the room's volume moved.
+            set_volume=set_volume or (lambda _level, _muted: None),
+            reorder_clips=reorder_clips,
+        )
         self._prev_hud_active: bool = hud_state["active"] if hud_state is not None else False
         # Seeded from the state itself, so a PAUSE queued before the first
         # refresh reads as a real falling edge against the state the controller
@@ -127,25 +147,7 @@ class GenauRefreshController:
         # Drained FIRST, before anything below reads the state the commands
         # mutate, and before this tick's stroke command goes out.
         for cmd in self.consume_command(self.command_file, logger=self.logger):
-            apply_runtime_command(
-                cmd,
-                engine=self.engine,
-                rh_paused=self.rh_paused,
-                step_clip=self.selection.step,
-                discard_clip=self.selection.discard_current,
-                direct_state=self.direct_state,
-                cruise_control_state=self.cruise_control,
-                set_stroke_phase=(
-                    self.tcode_sender.set_stroke_phase
-                    if self.tcode_sender is not None else None
-                ),
-                clip_advance_state=self.clip_advance,
-                stop_event=self.stop_event,
-                hud_state=self.hud_state,
-                display_state=self.display_state,
-                set_volume=self.set_volume,
-                reorder_clips=self.reorder_clips,
-            )
+            apply_runtime_command(cmd, self.controls)
 
         shared = read_shared_state_snapshot(self.state)
 

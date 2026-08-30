@@ -8,6 +8,7 @@ import threading
 
 import pytest
 
+from genau.controls import GenauControls
 from genau.runtime_commands import (
     QUARTER_CYCLE_OFFSET_COMMAND,
     apply_runtime_command,
@@ -46,7 +47,7 @@ def _answered(command, **collaborators) -> bool:
     the same question it used to ask the return value.
     """
     with _nothing_logged() as unanswered:
-        apply_runtime_command(command, **collaborators)
+        apply_runtime_command(command, GenauControls(**collaborators))
     return not unanswered
 
 
@@ -166,13 +167,12 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": False}
         ds = DirectControlState(playing=True)
 
-        apply_runtime_command(
-            "PAUSE",
+        apply_runtime_command("PAUSE", GenauControls(
             engine=engine,
             rh_paused=rh_paused,
             step_clip=lambda _step: None,
             direct_state=ds,
-        )
+        ))
 
         assert ds.playing is False
 
@@ -181,13 +181,12 @@ class TestApplyRuntimeCommand:
         rh_paused = {"value": True}
         ds = DirectControlState(playing=False)
 
-        apply_runtime_command(
-            "RESUME",
+        apply_runtime_command("RESUME", GenauControls(
             engine=engine,
             rh_paused=rh_paused,
             step_clip=lambda _step: None,
             direct_state=ds,
-        )
+        ))
 
         assert ds.playing is True
 
@@ -616,14 +615,13 @@ class TestApplyRuntimeCommand:
         direct = DirectControlState(playing=False)
         display = {"active": True}
 
-        apply_runtime_command(
-            "DISPLAY_OFF",
+        apply_runtime_command("DISPLAY_OFF", GenauControls(
             engine=engine,
             rh_paused=rh_paused,
             step_clip=lambda _step: None,
             direct_state=direct,
             display_state=display,
-        )
+        ))
 
         assert rh_paused["value"] is True
         assert direct.playing is False
@@ -825,13 +823,12 @@ class TestAnUnhandledCommand:
 
     def _run(self, command, caplog, **collaborators):
         with caplog.at_level("WARNING", logger="genau.runtime_commands"):
-            apply_runtime_command(
-                command,
+            apply_runtime_command(command, GenauControls(
                 engine=PlaybackEngine(phase=0.0, last_tick=0.0),
                 rh_paused={"value": False},
                 step_clip=lambda _step: None,
                 **collaborators,
-            )
+            ))
 
     def test_an_unknown_verb_is_named_on_the_log(self, caplog):
         self._run("CYCLE_PROJECTION", caplog)
