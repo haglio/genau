@@ -5,6 +5,8 @@ import logging
 import sys
 import threading
 import time
+from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 from app_support.cli import preparse_config_path
@@ -14,7 +16,17 @@ from app_support.logging_utils import (
     install_exception_logging,
 )
 from app_support.threading_utils import start_daemon_thread
+from player_core.cruise_control import CruiseControlState, toggle_cruise_control
+from player_core.direct_control import (
+    DirectControlState,
+    bpm_for_speed,
+    space_action,
+    toggle_playing,
+)
 from player_core.file_channel import read_paused_state
+from player_core.tcode import UdpTCodeSink
+
+from .clip_advance import ClipAdvanceState
 
 from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
@@ -33,6 +45,7 @@ from .config import load_config
 from .engine import PlaybackEngine
 from .first_clip import FirstClipPreload
 from .state import SharedState, udp_reader
+from .tcode import RateLimitedTCodeSender
 from .video import cache_dir_for_clips_folder, load_clip_frames, scan_clips
 from .weird import move_clip_to_weird, weird_dir_for_clips_folder
 
@@ -191,6 +204,133 @@ def main(argv: list[str] | None = None) -> int:
             pass
 
 
+@dataclass(frozen=True)
+class DriveStack:
+    """What Genau drives the device with: the hand, what varies it, what moves
+    the clip on, and the sender that puts it on the wire."""
+
+    direct_state: DirectControlState
+    cruise_control: CruiseControlState
+    clip_advance: ClipAdvanceState
+    tcode_sender: RateLimitedTCodeSender
+
+
+def _build_drive_stack(args, logger: logging.Logger) -> DriveStack:
+    """One hand, one cruise stack, one clip advance, one sender.
+
+    Built together because they are one thing wired four ways: the sender reads
+    the hand and the stack, the readout draws all three, and a second copy of
+    any of them would leave a key moving one while the picture follows another.
+    """
+    direct_state = DirectControlState(playing=False, speed=50, bpm=bpm_for_speed(50))
+    cruise_control = CruiseControlState()
+    sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
+    logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
+    return DriveStack(
+        direct_state=direct_state,
+        cruise_control=cruise_control,
+        clip_advance=ClipAdvanceState(),
+        tcode_sender=RateLimitedTCodeSender(
+            sink, direct_state=direct_state, cruise=cruise_control),
+    )
+
+
+def _start_voice_control(config, args, command_file: Path, logger: logging.Logger) -> None:
+    """Listen for spoken commands, standalone only.
+
+    Under Fun Time the orchestrator owns the microphone, and the model is a
+    large download this repo does not ship -- so a config with no voice section,
+    or a venv without vosk, is a Genau with no voice rather than a failure.
+    """
+    if config.voice is None or args.fun_time:
+        return
+    from .voice import VOICE_AVAILABLE, VOICE_COMMANDS, VoiceListener
+
+    if not VOICE_AVAILABLE:
+        return
+    listener = VoiceListener(
+        commands=VOICE_COMMANDS,
+        cmd_file=command_file,
+        model_path=config.voice.model_path,
+        confidence_threshold=config.voice.confidence_threshold,
+        device_index=config.voice.device_index,
+        sample_rate=config.voice.sample_rate,
+    )
+    start_daemon_thread(target=listener.run, name="genau-voice")
+    logger.info("Voice control enabled (model=%s)", config.voice.model_path)
+
+
+@dataclass(frozen=True)
+class ClipPipeline:
+    """The three parts that get a clip from the folder onto the screen: what
+    decodes, what draws, and what decides which one."""
+
+    renderer: ClipRenderController
+    loader: ClipLoadController
+    selection: ClipSelectionController
+
+
+def _build_clip_pipeline(
+    clip_sequence, clip_store, view, notifier, clips_folder: Path,
+    cache_dir: Path, logger: logging.Logger,
+) -> ClipPipeline:
+    renderer = ClipRenderController(
+        clip_store=clip_store,
+        display_frame_fn=view.display_frame,
+    )
+    loader = ClipLoadController(
+        clip_store=clip_store,
+        load_state=DecodeRequestState(),
+        prefetch_state=DecodeRequestState(),
+        current_clip_path_getter=lambda: renderer.current_clip_path,
+        decode_clip=lambda path: load_clip_frames(path, cache_dir),
+        start_thread=start_daemon_thread,
+        logger=logger,
+        on_active_clip_loaded=renderer.prepare_active_clip_for_current_size,
+    )
+    weird_dir = weird_dir_for_clips_folder(clips_folder)
+    return ClipPipeline(
+        renderer=renderer,
+        loader=loader,
+        selection=ClipSelectionController(
+            sequence=clip_sequence,
+            clip_store=clip_store,
+            loader=loader,
+            renderer=renderer,
+            notifier=notifier,
+            discard_clip=lambda path: _condemn_clip(path, weird_dir, logger),
+        ),
+    )
+
+
+def _reorder_clips(
+    clips_folder: Path, config, selection, logger: logging.Logger, recent: bool,
+) -> None:
+    """Rescan the clips folder and browse it newest-first, or reshuffled.
+
+    The rescan is half the point: clips arrive in that folder while a session
+    runs, and this is the only way into the sequence short of launching again.
+    The lock is deliberately left alone — it holds whatever is on screen, and
+    after this that is the head of the order just asked for.
+
+    A folder that scanned to nothing keeps the sequence already loaded rather
+    than taking Genau's picture away; :func:`scan_clips` says so by raising.
+    """
+    try:
+        clips = scan_clips(
+            clips_folder,
+            shuffle_on_load=config.genau.shuffle_on_load,
+            recent=recent,
+        )
+    except (OSError, RuntimeError):
+        logger.warning("Could not rescan %s; keeping the sequence", clips_folder,
+                       exc_info=True)
+        return
+    selection.reorder(clips)
+    logger.info("Browsing %s (%d clips)",
+                "newest-first" if recent else "reshuffled", len(clips))
+
+
 def run_listener(args, config, logger: logging.Logger) -> int:
     command_file = Path(args.command_file)
     paused_file = Path(args.paused_file)
@@ -251,95 +391,14 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     # dark instead would make a bare `python -m genau` come up black.
     display = Flag(on=True)
 
-    from .clip_advance import ClipAdvanceState
-    from player_core.cruise_control import CruiseControlState
-    from player_core.direct_control import DirectControlState, bpm_for_speed
-    from player_core.tcode import UdpTCodeSink
+    drive = _build_drive_stack(args, logger)
+    _start_voice_control(config, args, command_file, logger)
 
-    from .tcode import RateLimitedTCodeSender
-    direct_state = DirectControlState(
-        playing=False,
-        speed=50,
-        bpm=bpm_for_speed(50),
-    )
-    cruise_control = CruiseControlState()
-    clip_advance = ClipAdvanceState()
-    sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
-    tcode_sender = RateLimitedTCodeSender(
-        sink, direct_state=direct_state, cruise=cruise_control)
-    logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
-
-    if config.voice is not None and not args.fun_time:
-        from .voice import VOICE_AVAILABLE, VOICE_COMMANDS, VoiceListener
-        if VOICE_AVAILABLE:
-            voice_listener = VoiceListener(
-                commands=VOICE_COMMANDS,
-                cmd_file=command_file,
-                model_path=config.voice.model_path,
-                confidence_threshold=config.voice.confidence_threshold,
-                device_index=config.voice.device_index,
-                sample_rate=config.voice.sample_rate,
-            )
-            start_daemon_thread(
-                target=voice_listener.run,
-                name="genau-voice",
-            )
-            logger.info("Voice control enabled (model=%s)", config.voice.model_path)
-
-    load_state = DecodeRequestState()
-    prefetch_state = DecodeRequestState()
     notifier = GenauNotifier(args.notify_host, args.notify_port)
-
-    renderer = ClipRenderController(
-        clip_store=clip_store,
-        display_frame_fn=view.display_frame,
-    )
-
-    loader = ClipLoadController(
-        clip_store=clip_store,
-        load_state=load_state,
-        prefetch_state=prefetch_state,
-        current_clip_path_getter=lambda: renderer.current_clip_path,
-        decode_clip=lambda path: load_clip_frames(path, cache_dir),
-        start_thread=start_daemon_thread,
-        logger=logger,
-        on_active_clip_loaded=renderer.prepare_active_clip_for_current_size,
-    )
-    weird_dir = weird_dir_for_clips_folder(clips_folder)
-    selection = ClipSelectionController(
-        sequence=clip_sequence,
-        clip_store=clip_store,
-        loader=loader,
-        renderer=renderer,
-        notifier=notifier,
-        discard_clip=lambda path: _condemn_clip(path, weird_dir, logger),
-    )
-
-    def _reorder_clips(recent: bool) -> None:
-        """Rescan the clips folder and browse it newest-first, or reshuffled.
-
-        The rescan is half the point: clips arrive in that folder while a
-        session runs, and this is the only way into the sequence short of
-        launching again.  The lock is deliberately left alone — it holds
-        whatever is on screen, and after this that is the head of the order
-        just asked for.
-
-        A folder that scanned to nothing keeps the sequence already loaded rather
-        than taking Genau's picture away; :func:`scan_clips` says so by raising.
-        """
-        try:
-            clips = scan_clips(
-                clips_folder,
-                shuffle_on_load=config.genau.shuffle_on_load,
-                recent=recent,
-            )
-        except (OSError, RuntimeError):
-            logger.warning("Could not rescan %s; keeping the sequence", clips_folder,
-                           exc_info=True)
-            return
-        selection.reorder(clips)
-        logger.info("Browsing %s (%d clips)",
-                    "newest-first" if recent else "reshuffled", len(clips))
+    pipeline = _build_clip_pipeline(
+        clip_sequence, clip_store, view, notifier, clips_folder, cache_dir, logger)
+    renderer, loader, selection = (
+        pipeline.renderer, pipeline.loader, pipeline.selection)
 
     # Everything a command, a key or a console press can move, in one place: the
     # tick drains commands into it and the window's keys move the same object,
@@ -349,15 +408,15 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         paused=paused,
         step_clip=selection.step,
         discard_clip=selection.discard_current,
-        direct_state=direct_state,
-        cruise_control_state=cruise_control,
-        set_stroke_phase=tcode_sender.set_stroke_phase,
-        clip_advance_state=clip_advance,
+        direct_state=drive.direct_state,
+        cruise_control_state=drive.cruise_control,
+        set_stroke_phase=drive.tcode_sender.set_stroke_phase,
+        clip_advance_state=drive.clip_advance,
         stop_event=stop_event,
         hud=hud,
         display=display,
         set_volume=view.set_volume,
-        reorder_clips=_reorder_clips,
+        reorder_clips=partial(_reorder_clips, clips_folder, config, selection, logger),
     )
 
     refresh_controller = GenauRefreshController(
@@ -375,7 +434,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_loading_text=view.set_loading_text,
         logger=logger,
         read_paused_state=read_paused_state,
-        tcode_sender=tcode_sender,
+        tcode_sender=drive.tcode_sender,
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
         status_file=Path(args.status_file) if args.status_file else None,
         # Named by whoever launched us when there is one: standalone this is our
@@ -388,9 +447,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_hud_mode=view.set_hud_mode,
         set_blank=view.set_blank,
     )
-    from player_core.cruise_control import toggle_cruise_control
-    from player_core.direct_control import space_action, toggle_playing
-
     lifecycle = GenauLifecycleController(
         renderer=renderer,
         controls=controls,
@@ -398,9 +454,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         notifier=notifier,
         resize_delay_ms=config.genau.resize_debounce_ms,
         dashboard_cmd_file=dashboard_cmd_file,
-        on_toggle_playing=lambda: toggle_playing(direct_state),
-        on_pause_playing=lambda: space_action(direct_state, pause_only=args.fun_time),
-        on_toggle_cruise=lambda: toggle_cruise_control(cruise_control),
+        on_toggle_playing=lambda: toggle_playing(drive.direct_state),
+        on_pause_playing=lambda: space_action(drive.direct_state, pause_only=args.fun_time),
+        on_toggle_cruise=lambda: toggle_cruise_control(drive.cruise_control),
         console_pointer=ConsolePointer(view, dashboard_cmd_file),
     )
 
@@ -416,7 +472,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         refresh_controller.refresh()
         view.clock.tick(120)
 
-    tcode_sender.close()
+    drive.tcode_sender.close()
     view.destroy()
     return 0
 

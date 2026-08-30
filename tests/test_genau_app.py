@@ -15,6 +15,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 APP = Path(__file__).resolve().parents[1] / "genau" / "app.py"
 
 
@@ -39,6 +41,17 @@ def _keyword(call: ast.Call, name: str) -> str:
         if keyword.arg == name:
             return _said(keyword.value)
     raise AssertionError(f"{_said(call.func)}() was given no {name}=")
+
+
+def _module() -> ast.Module:
+    return ast.parse(APP.read_text(encoding="utf-8"), filename=str(APP))
+
+
+def _function(name: str) -> ast.FunctionDef:
+    found = [n for n in ast.walk(_module())
+             if isinstance(n, ast.FunctionDef) and n.name == name]
+    assert len(found) == 1, f"expected one {name}(), found {len(found)}"
+    return found[0]
 
 
 def _startup() -> ast.FunctionDef:
@@ -116,7 +129,7 @@ class TestTheLoopAndTheTeardown:
         teardown with nothing driving it."""
         startup = _startup()
 
-        assert (_call(startup, "tcode_sender.close").lineno
+        assert (_call(startup, "drive.tcode_sender.close").lineno
                 < _call(startup, "view.destroy").lineno)
 
 
@@ -127,14 +140,30 @@ class TestTheOneHandEveryPartIsGiven:
     hand, the command file moves another, and the picture follows a third.
     """
 
-    def test_only_one_hand_is_ever_built(self):
-        assert len(_calls(_startup(), "DirectControlState")) == 1
+    @pytest.mark.parametrize(
+        "part", ["DirectControlState", "CruiseControlState", "ClipAdvanceState",
+                 "RateLimitedTCodeSender"],
+    )
+    def test_the_module_builds_exactly_one_of_it(self, part):
+        """Asked of the whole module rather than one function: a second one
+        anywhere in here and the app still runs, with the key moving one hand
+        while the picture follows another."""
+        assert len(_calls(_module(), part)) == 1
 
-    def test_the_sender_and_the_controls_are_given_that_same_hand(self):
+    def test_the_sender_is_given_the_hand_it_was_built_beside(self):
+        stack = _function("_build_drive_stack")
+
+        assert _keyword(_call(stack, "RateLimitedTCodeSender"), "direct_state") == "direct_state"
+        assert _keyword(_call(stack, "DriveStack"), "direct_state") == "direct_state"
+
+    def test_every_part_of_the_app_is_given_that_same_stack(self):
         startup = _startup()
 
-        assert _keyword(_call(startup, "RateLimitedTCodeSender"), "direct_state") == "direct_state"
-        assert _keyword(_call(startup, "GenauControls"), "direct_state") == "direct_state"
+        assert len(_calls(startup, "_build_drive_stack")) == 1
+        for named in ("direct_state", "cruise_control_state", "clip_advance_state"):
+            assert _keyword(_call(startup, "GenauControls"), named).startswith("drive.")
+        assert _keyword(
+            _call(startup, "GenauRefreshController"), "tcode_sender") == "drive.tcode_sender"
 
     def test_the_tick_is_driven_by_the_controls_that_were_built_here(self):
         """One object, so a command and a key move the same thing.  Build the
@@ -143,12 +172,6 @@ class TestTheOneHandEveryPartIsGiven:
 
         assert len(_calls(startup, "GenauControls")) == 1
         assert _keyword(_call(startup, "GenauRefreshController"), "controls") == "controls"
-
-    def test_only_one_cruise_stack_and_one_clip_advance_are_built(self):
-        startup = _startup()
-
-        assert len(_calls(startup, "CruiseControlState")) == 1
-        assert len(_calls(startup, "ClipAdvanceState")) == 1
 
 
 class TestWhichFileEachChannelIsGiven:
@@ -179,13 +202,15 @@ class TestTheWindowIsToldWhoIsRunningIt:
 class TestTheVoiceListener:
     def test_it_is_started_only_standalone_and_only_with_a_model(self):
         """Under Fun Time the orchestrator owns the microphone."""
-        startup = _startup()
-        guards = [_said(n.test) for n in ast.walk(startup)
-                  if isinstance(n, ast.If) and "voice" in _said(n.test)]
+        voice = _function("_start_voice_control")
+        guards = [_said(n.test) for n in ast.walk(voice) if isinstance(n, ast.If)]
 
-        assert "config.voice is not None and (not args.fun_time)" in guards
+        assert "config.voice is None or args.fun_time" in guards
+        assert "not VOICE_AVAILABLE" in guards
 
     def test_it_writes_to_the_same_file_the_tick_drains(self):
         """Given anything else, every spoken command is written where nothing
         reads it and the feature is silently inert."""
-        assert _keyword(_call(_startup(), "VoiceListener"), "cmd_file") == "command_file"
+        voice = _function("_start_voice_control")
+
+        assert _keyword(_call(voice, "VoiceListener"), "cmd_file") == "command_file"
