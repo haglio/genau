@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass
-from typing import Callable, MutableMapping
+from typing import Callable
 
 from player_core.cruise_control import (
     CruiseControlState,
@@ -47,6 +47,7 @@ from .clip_advance import (
     toggle_lock,
 )
 from .engine import PlaybackEngine
+from .flags import Flag
 
 
 @dataclass
@@ -54,7 +55,7 @@ class GenauControls:
     """Everything one command, key or console press may move."""
 
     engine: PlaybackEngine
-    rh_paused: MutableMapping[str, bool]
+    paused: Flag
     step_clip: Callable[[int], None]
     discard_clip: Callable[[], None] | None = None
     direct_state: DirectControlState | None = None
@@ -62,8 +63,8 @@ class GenauControls:
     set_stroke_phase: Callable[[float], None] | None = None
     clip_advance_state: ClipAdvanceState | None = None
     stop_event: threading.Event | None = None
-    hud_state: MutableMapping[str, bool] | None = None
-    display_state: MutableMapping[str, bool] | None = None
+    hud: Flag | None = None
+    display: Flag | None = None
     set_volume: Callable[[int, bool], None] | None = None
     reorder_clips: Callable[[bool], None] | None = None
 
@@ -215,16 +216,16 @@ def _playing(playing: bool) -> Act:
     answers -- the room is paused either way.
     """
     def act(controls: GenauControls, _value: str) -> bool:
-        controls.rh_paused["value"] = not playing
+        controls.paused.on = not playing
         if controls.direct_state is not None:
             controls.direct_state.playing = playing
         return True
     return act
 
 
-def _box_set(field_name: str, key: str, value: bool) -> Act:
+def _flag_set(name: str, value: bool) -> Act:
     def act(controls: GenauControls, _value: str) -> bool:
-        getattr(controls, field_name)[key] = value
+        getattr(controls, name).on = value
         return True
     return act
 
@@ -358,10 +359,10 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="hud",
-        needs=("hud_state",),
+        needs=("hud",),
         verbs=(
-            Verb("HUD_ON", _box_set("hud_state", "active", True)),
-            Verb("HUD_OFF", _box_set("hud_state", "active", False)),
+            Verb("HUD_ON", _flag_set("hud", True)),
+            Verb("HUD_OFF", _flag_set("hud", False)),
         ),
     ),
     # Whether Genau owns the screen right now, which is not the same as whether
@@ -369,10 +370,10 @@ CONTROLS: tuple[Control, ...] = (
     # display sends DISPLAY_OFF, and Genau goes dark without touching playback.
     Control(
         name="display",
-        needs=("display_state",),
+        needs=("display",),
         verbs=(
-            Verb("DISPLAY_ON", _box_set("display_state", "active", True)),
-            Verb("DISPLAY_OFF", _box_set("display_state", "active", False)),
+            Verb("DISPLAY_ON", _flag_set("display", True)),
+            Verb("DISPLAY_OFF", _flag_set("display", False)),
         ),
     ),
     Control(

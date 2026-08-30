@@ -22,6 +22,7 @@ import pytest
 from genau.clip_advance import ClipAdvanceState
 from genau.controls import GenauControls
 from genau.engine import PlaybackEngine
+from genau.flags import Flag
 from genau.lifecycle import GenauLifecycleController
 from player_core.cruise_control import CruiseControlState
 from player_core.direct_control import DirectControlState, WaveformShape
@@ -81,7 +82,7 @@ class Keys:
         self.advance = ClipAdvanceState(locked=bool(start.get("locked", False)))
         self.controls = GenauControls(
             engine=self.engine,
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=self.selection.step,
             discard_clip=self.selection.discard_current,
             direct_state=self.direct,

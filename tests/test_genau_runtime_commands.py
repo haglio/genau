@@ -11,6 +11,7 @@ import pytest
 from genau.controls import QUARTER_CYCLE_OFFSET_COMMAND, GenauControls
 from genau.runtime_commands import apply_runtime_command
 from genau.engine import PlaybackEngine
+from genau.flags import Flag
 from player_core.direct_control import DirectControlState, WaveformShape
 from player_core.cruise_control import CruiseControlState
 from genau.clip_advance import MAX_INTERVAL_S, MIN_INTERVAL_S, ClipAdvanceState
@@ -53,12 +54,12 @@ class TestApplyRuntimeCommand:
     def test_prev_steps_backward(self):
         steps: list[int] = []
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         handled = _answered(
             "PREV",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=steps.append,
         )
 
@@ -68,12 +69,12 @@ class TestApplyRuntimeCommand:
     def test_next_steps_forward(self):
         steps: list[int] = []
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         handled = _answered(
             "NEXT",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=steps.append,
         )
 
@@ -82,12 +83,12 @@ class TestApplyRuntimeCommand:
 
     def test_offset_quarter_cycle_advances_phase(self):
         engine = PlaybackEngine(phase=0.1, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         handled = _answered(
             QUARTER_CYCLE_OFFSET_COMMAND,
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
         )
 
@@ -96,12 +97,12 @@ class TestApplyRuntimeCommand:
 
     def test_offset_quarter_cycle_wraps_phase(self):
         engine = PlaybackEngine(phase=0.9, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         handled = _answered(
             QUARTER_CYCLE_OFFSET_COMMAND,
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
         )
 
@@ -122,7 +123,7 @@ class TestApplyRuntimeCommand:
         handled = _answered(
             verb,
             engine=engine,
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -133,40 +134,40 @@ class TestApplyRuntimeCommand:
 
     def test_pause_sets_paused(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         handled = _answered(
             "PAUSE",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
         )
 
         assert handled is True
-        assert rh_paused["value"] is True
+        assert paused.on is True
 
     def test_resume_clears_paused(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": True}
+        paused = Flag(on=True)
 
         handled = _answered(
             "RESUME",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
         )
 
         assert handled is True
-        assert rh_paused["value"] is False
+        assert paused.on is False
 
     def test_pause_sets_direct_state_not_playing(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True)
 
         apply_runtime_command("PAUSE", GenauControls(
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         ))
@@ -175,12 +176,12 @@ class TestApplyRuntimeCommand:
 
     def test_resume_sets_direct_state_playing(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": True}
+        paused = Flag(on=True)
         ds = DirectControlState(playing=False)
 
         apply_runtime_command("RESUME", GenauControls(
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         ))
@@ -189,13 +190,13 @@ class TestApplyRuntimeCommand:
 
     def test_speed_down_decreases_speed(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, speed=50)
 
         handled = _answered(
             "SPEED_DOWN",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -205,13 +206,13 @@ class TestApplyRuntimeCommand:
 
     def test_speed_up_increases_speed(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, speed=50)
 
         handled = _answered(
             "SPEED_UP",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -221,13 +222,13 @@ class TestApplyRuntimeCommand:
 
     def test_amplitude_down_decreases_amplitude(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, amplitude=80)
 
         handled = _answered(
             "AMPLITUDE_DOWN",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -237,13 +238,13 @@ class TestApplyRuntimeCommand:
 
     def test_amplitude_up_increases_amplitude(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, amplitude=80)
 
         handled = _answered(
             "AMPLITUDE_UP",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -253,13 +254,13 @@ class TestApplyRuntimeCommand:
 
     def test_center_down_decreases_center(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
 
         handled = _answered(
             "CENTER_DOWN",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -269,13 +270,13 @@ class TestApplyRuntimeCommand:
 
     def test_center_up_increases_center(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
 
         handled = _answered(
             "CENTER_UP",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -285,14 +286,14 @@ class TestApplyRuntimeCommand:
 
     def test_cycle_shape_advances_shape(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True)
         assert ds.shape == WaveformShape.SINE
 
         handled = _answered(
             "CYCLE_SHAPE",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -302,14 +303,14 @@ class TestApplyRuntimeCommand:
 
     def test_cycle_shape_prev_reverses_shape(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True)
         assert ds.shape == WaveformShape.SINE
 
         handled = _answered(
             "CYCLE_SHAPE_PREV",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -319,13 +320,13 @@ class TestApplyRuntimeCommand:
 
     def test_toggle_cruise_activates_cruise_control(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         auto = CruiseControlState(active=False)
 
         handled = _answered(
             "TOGGLE_CRUISE",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             cruise_control_state=auto,
         )
@@ -335,26 +336,26 @@ class TestApplyRuntimeCommand:
 
     def test_direct_commands_ignored_without_direct_state(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         for cmd in ("SPEED_DOWN", "SPEED_UP", "AMPLITUDE_DOWN", "AMPLITUDE_UP",
                      "CENTER_DOWN", "CENTER_UP", "CYCLE_SHAPE"):
             handled = _answered(
                 cmd,
                 engine=engine,
-                rh_paused=rh_paused,
+                paused=paused,
                 step_clip=lambda _step: None,
             )
             assert handled is False, f"{cmd} should be ignored without direct_state"
 
     def test_toggle_cruise_ignored_without_cruise_control_state(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         handled = _answered(
             "TOGGLE_CRUISE",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
         )
 
@@ -362,13 +363,13 @@ class TestApplyRuntimeCommand:
 
     def test_cruise_on_enables_cruise_control(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         cc = CruiseControlState(active=False)
 
         handled = _answered(
             "CRUISE_ON",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             cruise_control_state=cc,
         )
@@ -378,13 +379,13 @@ class TestApplyRuntimeCommand:
 
     def test_cruise_off_disables_cruise_control(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         cc = CruiseControlState(active=True)
 
         handled = _answered(
             "CRUISE_OFF",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             cruise_control_state=cc,
         )
@@ -394,26 +395,26 @@ class TestApplyRuntimeCommand:
 
     def test_cruise_on_off_ignored_without_cruise_control_state(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         for cmd in ("CRUISE_ON", "CRUISE_OFF"):
             handled = _answered(
                 cmd,
                 engine=engine,
-                rh_paused=rh_paused,
+                paused=paused,
                 step_clip=lambda _step: None,
             )
             assert handled is False, f"{cmd} should be ignored without cruise_control_state"
 
     def test_amp_sets_amplitude(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, amplitude=80)
 
         handled = _answered(
             "AMP 50",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -423,13 +424,13 @@ class TestApplyRuntimeCommand:
 
     def test_center_sets_center(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
 
         handled = _answered(
             "CENTER 80",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -439,13 +440,13 @@ class TestApplyRuntimeCommand:
 
     def test_speed_sets_speed(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True, speed=50)
 
         handled = _answered(
             "SPEED 30",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -455,26 +456,26 @@ class TestApplyRuntimeCommand:
 
     def test_numeric_commands_ignored_without_direct_state(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         for cmd in ("AMP 50", "CENTER 80", "SPEED 30"):
             handled = _answered(
                 cmd,
                 engine=engine,
-                rh_paused=rh_paused,
+                paused=paused,
                 step_clip=lambda _step: None,
             )
             assert handled is False, f"{cmd} should be ignored without direct_state"
 
     def test_numeric_command_with_non_integer_is_ignored(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         ds = DirectControlState(playing=True)
 
         handled = _answered(
             "AMP abc",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=ds,
         )
@@ -483,13 +484,13 @@ class TestApplyRuntimeCommand:
 
     def test_quit_sets_stop_event(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         stop = threading.Event()
 
         handled = _answered(
             "QUIT",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             stop_event=stop,
         )
@@ -499,12 +500,12 @@ class TestApplyRuntimeCommand:
 
     def test_quit_ignored_without_stop_event(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         handled = _answered(
             "QUIT",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
         )
 
@@ -512,129 +513,129 @@ class TestApplyRuntimeCommand:
 
     def test_unknown_command_is_ignored(self):
         engine = PlaybackEngine(phase=0.4, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
         steps: list[int] = []
 
         handled = _answered(
             "UNKNOWN",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=steps.append,
         )
 
         assert handled is False
         assert engine.phase == 0.4
-        assert rh_paused["value"] is False
+        assert paused.on is False
         assert steps == []
 
-    def test_hud_on_activates_hud_state(self):
+    def test_hud_on_raises_the_hud(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
-        hud = {"active": False}
+        paused = Flag()
+        hud = Flag()
 
         handled = _answered(
             "HUD_ON",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
-            hud_state=hud,
+            hud=hud,
         )
 
         assert handled is True
-        assert hud["active"] is True
+        assert hud.on is True
 
-    def test_hud_off_deactivates_hud_state(self):
+    def test_hud_off_lowers_the_hud(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
-        hud = {"active": True}
+        paused = Flag()
+        hud = Flag(on=True)
 
         handled = _answered(
             "HUD_OFF",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
-            hud_state=hud,
+            hud=hud,
         )
 
         assert handled is True
-        assert hud["active"] is False
+        assert hud.on is False
 
-    def test_hud_commands_ignored_without_hud_state(self):
+    def test_hud_commands_ignored_without_a_hud_flag(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         for cmd in ("HUD_ON", "HUD_OFF"):
             handled = _answered(
                 cmd,
                 engine=engine,
-                rh_paused=rh_paused,
+                paused=paused,
                 step_clip=lambda _step: None,
             )
-            assert handled is False, f"{cmd} should be ignored without hud_state"
+            assert handled is False, f"{cmd} should be ignored without a hud flag"
 
     def test_display_off_marks_genau_not_the_active_display(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
-        display = {"active": True}
+        paused = Flag()
+        display = Flag(on=True)
 
         handled = _answered(
             "DISPLAY_OFF",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
-            display_state=display,
+            display=display,
         )
 
         assert handled is True
-        assert display["active"] is False
+        assert display.on is False
 
     def test_display_on_marks_genau_the_active_display(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
-        display = {"active": False}
+        paused = Flag()
+        display = Flag()
 
         handled = _answered(
             "DISPLAY_ON",
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
-            display_state=display,
+            display=display,
         )
 
         assert handled is True
-        assert display["active"] is True
+        assert display.on is True
 
     def test_display_commands_do_not_touch_playback(self):
         """DISPLAY_* is about what's painted, not whether the hand strokes:
         a paused hand stays paused and a running one keeps running."""
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": True}
+        paused = Flag(on=True)
         direct = DirectControlState(playing=False)
-        display = {"active": True}
+        display = Flag(on=True)
 
         apply_runtime_command("DISPLAY_OFF", GenauControls(
             engine=engine,
-            rh_paused=rh_paused,
+            paused=paused,
             step_clip=lambda _step: None,
             direct_state=direct,
-            display_state=display,
+            display=display,
         ))
 
-        assert rh_paused["value"] is True
+        assert paused.on is True
         assert direct.playing is False
 
-    def test_display_commands_ignored_without_display_state(self):
+    def test_display_commands_ignored_without_a_display_flag(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        rh_paused = {"value": False}
+        paused = Flag()
 
         for cmd in ("DISPLAY_ON", "DISPLAY_OFF"):
             handled = _answered(
                 cmd,
                 engine=engine,
-                rh_paused=rh_paused,
+                paused=paused,
                 step_clip=lambda _step: None,
             )
-            assert handled is False, f"{cmd} should be ignored without display_state"
+            assert handled is False, f"{cmd} should be ignored without a display flag"
 
 
 class TestClipAdvanceCommands:
@@ -642,7 +643,7 @@ class TestClipAdvanceCommands:
         return _answered(
             command,
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=lambda _step: None,
             clip_advance_state=aa,
         )
@@ -651,7 +652,7 @@ class TestClipAdvanceCommands:
         return _answered(
             command,
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=lambda _step: None,
             set_volume=lambda level, muted: on_volume((level, muted)),
         )
@@ -733,7 +734,7 @@ class TestClipAdvanceCommands:
             handled = _answered(
                 cmd,
                 engine=engine,
-                rh_paused={"value": False},
+                paused=Flag(),
                 step_clip=lambda _step: None,
             )
             assert handled is False, f"{cmd} should be ignored without clip_advance_state"
@@ -746,7 +747,7 @@ class TestWeirdCommand:
         handled = _answered(
             "WEIRD",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=lambda _step: None,
             discard_clip=lambda: calls.append(1),
         )
@@ -758,7 +759,7 @@ class TestWeirdCommand:
         handled = _answered(
             "WEIRD",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=lambda _step: None,
         )
 
@@ -776,7 +777,7 @@ class TestBrowseOrderCommands:
         handled = _answered(
             "LATEST",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=lambda _step: None,
             reorder_clips=asked.append,
         )
@@ -790,7 +791,7 @@ class TestBrowseOrderCommands:
         handled = _answered(
             "SHUFFLE",
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=lambda _step: None,
             reorder_clips=asked.append,
         )
@@ -803,7 +804,7 @@ class TestBrowseOrderCommands:
             handled = _answered(
                 cmd,
                 engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-                rh_paused={"value": False},
+                paused=Flag(),
                 step_clip=lambda _step: None,
             )
 
@@ -822,7 +823,7 @@ class TestAnUnhandledCommand:
         with caplog.at_level("WARNING", logger="genau.runtime_commands"):
             apply_runtime_command(command, GenauControls(
                 engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-                rh_paused={"value": False},
+                paused=Flag(),
                 step_clip=lambda _step: None,
                 **collaborators,
             ))

@@ -23,6 +23,7 @@ import pytest
 from genau.clip_advance import ClipAdvanceState
 from genau.controls import GenauControls
 from genau.engine import PlaybackEngine
+from genau.flags import Flag
 from genau.refresh_controller import GenauRefreshController
 from genau.state import SharedState
 from player_core.cruise_control import CruiseControlState
@@ -50,9 +51,9 @@ class Seam:
     """
 
     def __init__(self, tmp_path: Path, **start):
-        self.paused = {"value": bool(start.get("paused", False))}
-        self.hud = {"active": bool(start.get("hud", False))}
-        self.display = {"active": bool(start.get("display", True))}
+        self.paused = Flag(on=bool(start.get("paused", False)))
+        self.hud = Flag(on=bool(start.get("hud", False)))
+        self.display = Flag(on=bool(start.get("display", True)))
         self.direct = DirectControlState(
             playing=bool(start.get("playing", False)),
             speed=start.get("speed", 50),
@@ -77,7 +78,7 @@ class Seam:
         self.controller = GenauRefreshController(
             controls=GenauControls(
                 engine=self.engine,
-                rh_paused=self.paused,
+                paused=self.paused,
                 step_clip=self.selection.step,
                 discard_clip=self.selection.discard_current,
                 direct_state=self.direct,
@@ -85,8 +86,8 @@ class Seam:
                 set_stroke_phase=self.tcode.set_stroke_phase,
                 clip_advance_state=self.advance,
                 stop_event=self.stop_event,
-                hud_state=self.hud,
-                display_state=self.display,
+                hud=self.hud,
+                display=self.display,
                 set_volume=lambda level, muted: self.volumes.append((level, muted)),
                 reorder_clips=self.reorders.append,
             ),
@@ -103,7 +104,7 @@ class Seam:
             set_loading_text=lambda _text: None,
             logger=MagicMock(),
             now_source=lambda: NOW,
-            read_paused_state=lambda _path, logger=None: self.paused["value"],
+            read_paused_state=lambda _path, logger=None: self.paused.on,
             tcode_sender=self.tcode,
         )
 
@@ -114,7 +115,7 @@ class Seam:
 
     def state(self) -> dict:
         return {
-            "paused": self.paused["value"],
+            "paused": self.paused.on,
             "playing": self.direct.playing,
             "speed": self.direct.speed,
             "amplitude": self.direct.amplitude,
@@ -129,8 +130,8 @@ class Seam:
             "condemned": self.selection.discard_calls,
             "reorders": tuple(self.reorders),
             "volumes": tuple(self.volumes),
-            "hud": self.hud["active"],
-            "display": self.display["active"],
+            "hud": self.hud.on,
+            "display": self.display.on,
             "stopping": self.stop_event.is_set(),
         }
 

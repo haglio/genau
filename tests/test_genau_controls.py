@@ -6,13 +6,14 @@ import pytest
 from genau.control_registry import Control, Verb, bind
 from genau.controls import CONTROLS, VERBS, GenauControls
 from genau.engine import PlaybackEngine
+from genau.flags import Flag
 from player_core.direct_control import DirectControlState
 
 
 def _controls(**fields) -> GenauControls:
     return GenauControls(
         engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-        rh_paused={"value": False},
+        paused=Flag(),
         step_clip=lambda _step: None,
         **fields,
     )

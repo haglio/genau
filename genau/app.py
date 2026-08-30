@@ -23,6 +23,7 @@ from .clip_selection import ClipSelectionController
 from .clip_sequence import ClipSequenceController
 from .console_pointer import ConsolePointer
 from .controls import GenauControls
+from .flags import Flag
 from .lifecycle import GenauLifecycleController
 from .notifier import GenauNotifier
 from .pygame_view import PygameView
@@ -30,6 +31,7 @@ from .refresh_controller import GenauRefreshController
 from .broker_handoff import broker_cmd_file_for_mode
 from .config import load_config
 from .engine import PlaybackEngine
+from .first_clip import FirstClipPreload
 from .state import SharedState, udp_reader
 from .video import cache_dir_for_clips_folder, load_clip_frames, scan_clips
 from .weird import move_clip_to_weird, weird_dir_for_clips_folder
@@ -206,21 +208,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
     cache_dir = cache_dir_for_clips_folder(clips_folder)
 
-    # A thread, so the decode overlaps pygame init and the controller wiring
+    # Started here, so the decode overlaps pygame init and the controller wiring
     # below rather than running before them.
     first_clip_path = clip_sequence.current_path
-    preload_result: dict = {"frames": None}
-
-    def _preload_first_clip() -> None:
-        try:
-            preload_result["frames"] = load_clip_frames(first_clip_path, cache_dir)
-        except Exception:
-            logger.warning("Failed to pre-load first clip %s", first_clip_path, exc_info=True)
-
-    preload_thread = threading.Thread(
-        target=_preload_first_clip, daemon=True, name="genau-preload",
-    )
-    preload_thread.start()
+    preload = FirstClipPreload(
+        first_clip_path, lambda path: load_clip_frames(path, cache_dir), logger)
+    preload.start()
 
     view = PygameView(
         width=args.width,
@@ -250,13 +243,13 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     engine = PlaybackEngine(last_tick=time.monotonic())
 
-    rh_paused = {"value": False}
-    hud_state = {"active": False}
+    paused = Flag()
+    hud = Flag()
     # Genau paints its clips unless something tells it otherwise: standalone it
     # owns its window outright, and an orchestrator that hides Genau in some of
     # its modes asserts DISPLAY_OFF/DISPLAY_ON as those modes change.  Defaulting
     # dark instead would make a bare `python -m genau` come up black.
-    display_state = {"active": True}
+    display = Flag(on=True)
 
     from .clip_advance import ClipAdvanceState
     from player_core.cruise_control import CruiseControlState
@@ -353,7 +346,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     # so the two paths into a control cannot drift apart.
     controls = GenauControls(
         engine=engine,
-        rh_paused=rh_paused,
+        paused=paused,
         step_clip=selection.step,
         discard_clip=selection.discard_current,
         direct_state=direct_state,
@@ -361,8 +354,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_stroke_phase=tcode_sender.set_stroke_phase,
         clip_advance_state=clip_advance,
         stop_event=stop_event,
-        hud_state=hud_state,
-        display_state=display_state,
+        hud=hud,
+        display=display,
         set_volume=view.set_volume,
         reorder_clips=_reorder_clips,
     )
@@ -412,10 +405,10 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
-    preload_thread.join(timeout=10.0)
-    if preload_result["frames"] is not None:
-        clip_store.clip_cache[first_clip_path] = {"frames": preload_result["frames"]}
-        logger.info("Pre-loaded %d frames for %s", len(preload_result["frames"]), first_clip_path.name)
+    frames = preload.wait()
+    if frames is not None:
+        clip_store.clip_cache[first_clip_path] = {"frames": frames}
+        logger.info("Pre-loaded %d frames for %s", len(frames), first_clip_path.name)
     selection.set_current_clip(selection.current_path)
 
     while not stop_event.is_set():

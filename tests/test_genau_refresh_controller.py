@@ -10,6 +10,7 @@ from genau.clip_advance import ClipAdvanceState
 from genau.controls import GenauControls
 from player_core.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
+from genau.flags import Flag
 from genau.refresh_controller import GenauRefreshController
 from genau.state import SharedState
 
@@ -134,9 +135,9 @@ def _build_controller(
     cruise_control: CruiseControlState | None = None,
     clip_advance: ClipAdvanceState | None = None,
     broker_cmd_file: Path | None = None,
-    hud_state: dict | None = None,
+    hud: Flag | None = None,
     set_hud_mode=None,
-    display_state: dict | None = None,
+    display: Flag | None = None,
     command_file: Path | None = None,
     status_file: Path | None = None,
 ):
@@ -158,7 +159,7 @@ def _build_controller(
     logger = MagicMock()
     controls = GenauControls(
         engine=engine,
-        rh_paused={"value": False},
+        paused=Flag(),
         step_clip=selection.step,
         discard_clip=selection.discard_current,
         direct_state=direct_state if direct_state is not None else DirectControlState(),
@@ -167,8 +168,8 @@ def _build_controller(
             tcode_sender.set_stroke_phase if tcode_sender is not None else None
         ),
         clip_advance_state=clip_advance,
-        hud_state=hud_state,
-        display_state=display_state,
+        hud=hud,
+        display=display,
         # A Genau with no chip to draw still answers SET_VOLUME: the level is the
         # orchestrator's, and refusing it would put an unhandled verb on the log
         # every time the room's volume moved.
@@ -256,7 +257,7 @@ def test_refresh_reads_paused_state_file_each_tick():
 
     built["controller"].refresh()
 
-    assert built["controller"].rh_paused["value"] is True
+    assert built["controller"].paused.on is True
 
 
 def test_refresh_reports_exceptions():
@@ -705,17 +706,17 @@ def test_multiline_commands_all_applied():
     dc = DirectControlState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    hud = {"active": False}
+    hud = Flag()
     built = _build_controller(
         entry=entry, direct_state=dc, tcode_sender=tcode,
         commands=["RESUME", "HUD_ON"],
-        hud_state=hud,
+        hud=hud,
     )
 
     built["controller"].refresh()
 
     assert dc.playing is True
-    assert hud["active"] is True
+    assert hud.on is True
 
 
 def test_paused_alone_does_not_blank():
@@ -749,7 +750,7 @@ def test_inactive_display_blanks():
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
         entry=entry, direct_state=dc, tcode_sender=tcode,
-        display_state={"active": False},
+        display=Flag(),
     )
 
     built["controller"].refresh()
@@ -761,15 +762,15 @@ def test_display_off_command_blanks_within_the_same_refresh():
     dc = DirectControlState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    display = {"active": True}
+    display = Flag(on=True)
     built = _build_controller(
         entry=entry, direct_state=dc, tcode_sender=tcode,
-        command="DISPLAY_OFF", display_state=display,
+        command="DISPLAY_OFF", display=display,
     )
 
     built["controller"].refresh()
 
-    assert display["active"] is False
+    assert display.on is False
     assert built["blank_calls"] == [True]
 
 
@@ -777,11 +778,11 @@ def test_hud_on_command_calls_set_hud_mode():
     dc = DirectControlState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    hud = {"active": False}
+    hud = Flag()
     built = _build_controller(
         entry=entry, direct_state=dc, tcode_sender=tcode,
         commands=["HUD_ON"],
-        hud_state=hud,
+        hud=hud,
     )
 
     built["controller"].refresh()
@@ -793,11 +794,11 @@ def test_hud_off_command_calls_set_hud_mode_false():
     dc = DirectControlState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    hud = {"active": True}
+    hud = Flag(on=True)
     built = _build_controller(
         entry=entry, direct_state=dc, tcode_sender=tcode,
         commands=["HUD_OFF"],
-        hud_state=hud,
+        hud=hud,
     )
 
     built["controller"].refresh()
@@ -805,15 +806,15 @@ def test_hud_off_command_calls_set_hud_mode_false():
     assert built["hud_mode_calls"] == [False]
 
 
-def test_hud_state_included_in_status_file(tmp_path):
+def test_the_hud_is_published_in_the_status_file(tmp_path):
     dc = DirectControlState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    hud = {"active": True}
+    hud = Flag(on=True)
     cruise = CruiseControlState()
     built = _build_controller(
         entry=entry, direct_state=dc, tcode_sender=tcode,
-        cruise_control=cruise, hud_state=hud,
+        cruise_control=cruise, hud=hud,
         command_file=tmp_path / "genau_cmd.txt",
     )
 
@@ -935,7 +936,7 @@ def test_the_controller_cannot_be_built_without_a_direct_state():
             renderer=FakeRenderer(),
             selection=FakeSelection(),
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-            rh_paused={"value": False},
+            paused=Flag(),
             command_file=Path("command.txt"),
             paused_file=Path("paused.txt"),
             beats_per_loop=4.0,

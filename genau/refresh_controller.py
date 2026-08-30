@@ -53,12 +53,12 @@ class GenauRefreshController:
         # The seven the tick itself reads, named here rather than reached for
         # through the controls on every line below.
         self.engine = controls.engine
-        self.rh_paused = controls.rh_paused
+        self.paused = controls.paused
         self.direct_state = controls.direct_state
         self.cruise_control = controls.cruise_control_state
         self.clip_advance = controls.clip_advance_state
-        self.hud_state = controls.hud_state
-        self.display_state = controls.display_state
+        self.hud = controls.hud
+        self.display = controls.display
         self.state = state
         self.loader = loader
         self.notifier = notifier
@@ -98,9 +98,6 @@ class GenauRefreshController:
         self.present_scene = present_scene or (lambda: None)
         self.set_hud_mode = set_hud_mode or (lambda _active: None)
         self.set_blank = set_blank or (lambda _blank: None)
-        self._prev_hud_active: bool = (
-            self.hud_state["active"] if self.hud_state is not None else False
-        )
         # Which half of the clip is showing, and what is known about the end
         # the stroke is at — see :meth:`_scrub_the_clip`.
         self._scrub = ClipScrub()
@@ -183,13 +180,13 @@ class GenauRefreshController:
         """Genau's own hand, or the broker — and what the engine is told either way."""
         shared = read_shared_state_snapshot(self.state)
         if shared.auto_active:
-            self.rh_paused["value"] = self.read_paused_state(
+            self.paused.on = self.read_paused_state(
                 self.paused_file, logger=self.logger)
             return Beat(
                 direct_active=False,
                 auto_active=shared.auto_active,
                 raw_bpm=shared.raw_bpm,
-                paused=self.rh_paused["value"],
+                paused=self.paused.on,
                 sync_pulse_id=shared.sync_pulse_id,
             )
         self._tick_the_hand(now)
@@ -231,17 +228,14 @@ class GenauRefreshController:
 
     def _follow_the_window_flags(self) -> None:
         """The two things an orchestrator flips that the window has to be told."""
-        if self.hud_state is not None:
-            hud_active = self.hud_state["active"]
-            if hud_active != self._prev_hud_active:
-                self.set_hud_mode(hud_active)
-                self._prev_hud_active = hud_active
+        if self.hud is not None and self.hud.moved():
+            self.set_hud_mode(self.hud.on)
 
         # Paint black only while an orchestrator has told us we aren't the active
         # display.  Deliberately NOT keyed off playback: a paused hand is normal
         # (standalone boots paused, and OmniPause freezes it mid-session), and
         # blanking on that hides the clip the user is looking at.
-        display_active = self.display_state["active"] if self.display_state is not None else True
+        display_active = self.display.on if self.display is not None else True
         self.set_blank(not display_active)
 
     def _show_the_frame(self, beat: Beat) -> None:
@@ -268,7 +262,7 @@ class GenauRefreshController:
     def _publish_status(self) -> None:
         if self.cruise_control is None:
             return
-        hud_on = self.hud_state["active"] if self.hud_state is not None else False
+        hud_on = self.hud.on if self.hud is not None else False
         write_status_file(
             self.status_file,
             self.direct_state,

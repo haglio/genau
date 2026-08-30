@@ -16,6 +16,7 @@ import pytest
 
 from genau.controls import KEYS, GenauControls
 from genau.engine import PlaybackEngine
+from genau.flags import Flag
 from genau.lifecycle import GenauLifecycleController, keymap
 
 
@@ -62,7 +63,7 @@ class FakePointer:
 def _controls() -> GenauControls:
     return GenauControls(
         engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-        rh_paused={"value": False},
+        paused=Flag(),
         step_clip=lambda _step: None,
     )
 

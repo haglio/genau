@@ -65,28 +65,28 @@ class TestWhatHappensBeforeTheWindow:
         """Started after, the window comes up and then freezes for the decode --
         which is the whole of what the thread is for."""
         startup = _startup()
-        started = _call(startup, "preload_thread.start")
+        started = _call(startup, "preload.start")
         built = _call(startup, "PygameView")
 
         assert started.lineno < built.lineno
 
     def test_the_decode_is_waited_for_only_after_everything_else_is_wired(self):
-        """The join is what makes the overlap worth having: move it up next to
+        """The wait is what makes the overlap worth having: move it up next to
         the start and the thread buys nothing at all."""
         startup = _startup()
-        joined = _call(startup, "preload_thread.join")
+        waited = _call(startup, "preload.wait")
 
-        assert joined.lineno > _call(startup, "PygameView").lineno
-        assert joined.lineno > _call(startup, "GenauRefreshController").lineno
-        assert joined.lineno > _call(startup, "GenauLifecycleController").lineno
+        assert waited.lineno > _call(startup, "PygameView").lineno
+        assert waited.lineno > _call(startup, "GenauRefreshController").lineno
+        assert waited.lineno > _call(startup, "GenauLifecycleController").lineno
 
     def test_the_first_clip_is_put_on_screen_after_the_decode_is_waited_for(self):
-        """Ahead of the join it would show the clip before its frames are in the
+        """Ahead of the wait it would show the clip before its frames are in the
         cache, and the cache write would then land on a clip already up."""
         startup = _startup()
 
         assert (_call(startup, "selection.set_current_clip").lineno
-                > _call(startup, "preload_thread.join").lineno)
+                > _call(startup, "preload.wait").lineno)
 
     def test_the_clip_the_thread_decodes_is_the_one_the_sequence_opens_on(self):
         """A start-clip an orchestrator named moves the sequence's head, so the

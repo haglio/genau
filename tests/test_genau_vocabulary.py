@@ -262,6 +262,7 @@ def _genau_answers(line: str) -> bool:
     from genau.clip_advance import ClipAdvanceState
     from genau.controls import GenauControls
     from genau.engine import PlaybackEngine
+    from genau.flags import Flag
     from genau.runtime_commands import apply_runtime_command
     from player_core.cruise_control import CruiseControlState
     from player_core.direct_control import DirectControlState
@@ -269,7 +270,7 @@ def _genau_answers(line: str) -> bool:
     with _unanswered("genau.runtime_commands") as refused:
         apply_runtime_command(line, GenauControls(
             engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-            rh_paused={"value": False},
+            paused=Flag(),
             step_clip=lambda _step: None,
             discard_clip=lambda: None,
             direct_state=DirectControlState(playing=True, speed=50, amplitude=60, center=40),
@@ -277,8 +278,8 @@ def _genau_answers(line: str) -> bool:
             set_stroke_phase=lambda _phase: None,
             clip_advance_state=ClipAdvanceState(),
             stop_event=threading.Event(),
-            hud_state={"active": False},
-            display_state={"active": True},
+            hud=Flag(),
+            display=Flag(on=True),
             set_volume=lambda _level, _muted: None,
             reorder_clips=lambda _recent: None,
         ))

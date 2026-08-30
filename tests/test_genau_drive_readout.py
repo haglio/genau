@@ -17,6 +17,7 @@ from genau.clip_advance import ClipAdvanceState
 from genau.controls import GenauControls
 from genau.drive_readout import DriveReadout
 from genau.engine import PlaybackEngine
+from genau.flags import Flag
 from player_core.cruise_control import CruiseControlState
 from player_core.direct_control import DirectControlState
 
@@ -32,7 +33,7 @@ class FakeSender:
 def _controls(**over) -> GenauControls:
     return GenauControls(
         engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-        rh_paused={"value": False},
+        paused=Flag(),
         step_clip=lambda _step: None,
         direct_state=over.get("direct") or DirectControlState(speed=50, amplitude=60),
         cruise_control_state=over.get("cruise") or CruiseControlState(),
