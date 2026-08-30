@@ -26,11 +26,10 @@ class NoticeWriter:
         Fun Time reserves for the favorites and the funscripts, so a funscript
         jump says so in the color and an ordinary jump does not.
 
-        The sequence is a wall-clock stamp rather than a counter. A counter
-        restarts at 1 whenever Nau does, while the reader is still holding the
-        high number from the previous session — so every notice of the new
-        session read as older than what had already been shown, and none of
-        them ever flashed.
+        The sequence is a wall-clock stamp rather than a counter, so it
+        survives a restart: a counter would begin again at 1 while the reader
+        still held the high number from the session before, and every notice of
+        the new one would read as older than what had already been shown.
         """
         if self._path is None:
             return

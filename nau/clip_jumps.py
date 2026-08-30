@@ -4,11 +4,10 @@
 questions about one video; this drives the playlist from those answers, which is
 what Fun Time's "compilation" / "full video" / "clip jump" actually do.
 
-They lived as three closures inside the run loop, where nothing could reach them
-to test and the one piece of state they own had nowhere to live: playing a
-compilation replaces the whole playlist, so it is a place you can be *stuck* —
-unlike the other two, which move to one video and leave the playlist alone.  That
-is the state Nau's HUD reports, so it belongs with whatever puts you in it.
+Playing a compilation replaces the whole playlist, so it is a place you can be
+*stuck* — unlike the other two, which move to one video and leave the playlist
+alone.  That is the state Nau's HUD reports, so it lives here, with whatever
+puts you in it.
 """
 from __future__ import annotations
 

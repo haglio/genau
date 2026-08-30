@@ -368,12 +368,11 @@ def match_library(
     """
     metas = {entry.video: read_clip(entry.video, metadata_root) for entry in entries}
     # Every clip file is looked for in its own right. Evolver reads a version
-    # family off the name, so two different cuts saved as "X" and "X (2)" are one
-    # family — and searching for a family rather than a file meant only one
-    # member was ever hashed, leaving the other unfindable however exactly its
-    # frames sit in a scene. In this library that is what every multi-member clip
-    # family turned out to be, so the family saves the sweep almost nothing: 295
-    # clips in 286 of them.
+    # family off the name, so two different cuts saved as "X" and "X (2)" are
+    # one family — and searching for a family rather than a file hashes only one
+    # member, leaving the other unfindable however exactly its frames sit in a
+    # scene. Clip families are nearly all one member each, so grouping them
+    # would save the sweep almost nothing and cost the members it dropped.
     #
     # Scenes still group, by the narrower name-derived family rather than the
     # recorded one, which does not promise a shared timeline: unrelated scenes of

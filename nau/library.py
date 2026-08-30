@@ -66,9 +66,9 @@ def normalize_title(stem: str) -> str:
 
 
 # Evolver names an enhanced file by appending the models that made it, so
-# "scene_apo8_iris2" is "scene". normalize_title knows some of these as quality
-# tokens but not all — "apo8" slipped through, which made a scene and its own
-# upscale look like two different scenes and killed the match.
+# "scene_apo8_iris2" is "scene".  normalize_title knows some of these as quality
+# tokens but not all, and a suffix missing from both lists makes a scene and its
+# own upscale look like two different scenes.
 _PROCESSING_SUFFIXES = (
     "_topaz_cfr", "_topaz", "_gcg5", "_prob4", "_ghq5",
     "_iris3", "_iris2", "_apf2", "_apo8", "_enh",
