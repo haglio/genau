@@ -1377,6 +1377,9 @@ tests/test_nau_session.py::TestSpeed::test_set_speed_clamps_to_supported_range
 tests/test_nau_session.py::TestSpeed::test_set_speed_drives_player_and_resets_tcode
 tests/test_nau_session.py::TestSpeed::test_set_speed_same_value_is_noop
 tests/test_nau_session.py::TestSpeed::test_speed_defaults_to_normal
+tests/test_nau_session.py::TestTakingTheDeviceBack::test_a_locked_video_wrapping_to_its_own_start_takes_it_back
+tests/test_nau_session.py::TestTakingTheDeviceBack::test_leaving_a_loop_takes_it_back
+tests/test_nau_session.py::TestTakingTheDeviceBack::test_opening_another_video_takes_it_back
 tests/test_nau_session.py::TestVolume::test_set_volume_clamps_to_the_supported_range
 tests/test_nau_session.py::TestVolume::test_set_volume_drives_the_player
 tests/test_nau_session.py::TestVolume::test_volume_defaults_to_full
