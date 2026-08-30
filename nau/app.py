@@ -189,6 +189,33 @@ def _status_writer(args, drive_gate) -> StatusWriter | None:
         lambda session: status_fields(session, drive_gate.handoff_touch()))
 
 
+def _commands(session, stop_event, *, modes, jumps, funscript_jumps, volume,
+              display, take_up_playlist):
+    """Every collaborator a command from the orchestrator can reach, bound once.
+
+    Fun Time writes verbs into a file this player drains; which object answers
+    which verb is wiring, and wiring does not change from one frame to the
+    next, so it is said here rather than rebuilt around every command that
+    arrives.  Returns something to call with a command line.
+    """
+    return partial(
+        apply_command, session=session,
+        stop_event=stop_event,
+        reload_playlist=take_up_playlist,
+        toggle_length_mode=modes.toggle_length,
+        set_length_mode=modes.set_length,
+        play_compilation=jumps.play_compilation,
+        play_full_vid=jumps.play_full_vid,
+        play_clip_jump=jumps.play_clip_jump,
+        jump_to_funscript=funscript_jumps.jump_to_funscript,
+        next_funscripted=funscript_jumps.next_funscripted,
+        end_compilation=modes.end_compilation,
+        set_f_mode=modes.set_f_mode,
+        set_volume_hud=volume.set,
+        set_display=display.set_active,
+    )
+
+
 def _run(args) -> int:
     _set_aumid(args.config, args.taskbar_identity)
     screen = _open_window(args)
@@ -306,6 +333,11 @@ def _run(args) -> int:
     keys = Keys(session, modes, dashboard, stop_event)
     pointer = Pointer(session, heatmap, volume, console_hud, dashboard)
     window_input = Input(pointer, keys, dashboard, stop_event)
+    # What a verb from Fun Time reaches.  See nau.runtime for what each does.
+    commands = _commands(
+        session, stop_event, modes=modes, jumps=jumps,
+        funscript_jumps=funscript_jumps, volume=volume, display=display,
+        take_up_playlist=take_up_playlist)
     # Everything this window draws on top of the video, and the order it goes up
     # in.  See nau.painter.
     painter = Painter(
@@ -320,22 +352,7 @@ def _run(args) -> int:
             session.set_paused(read_paused_state(paused_file, logger=logger))
         if command_file is not None:
             for cmd in consume_command_file(command_file, logger=logger, uppercase=False):
-                apply_command(
-                    cmd, session,
-                    stop_event=stop_event,
-                    reload_playlist=take_up_playlist,
-                    toggle_length_mode=modes.toggle_length,
-                    set_length_mode=modes.set_length,
-                    play_compilation=jumps.play_compilation,
-                    play_full_vid=jumps.play_full_vid,
-                    play_clip_jump=jumps.play_clip_jump,
-                    jump_to_funscript=funscript_jumps.jump_to_funscript,
-                    next_funscripted=funscript_jumps.next_funscripted,
-                    end_compilation=modes.end_compilation,
-                    set_f_mode=modes.set_f_mode,
-                    set_volume_hud=volume.set,
-                    set_display=display.set_active,
-                )
+                commands(cmd)
 
         session.advance()
         if status_writer is not None:
