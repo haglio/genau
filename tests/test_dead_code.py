@@ -36,6 +36,12 @@ def test_no_dead_code():
 # in one module hides behind a real one in its neighbour.
 _DEAD_CODE_LINT_RULES = "F401,F811,F841"
 
+# ARG names the same class one level out: a parameter the body never reads.
+# Over the packages only -- the suite's fakes stand in for protocols and are
+# full of arguments they are right not to use -- and without ARG005, whose
+# every hit here is a `lambda _x: None` default callback doing its job.
+_DEAD_ARG_LINT_RULES = "ARG001,ARG002,ARG003,ARG004"
+
 
 # One finding is held open on purpose. tests/test_win32.py imports MagicMock
 # and does not yet use it: a parked bug-fix branch adds the two COM-apartment
@@ -60,6 +66,26 @@ def test_no_dead_imports_or_unread_locals():
     ]
 
     assert not reported, "ruff found dead code:\n" + "\n".join(reported)
+
+
+def test_no_function_takes_an_argument_it_never_reads():
+    """A signature that asks for something it does not use is a lie -- the same
+    defect the constructor scan below catches, one level out.
+
+    genau_vr's `apply_runtime_command` kept an `engine` after its last reader,
+    the OFFSET_QUARTER_CYCLE branch, turned out to be unreachable.
+    """
+    cmd = [
+        sys.executable, "-m", "ruff", "check",
+        "--select", _DEAD_ARG_LINT_RULES,
+        "--output-format", "concise",
+        *(str(d) for d in PACKAGE_DIRS),
+    ]
+    result = subprocess.run(cmd, cwd=_ROOT, capture_output=True, text=True)
+
+    assert result.returncode == 0, (
+        f"ruff found unread arguments:\n{result.stdout.strip()}\n{result.stderr.strip()}"
+    )
 
 
 def _tracked_python_files() -> list[Path]:

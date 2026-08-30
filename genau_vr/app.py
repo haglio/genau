@@ -422,7 +422,6 @@ def _run_loop(
         if command:
             apply_runtime_command(
                 command,
-                engine=engine,
                 rh_paused=rh_paused,
                 step_clip=step_clip,
                 direct_state=state,
