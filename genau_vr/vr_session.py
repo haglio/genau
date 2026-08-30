@@ -65,10 +65,6 @@ class VRSession:
         self._create_swapchains()
         self._create_framebuffer()
 
-    # ------------------------------------------------------------------
-    # Initialization
-    # ------------------------------------------------------------------
-
     def _init_glfw(self) -> None:
         if not glfw.init():
             raise RuntimeError("Failed to initialize GLFW")
@@ -240,10 +236,6 @@ class VRSession:
             self._depth_buffers.append(depth)
         GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, 0)
 
-    # ------------------------------------------------------------------
-    # Frame loop
-    # ------------------------------------------------------------------
-
     def poll_events(self) -> None:
         while True:
             try:
@@ -389,10 +381,6 @@ class VRSession:
                 layers=layers if views else [],
             ),
         )
-
-    # ------------------------------------------------------------------
-    # Cleanup
-    # ------------------------------------------------------------------
 
     def close(self) -> None:
         if self._session is not None:
