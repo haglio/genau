@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from genau.state import SharedState, udp_reader
+from genau.state import SharedState, apply_udp_line, udp_reader
 
 
 # ---------------------------------------------------------------------------
@@ -72,72 +72,117 @@ def _run_reader(state: SharedState, port: int) -> tuple[threading.Thread, thread
 # UDP message parsing
 # ---------------------------------------------------------------------------
 
-class TestUdpReader:
-    def _run_with_message(self, msg: str) -> SharedState:
-        state = SharedState()
-        port = _free_udp_port()
-        t, stop = _run_reader(state, port)
-        try:
-            _send(port, msg)
-            time.sleep(0.1)
-        finally:
-            stop.set()
-            t.join(timeout=1.0)
+class TestActingOnOneLine:
+    """The parsing, without a socket.
+
+    Thirteen of the fifteen slowest tests in the repo used to be these cases,
+    each binding a real port and sleeping for the datagram to arrive -- about
+    nine seconds, and the only wall-clock-dependent tests in the suite.  What
+    they were testing is a pure function.
+    """
+
+    @staticmethod
+    def _applied(line: str, state: SharedState | None = None) -> SharedState:
+        state = state if state is not None else SharedState()
+        apply_udp_line(state, line, logging.getLogger("test.udp_reader"))
         return state
 
     def test_auto_1_hands_the_room_to_the_broker(self):
-        state = self._run_with_message("AUTO 1")
-        assert state.auto_active is True
+        assert self._applied("AUTO 1").auto_active is True
 
     def test_auto_0_takes_the_room_back(self):
-        state = SharedState()
-        state.auto_active = True
-        port = _free_udp_port()
-        t, stop = _run_reader(state, port)
-        try:
-            _send(port, "AUTO 0")
-            time.sleep(0.1)
-        finally:
-            stop.set()
-            t.join(timeout=1.0)
-        assert state.auto_active is False
+        state = SharedState(auto_active=True)
+
+        assert self._applied("AUTO 0", state).auto_active is False
+
+    def test_any_other_payload_takes_the_room_back_too(self):
+        """The broker says 1 or 0; anything else is not an assertion that it
+        owns the room, and taking it back is the safe reading."""
+        state = SharedState(auto_active=True)
+
+        assert self._applied("AUTO yes", state).auto_active is False
 
     def test_bpm_parsed(self):
-        state = self._run_with_message("BPM 120.5")
-        assert state.raw_bpm == pytest.approx(120.5)
+        assert self._applied("BPM 120.5").raw_bpm == pytest.approx(120.5)
 
-    def test_bpm_invalid_does_not_crash(self):
-        state = self._run_with_message("BPM notanumber")
-        assert state.raw_bpm is None
+    def test_bpm_invalid_leaves_the_last_one_standing(self):
+        """A malformed payload is a lost datagram, not a reason to stop
+        following the beat the last good one named."""
+        state = SharedState(raw_bpm=120.0)
+
+        assert self._applied("BPM notanumber", state).raw_bpm == 120.0
+
+    def test_bpm_invalid_is_said_on_the_log(self, caplog):
+        with caplog.at_level("WARNING", logger="test.udp_reader"):
+            self._applied("BPM notanumber")
+
+        assert "notanumber" in caplog.text
 
     def test_sync_increments(self):
         state = SharedState()
-        port = _free_udp_port()
-        t, stop = _run_reader(state, port)
-        try:
-            _send(port, "SYNC")
-            time.sleep(0.05)
-            _send(port, "SYNC")
-            time.sleep(0.1)
-        finally:
-            stop.set()
-            t.join(timeout=1.0)
+
+        self._applied("SYNC", state)
+        self._applied("SYNC", state)
+
         assert state.sync_pulse_id == 2
+
+    def test_a_lower_case_verb_is_the_same_verb(self):
+        assert self._applied("auto 1").auto_active is True
 
     @pytest.mark.parametrize("line", [
         "SHOW", "HIDE", "BEATS 4", "STROKE twist", "PATTERN 2.5", "UNKNOWN payload",
+        "", "   ",
     ])
     def test_a_verb_genau_does_not_act_on_leaves_the_state_where_it_was(self, line):
         """The broker still sends SHOW, HIDE, BEATS, STROKE and PATTERN.
 
         Genau acts on AUTO, BPM and SYNC. The other five arrive and fall
-        through exactly as an unrecognised line does -- no crash, nothing
+        through exactly as an unrecognized line does -- no crash, nothing
         moved. Whether the broker should stop sending them is the broker's
         call, not this reader's.
         """
-        state = self._run_with_message(line)
+        state = self._applied(line)
 
         assert (state.auto_active, state.raw_bpm, state.sync_pulse_id) == (False, None, 0)
+
+    def test_the_state_is_moved_under_its_own_lock(self):
+        """The reader runs on its own thread and the tick reads the same three
+        fields; every other writer holds this lock."""
+        state = SharedState()
+        held: list[str] = []
+        original = state.lock
+
+        class _Recording:
+            def __enter__(self):
+                held.append("taken")
+                return original.__enter__()
+
+            def __exit__(self, *exc):
+                held.append("given back")
+                return original.__exit__(*exc)
+
+        state.lock = _Recording()
+        apply_udp_line(state, "SYNC", logging.getLogger("test.udp_reader"))
+
+        assert held == ["taken", "given back"]
+
+
+class TestTheSocketLoop:
+    """What is left needing a real port: that the wire reaches the parsing, and
+    that the bind gives the port time to free."""
+
+    def test_a_datagram_on_the_wire_reaches_the_state(self):
+        state = SharedState()
+        port = _free_udp_port()
+        t, stop = _run_reader(state, port)
+        try:
+            _send(port, "AUTO 1")
+            time.sleep(0.1)
+        finally:
+            stop.set()
+            t.join(timeout=1.0)
+
+        assert state.auto_active is True
 
     def test_stop_event_terminates_reader(self):
         state = SharedState()
