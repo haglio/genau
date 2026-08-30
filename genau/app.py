@@ -320,8 +320,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
         The rescan is half the point: clips arrive in that folder while a
         session runs, and this is the only way into the sequence short of
-        launching again.  The lock is deliberately left alone — it holds whatever is on screen, and
-        after this that is the head of the order just asked for.
+        launching again.  The lock is deliberately left alone — it holds
+        whatever is on screen, and after this that is the head of the order
+        just asked for.
 
         A folder that scanned to nothing keeps the sequence already loaded rather
         than taking Genau's picture away; :func:`scan_clips` says so by raising.
