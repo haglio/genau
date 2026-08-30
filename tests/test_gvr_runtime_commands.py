@@ -26,6 +26,7 @@ import pytest
 
 from genau_vr.cruise_control import CruiseControlState
 from genau_vr.playback import DirectControlState, PlaybackEngine, WaveformShape
+from genau_vr.controls import GenauVrControls
 from genau_vr.runtime_commands import apply_runtime_command
 from genau_vr.voice import VOICE_COMMANDS
 
@@ -102,15 +103,14 @@ class Runtime:
         it the same way.
         """
         with _nothing_logged() as unanswered:
-            apply_runtime_command(
-                command,
+            apply_runtime_command(command, GenauVrControls(
                 rh_paused=self.paused,
                 step_clip=self.stepper,
                 direct_state=self.direct if direct_state is ... else direct_state,
                 cruise_control_state=self.cruise,
                 stop_event=self.stop_event,
                 audio_player=self.audio,
-            )
+            ))
         return not unanswered
 
     def state(self) -> dict:
@@ -270,10 +270,10 @@ class TestWhatTheRuntimeWasNotGiven:
         runtime = Runtime()
 
         with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
-            apply_runtime_command(
-                verb, rh_paused=runtime.paused, step_clip=runtime.stepper,
+            apply_runtime_command(verb, GenauVrControls(
+                rh_paused=runtime.paused, step_clip=runtime.stepper,
                 direct_state=runtime.direct,
-            )
+            ))
 
         assert verb in caplog.text
         assert runtime.state()["stopping"] is False
@@ -331,8 +331,9 @@ def test_an_unknown_verb_is_named_on_the_log(caplog):
     runtime = Runtime()
 
     with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
-        apply_runtime_command("NOT_A_VERB", rh_paused=runtime.paused,
-                              step_clip=runtime.stepper, direct_state=runtime.direct)
+        apply_runtime_command("NOT_A_VERB", GenauVrControls(
+            rh_paused=runtime.paused, step_clip=runtime.stepper,
+            direct_state=runtime.direct))
 
     assert "NOT_A_VERB" in caplog.text
 
@@ -341,7 +342,8 @@ def test_a_verb_it_acts_on_says_nothing(caplog):
     runtime = Runtime()
 
     with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
-        apply_runtime_command("NEXT", rh_paused=runtime.paused,
-                              step_clip=runtime.stepper, direct_state=runtime.direct)
+        apply_runtime_command("NEXT", GenauVrControls(
+            rh_paused=runtime.paused, step_clip=runtime.stepper,
+            direct_state=runtime.direct))
 
     assert caplog.records == []

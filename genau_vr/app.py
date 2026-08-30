@@ -36,6 +36,7 @@ from .playback import (
     update_engine,
 )
 from .projection import fov_to_projection_matrix, pose_to_view_matrix
+from .controls import GenauVrControls
 from .runtime_commands import apply_runtime_command
 
 logger = logging.getLogger(__name__)
@@ -399,6 +400,17 @@ def _run_loop(
         engine.phase = 0.0
         audio.load_for_clip(new_path)
 
+    # Everything a command may move, built once rather than named six at a time
+    # on every line the channel carries.
+    controls = GenauVrControls(
+        rh_paused=rh_paused,
+        step_clip=step_clip,
+        direct_state=state,
+        cruise_control_state=cruise,
+        stop_event=stop_event,
+        audio_player=audio,
+    )
+
     while session.running and not stop_event.is_set():
         session.poll_events()
         if not session.running:
@@ -420,15 +432,7 @@ def _run_loop(
 
         command = _consume_command_file(cmd_file)
         if command:
-            apply_runtime_command(
-                command,
-                rh_paused=rh_paused,
-                step_clip=step_clip,
-                direct_state=state,
-                cruise_control_state=cruise,
-                stop_event=stop_event,
-                audio_player=audio,
-            )
+            apply_runtime_command(command, controls)
 
         tick_cruise_control(state, cruise, now)
 

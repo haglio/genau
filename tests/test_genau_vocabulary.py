@@ -174,6 +174,7 @@ GVR_NOT_VERBS: dict[str, str] = {
     "CSV": "genau_vr/vr_runtime.py — an OpenXR structure-type suffix",
     "L0": "genau_vr/playback.py — the T-Code axis",
     "I": "genau_vr/playback.py — the T-Code interval suffix",
+    "I": "genau_vr/playback.py — the T-Code interval suffix",
 }
 
 # Genau answers to fourteen verbs GenauVR does not: it has a clip folder to
@@ -286,6 +287,7 @@ def _genau_answers(line: str) -> bool:
 
 def _gvr_answers(line: str) -> bool:
     """Send one line to a GenauVR dispatcher with every collaborator wired."""
+    from genau_vr.controls import GenauVrControls
     from genau_vr.cruise_control import CruiseControlState
     from genau_vr.playback import DirectControlState
     from genau_vr.runtime_commands import apply_runtime_command
@@ -297,15 +299,14 @@ def _gvr_answers(line: str) -> bool:
             self.volume += delta
 
     with _unanswered("genau_vr.runtime_commands") as refused:
-        apply_runtime_command(
-            line,
+        apply_runtime_command(line, GenauVrControls(
             rh_paused={"value": False},
             step_clip=lambda _step: None,
             direct_state=DirectControlState(playing=True, speed=50, amplitude=60, center=40),
             cruise_control_state=CruiseControlState(),
             stop_event=threading.Event(),
             audio_player=_Audio(),
-        )
+        ))
     return not refused
 
 
