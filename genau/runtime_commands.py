@@ -61,8 +61,7 @@ def apply_runtime_command(
     # The two browse orders every player in the room has, said to the one player
     # with no playlist file to hand it: Genau owns its own sequence, so the order
     # is a verb rather than a rewritten list, and answering it rescans the clips
-    # folder — which is most of what Latest is for, since a clip that arrived
-    # after launch was in no sequence at all until now.
+    # folder — which is most of what Latest is for.
     elif normalized in ("LATEST", "SHUFFLE") and reorder_clips is not None:
         reorder_clips(normalized == "LATEST")
     elif normalized == QUARTER_CYCLE_OFFSET_COMMAND:

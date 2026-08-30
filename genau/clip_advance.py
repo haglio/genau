@@ -6,10 +6,8 @@ next one arrives.  That "while" is the interval here.  The lock is the same lock
 every player in this family has — repeat-one on what is on screen — and it is on
 by default, because a held clip is what Genau has always opened on.
 
-There is no separate "auto advance" switch any more: advancing is simply what an
-unlocked Genau does, and the interval is how fast.  The pair used to be two
-controls that could disagree (armed but held, held but disarmed), and on the
-main console they sat next to the lock of the player sharing the slot.
+There is no separate "auto advance" switch: advancing is simply what an unlocked
+Genau does, and the interval is how fast.
 """
 from __future__ import annotations
 

@@ -318,9 +318,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     def _reorder_clips(recent: bool) -> None:
         """Rescan the clips folder and browse it newest-first, or reshuffled.
 
-        The rescan is half the point: clips arrive in that folder while a session
-        runs, and until now the only way into the sequence was to launch again.
-        The lock is deliberately left alone — it holds whatever is on screen, and
+        The rescan is half the point: clips arrive in that folder while a
+        session runs, and this is the only way into the sequence short of
+        launching again.  The lock is deliberately left alone — it holds whatever is on screen, and
         after this that is the head of the order just asked for.
 
         A folder that scanned to nothing keeps the sequence already loaded rather
@@ -363,8 +363,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
         # Named by whoever launched us when there is one: standalone this is our
         # own state dir, but under Fun Time the reader is Nau, which is told the
-        # path by Fun Time — and Genau resolving its own put the readout in a
-        # directory nobody was watching, so Hybrid drew no readout at all.
+        # path by Fun Time and must be told the same one.
         drive_file=Path(args.drive_file) if args.drive_file else config.genau_drive_file,
         console_file=Path(args.console_file) if args.console_file else None,
         set_console=view.set_console,
