@@ -17,7 +17,14 @@ from pathlib import Path
 
 import pytest
 
-from tools.inventory import changes, child_env, collect_ids, ids_in, missing_from
+from tools.inventory import (
+    changes,
+    child_env,
+    collect_ids,
+    ids_in,
+    is_one_of_this_repos_tests,
+    missing_from,
+)
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 INVENTORY = REPO_DIR / "tests" / "inventory.txt"
@@ -29,6 +36,38 @@ class TestReadingTheInventory:
 
     def test_it_ignores_blank_lines_and_comments(self):
         assert ids_in("# a census\n\na::b\n\n") == {"a::b"}
+
+
+class TestWhichCollectedIdsAreThisRepos:
+    """A plugin may hand the session a test module from outside this tree.
+
+    ``app_support.sanitize.pytest_plugin`` does exactly that -- it appends the
+    shipped tracked-tree check -- and pytest reports a file outside the rootdir
+    by absolute path. Writing one of those into the census would pin the file to
+    wherever this machine happens to have installed the package, and every other
+    machine would then report it missing.
+    """
+
+    def test_an_id_inside_the_tree_counts(self):
+        assert is_one_of_this_repos_tests("tests/test_inventory.py::test_it")
+
+    def test_an_absolute_posix_id_does_not(self):
+        assert not is_one_of_this_repos_tests(
+            "/venv/lib/app_support/sanitize/test_tracked_tree.py::test_it")
+
+    def test_an_absolute_windows_id_does_not(self):
+        """windows-latest is the authority here, and it reports the other shape."""
+        assert not is_one_of_this_repos_tests(
+            "C:\\hostedtoolcache\\app_support\\sanitize\\test_tracked_tree.py::test_it")
+
+    def test_an_id_with_no_path_at_all_does_not(self):
+        """What pytest actually prints for the shipped check on this machine --
+        the whole path is gone and only the test name is left."""
+        assert not is_one_of_this_repos_tests("::test_no_blocklisted_terms_in_the_tracked_tree")
+
+    def test_an_id_that_walks_up_out_of_the_tree_does_not(self):
+        assert not is_one_of_this_repos_tests(
+            "../app_support/app_support/sanitize/test_tracked_tree.py::test_it")
 
 
 class TestComparingAgainstWhatWasCollected:

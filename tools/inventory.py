@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 
 INVENTORY_RELATIVE_PATH = Path("tests") / "inventory.txt"
@@ -57,6 +57,31 @@ def changes(inventory: set[str], collected: set[str]) -> tuple[list[str], list[s
     return sorted(collected - inventory), sorted(inventory - collected)
 
 
+def is_one_of_this_repos_tests(node_id: str) -> bool:
+    """Whether a collected node id names a file inside the tree under test.
+
+    A pytest plugin may add a test module from outside it:
+    ``app_support.sanitize.pytest_plugin`` appends the shipped tracked-tree
+    check. Where that file sits is a property of how the package was installed,
+    so an id naming it belongs to the machine rather than to this suite --
+    written into the census it would be missing on every other machine,
+    including the runner.
+
+    Three shapes are refused, because pytest spells "outside the rootdir"
+    differently depending on where outside it is. Measured on this machine, the
+    shipped check comes back as ``::test_name`` with no path at all; a file on
+    another drive or reached by walking up comes back absolute, or relative with
+    a leading ``..``. Absolute is tested both ways: the census is generated here
+    and read on windows-latest.
+    """
+    path = node_id.split("::", 1)[0]
+    if not path:
+        return False
+    if PurePosixPath(path).is_absolute() or PureWindowsPath(path).is_absolute():
+        return False
+    return ".." not in PureWindowsPath(path).parts
+
+
 #: Environment this process may be carrying that would make the child answer
 #: about something narrower than the whole suite, or resolve differently from
 #: the way the gate resolves.
@@ -93,4 +118,7 @@ def collect_ids(repo_dir: Path) -> set[str]:
             f"collecting {repo_dir} exited {result.returncode}; the inventory cannot be "
             f"compared against a run that did not finish collecting:\n{result.stdout[-2000:]}"
         )
-    return {line.strip() for line in result.stdout.splitlines() if "::" in line}
+    return {
+        line.strip() for line in result.stdout.splitlines()
+        if "::" in line and is_one_of_this_repos_tests(line.strip())
+    }
