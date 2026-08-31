@@ -24,10 +24,9 @@ def _press(control: Control, verb: Verb, controls: GenauControls):
 def keymap(controls: GenauControls, **window_keys):
     """Every key Genau's window answers to.
 
-    Twelve come from the registry, where they sit beside the verb that means the
-    same thing.  The rest are the window's own -- play/pause and the cruise
-    toggle -- and are passed in, because what they do depends on who launched
-    this Genau and on a state the registry has no verb for.
+    Thirteen come from the registry, where they sit beside the verb that means
+    the same thing.  The rest are the window's own play/pause pair, passed in
+    because what they do depends on who launched this Genau.
     """
     bound = {getattr(pygame, name): _press(control, verb, controls)
              for name, (control, verb) in KEYS.items()}
@@ -50,7 +49,6 @@ class GenauLifecycleController:
         resize_delay_ms: int,
         on_toggle_playing,
         on_pause_playing,
-        on_toggle_cruise,
         console_pointer,
         dashboard_cmd_file=None,
         now_source=time.monotonic,
@@ -62,17 +60,14 @@ class GenauLifecycleController:
         self.now_source = now_source
         self.dashboard_cmd_file = dashboard_cmd_file
         self.console_pointer = console_pointer
-        # ESC and SPACE are two spellings of one thing with two rules: ESC plays
-        # or pauses outright, SPACE only pauses under an orchestrator that owns
-        # the resume.  Neither has a verb, so neither is in the registry.  The
-        # `/` key is in the registry's cruise control but wired here, because it
-        # does not hand the phase back the way TOGGLE_CRUISE does -- see
-        # CHANGELOG.md, 2026-08-30.
+        # The only two keys the registry cannot hold: ESC and SPACE are two
+        # spellings of one thing with two rules -- ESC plays or pauses outright,
+        # SPACE only pauses under an orchestrator that owns the resume -- and
+        # neither has a verb for a control to declare.
         self.keys = keymap(
             controls,
             K_ESCAPE=on_toggle_playing,
             K_SPACE=on_pause_playing,
-            K_SLASH=on_toggle_cruise,
         )
         self._resize_pending_at: float | None = None
 

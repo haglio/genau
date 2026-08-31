@@ -85,7 +85,6 @@ def _build_controller(**overrides):
     window_keys = {
         "on_toggle_playing": lambda: None,
         "on_pause_playing": lambda: None,
-        "on_toggle_cruise": lambda: None,
     }
     window_keys.update({k: v for k, v in overrides.items() if k in window_keys})
     clock = overrides.get("now_source") or FakeClock()
@@ -124,10 +123,10 @@ class TestTheMapIsTheRegistrys:
         for name in KEYS:
             assert isinstance(getattr(pygame, name, None), int), name
 
-    def test_the_windows_own_three_are_in_it_too(self):
+    def test_the_windows_own_two_are_in_it_too(self):
         controller, *_ = _build_controller()
 
-        for key in (pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_SLASH):
+        for key in (pygame.K_ESCAPE, pygame.K_SPACE):
             assert key in controller.keys
 
     def test_the_map_holds_those_and_nothing_else(self):
@@ -135,7 +134,7 @@ class TestTheMapIsTheRegistrys:
 
         assert set(controller.keys) == (
             {getattr(pygame, name) for name in KEYS}
-            | {pygame.K_ESCAPE, pygame.K_SPACE, pygame.K_SLASH}
+            | {pygame.K_ESCAPE, pygame.K_SPACE}
         )
 
     def test_a_key_no_control_claims_is_ignored_rather_than_an_error(self):

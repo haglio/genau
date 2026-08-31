@@ -16,7 +16,7 @@ from app_support.logging_utils import (
     install_exception_logging,
 )
 from app_support.threading_utils import start_daemon_thread
-from player_core.cruise_control import CruiseControlState, toggle_cruise_control
+from player_core.cruise_control import CruiseControlState
 from player_core.direct_control import (
     DirectControlState,
     bpm_for_speed,
@@ -461,7 +461,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         dashboard_cmd_file=dashboard_cmd_file,
         on_toggle_playing=lambda: toggle_playing(drive.direct_state),
         on_pause_playing=lambda: space_action(drive.direct_state, pause_only=args.fun_time),
-        on_toggle_cruise=lambda: toggle_cruise_control(drive.cruise_control),
         console_pointer=ConsolePointer(view, dashboard_cmd_file),
     )
 

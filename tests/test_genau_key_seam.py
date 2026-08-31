@@ -119,7 +119,6 @@ def _build(keys: Keys) -> GenauLifecycleController:
 
     ``pause_only`` is False here, which is Genau standalone.
     """
-    from player_core.cruise_control import toggle_cruise_control
     from player_core.direct_control import space_action, toggle_playing
 
     return GenauLifecycleController(
@@ -130,7 +129,6 @@ def _build(keys: Keys) -> GenauLifecycleController:
         resize_delay_ms=75,
         on_toggle_playing=lambda: toggle_playing(keys.direct),
         on_pause_playing=lambda: space_action(keys.direct, pause_only=False),
-        on_toggle_cruise=lambda: toggle_cruise_control(keys.cruise),
         console_pointer=FakePointer(),
     )
 
@@ -250,6 +248,7 @@ class TestAKeyAndItsVerbAgree:
         "K_u": "CENTER_DOWN",
         "K_o": "CENTER_UP",
         "K_i": "CYCLE_SHAPE",
+        "K_SLASH": "TOGGLE_CRUISE",
     }
 
     @pytest.mark.parametrize("key, verb", sorted(SAME.items()))
@@ -265,32 +264,45 @@ class TestAKeyAndItsVerbAgree:
 
         assert pressed[0] == rows[0]
 
-    def test_the_slash_key_and_toggle_cruise_do_not_yet_agree(self):
-        """The one that drifted, written down rather than fixed here.
+    def test_the_slash_key_hands_the_phase_back_the_way_its_verb_does(self):
+        """The one that had drifted.
 
-        TOGGLE_CRUISE hands the phase of the wave the device was following back
-        to the sender, so the single stroke picks up where cruise control left
-        it.  The `/` key discards that phase, so the stroke resumes on its own
-        free-running one and the hand jumps.  Both reach the same
-        toggle_cruise_control; only one reads what it returns.
-
-        Held rather than fixed because this item is behavior-preserving -- see
-        CHANGELOG.md, 2026-08-30 -- and the fix is to give the key the verb.
+        Letting go of cruise control hands the single stroke the phase of the
+        wave the device was mostly following, so it picks up where the stack
+        left it.  The key used to discard that phase -- both reach the same
+        toggle_cruise_control, and only the verb read what it returns -- so the
+        same gesture jumped the hand from the window and did not from the
+        orchestrator.
         """
         from genau.runtime_commands import apply_runtime_command
 
-        handed_back: list[float] = []
+        by_key: list[float] = []
         keys = Keys(cruise=True)
         keys.cruise.stack = _a_stack_the_device_was_following()
+        keys.controls.set_stroke_phase = by_key.append
+
+        keys.press(pygame.K_SLASH)
+
+        assert keys.cruise.active is False
+        assert by_key == [0.375]
+
+        by_verb: list[float] = []
+        keys.cruise.active = True
+        keys.cruise.stack = _a_stack_the_device_was_following()
+        keys.controls.set_stroke_phase = by_verb.append
+        apply_runtime_command("TOGGLE_CRUISE", keys.controls)
+
+        assert by_verb == by_key
+
+    def test_taking_cruise_control_over_with_the_key_hands_nothing_back(self):
+        """The other direction: there is no wave to pick up from, and a phase
+        handed over on the way *in* would move a stroke that is about to be
+        replaced."""
+        handed_back: list[float] = []
+        keys = Keys()
         keys.controls.set_stroke_phase = handed_back.append
 
         keys.press(pygame.K_SLASH)
 
-        assert keys.cruise.active is False, "the key did turn cruise control off"
-        assert handed_back == [], "the key discards the phase"
-
-        keys.cruise.active = True
-        keys.cruise.stack = _a_stack_the_device_was_following()
-        apply_runtime_command("TOGGLE_CRUISE", keys.controls)
-
-        assert handed_back == [0.375], "the verb hands it to the sender"
+        assert keys.cruise.active is True
+        assert handed_back == []

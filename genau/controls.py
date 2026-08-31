@@ -294,7 +294,7 @@ CONTROLS: tuple[Control, ...] = (
         name="cruise",
         needs=("cruise_control_state",),
         verbs=(
-            Verb("TOGGLE_CRUISE", _cruise_toggled),
+            Verb("TOGGLE_CRUISE", _cruise_toggled, key="K_SLASH"),
             Verb("CRUISE_ON", _cruise_on),
             Verb("CRUISE_OFF", _cruise_off),
         ),

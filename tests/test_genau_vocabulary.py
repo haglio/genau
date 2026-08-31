@@ -98,9 +98,8 @@ GENAU_NOT_VERBS: dict[str, str] = {
     "T": "genau/cache_utils.py — an ISO-8601 date separator",
 }
 
-# The keys Genau's own window answers to, and the verb each one means.  Twelve
-# of the sixteen: ESC, SPACE, `/` and Ctrl+Q are the window's own and have no
-# verb (the `/` divergence is in CHANGELOG.md, 2026-08-30).
+# The keys Genau's own window answers to, and the verb each one means.  Thirteen
+# of the sixteen: ESC, SPACE and Ctrl+Q are the window's own and have no verb.
 #
 # Laid out like the arrow keys for the clip cluster: K above for "condemn this
 # one", M and . either side for previous and next, and , below K for the lock.
@@ -117,6 +116,7 @@ GENAU_KEYS: dict[str, str] = {
     "K_k": "WEIRD",
     "K_COMMA": "TOGGLE_LOCK",
     "K_BACKSLASH": "OFFSET_QUARTER_CYCLE",
+    "K_SLASH": "TOGGLE_CRUISE",
 }
 
 # Spellings that must stay refused.  Two were aliases no sender in the family
@@ -432,13 +432,11 @@ class TestHowManyFilesAControlIsSpreadOver:
 
         assert set(_scan("genau")[1]) == set(KEYS)
 
-    def test_the_window_keeps_exactly_the_three_keys_that_have_no_verb(self):
-        """The registry is where a key goes.  Three cannot be there: ESC and
-        SPACE are two spellings of play/pause with two rules and no verb between
-        them, and `/` is held out because it does not hand the cruise phase back
-        the way TOGGLE_CRUISE does (CHANGELOG.md, 2026-08-30).  Anything else
-        added beside them is a key plumbed by hand again, which is what this
-        item removed -- so the set is held as an equality.
+    def test_the_window_keeps_exactly_the_two_keys_that_have_no_verb(self):
+        """The registry is where a key goes.  Two cannot be there: ESC and SPACE
+        are two spellings of play/pause with two rules and no verb between them.
+        Anything else added beside them is a key plumbed by hand again, which is
+        what this item removed -- so the set is held as an equality.
         """
         lifecycle = REPO_DIR / "genau" / "lifecycle.py"
         tree = ast.parse(lifecycle.read_text(encoding="utf-8"), filename=str(lifecycle))
@@ -446,8 +444,7 @@ class TestHowManyFilesAControlIsSpreadOver:
                  if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "keymap"]
 
         assert len(calls) == 1, "the window builds its keymap in one place"
-        assert {kw.arg for kw in calls[0].keywords} == {
-            "K_ESCAPE", "K_SPACE", "K_SLASH"}
+        assert {kw.arg for kw in calls[0].keywords} == {"K_ESCAPE", "K_SPACE"}
 
 
 class TestTheTwoDispatchersDivergeOnlyWhereSaid:
