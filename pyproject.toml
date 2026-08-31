@@ -56,5 +56,5 @@ include = ["genau*", "nau*", "genau_vr*"]
 # for itself: it dumps the hung stack, which turns a stalled required check
 # into a one-line diagnosis. tests/test_timeouts.py holds all three halves of
 # it.
-addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread"
+addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin"
 testpaths = ["tests"]
