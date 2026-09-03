@@ -42,7 +42,7 @@ class ModeMemory:
         self._written: RememberedMode | None = None
 
     def read(self) -> RememberedMode:
-        """What was remembered, with anything unrecognised left empty.
+        """What was remembered, with anything unrecognized left empty.
 
         A length mode this build no longer knows reads as nothing: the file
         outlives the code that wrote it, and a mode the library cannot filter by

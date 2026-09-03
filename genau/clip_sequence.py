@@ -65,7 +65,7 @@ class ClipSequenceController:
         self._index = (self._index + delta) % len(self._clips)
         return self.current_path
 
-    def drop_current(self) -> Path | None:
+    def remove_current(self) -> Path | None:
         """Remove the current clip and return whichever one takes its place.
 
         Returns None — and keeps the clip — when it is the only one left,

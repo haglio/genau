@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -25,22 +26,14 @@ HUD_COLOR_KEY = (1, 0, 1)
 
 
 def get_window_chrome_height() -> int:
-    """The title bar + frame a bordered window costs at the top, so the client
-    area can be sized down to keep the video inside the rect.  Zero off Windows,
-    and zero for a borderless window, which has no chrome to measure."""
-    try:
-        import ctypes
-        SM_CYCAPTION = 4
-        SM_CYFRAME = 33
-        SM_CXPADDEDBORDER = 92
-        user32 = ctypes.windll.user32
-        return (
-            user32.GetSystemMetrics(SM_CYCAPTION)
-            + user32.GetSystemMetrics(SM_CYFRAME)
-            + user32.GetSystemMetrics(SM_CXPADDEDBORDER)
-        )
-    except Exception:
-        return 0
+    """What a bordered window costs at the top — see genau.win32.
+
+    Kept here as the name Nau and this view both already reach for; the
+    measuring itself is Win32's and lives with the rest of it.
+    """
+    from .win32 import window_chrome_height
+
+    return window_chrome_height()
 
 
 def hud_window_identity(
@@ -56,6 +49,37 @@ def hud_window_identity(
     if active and hybrid_title is not None:
         return hybrid_title, hybrid_icon if hybrid_icon is not None else base_icon
     return base_title, base_icon
+
+
+@dataclass(frozen=True)
+class VolumePress:
+    """What a press on the volume chip asks for, and what to show meanwhile.
+
+    Fun Time holds the authority over the level and its answer is a tick away,
+    so a slider that waited for it would drag a frame behind the pointer.  The
+    chip shows this at once; Fun Time's answer overwrites it either way, which
+    is what corrects a press it decides to ignore.
+    """
+
+    command: str
+    level: int
+    muted: bool
+
+
+def _layered_window(title: str):
+    """This window's transparency, or None where there is no Win32 to ask.
+
+    genau.win32 imports on any platform (it binds its DLLs through a loader that
+    says so rather than raising), but there is nothing to find off Windows, so
+    the view carries no transparency at all rather than one that refuses.
+    """
+    from .win32_loader import WIN32_AVAILABLE
+
+    if not WIN32_AVAILABLE:
+        return None
+    from .win32 import LayeredWindow
+
+    return LayeredWindow(title, HUD_COLOR_KEY)
 
 
 def load_window_icon(window: Window, icon_path: Path | None) -> None:
@@ -111,6 +135,10 @@ class PygameView:
         # own icon; genau mode is plain "Genau".  Driven off the HUD toggle.
         self._base_title = title
         self._base_icon_path = icon_path
+        # Taken while the caption is still the one the window was made with, and
+        # held: the HUD renames this window, and a handle looked up afterwards
+        # would be a handle found by a caption that had just changed.
+        self._layered = _layered_window(title)
         self._hybrid_title = hybrid_title
         self._hybrid_icon_path = hybrid_icon_path
         self.renderer = Renderer(self.window, accelerated=True)
@@ -177,26 +205,30 @@ class PygameView:
         """Show the level Fun Time is publishing for the primary display."""
         self._volume = VolumeHud(volume=level, muted=muted)
 
-    def press_volume_at(self, mx: int, my: int) -> str:
-        """The command a press at ``(mx, my)`` posts on the volume chip, "" over none.
+    def volume_press_at(self, mx: int, my: int) -> VolumePress | None:
+        """What a press at ``(mx, my)`` on the volume chip asks for, or None
+        over no part of it.
 
-        The new level is shown at once and asked for at the same time: Fun Time
-        holds the authority and its answer is a tick away, so a slider that waited
-        for it would drag a frame behind the pointer.  Its answer overwrites this
-        one either way, which is what corrects a press it decides to ignore.
+        A question, not a move: it says what to ask Fun Time for *and* what the
+        chip should show meanwhile, and the caller does both.  Showing it here
+        made a hit test that also mutated, which is why nothing could ask what a
+        press would do without it having already happened.
         """
         win_w, win_h = self.window.size
         cx, cy = chip_local(mx, my, win_w=win_w, win_h=win_h, timeline_h=0)
         part = hit_part(cx, cy)
         if part == "mute":
             muted = not self._volume.muted
-            self._volume = VolumeHud(volume=self._volume.volume, muted=muted)
-            return "audio_mute" if muted else "audio_unmute"
+            return VolumePress(
+                command="audio_mute" if muted else "audio_unmute",
+                level=self._volume.volume,
+                muted=muted,
+            )
         if part == "track":
             level = volume_at(cx)
-            self._volume = VolumeHud(volume=level, muted=False)
-            return f"audio_set_volume|{level}"
-        return ""
+            return VolumePress(
+                command=f"audio_set_volume|{level}", level=level, muted=False)
+        return None
 
     def set_console_hover(self, mx: int, my: int) -> None:
         """Remember where the cursor is over the console, so a button under it
@@ -206,7 +238,7 @@ class PygameView:
     def set_blank(self, blank: bool) -> None:
         self._blank = blank
 
-    def display_frame(self, frame: np.ndarray) -> None:
+    def blit_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
         self._video_size = (w, h)
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
@@ -302,60 +334,12 @@ class PygameView:
             hybrid_title=self._hybrid_title,
             hybrid_icon=self._hybrid_icon_path,
         )
-        # Set the title BEFORE _apply_layered_window: the HUD transparency finds
-        # this window by its live title, so it must already be the new one.
         self.window.title = title
         load_window_icon(self.window, icon)
-        self._apply_layered_window(active)
-
-    def _find_hwnd(self) -> int:
-        """Find this window's HWND via Win32 FindWindowW.
-
-        pygame.display.get_wm_info() only works with pygame.display windows,
-        not pygame._sdl2.video.Window objects.
-        """
-        import ctypes
-        hwnd = ctypes.windll.user32.FindWindowW(None, self.window.title)
-        return hwnd
-
-    def _apply_layered_window(self, enable: bool) -> None:
-        """Toggle Win32 layered-window color key transparency.
-
-        When enabled, pixels matching HUD_COLOR_KEY (1, 0, 1) become fully
-        transparent, letting Nau's video window beneath show through.
-        """
-        import ctypes
-        import logging
-
-        logger = logging.getLogger(__name__)
-        hwnd = self._find_hwnd()
-        if not hwnd:
-            logger.warning("HUD: could not find window HWND for title %r", self.window.title)
-            return
-
-        GWL_EXSTYLE = -20
-        WS_EX_LAYERED = 0x80000
-        style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        if enable:
-            ctypes.windll.user32.SetWindowLongW(
-                hwnd, GWL_EXSTYLE, style | WS_EX_LAYERED,
-            )
-            LWA_COLORKEY = 0x1
-            # Win32 COLORREF is 0x00BBGGRR
-            colorkey = HUD_COLOR_KEY[0] | (HUD_COLOR_KEY[1] << 8) | (HUD_COLOR_KEY[2] << 16)
-            result = ctypes.windll.user32.SetLayeredWindowAttributes(
-                hwnd, colorkey, 0, LWA_COLORKEY,
-            )
-            if not result:
-                logger.warning("HUD: SetLayeredWindowAttributes failed (error %d)",
-                               ctypes.windll.kernel32.GetLastError())
-            else:
-                logger.info("HUD: layered window enabled (hwnd=%#x, colorkey=%#08x)", hwnd, colorkey)
-        else:
-            ctypes.windll.user32.SetWindowLongW(
-                hwnd, GWL_EXSTYLE, style & ~WS_EX_LAYERED,
-            )
-            logger.info("HUD: layered window disabled")
+        # Order-free now: the transparency holds the handle it took when the
+        # window was made, so the rename above cannot reach it.
+        if self._layered is not None:
+            self._layered.set_transparent(active)
 
     def destroy(self) -> None:
         self._current_texture = None

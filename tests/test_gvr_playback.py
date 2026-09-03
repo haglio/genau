@@ -80,11 +80,11 @@ class TestDirectControlState:
         assert state.center == 50
 
 
-class TestTheCentreTheSwingIsBuiltAround:
-    """The centre asked for and the centre reachable are two things: a swing
-    cannot be centred somewhere its own travel would take it off either end."""
+class TestTheCenterTheSwingIsBuiltAround:
+    """The center asked for and the center reachable are two things: a swing
+    cannot be centered somewhere its own travel would take it off either end."""
 
-    def test_a_full_swing_can_only_be_centred_in_the_middle(self):
+    def test_a_full_swing_can_only_be_centered_in_the_middle(self):
         state = DirectControlState(amplitude=100, intended_center=20)
 
         assert state.center == 50
@@ -97,9 +97,9 @@ class TestTheCentreTheSwingIsBuiltAround:
 
         assert state.center == reachable
 
-    def test_widening_the_swing_pulls_the_centre_back_in(self):
-        """The clamp is re-run on every change, not only on the centre's own:
-        without that, widening around a raised centre swings off the top."""
+    def test_widening_the_swing_pulls_the_center_back_in(self):
+        """The clamp is re-run on every change, not only on the center's own:
+        without that, widening around a raised center swings off the top."""
         state = DirectControlState(amplitude=40, intended_center=80)
 
         set_amplitude(state, 100)
@@ -145,13 +145,13 @@ class TestPhaseToPosition:
         assert phase_to_position(0.0, amplitude=50) == 2500
         assert phase_to_position(0.5, amplitude=50) == 7499
 
-    def test_a_raised_centre_lifts_both_ends(self):
+    def test_a_raised_center_lifts_both_ends(self):
         assert phase_to_position(0.0, amplitude=40, center=70) == 4999
         assert phase_to_position(0.5, amplitude=40, center=70) == 8999
 
 
 class TestEachWaveformShape:
-    """Every shape at the phases that tell it apart from its neighbours.
+    """Every shape at the phases that tell it apart from its neighbors.
 
     All four rise from the floor at phase 0 and all four reach the top at their
     own peak, so the ends alone say nothing: the quarter and three-quarter
@@ -171,12 +171,12 @@ class TestEachWaveformShape:
     @pytest.mark.parametrize("shape, positions", sorted(SHAPES.items(), key=lambda kv: kv[0].value),
                              ids=[s.name for s in sorted(SHAPES, key=lambda s: s.value)])
     def test_the_swing_travels_the_way_this_shape_says(self, shape, positions):
-        travelled = [phase_to_position(phase, shape=shape) for phase in self.PHASES]
+        traveled = [phase_to_position(phase, shape=shape) for phase in self.PHASES]
 
-        assert travelled == positions
+        assert traveled == positions
 
     def test_no_two_shapes_travel_the_same_way(self):
-        """A shape wired to its neighbour's branch would otherwise be a rename
+        """A shape wired to its neighbor's branch would otherwise be a rename
         away from passing every row above."""
         assert len({tuple(row) for row in self.SHAPES.values()}) == len(self.SHAPES)
 

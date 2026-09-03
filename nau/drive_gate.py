@@ -15,7 +15,7 @@ and the wall clock to part company.
 handed over at, and it describes the last handoff GENAU made — which, across a
 video change while it sits paused, is a handoff from some other video's stroke.
 A descent drawn from that height tops a ramp the device never made here.  So it
-is honoured only once Genau has been seen live (``let_go`` unset) within the
+is honored only once Genau has been seen live (``let_go`` unset) within the
 current video; until then the descent tops off the parked publish instead, which
 is where the device really is.
 

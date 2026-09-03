@@ -7,7 +7,7 @@ The line is four things in a row, and nothing else:
     whatever the funscript is doing
     a ramp back up to where Genau's stroke begins
 
-Green is the script scripting, blue is Genau stroking, grey is a ramp or the
+Green is the script scripting, blue is Genau stroking, gray is a ramp or the
 rest between them — nobody drives through those, the device is being handed
 over.
 
@@ -70,9 +70,9 @@ _TOUCH_LAG_MS = 350
 # The blue's final approach to its seam eases onto the seam's own value over
 # this long.  The live blue breathes a hair with every publish (the read's age
 # varies by a beat), which is invisible mid-wave — the whole line breathes
-# together — but at the seam the latched grey amplifies it into a tiny
+# together — but at the seam the latched gray amplifies it into a tiny
 # indecision about where the join sits.  Feathered onto the latched value, the
-# seam's neighbourhood converges to a constant and cannot flicker, at the cost
+# seam's neighborhood converges to a constant and cannot flicker, at the cost
 # of a few percent of bend across the last two or three columns.
 _SEAM_FEATHER_MS = 300
 
@@ -176,7 +176,7 @@ def drive_readout(
         opened at *began* (None: held since before the video).
 
         The stretch is the CALLER's to name, because the blue is read in two
-        places with different neighbours: its own resting samples, and the
+        places with different neighbors: its own resting samples, and the
         extension past a park-floored boundary, whose samples sit inside the
         SCRIPT's turn — resolved from the sample itself, those picked up the
         script turn's bounds and re-anchored the live wave as if it were a
@@ -198,7 +198,7 @@ def drive_readout(
         (plus the arbiter's lag window), for the stretch that opened at *began*.
 
         Only a stroke whose floor rests ON the park has one — that is the case
-        with no ramp: the blue swings on to this touch and the grey runs flat
+        with no ramp: the blue swings on to this touch and the gray runs flat
         from there, exactly where the arbiter sets the device down.  None means
         the ramp case (a raised floor, or a stroke too slow to come down inside
         the shared cap).  A touch beyond the published horizon reads as a cut
@@ -223,7 +223,7 @@ def drive_readout(
         touch-down)``.
 
         With a touch-down, there is no ramp — the blue runs to the touch and
-        the grey is flat.  Without one, the grey ramps down from the top: the
+        the gray is flat.  Without one, the gray ramps down from the top: the
         published ``let_go`` once the handoff has happened, the drawn blue's
         own boundary value before it.  The choice stays LIVE while the
         boundary is far — a forecast off a projection that drifts — and is
@@ -294,7 +294,7 @@ def drive_readout(
             return value, DRIVEN_BY_GENAU
         # The script's stretch — opening with the blue's exit.  A stroke whose
         # floor rests on the park needs no ramp: the blue swings on past the
-        # boundary to its touch-down and the grey runs flat from there — his
+        # boundary to its touch-down and the gray runs flat from there — his
         # rule, and where the arbiter really sets the device down.  A raised
         # floor ramps down from wherever the blue leaves the device.
         turn_start, _turn_end = script.turn_bounds_at(sample_ms)
@@ -313,7 +313,7 @@ def drive_readout(
                     feather_ms = round(_SEAM_FEATHER_MS * speed)
                     if touch - sample_ms < feather_ms:
                         # Eased onto the park it is about to touch, so the join
-                        # with the flat grey cannot flicker.
+                        # with the flat gray cannot flicker.
                         weight = 1 - (touch - sample_ms) / feather_ms
                         value = value * (1 - weight)
                     return value, DRIVEN_BY_GENAU
@@ -346,7 +346,7 @@ def drive_readout(
     # device's own finer rate.  Everywhere else (both ramps, the plan, the
     # rests) the height comes from the same function that drew the line, so the
     # dot can never ride a line that is not there.  Keyed on the console's osr2
-    # instead it would sit on Genau's frozen position over a grey ramp at every
+    # instead it would sit on Genau's frozen position over a gray ramp at every
     # handoff, for as long as the console lags the arbiter.
     height, who_now = at(position_ms, script.planned_position_at(position_ms) / 100)
     if who_now == DRIVEN_BY_GENAU:
@@ -364,7 +364,7 @@ def drive_readout(
         waveform=tuple(values),
         slide=slide,
         edge=edge,
-        # Always said, even for a single run: the painter's fallback colour for
+        # Always said, even for a single run: the painter's fallback color for
         # an empty ``segments`` is the OSR2 state, and that state trails the
         # arbiter by a beat at every handoff, so an empty one would flash the
         # script's green over the whole stroke as the device changes hands.

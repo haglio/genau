@@ -101,6 +101,9 @@ class ClipLoadController:
         )
 
     def _decode_thread_fn(self, path: Path, request_id: int, state, log_error) -> None:
+        # Not the frame loop's clock: this runs on a decode thread and the two
+        # reads are one duration for one log line, not a timing decision the
+        # loop makes.  The loop's clock is injected -- see run_listener.
         t0 = time.monotonic()
         try:
             frames = self.decode_clip(path)

@@ -9,7 +9,7 @@ frames above their marks.
 The order they are built in carries three rules that nothing outside this module
 can see:
 
-* The heatmap's colour row is built at the INSET TRACK's width and framed at the
+* The heatmap's color row is built at the INSET TRACK's width and framed at the
   WINDOW's, so the strip lines up with the plain bar underneath it.  One width
   for the row and another for the frame is not a slip.
 * The room's two published files are read before anything drawn believes them,
@@ -104,7 +104,7 @@ class Painter:
 
     def _timeline(self, win_w: int, win_h: int) -> None:
         session = self._session
-        # The heatmap fills the inset track, so build its colour row at track
+        # The heatmap fills the inset track, so build its color row at track
         # width; heatmap_bgra frames it full-width to line up with the plain bar.
         tx0, tx1 = bar_track_x(win_w)
         self._heatmap.update(
@@ -149,7 +149,7 @@ class Painter:
             thumbs.set(which, self._player.screenshot_bgra())
         if bounds is None:
             # By hand, because the ids are stable so each frame updates in
-            # place: left alone, a cancelled loop's frames stay over the video.
+            # place: left alone, a canceled loop's frames stay over the video.
             self._player.remove_overlay(_OV_IN_THUMB)
             self._player.remove_overlay(_OV_OUT_THUMB)
             return

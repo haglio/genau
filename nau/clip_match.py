@@ -218,7 +218,7 @@ def frame_hashes(frames: np.ndarray) -> np.ndarray:
     """A 64-bit difference hash per frame of *frames* (n x height x width, gray).
 
     Each frame is mean-pooled to 8x9 cells and every cell compared with its
-    right-hand neighbour. Reading *relative* brightness is what lets a clip's
+    right-hand neighbor. Reading *relative* brightness is what lets a clip's
     frame match the same frame in a scene encoded at another resolution,
     bitrate or gamma.
     """
@@ -250,7 +250,7 @@ def align(clip: np.ndarray, scene: np.ndarray, *, fps: float) -> Alignment | Non
     votes for the offset that would explain it; the offset the most clip frames
     agree on wins, and has to carry :data:`MIN_SCORE` of the clip to count.
 
-    Neighbouring offsets count together. Sampling 8 frames a second off a 24fps
+    Neighboring offsets count together. Sampling 8 frames a second off a 24fps
     scene lands on exact source frames and off a 30fps clip does not, so one
     excerpt's frames answer to offsets a bucket either side of the true one; the
     single best bucket holds only a fraction of a real match.
@@ -269,7 +269,7 @@ def align(clip: np.ndarray, scene: np.ndarray, *, fps: float) -> Alignment | Non
 
 
 def _peak(shift: np.ndarray) -> int:
-    """The offset whose window of neighbours carries the most votes."""
+    """The offset whose window of neighbors carries the most votes."""
     low = int(shift.min())
     counts = np.bincount(shift - low)
     window = np.convolve(counts, np.ones(2 * JITTER + 1, dtype=int), mode="same")

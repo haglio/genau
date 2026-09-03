@@ -9,6 +9,11 @@ build/
 .hypothesis/
 state/
 
+# What a test run leaves behind.  This directory syncs through pCloud, so an
+# untracked file left by `pytest` dirties main and blocks a merge.
+.coverage
+.tmp-pytest-local/
+
 # Windows shortcuts: machine-specific, rewritten by Windows, drift constantly
 *.lnk
 

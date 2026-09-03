@@ -68,3 +68,14 @@ def pose_to_view_matrix(
     mat[:3, :3] = rot.T
     mat[:3, 3] = -rot.T @ pos
     return mat
+
+
+def pitch_rotation_matrix(angle: float) -> np.ndarray:
+    """Build a 4x4 rotation matrix around the X axis (pitch)."""
+    c, s = math.cos(angle), math.sin(angle)
+    mat = np.eye(4, dtype=np.float32)
+    mat[1, 1] = c
+    mat[1, 2] = -s
+    mat[2, 1] = s
+    mat[2, 2] = c
+    return mat

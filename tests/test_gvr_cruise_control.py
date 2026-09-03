@@ -116,7 +116,7 @@ class TestTheSwingDrifting:
 
         assert stroke.amplitude == 85
 
-    def test_the_centre_travels_toward_its_own(self):
+    def test_the_center_travels_toward_its_own(self):
         stroke = _stroke(intended_center=50)
         cruise = _cruising(_center_target=80.0)
 
@@ -133,9 +133,9 @@ class TestTheSwingDrifting:
 
         assert stroke.amplitude == 55
 
-    def test_the_reachable_centre_follows_the_swing_it_is_inside(self):
+    def test_the_reachable_center_follows_the_swing_it_is_inside(self):
         """The two move together, so a drifting amplitude cannot leave the
-        centre somewhere the swing would run off the end from."""
+        center somewhere the swing would run off the end from."""
         stroke = _stroke(amplitude=40, intended_center=80)
         cruise = _cruising(_amplitude_target=100.0, _center_target=80.0)
 
@@ -198,7 +198,7 @@ class TestWhatOnlyHappensWhenItIsDue:
         assert cruise._next_shape_change > 1.1 + 5.0, "and the next one is scheduled"
 
     def test_the_targets_are_re_drawn_inside_the_range_they_are_allowed(self):
-        """Amplitude between 30 and 100, centre between 20 and 80 -- the stroke
+        """Amplitude between 30 and 100, center between 20 and 80 -- the stroke
         wanders without ever going still or running to an end."""
         stroke = _stroke()
         cruise = _cruising(_next_retarget=0.0)

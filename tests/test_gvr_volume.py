@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from genau_vr.app import AudioPlayer
+from genau_vr.audio import AudioPlayer
 
 
 class TestAudioPlayerVolume:

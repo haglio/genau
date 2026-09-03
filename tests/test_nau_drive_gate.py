@@ -11,7 +11,7 @@ Held, the wave underneath can move as much as it likes and the answer does not;
 voided, the fresh wave gets to answer.
 
 The stroke used throughout rests its floor ON the park (full amplitude,
-centred), because only such a stroke has a touch-down at all; a raised floor
+centered), because only such a stroke has a touch-down at all; a raised floor
 ramps down instead and has none to publish.
 """
 from __future__ import annotations
@@ -319,7 +319,7 @@ class TestWhetherGenauHasBeenSeenLiveHere:
 
         assert hud.let_go is None
 
-    def test_once_genau_has_been_seen_live_a_handoff_is_honoured(self):
+    def test_once_genau_has_been_seen_live_a_handoff_is_honored(self):
         gate = DriveGate(FakeSession())
         gate.readout(_stroke(), genau_behind=True)  # let_go unset: Genau has it
 

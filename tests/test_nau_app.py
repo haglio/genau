@@ -286,7 +286,7 @@ class TestWhichCollaboratorEachVerbReaches:
     """Thirteen callbacks are handed to the dispatcher by keyword, in fourteen
     lines, and two of them swapped would be invisible: every verb would still
     be answered, and the suite would stay green while PLAY_FULL_VID played a
-    clip jump.  The dispatcher's own tests pin the keyword-to-behaviour half;
+    clip jump.  The dispatcher's own tests pin the keyword-to-behavior half;
     this pins the wiring-to-keyword half, which is the half nothing had.
     """
 

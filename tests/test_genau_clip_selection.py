@@ -45,7 +45,7 @@ class FakeNotifier:
 
 
 def _build_controller(
-    *paths: str, loader_busy: bool = False, adopt_on_load: bool = False, discard_clip=None,
+    *paths: str, loader_busy: bool = False, adopt_on_load: bool = False, condemn_clip=None,
 ):
     clip_store = ClipCacheStore(limit=3)
     sequence = ClipSequenceController([Path(path) for path in paths])
@@ -53,7 +53,7 @@ def _build_controller(
     renderer = FakeRenderer()
     notifier = FakeNotifier()
 
-    kwargs = {} if discard_clip is None else {"discard_clip": discard_clip}
+    kwargs = {} if condemn_clip is None else {"condemn_clip": condemn_clip}
     controller = ClipSelectionController(
         sequence=sequence,
         clip_store=clip_store,
@@ -243,11 +243,11 @@ class TestDiscardCurrent:
     def test_condemns_the_clip_and_moves_on_to_the_next(self):
         condemned: list[Path] = []
         controller, clip_store, _loader, renderer, notifier = _build_controller(
-            "a.mp4", "b.mp4", "c.mp4", discard_clip=condemned.append,
+            "a.mp4", "b.mp4", "c.mp4", condemn_clip=condemned.append,
         )
         clip_store.clip_cache[Path("b.mp4")] = {"frames": ["f0"]}
 
-        assert controller.discard_current() is True
+        assert controller.condemn_current() is True
 
         assert condemned == [Path("a.mp4")]
         assert controller.count == 2
@@ -258,10 +258,10 @@ class TestDiscardCurrent:
         """Genau always has something on screen, so the last clip is untouchable."""
         condemned: list[Path] = []
         controller, _store, _loader, renderer, _notifier = _build_controller(
-            "a.mp4", discard_clip=condemned.append,
+            "a.mp4", condemn_clip=condemned.append,
         )
 
-        assert controller.discard_current() is False
+        assert controller.condemn_current() is False
 
         assert condemned == []
         assert controller.count == 1

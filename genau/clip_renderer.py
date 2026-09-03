@@ -8,10 +8,10 @@ class ClipRenderController:
         self,
         *,
         clip_store,
-        display_frame_fn,
+        blit_frame,
     ):
         self.clip_store = clip_store
-        self.display_frame_fn = display_frame_fn
+        self.blit_frame = blit_frame
         self.current_clip_path: Path | None = None
         self.current_frame_index: int | None = None
 
@@ -32,9 +32,16 @@ class ClipRenderController:
 
         entry = self.clip_store.clip_entry_for(path)
         if entry["frames"]:
-            self.display_frame(0)
+            self.show_frame_at(0)
 
-    def display_frame(self, index: int) -> bool:
+    def show_frame_at(self, index: int) -> bool:
+        """Put frame *index* of the clip on screen, or say there was none.
+
+        Named for the choice rather than the drawing: the view's own
+        ``blit_frame`` takes an image, and one name for both used to mean the
+        loader wired "pick a frame" to "blit this picture" and a reader could
+        not tell which one a call site meant.
+        """
         path = self.current_clip_path
         if path is None or path not in self.clip_store.clip_cache:
             return False
@@ -45,6 +52,6 @@ class ClipRenderController:
             return False
 
         if self.current_frame_index != index:
-            self.display_frame_fn(frames[index])
+            self.blit_frame(frames[index])
             self.current_frame_index = index
         return True

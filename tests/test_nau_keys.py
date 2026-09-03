@@ -1,7 +1,7 @@
 """Every key Nau's window answers, against the thing it is supposed to move.
 
 One row per binding, naming the only state that key may change, and the whole
-observable state is compared -- so a binding wired to its neighbour's action
+observable state is compared -- so a binding wired to its neighbor's action
 fails on the field it should not have touched, not only on the one it missed.
 Ten of them reached the player through a chain of comparisons inside the run
 loop, and a chain is exactly where two of them quietly swap.
