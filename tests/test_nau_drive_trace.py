@@ -2,8 +2,8 @@
 
 The line is four things in a row — whatever Genau is doing, a ramp down onto
 the park, whatever the funscript is doing, a ramp back up to the stroke — and
-each colour means one thing: green is the script scripting, blue is Genau
-stroking, grey is a ramp or the rest between them, because through those the
+each color means one thing: green is the script scripting, blue is Genau
+stroking, gray is a ramp or the rest between them, because through those the
 device belongs to neither driver.
 
 Who holds the device travels inside Genau's own publish: ``let_go`` is None
@@ -39,7 +39,7 @@ def _stroke(**over) -> DriveHud:
     """Genau's readout as a LIVE Genau publishes it: its own stroke, forward
     from now, ``let_go`` unset because it still has the device.
 
-    Amplitude 80 around centre 50, so the stroke's floor is at 10% — above the
+    Amplitude 80 around center 50, so the stroke's floor is at 10% — above the
     park, which is the case where the ramps have somewhere to go.
     """
     base = dict(
@@ -112,7 +112,7 @@ class TestOneLineTwoDrivers:
             0, round(SPAN_S * 1000), TRACE_SAMPLES)[0][:TRACE_SAMPLES]
 
     def test_the_end_of_a_scripted_stretch_hands_over_through_the_buffer(self):
-        """Green while the script runs, grey for the buffer that belongs to
+        """Green while the script runs, gray for the buffer that belongs to
         neither driver, blue for the stroke waiting behind it."""
         hud = _read(_script(until_ms=2_000), at=1_000,
                     published=_parked_stroke())
@@ -173,7 +173,7 @@ class TestTheRampDownOntoThePark:
             assert right < left
         assert hud.waveform[opens + RAMP_STEPS] == 0.0            # the park
 
-    def test_the_ramp_is_the_buffer_s_grey_not_genau_s_blue(self):
+    def test_the_ramp_is_the_buffer_s_gray_not_genau_s_blue(self):
         hud = _read(_script_ahead(), at=0)
 
         assert hud.runs[1][2] == DRIVEN_BY_NEUTRAL
@@ -230,7 +230,7 @@ class TestTheClimbBackOut:
             assert right > left
         assert hud.waveform[blue_start] == published.waveform[0]
 
-    def test_the_climb_is_the_buffer_s_grey_not_genau_s_blue(self):
+    def test_the_climb_is_the_buffer_s_gray_not_genau_s_blue(self):
         hud = _read(_script(until_ms=2_000), at=1_000, published=_parked_stroke())
 
         assert hud.runs[-2][2] == DRIVEN_BY_NEUTRAL
@@ -280,7 +280,7 @@ class TestTheClimbBackOut:
 class TestAFloorOnTheParkEndsOnItsTouchDown:
     """His rule, restated for the third and final time: when the stroke's floor
     rests ON the park (full amplitude), there is NO ramp — the blue swings on
-    past the boundary to its next touch-down, the grey runs flat from there,
+    past the boundary to its next touch-down, the gray runs flat from there,
     and the arbiter really does hold the device's flip for that same touch."""
 
     def _touching_stroke(self, **over) -> DriveHud:
@@ -291,7 +291,7 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
             tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
         return _stroke(amplitude=100, **over)
 
-    def test_no_ramp_and_the_grey_runs_flat(self):
+    def test_no_ramp_and_the_gray_runs_flat(self):
         hud = _read(_script_ahead(), at=0, published=self._touching_stroke(),
                     latch=DescentLatch())
         blue_end = hud.runs[0][1]
@@ -333,7 +333,7 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
         hud = _read(_script_ahead(), at=0, published=published, latch=DescentLatch())
         blue_end = hud.runs[0][1]
 
-        # The run's end column is the grey's first sample (runs share their
+        # The run's end column is the gray's first sample (runs share their
         # boundary), and the final approach eases onto the park so the seam
         # cannot flicker — so the exact-wave comparison stops short of both,
         # and the feathered tail must sit between the wave and the park.
@@ -542,15 +542,15 @@ class TestPositionMarker:
 
 class TestTheSeamCannotFlicker:
     """The live blue breathes a hair with every publish; feathered onto the
-    latched seam value, the join's neighbourhood converges to a constant — the
-    residual indecision he watched at the blue-to-grey point."""
+    latched seam value, the join's neighborhood converges to a constant — the
+    residual indecision he watched at the blue-to-gray point."""
 
     def test_the_last_blue_column_sits_on_the_latched_top(self):
         latch = DescentLatch()
         published = _stroke()                        # amplitude 80: the ramp case
         hud = _read(_script_ahead(), at=1_000, published=published,
                     latch=latch)
-        seam = hud.runs[0][1]                        # the grey's first column
+        seam = hud.runs[0][1]                        # the gray's first column
 
         top = latch.choice_for(3_000).top
         assert abs(hud.waveform[seam - 1] - top) < 0.12
@@ -616,7 +616,7 @@ class TestThePillFollowsTheLine:
     """The console's OSR2 pill reads ``driven`` off the returned readout — set
     here from the same function that drew the line under the dot — so the pill
     flips exactly when the line changes hands, and says Buffer through the
-    grey.  Keyed on the round-tripped console state it flipped at the
+    gray.  Keyed on the round-tripped console state it flipped at the
     arbiter's decision, seconds before the dot finished riding the blue."""
 
     def test_genau_while_the_dot_rides_the_extension(self):
@@ -629,7 +629,7 @@ class TestThePillFollowsTheLine:
 
         assert hud.driven == DRIVEN_BY_GENAU
 
-    def test_buffer_through_the_grey(self):
+    def test_buffer_through_the_gray(self):
         hud = _read(_script_ahead(), at=4_500, published=_parked_stroke())
 
         assert hud.driven == DRIVEN_BY_NEUTRAL
@@ -685,10 +685,10 @@ class TestNothingToFoldIn:
                              genau_behind=True) == published
 
     def test_a_single_run_still_names_its_driver(self):
-        """The painter's fallback colour for empty segments is the OSR2 state,
+        """The painter's fallback color for empty segments is the OSR2 state,
         which trails the arbiter by a beat at every handoff — the whole stroke
         flashed the script's green for a frame each time the device changed
-        hands.  Named by the model itself, the colour cannot lag."""
+        hands.  Named by the model itself, the color cannot lag."""
         hud = _read(_script(until_ms=120_000), at=0)
 
         assert hud.segments == ((0, DRIVEN_BY_FUNSCRIPT),)

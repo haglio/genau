@@ -6,6 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 _ROOT = Path(__file__).resolve().parent.parent
 GENAU_DIR = _ROOT / "genau"
 NAU_DIR = _ROOT / "nau"
@@ -13,27 +15,50 @@ WHITELIST = _ROOT / "vulture_whitelist.py"
 
 PACKAGE_DIRS = (GENAU_DIR, NAU_DIR, _ROOT / "genau_vr")
 
+# Every top-level package, scanned one at a time.  Vulture resolves names across
+# everything it is handed in one run, so a symbol dead in one package is
+# invisible if any other package happens to use the same name -- which is how a
+# gate over three packages at once came to hide real findings at 90 %
+# confidence.  One invocation each is the whole fix, and it costs three extra
+# subprocesses.
+#
+# tools/ is here too.  It was left out entirely: 699 lines with no dead-code
+# gate over them at all.
+SCANNED = ("genau", "nau", "genau_vr", "tools")
 
-def test_no_dead_code():
+
+@pytest.mark.parametrize("package", SCANNED)
+def test_no_dead_code(package):
     cmd = [
         sys.executable, "-m", "vulture",
-        str(GENAU_DIR),
-        str(NAU_DIR),
-        str(_ROOT / "genau_vr"),
+        str(_ROOT / package),
         str(WHITELIST),
         "--min-confidence", "60",
     ]
     result = subprocess.run(cmd, capture_output=True, text=True)
     assert result.returncode == 0, (
-        f"Vulture found dead code:\n{result.stdout.strip()}\n{result.stderr.strip()}"
+        f"Vulture found dead code in {package}/:\n"
+        f"{result.stdout.strip()}\n{result.stderr.strip()}"
     )
+
+
+def test_every_package_in_the_tree_is_scanned():
+    """A fourth app package added beside these three would otherwise get no
+    dead-code gate at all, which is exactly how tools/ came to have none."""
+    found = {
+        path.name for path in _ROOT.iterdir()
+        if path.is_dir() and (path / "__init__.py").exists()
+        and not path.name.startswith((".", "_"))
+    }
+
+    assert found - {"tests"} == set(SCANNED)
 
 
 # The three ruff rules that name dead code and nothing else: an import
 # nothing uses, a redefinition that shadows the first, a local assigned and
 # never read. Vulture sees none of them -- it treats an import as used when
 # the same name appears in any other file it scans, so a stray `import json`
-# in one module hides behind a real one in its neighbour.
+# in one module hides behind a real one in its neighbor.
 _DEAD_CODE_LINT_RULES = "F401,F811,F841"
 
 # ARG names the same class one level out: a parameter the body never reads.

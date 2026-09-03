@@ -41,7 +41,7 @@ def test_every_frame_keeps_its_shape_without_the_alpha_channel(icon: Path):
             frame = img.ico.getimage(size).convert("RGBA")
             flattened = {(r, g, b) for r, g, b, _ in frame.get_flattened_data()}
             assert len(flattened) > 1, (
-                f"{icon.name} at {size[0]}x{size[1]} is one flat colour once alpha is "
+                f"{icon.name} at {size[0]}x{size[1]} is one flat color once alpha is "
                 "discarded — its mark lives only in transparency, so anything that "
                 "drops the channel draws a solid square"
             )
@@ -53,7 +53,7 @@ def test_transparent_pixels_carry_the_background_they_sit_on(icon: Path):
 
     This is what makes the frame above safe rather than merely lucky: a mark
     painted onto black keeps its edges when the alpha goes, while one painted
-    onto its own colour disappears into it.
+    onto its own color disappears into it.
     """
     with Image.open(icon) as img:
         for size in sorted(img.ico.sizes()):

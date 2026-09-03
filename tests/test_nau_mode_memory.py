@@ -28,7 +28,7 @@ class TestLengthMode:
 
     def test_a_mode_that_is_no_longer_a_mode_is_forgotten(self, tmp_path):
         """The file outlives the code that wrote it, so a word this build does
-        not recognise must fall back rather than be handed to the library."""
+        not recognize must fall back rather than be handed to the library."""
         path = tmp_path / "nau_mode.txt"
         path.write_text("length_mode=wildly-obsolete\n", encoding="utf-8")
 

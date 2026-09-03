@@ -4,11 +4,9 @@ from pathlib import Path
 
 from .clip_advance import ClipAdvanceState
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import (
-    MAX_SPEED,
-    MIN_SPEED,
-    DirectControlState,
-)
+from player_core.direct_control import DirectControlState
+
+from .limits import control_limits
 
 
 def build_status_text(
@@ -19,9 +17,7 @@ def build_status_text(
     hud_active: bool = False,
     clip: Path | None = None,
 ) -> str:
-    half = direct.amplitude // 2
-    ctr_lo = half
-    ctr_hi = 100 - half
+    limits = control_limits(direct)
     advance = clip_advance or ClipAdvanceState()
     return (
         f"cruise={'1' if cruise.active else '0'}\n"
@@ -32,12 +28,12 @@ def build_status_text(
         # freshly scanned folder.  Empty until the first clip is on screen.
         f"clip={clip if clip is not None else ''}\n"
         f"shape={direct.shape.value}\n"
-        f"amp_at_max={'1' if direct.amplitude >= 100 else '0'}\n"
-        f"amp_at_min={'1' if direct.amplitude <= 0 else '0'}\n"
-        f"ctr_at_max={'1' if direct.center >= ctr_hi else '0'}\n"
-        f"ctr_at_min={'1' if direct.center <= ctr_lo else '0'}\n"
-        f"spd_at_max={'1' if direct.speed >= MAX_SPEED else '0'}\n"
-        f"spd_at_min={'1' if direct.speed <= MIN_SPEED else '0'}\n"
+        f"amp_at_max={'1' if limits.amp_at_max else '0'}\n"
+        f"amp_at_min={'1' if limits.amp_at_min else '0'}\n"
+        f"ctr_at_max={'1' if limits.ctr_at_max else '0'}\n"
+        f"ctr_at_min={'1' if limits.ctr_at_min else '0'}\n"
+        f"spd_at_max={'1' if limits.spd_at_max else '0'}\n"
+        f"spd_at_min={'1' if limits.spd_at_min else '0'}\n"
         f"hud={'1' if hud_active else '0'}\n"
     )
 

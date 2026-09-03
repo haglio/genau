@@ -21,6 +21,7 @@ def _modified_at(path: Path) -> float:
 
 def scan_clips(
     folder: Path, *, shuffle_on_load: bool = True, recent: bool = False,
+    shuffle=random.shuffle,
 ) -> list[Path]:
     """Every clip in *folder*, in the browse order asked for.
 
@@ -28,6 +29,10 @@ def scan_clips(
     the sequence — and it outranks *shuffle_on_load*: an order named outright is
     not then randomized away.  Without it the folder's own order stands,
     shuffled when the config says to.
+
+    *shuffle* is a dependency rather than a module global so the shuffled order
+    can be asked about at all: the reorder path is otherwise only testable by
+    running it until a different order comes out.
     """
     files = [path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in SUPPORTED_VIDEO_EXTS]
     if not files:
@@ -35,7 +40,7 @@ def scan_clips(
     if recent:
         return sorted(files, key=_modified_at, reverse=True)
     if shuffle_on_load:
-        random.shuffle(files)
+        shuffle(files)
     return files
 
 

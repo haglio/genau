@@ -11,7 +11,7 @@ the module that would be wrong.
 """
 from __future__ import annotations
 
-from genau_vr.app import _resolve_tcode_endpoint
+from genau_vr.config import VrConfig
 from genau_vr.playback import (
     DirectControlState,
     RateLimitedTCodeSender,
@@ -88,10 +88,10 @@ class TestTheUdpSink:
 
         assert sock.sent[0][1] == ("127.0.0.1", 50557)
 
-    def test_the_config_default_names_the_same_endpoint(self):
+    def test_the_config_default_names_the_same_endpoint(self, tmp_path):
         """The two ways GenauVR can arrive at an endpoint have to agree, or a
         config with no T-Code section drives a different device than one with."""
-        assert _resolve_tcode_endpoint({}) == ("127.0.0.1", 50557)
+        assert VrConfig(state_dir=tmp_path).tcode_endpoint == ("127.0.0.1", 50557)
 
     def test_closing_the_sink_closes_the_socket(self):
         sock = RecordingSocket()
@@ -151,7 +151,7 @@ class TestHowOftenItSends:
 
 class TestWhereTheStrokeIsSentTo:
     """The position is the waveform read at the accumulated stroke phase, inside
-    the range amplitude and centre leave it."""
+    the range amplitude and center leave it."""
 
     def test_the_foot_of_a_full_swing_is_the_bottom_of_the_range(self):
         sink = RecordingSink()
@@ -169,7 +169,7 @@ class TestWhereTheStrokeIsSentTo:
         assert sink.sent[0].startswith("L09999")
 
     def test_a_narrowed_amplitude_narrows_both_ends(self):
-        """Half the travel, centred: the swing runs the middle quarter to
+        """Half the travel, centered: the swing runs the middle quarter to
         three-quarters of the range rather than all of it."""
         sink = RecordingSink()
         sender = _sender(sink, amplitude=50, intended_center=50)
@@ -179,7 +179,7 @@ class TestWhereTheStrokeIsSentTo:
 
         assert [c.split("I")[0] for c in sink.sent] == ["L02500", "L07499"]
 
-    def test_a_raised_centre_lifts_the_whole_swing(self):
+    def test_a_raised_center_lifts_the_whole_swing(self):
         sink = RecordingSink()
         sender = _sender(sink, amplitude=40, intended_center=70)
 

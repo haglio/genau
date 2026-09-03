@@ -1,7 +1,7 @@
 """Where a trace holds the descents it has already chosen.
 
 :mod:`nau.drive_trace` chooses, once per approaching turn, how the blue leaves
-the device there: the top the grey ramps down from, and the touch-down it runs
+the device there: the top the gray ramps down from, and the touch-down it runs
 to instead when there is one.  WHY it is chosen once and then held, and what
 voids it, is :mod:`nau.drive_gate`'s to say and is said there.
 
@@ -54,7 +54,7 @@ class DriveKey:
 class DescentChoice:
     """How the blue leaves the device at one turn boundary.
 
-    *top* is where the grey ramps down from, *touch* the moment the blue comes
+    *top* is where the gray ramps down from, *touch* the moment the blue comes
     down onto the park instead -- None for a stroke whose floor sits above it,
     which ramps rather than touching.
     """

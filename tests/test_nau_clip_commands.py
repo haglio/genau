@@ -53,7 +53,7 @@ def test_a_clip_command_without_its_own_callback_reaches_no_other(verb, kwarg):
     """Fun Time sends these whether or not this build wired the callback.
 
     Every other callback is wired here, so a verb that fell through to a
-    neighbour would show up rather than reading as a quiet no-op.
+    neighbor would show up rather than reading as a quiet no-op.
     """
     calls: list[str] = []
     wired = {

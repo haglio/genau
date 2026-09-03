@@ -3,7 +3,7 @@
 Four things are drawn every frame -- the timeline along the bottom, the console
 in the top-left corner, the volume chip above the timeline's right-hand end, and
 the loop's two frames above their marks -- and the order they are built in is
-load-bearing in ways nothing was watching: the heatmap's colour row is built at
+load-bearing in ways nothing was watching: the heatmap's color row is built at
 the inset track's width and framed at the window's, the room's two files are
 read before anything drawn believes them, and the overlay ids are the z-order
 rather than the call order.
@@ -151,7 +151,7 @@ class TestWhatOneFramePutsUp:
         assert player.ids.index(0) < player.ids.index(7)
 
     def test_the_timeline_is_built_at_the_track_width_and_framed_at_the_window(self):
-        """Two widths, deliberately: the colour row fills the inset track, and
+        """Two widths, deliberately: the color row fills the inset track, and
         the strip it is framed into spans the window so it lines up with the
         plain bar.  Build the row at the window's width and the strip is drawn
         at the wrong scale, silently."""
@@ -263,7 +263,7 @@ class TestTheLoopsOwnTwoFrames:
     def test_the_end_of_a_loop_takes_both_frames_off_the_screen(self):
         """The ids are stable so each frame updates in place, which is also why
         they have to be removed by hand: left alone, the thumbnails of a
-        cancelled loop stay over the video for the rest of the session."""
+        canceled loop stay over the video for the rest of the session."""
         session = FakeSession(bounds=LOOP)
         painter, player = _painter(session, player=SpyPlayer(_frame()))
         _paint(painter)

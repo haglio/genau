@@ -1,14 +1,22 @@
 """Tests for genau_vr.app startup error handling."""
 from __future__ import annotations
 
-import math
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import numpy as np
 import pytest
 
 from genau_vr.vr_runtime import Probe, Readiness
+
+
+def _config(**over):
+    """A config with only the keys a test names, in a scratch state directory."""
+    import tempfile
+
+    from genau_vr.config import VrConfig
+
+    over.setdefault("state_dir", Path(tempfile.mkdtemp(prefix="gvr-config-")))
+    return VrConfig(**over)
 
 
 @pytest.fixture(autouse=True)
@@ -36,10 +44,10 @@ def test_main_shows_error_popup_on_vr_init_failure():
 
     with (
         patch("genau_vr.app._parse_args"),
-        patch("genau_vr.app._load_config", return_value={}),
+        patch("genau_vr.app.load_config", return_value=_config()),
         patch("genau_vr.app._configure_logging", return_value=(MagicMock(), MagicMock())),
         patch("genau_vr.app.vr_runtime.ensure_ready", return_value=_ready()),
-        patch("genau_vr.app._resolve_clip_list", return_value=["fake.mp4"]),
+        patch("genau_vr.app.clips_to_play", return_value=["fake.mp4"]),
         patch("genau_vr.app.load_clip", return_value=[MagicMock(shape=(100, 200, 3))]),
         patch("genau_vr.vr_renderer.VRRenderer"),
         patch("genau_vr.vr_session.VRSession.__init__", side_effect=RuntimeError("No HMD found")),
@@ -62,7 +70,7 @@ def test_main_explains_an_absent_headset_without_decoding_a_clip():
 
     with (
         patch("genau_vr.app._parse_args"),
-        patch("genau_vr.app._load_config", return_value={}),
+        patch("genau_vr.app.load_config", return_value=_config()),
         patch("genau_vr.app._configure_logging", return_value=(MagicMock(), MagicMock())),
         patch("genau_vr.app.vr_runtime.ensure_ready", return_value=not_ready),
         patch("genau_vr.app.load_clip") as load_clip,
@@ -84,10 +92,10 @@ def test_main_puts_a_failure_that_is_not_about_vr_on_screen_too():
 
     with (
         patch("genau_vr.app._parse_args"),
-        patch("genau_vr.app._load_config", return_value={}),
+        patch("genau_vr.app.load_config", return_value=_config()),
         patch("genau_vr.app._configure_logging", return_value=(MagicMock(), MagicMock())),
         patch("genau_vr.app.vr_runtime.ensure_ready", return_value=_ready()),
-        patch("genau_vr.app._resolve_clip_list", side_effect=RuntimeError("no clips_dir")),
+        patch("genau_vr.app.clips_to_play", side_effect=RuntimeError("no clips_dir")),
         patch("genau_vr.app._show_error_popup", mock_popup),
         patch("genau.win32.set_app_user_model_id"),
         patch("genau.win32.stamp_pinned_shortcuts"),
@@ -113,20 +121,19 @@ def test_error_popup_is_topmost_so_a_hidden_launch_cannot_bury_it():
     assert flags & MB_TOPMOST
 
 
-def test_resolve_clip_list_raises_instead_of_exiting_on_a_missing_clip(tmp_path):
+def test_a_named_clip_that_is_not_there_raises_instead_of_exiting(tmp_path):
     """sys.exit under pythonw is indistinguishable from a crash; an exception reaches the popup."""
-    from genau_vr.app import _resolve_clip_list
+    from genau_vr.config import clips_to_play
 
-    args = MagicMock(clip=str(tmp_path / "nope.mp4"))
     with pytest.raises(FileNotFoundError):
-        _resolve_clip_list(args, {})
+        clips_to_play(str(tmp_path / "nope.mp4"), _config())
 
 
-def test_resolve_clip_list_raises_when_the_config_names_no_clips():
-    from genau_vr.app import _resolve_clip_list
+def test_a_config_that_names_no_clips_raises():
+    from genau_vr.config import clips_to_play
 
     with pytest.raises(RuntimeError):
-        _resolve_clip_list(MagicMock(clip=None), {})
+        clips_to_play(None, _config())
 
 
 def test_main_keeps_the_crash_log_open_for_the_whole_run_then_closes_it():
@@ -157,38 +164,37 @@ class TestWhichFolderTheClipsComeFrom:
         return clip
 
     def test_a_named_clip_is_the_whole_list(self, tmp_path):
-        from genau_vr.app import _resolve_clip_list
+        from genau_vr.config import clips_to_play
 
         clip = self._clip_in(tmp_path, "scene one.mp4")
 
-        assert _resolve_clip_list(MagicMock(clip=str(clip)), {}) == [clip]
+        assert clips_to_play(str(clip), _config()) == [clip]
 
     def test_the_vr_folder_wins_over_the_shared_one(self, tmp_path):
-        from genau_vr.app import _resolve_clip_list
+        from genau_vr.config import clips_to_play
 
         vr = self._clip_in(tmp_path / "vr", "vr scene.mp4")
         self._clip_in(tmp_path / "flat", "flat scene.mp4")
 
-        found = _resolve_clip_list(MagicMock(clip=None), {
-            "vr_clips_dir": str(tmp_path / "vr"),
-            "clips_dir": str(tmp_path / "flat"),
-        })
+        found = clips_to_play(None, _config(
+            vr_clips_dir=tmp_path / "vr", clips_dir=tmp_path / "flat"))
 
         assert found == [vr]
 
-    def test_a_vr_folder_that_is_not_there_falls_back_to_the_shared_one(self, tmp_path):
+    def test_a_vr_folder_that_is_not_there_falls_back_to_the_shared_one(self, tmp_path, caplog):
         """The key can be configured ahead of the folder existing, and a headset
-        showing nothing is worse than one showing flat clips."""
-        from genau_vr.app import _resolve_clip_list
+        showing nothing is worse than one showing flat clips -- but the fallback
+        says so, because it is the setting most often got wrong."""
+        from genau_vr.config import clips_to_play
 
         flat = self._clip_in(tmp_path / "flat", "flat scene.mp4")
 
-        found = _resolve_clip_list(MagicMock(clip=None), {
-            "vr_clips_dir": str(tmp_path / "not-here"),
-            "clips_dir": str(tmp_path / "flat"),
-        })
+        with caplog.at_level("WARNING", logger="genau_vr.config"):
+            found = clips_to_play(None, _config(
+                vr_clips_dir=tmp_path / "not-here", clips_dir=tmp_path / "flat"))
 
         assert found == [flat]
+        assert "not-here" in caplog.text
 
 
 class TestFindingAClipsAudio:
@@ -196,7 +202,7 @@ class TestFindingAClipsAudio:
     clip's own name."""
 
     def test_it_is_the_mp3_named_after_the_clip(self, tmp_path):
-        from genau_vr.app import AudioPlayer
+        from genau_vr.audio import AudioPlayer
 
         (tmp_path / "clips").mkdir()
         (tmp_path / "audio").mkdir()
@@ -207,7 +213,7 @@ class TestFindingAClipsAudio:
         assert AudioPlayer._find_audio(clip) == mp3
 
     def test_a_clip_with_no_sound_beside_it_finds_none(self, tmp_path):
-        from genau_vr.app import AudioPlayer
+        from genau_vr.audio import AudioPlayer
 
         (tmp_path / "clips").mkdir()
         (tmp_path / "audio").mkdir()
@@ -215,38 +221,8 @@ class TestFindingAClipsAudio:
         assert AudioPlayer._find_audio(tmp_path / "clips" / "silent.mp4") is None
 
     def test_a_clips_folder_with_no_audio_folder_beside_it_finds_none(self, tmp_path):
-        from genau_vr.app import AudioPlayer
+        from genau_vr.audio import AudioPlayer
 
         (tmp_path / "clips").mkdir()
 
         assert AudioPlayer._find_audio(tmp_path / "clips" / "scene one.mp4") is None
-
-
-class TestTiltingTheView:
-    """The controller's pitch adjustment, as a rotation about the X axis."""
-
-    def test_a_quarter_turn_takes_up_onto_the_axis_pointing_away(self):
-        """Up is +Y and away is -Z in this space, so a positive quarter turn
-        tips the view down toward the floor.  Flip the sign and the controller
-        pitches the other way."""
-        from genau_vr.app import _pitch_rotation_matrix
-
-        turned = _pitch_rotation_matrix(math.pi / 2) @ np.array(
-            [0.0, 1.0, 0.0, 1.0], dtype=np.float32)
-
-        assert turned[:3] == pytest.approx([0.0, 0.0, 1.0], abs=1e-6)
-
-    def test_no_turn_leaves_every_axis_where_it_was(self):
-        from genau_vr.app import _pitch_rotation_matrix
-
-        assert _pitch_rotation_matrix(0.0) == pytest.approx(np.eye(4))
-
-    def test_it_only_touches_the_two_axes_it_turns_between(self):
-        """X is the axis being turned about and W carries the translation, so a
-        rotation that moved either would drag the whole scene with it."""
-        from genau_vr.app import _pitch_rotation_matrix
-
-        turned = _pitch_rotation_matrix(math.pi / 3)
-
-        assert turned[0] == pytest.approx([1.0, 0.0, 0.0, 0.0])
-        assert turned[3] == pytest.approx([0.0, 0.0, 0.0, 1.0])

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pygame
 
-from genau.pygame_view import get_window_chrome_height
+from genau.win32 import window_chrome_height
 from player_core.tcode import UdpTCodeSink
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
@@ -39,7 +39,7 @@ from .funscript_jumps import FunscriptJumps
 from .input import Input
 from player_core.console_hud import ConsolePainter
 from .notice import NoticeWriter
-from .loading import LoadingCancelled, LoadingScreen
+from .loading import LoadingCanceled, LoadingScreen
 from .overlay import HeatmapStrip, LoopThumbCapture
 from .painter import HUD_OVERLAYS, ConsolePanel, Painter
 from .runtime import apply_command
@@ -161,7 +161,7 @@ def _open_window(args):
     if args.borderless:
         pos_y, client_h, flags = args.y, args.height, pygame.NOFRAME
     else:
-        chrome = get_window_chrome_height()
+        chrome = window_chrome_height()
         pos_y, client_h, flags = (args.y + chrome if args.y is not None else None,
                                   max(1, args.height - chrome), 0)
     if args.x is not None and pos_y is not None:
@@ -240,7 +240,7 @@ def _run(args) -> int:
         source = library_source(args, on_progress=loading.update)
         pairs = resolve_playlist(
             args, source=source, mode=remembered.length_mode or DEFAULT_MODE)
-    except LoadingCancelled:
+    except LoadingCanceled:
         logger.info("Closed while loading; never started playback")
         pygame.quit()
         return 0

@@ -11,6 +11,8 @@ from player_core.direct_control import DirectControlState
 
 from genau.clip_advance import ClipAdvanceState
 from genau.engine import PlaybackEngine
+from genau.flags import Flag
+from genau.controls import GenauControls
 from genau.runtime_commands import apply_runtime_command
 from genau.voice import (
     VOICE_COMMANDS,
@@ -25,16 +27,16 @@ def _collaborators() -> dict:
     of one — which would read as an unhandled verb and hide a real gap."""
     return dict(
         engine=PlaybackEngine(phase=0.0, last_tick=0.0),
-        rh_paused={"value": False},
+        paused=Flag(),
         step_clip=lambda _step: None,
-        discard_clip=lambda: None,
+        condemn_clip=lambda: None,
         direct_state=DirectControlState(playing=True),
         cruise_control_state=CruiseControlState(),
         set_stroke_phase=lambda _phase: None,
         clip_advance_state=ClipAdvanceState(),
         stop_event=threading.Event(),
-        hud_state={},
-        display_state={},
+        hud=Flag(),
+        display=Flag(),
         set_volume=lambda *_a: None,
         reorder_clips=lambda *_a, **_k: None,
     )
@@ -124,7 +126,7 @@ class TestVoiceCommands:
         place production can see one.
         """
         with caplog.at_level("WARNING", logger="genau.runtime_commands"):
-            apply_runtime_command(verb, **_collaborators())
+            apply_runtime_command(verb, GenauControls(**_collaborators()))
 
         assert caplog.records == [], (
             f"{phrase!r} says {verb!r}, which nothing handles")
