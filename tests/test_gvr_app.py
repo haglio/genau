@@ -136,6 +136,29 @@ def test_a_config_that_names_no_clips_raises():
         clips_to_play(None, _config())
 
 
+def test_main_says_so_on_screen_when_it_cannot_open_its_own_log():
+    """The first thing startup does is the one thing that had no dialog behind it.
+
+    Opening the log writes into the install's ``state/``, so a read-only copy or
+    a full disk fails here -- and this runs under ``pythonw``, where the raised
+    exception goes to a stderr that does not exist and the process just ends.
+    """
+    mock_popup = MagicMock()
+
+    with (
+        patch("genau_vr.app._configure_logging",
+              side_effect=OSError("[Errno 30] Read-only file system: 'state'")),
+        patch("genau_vr.app._start") as start,
+        patch("genau_vr.app._show_error_popup", mock_popup),
+    ):
+        from genau_vr.app import main
+        main([])
+
+    start.assert_not_called()
+    mock_popup.assert_called_once()
+    assert "Read-only file system" in mock_popup.call_args[0][0]
+
+
 def test_main_keeps_the_crash_log_open_for_the_whole_run_then_closes_it():
     """faulthandler writes to the file's fd — drop the object and a native crash goes unrecorded."""
     log, fault_fp = MagicMock(), MagicMock()

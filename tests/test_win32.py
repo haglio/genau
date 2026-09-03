@@ -12,7 +12,11 @@ import pytest
 
 from genau import win32_loader
 from genau.config import DEFAULT_CONFIG_PATH
-from genau.win32 import stamp_pinned_shortcuts, take_taskbar_identity
+from genau.win32 import (
+    set_shortcut_app_user_model_id,
+    stamp_pinned_shortcuts,
+    take_taskbar_identity,
+)
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -94,6 +98,48 @@ class TestStampPinnedShortcuts:
             stamp_pinned_shortcuts("GenauVR.App", include="genauvr")
 
         mock_set.assert_called_once_with(str(vr_lnk), "GenauVR.App")
+
+
+class TestTheApartmentStampingRunsIn:
+    """Only an initialisation that succeeded may be undone.
+
+    ``CoInitializeEx`` answers ``S_OK`` when it opened the apartment, ``S_FALSE``
+    when the thread already had one -- both took a reference this thread owes a
+    ``CoUninitialize`` back -- and a failure HRESULT when it took none, which on
+    this path means ``RPC_E_CHANGED_MODE``: something else put the thread in the
+    other concurrency model first.  Uninitialising then decrements *that*
+    initialisation's count, and the apartment its owner is holding objects in
+    can go out from under them.
+    """
+
+    RPC_E_CHANGED_MODE = -2147417850  # 0x80010106, as a ctypes HRESULT comes back
+    S_FALSE = 1
+    LNK = r"C:\Users\Example\AppData\Roaming\Genau.lnk"
+
+    def test_an_apartment_this_call_did_not_open_is_not_closed(self):
+        ole32 = MagicMock()
+        ole32.CoInitializeEx.return_value = self.RPC_E_CHANGED_MODE
+
+        with (
+            patch("genau.win32._ole32", ole32),
+            patch("genau.win32._set_lnk_aumid") as stamp,
+            pytest.raises(OSError, match="CoInitializeEx failed"),
+        ):
+            set_shortcut_app_user_model_id(self.LNK, "Genau.App")
+
+        stamp.assert_not_called()
+        ole32.CoUninitialize.assert_not_called()
+
+    def test_an_apartment_that_was_already_open_is_still_closed(self):
+        """S_FALSE is a successful init, so this thread owes the balancing call."""
+        ole32 = MagicMock()
+        ole32.CoInitializeEx.return_value = self.S_FALSE
+
+        with patch("genau.win32._ole32", ole32), patch("genau.win32._set_lnk_aumid") as stamp:
+            set_shortcut_app_user_model_id(self.LNK, "Genau.App")
+
+        stamp.assert_called_once_with(self.LNK, "Genau.App")
+        ole32.CoUninitialize.assert_called_once()
 
 
 class TestTakeTaskbarIdentity:
