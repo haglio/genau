@@ -127,7 +127,7 @@ class PlayerSession:
     def funscript_resting(self) -> bool:
         """Whether the current spot sits in the funscript's quiet lead-in or an
         interior gap (a buffer past the nearest dense action), where the script
-        has nothing to say.  Hybrid hands these stretches to Genau.  False when
+        has nothing to say.  Video mode hands these stretches to the Robot Hand.  False when
         there is no funscript — there is then nothing to rest between.
         """
         if self._funscript is None:
@@ -287,10 +287,10 @@ class PlayerSession:
     def set_tcode_enabled(self, enabled: bool) -> None:
         """Gate funscript T-Code output (the SET_TCODE_ENABLED command).
 
-        In Hybrid mode Genau drives the OSR2, so Nau must stop emitting its own
-        funscript-derived T-Code or the two fight over the broker's UDP inlet.
-        Muting just skips the per-tick update; re-enabling is a takeover, since
-        the device is wherever Genau's stroke left it.
+        In video mode the Robot Hand drives the OSR2 through the gaps, so Nau
+        must stop emitting its own funscript-derived T-Code or the two fight over
+        the broker's UDP inlet.  Muting just skips the per-tick update;
+        re-enabling is a takeover, since the device is wherever the hand left it.
         """
         if enabled and not self._tcode_enabled:
             self._take_the_device_over()

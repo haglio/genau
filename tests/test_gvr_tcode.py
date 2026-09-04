@@ -13,8 +13,8 @@ from __future__ import annotations
 
 from genau_vr.config import VrConfig
 from genau_vr.playback import (
-    DirectControlState,
     RateLimitedTCodeSender,
+    RobotHandState,
     UdpTCodeSink,
     WaveformShape,
     format_tcode_command,
@@ -105,7 +105,7 @@ class TestTheUdpSink:
 def _sender(sink, **state) -> RateLimitedTCodeSender:
     """A sender over *sink*, driving a stroke with the given shape and range."""
     return RateLimitedTCodeSender(
-        sink, direct_state=DirectControlState(**state), min_interval=0.0)
+        sink, robot_hand=RobotHandState(**state), min_interval=0.0)
 
 
 class TestHowOftenItSends:

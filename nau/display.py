@@ -41,8 +41,8 @@ class Display:
     """Nau's screen, as Fun Time switches it on and off.
 
     Holds the DISPLAY_ON/DISPLAY_OFF state and, on each frame, makes the window
-    match it.  Defaults on, so a standalone `python -m nau` — which is never
-    told anything — paints its video.
+    match it.  Defaults on, so the window paints its video until Fun Time
+    says otherwise.
     """
 
     def __init__(self, player, hud_ids) -> None:

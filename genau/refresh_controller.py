@@ -5,8 +5,8 @@ from pathlib import Path
 
 from player_core.clip_scrub import ClipScrub, scrub_clip
 from player_core.cruise_control import tick_cruise_control
-from player_core.direct_control import POSITION_MAX
 from player_core.file_channel import consume_command_file
+from player_core.robot_hand import POSITION_MAX
 
 from .clip_advance import tick_clip_advance
 from .config import GENAU_STATUS_FILENAME
@@ -41,25 +41,22 @@ class GenauRefreshController:
         consume_command=consume_command_file,
         read_paused_state=None,
         tcode_sender=None,
-        broker_cmd_file: Path | None = None,
         status_file: Path | None = None,
         drive_file: Path | None = None,
         console_file: Path | None = None,
         set_console=None,
         present_scene=None,
         set_hud_mode=None,
-        set_blank=None,
     ):
         self.controls = controls
         # The seven the tick itself reads, named here rather than reached for
         # through the controls on every line below.
         self.engine = controls.engine
         self.paused = controls.paused
-        self.direct_state = controls.direct_state
+        self.robot_hand = controls.robot_hand
         self.cruise_control = controls.cruise_control_state
         self.clip_advance = controls.clip_advance_state
         self.hud = controls.hud
-        self.display = controls.display
         self.state = state
         self.loader = loader
         self.notifier = notifier
@@ -77,15 +74,12 @@ class GenauRefreshController:
         self.consume_command = consume_command
         self.read_paused_state = read_paused_state or (lambda _path, logger=None: False)
         self.tcode_sender = tcode_sender
-        # Beside the command file when nobody named one: standalone that is our
-        # own state dir, and under an orchestrator that has not been told to
-        # name it, it is wherever the orchestrator put the command channel --
-        # which is where every version of Fun Time so far has looked.
+        # Beside the command file when Fun Time has not named one -- which is
+        # where every version of it so far has looked.
         self.status_file = status_file or command_file.parent / GENAU_STATUS_FILENAME
         self.handoff = DeviceHandoff(
-            playing=self.direct_state.playing,
+            playing=self.robot_hand.playing,
             tcode_sender=tcode_sender,
-            broker_cmd_file=broker_cmd_file,
         )
         self.readout = DriveReadout(
             controls=controls,
@@ -98,7 +92,6 @@ class GenauRefreshController:
         )
         self.present_scene = present_scene or (lambda: None)
         self.set_hud_mode = set_hud_mode or (lambda _active: None)
-        self.set_blank = set_blank or (lambda _blank: None)
         # Which half of the clip is showing, and what is known about the end
         # the stroke is at — see :meth:`_scrub_the_clip`.
         self._scrub = ClipScrub()
@@ -148,12 +141,12 @@ class GenauRefreshController:
 
         # Seen the same tick the command landed, because the drain above runs
         # first.
-        self.handoff.watch(self.direct_state.playing)
+        self.handoff.watch(self.robot_hand.playing)
 
-        if self.tcode_sender is not None and beat.direct_active and self.direct_state.playing:
+        if self.tcode_sender is not None and beat.robot_hand_active and self.robot_hand.playing:
             self.tcode_sender.maybe_send(self.engine.phase, now)
 
-        if beat.direct_active:
+        if beat.robot_hand_active:
             self.readout.update(now)
         else:
             self.readout.blank()
@@ -184,7 +177,7 @@ class GenauRefreshController:
             self.paused.on = self.read_paused_state(
                 self.paused_file, logger=self.logger)
             return Beat(
-                direct_active=False,
+                robot_hand_active=False,
                 auto_active=shared.auto_active,
                 raw_bpm=shared.raw_bpm,
                 paused=self.paused.on,
@@ -192,10 +185,10 @@ class GenauRefreshController:
             )
         self._tick_the_hand(now)
         return Beat(
-            direct_active=True,
-            auto_active=self.direct_state.playing,
-            raw_bpm=self.direct_state.bpm,
-            paused=not self.direct_state.playing,
+            robot_hand_active=True,
+            auto_active=self.robot_hand.playing,
+            raw_bpm=self.robot_hand.bpm,
+            paused=not self.robot_hand.playing,
             sync_pulse_id=0,
         )
 
@@ -207,7 +200,7 @@ class GenauRefreshController:
             # all start where the stroke already is, so taking over cannot
             # be felt.
             tick_cruise_control(
-                self.direct_state, self.cruise_control, now,
+                self.robot_hand, self.cruise_control, now,
                 phase=(self.tcode_sender.stroke_phase
                        if self.tcode_sender is not None else 0.0),
             )
@@ -222,22 +215,15 @@ class GenauRefreshController:
             tick_clip_advance(
                 self.clip_advance,
                 now,
-                playing=self.direct_state.playing,
+                playing=self.robot_hand.playing,
                 on_screen_clip=on_screen_clip,
                 step_clip=self.selection.step,
             )
 
     def _follow_the_window_flags(self) -> None:
-        """The two things an orchestrator flips that the window has to be told."""
+        """The one thing an orchestrator flips that the window has to be told."""
         if self.hud is not None and self.hud.moved():
             self.set_hud_mode(self.hud.on)
-
-        # Paint black only while an orchestrator has told us we aren't the active
-        # display.  Deliberately NOT keyed off playback: a paused hand is normal
-        # (standalone boots paused, and OmniPause freezes it mid-session), and
-        # blanking on that hides the clip the user is looking at.
-        display_active = self.display.on if self.display is not None else True
-        self.set_blank(not display_active)
 
     def _show_the_frame(self, beat: Beat) -> None:
         """Which frame of the decoded clip to put up.
@@ -250,7 +236,7 @@ class GenauRefreshController:
             return
         frame_count = len(active_entry["frames"])
         display_phase = (
-            self._scrub_the_clip(frame_count) if beat.direct_active
+            self._scrub_the_clip(frame_count) if beat.robot_hand_active
             else self.engine.phase
         )
         self.renderer.show_frame_at(display_index_for_phase(
@@ -266,7 +252,7 @@ class GenauRefreshController:
         hud_on = self.hud.on if self.hud is not None else False
         write_status_file(
             self.status_file,
-            self.direct_state,
+            self.robot_hand,
             self.cruise_control,
             clip_advance=self.clip_advance,
             hud_active=hud_on,

@@ -1,16 +1,10 @@
 """The device changing hands, both directions.
 
-Two things happen on the edge and neither is symmetric with the other: the
-sender is told to climb out of the park or walk the stroke down and rest it, and
-the broker is told to resume or park.  The tick used to hold both inline,
-interleaved with ten other jobs, with the previous play state as a bare
-attribute beside them.
+The sender is told on the edge to climb out of the park or walk the stroke down
+and rest it.  The tick used to hold this inline, interleaved with ten other
+jobs, with the previous play state as a bare attribute beside them.
 """
 from __future__ import annotations
-
-from pathlib import Path
-
-import pytest
 
 from genau.device_handoff import DeviceHandoff
 
@@ -69,60 +63,3 @@ class TestTheSender:
 
         handoff.watch(True)   # must not raise
         handoff.watch(False)
-
-
-class TestTheBroker:
-    def test_a_hand_that_starts_moving_says_resume(self, tmp_path):
-        cmd = tmp_path / "broker_cmd.txt"
-
-        DeviceHandoff(playing=False, broker_cmd_file=cmd).watch(True)
-
-        assert cmd.read_text(encoding="utf-8") == "RESUME"
-
-    def test_a_hand_that_stops_says_park(self, tmp_path):
-        cmd = tmp_path / "broker_cmd.txt"
-
-        DeviceHandoff(playing=True, broker_cmd_file=cmd).watch(False)
-
-        assert cmd.read_text(encoding="utf-8") == "PARK"
-
-    def test_no_edge_writes_nothing_at_all(self, tmp_path):
-        """Written every tick it would be a file rewritten 120 times a second
-        for a fact that changes twice a session."""
-        cmd = tmp_path / "broker_cmd.txt"
-
-        DeviceHandoff(playing=True, broker_cmd_file=cmd).watch(True)
-
-        assert not cmd.exists()
-
-    def test_a_build_where_the_orchestrator_owns_the_handoff_writes_nothing(self):
-        """Under Fun Time the orchestrator parks the broker itself; Genau must
-        not also, or the two fight over one device."""
-        DeviceHandoff(playing=False).watch(True)   # must not raise
-
-
-class TestBothHalvesOnOneEdge:
-    @pytest.mark.parametrize(
-        "was, now, said, written",
-        [(False, True, "take_over", "RESUME"), (True, False, "hand_over", "PARK")],
-    )
-    def test_the_sender_and_the_broker_are_told_together(
-        self, was, now, said, written, tmp_path,
-    ):
-        sender = FakeSender()
-        cmd = tmp_path / "broker_cmd.txt"
-
-        DeviceHandoff(playing=was, tcode_sender=sender, broker_cmd_file=cmd).watch(now)
-
-        assert sender.calls == [said]
-        assert cmd.read_text(encoding="utf-8") == written
-
-
-def test_the_broker_file_is_a_path_not_a_name(tmp_path):
-    """It is handed the path an orchestrator named, and writes nowhere else."""
-    cmd = tmp_path / "nested" / "broker_cmd.txt"
-    cmd.parent.mkdir()
-
-    DeviceHandoff(playing=False, broker_cmd_file=Path(cmd)).watch(True)
-
-    assert cmd.read_text(encoding="utf-8") == "RESUME"

@@ -72,8 +72,6 @@ GENAU_VERBS: dict[str, str | None] = {
     "CLIP_SECONDS_UP": None,
     "HUD_ON": None,
     "HUD_OFF": None,
-    "DISPLAY_ON": None,
-    "DISPLAY_OFF": None,
     # The five that carry a value.
     "AMP": "50",
     "CENTER": "50",
@@ -90,7 +88,6 @@ GENAU_NOT_VERBS: dict[str, str] = {
     "AUTO": "genau/state.py — a UDP verb the broker sends",
     "BPM": "genau/state.py — a UDP verb the broker sends",
     "SYNC": "genau/state.py — a UDP verb the broker sends",
-    "PARK": "genau/device_handoff.py — written to the broker, not read from Fun Time",
     "APPDATA": "genau/win32.py — an environment variable",
     "L0": "genau/tcode.py — the T-Code axis",
     "RGB": "genau/pygame_view.py — a pygame surface format",
@@ -177,15 +174,15 @@ GVR_NOT_VERBS: dict[str, str] = {
     "I": "genau_vr/playback.py — the T-Code interval suffix",
 }
 
-# Genau answers to fourteen verbs GenauVR does not: it has a clip folder to
-# reorder, a lock, a HUD, a display flag and a console volume chip, and none of
+# Genau answers to twelve verbs GenauVR does not: it has a clip folder to
+# reorder, a lock, a HUD and a console volume chip, and none of
 # those exist in the headset.  GenauVR answers to two Genau does not — its own
 # audio player's level.  Written down so the *divergence* is a reviewed fact and
 # not something a reader has to diff two dispatchers to discover.
 ONLY_GENAU = frozenset({
     "WEIRD", "LATEST", "SHUFFLE", "OFFSET_QUARTER_CYCLE", "CYCLE_SHAPE_PREV",
     "TOGGLE_LOCK", "LOCK_ON", "LOCK_OFF", "CLIP_SECONDS_DOWN", "CLIP_SECONDS_UP",
-    "CLIP_SECONDS", "HUD_ON", "HUD_OFF", "DISPLAY_ON", "DISPLAY_OFF", "SET_VOLUME",
+    "CLIP_SECONDS", "HUD_ON", "HUD_OFF", "SET_VOLUME",
 })
 ONLY_GVR = frozenset({"VOLUME_UP", "VOLUME_DOWN"})
 
@@ -260,7 +257,7 @@ def _unanswered(logger_name: str):
 def _genau_answers(line: str) -> bool:
     """Send one line to a Genau dispatcher with every collaborator wired."""
     from player_core.cruise_control import CruiseControlState
-    from player_core.direct_control import DirectControlState
+    from player_core.robot_hand import RobotHandState
 
     from genau.clip_advance import ClipAdvanceState
     from genau.controls import GenauControls
@@ -274,13 +271,12 @@ def _genau_answers(line: str) -> bool:
             paused=Flag(),
             step_clip=lambda _step: None,
             condemn_clip=lambda: None,
-            direct_state=DirectControlState(playing=True, speed=50, amplitude=60, center=40),
+            robot_hand=RobotHandState(playing=True, speed=50, amplitude=60, center=40),
             cruise_control_state=CruiseControlState(),
             set_stroke_phase=lambda _phase: None,
             clip_advance_state=ClipAdvanceState(),
             stop_event=threading.Event(),
             hud=Flag(),
-            display=Flag(on=True),
             set_volume=lambda _level, _muted: None,
             reorder_clips=lambda _recent: None,
         ))
@@ -291,7 +287,7 @@ def _gvr_answers(line: str) -> bool:
     """Send one line to a GenauVR dispatcher with every collaborator wired."""
     from genau_vr.controls import GenauVrControls
     from genau_vr.cruise_control import CruiseControlState
-    from genau_vr.playback import DirectControlState
+    from genau_vr.playback import RobotHandState
     from genau_vr.runtime_commands import apply_runtime_command
 
     class _Audio:
@@ -303,7 +299,7 @@ def _gvr_answers(line: str) -> bool:
     with _unanswered("genau_vr.runtime_commands") as refused:
         apply_runtime_command(line, GenauVrControls(
             step_clip=lambda _step: None,
-            direct_state=DirectControlState(playing=True, speed=50, amplitude=60, center=40),
+            robot_hand=RobotHandState(playing=True, speed=50, amplitude=60, center=40),
             cruise_control_state=CruiseControlState(),
             stop_event=threading.Event(),
             audio_player=_Audio(),
@@ -330,12 +326,6 @@ class TestGenauAnswersEveryVerbWrittenDown:
 
     def test_the_source_names_these_verbs_and_no_others(self):
         assert _verb_shaped_literals("genau") == set(GENAU_VERBS) | set(GENAU_NOT_VERBS)
-
-    def test_every_spoken_phrase_names_a_verb(self):
-        from genau.voice import VOICE_COMMANDS
-
-        spoken = {phrase.split()[0] for phrase in VOICE_COMMANDS.values()}
-        assert spoken <= set(GENAU_VERBS)
 
     def test_the_source_declares_these_keys_and_no_others(self):
         assert _scan("genau")[1] == set(GENAU_KEYS)
@@ -394,12 +384,9 @@ class TestHowManyFilesAControlIsSpreadOver:
     DECLARED_IN = "controls.py"
     MAY_ALSO_SPELL_IT = "voice.py"
 
-    # One spelling belongs to two protocols.  device_handoff.py writes RESUME
-    # and PARK to the *broker*, so the room's other player can take the device
-    # over; that RESUME is not the verb Fun Time sends Genau, it is the word
-    # Genau sends onward, and the two are unrelated.  Written down rather than
-    # tolerated, so a genuine second home for a verb still reds this.
-    ELSEWHERE = {"RESUME": {"device_handoff.py"}}
+    # A genuine second home for a verb would be written down here; there is
+    # none now that the broker is Fun Time's to park and resume.
+    ELSEWHERE: dict[str, set[str]] = {}
 
     @staticmethod
     def _files_naming(verb: str, package: str) -> set[str]:
@@ -466,13 +453,13 @@ class TestTheTwoDispatchersDivergeOnlyWhereSaid:
 class TestTheStatusFileFunTimeReads:
     def test_it_publishes_exactly_these_fields_in_this_order(self):
         from player_core.cruise_control import CruiseControlState
-        from player_core.direct_control import DirectControlState
+        from player_core.robot_hand import RobotHandState
 
         from genau.clip_advance import ClipAdvanceState
         from genau.status_writer import build_status_text
 
         text = build_status_text(
-            DirectControlState(),
+            RobotHandState(),
             CruiseControlState(),
             clip_advance=ClipAdvanceState(),
         )
@@ -483,11 +470,11 @@ class TestTheStatusFileFunTimeReads:
     def test_every_line_is_a_key_and_a_value(self):
         """No field may go out bare — a reader splits on the first ``=``."""
         from player_core.cruise_control import CruiseControlState
-        from player_core.direct_control import DirectControlState
+        from player_core.robot_hand import RobotHandState
 
         from genau.status_writer import build_status_text
 
-        text = build_status_text(DirectControlState(), CruiseControlState())
+        text = build_status_text(RobotHandState(), CruiseControlState())
 
         assert text.endswith("\n")
         assert all("=" in line for line in text.splitlines())

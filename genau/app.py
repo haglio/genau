@@ -17,16 +17,15 @@ from app_support.logging_utils import (
 )
 from app_support.threading_utils import start_daemon_thread
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import (
-    DirectControlState,
+from player_core.file_channel import read_paused_state
+from player_core.robot_hand import (
+    RobotHandState,
     bpm_for_speed,
-    space_action,
+    pause_playing,
     toggle_playing,
 )
-from player_core.file_channel import read_paused_state
 from player_core.tcode import UdpTCodeSink
 
-from .broker_handoff import broker_cmd_file_for_mode
 from .clip_advance import ClipAdvanceState
 from .clip_loader import ClipLoadController
 from .clip_renderer import ClipRenderController
@@ -110,8 +109,8 @@ def build_parser(config) -> argparse.ArgumentParser:
                     help="Poll this file for the console panel Fun Time publishes")
     ap.add_argument("--dashboard-cmd-file", default=None,
                     help="Where a press on the console posts its Fun Time command")
-    ap.add_argument("--drive-file", default=None,
-                    help="Where to publish the drive readout for Nau to draw in Hybrid")
+    ap.add_argument("--drive-file", default=str(config.genau_drive_file),
+                    help="Where to publish the drive readout for Nau to draw in video mode")
     ap.add_argument("--status-file", default=None,
                     help="Where to publish what the hand is doing; defaults to "
                          "beside the command file, which is where it has always gone")
@@ -121,51 +120,21 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
     ap.add_argument(
-        "--fun-time", action="store_true", default=False,
-        help="Running under Fun Time (orchestrator owns broker handoff, suppresses voice, space pauses only)",
-    )
-    ap.add_argument(
         "--taskbar-identity", default=None,
-        help="Group this window under an orchestrator's taskbar button instead of "
-             "Genau's own; the orchestrator passes its own AppUserModelID.  "
-             "Standalone, Genau is its own application",
+        help="Group this window under Fun Time's taskbar button: its AppUserModelID",
     )
+    ap.add_argument("--icon", default=None,
+                    help="The window icon Fun Time hands over, so an Alt-Tab entry "
+                         "says whose window this is")
     return ap
-
-
-def _name_this_process(project_dir) -> None:
-    """Leave ``launch.vbs`` an interpreter that says "Genau" next time.
-
-    Windows takes what it shows about a process from the file it was started
-    from, so a plain ``pythonw.exe`` puts Genau in the task list as one more
-    anonymous "Python" -- indistinguishable from Nau, which shares this venv.
-
-    Naming this process on the way in is the one thing that cannot be done:
-    writing the copy takes the very interpreter being named.  So each run makes
-    it for the run after and the launcher picks it up.  Under Fun Time it is Fun
-    Time's own copy that is running instead -- Genau is one of its windows then,
-    not an application the user opened -- and this still prepares the standalone
-    one, which is about Genau's own shortcut rather than about who started this
-    run.
-    """
-    try:
-        from app_support.process_identity import ProcessNamer
-        ProcessNamer("Genau", icon=project_dir / "genau_icon.ico").prepare_launcher("Genau")
-    except Exception:
-        pass  # Cosmetic: costs a name in the task list, never a launch.
 
 
 def main(argv: list[str] | None = None) -> int:
     config = load_config(_preparse_config(argv))
-    _name_this_process(config.project_dir)
 
-    # Before any window creation, so this window is grouped under the right
-    # taskbar button instead of inheriting the interpreter's.  An orchestrator
-    # that passes its own identity is saying these windows are its own: under Fun
-    # Time, Genau is not an application the user launched but one window of the
-    # one they did.  Told one, Genau takes it and stamps nothing — the pinned
-    # shortcut behind that identity belongs to whoever owns it.  Standalone there
-    # is nobody to say, so Genau is its own application as before.
+    # Before any window creation, so this window is grouped under Fun Time's
+    # taskbar button instead of the interpreter's: Genau is one window of the
+    # application the user launched, not an application of its own.
     identity = _preparse_taskbar_identity(argv)
     if identity:
         try:
@@ -173,12 +142,6 @@ def main(argv: list[str] | None = None) -> int:
             set_app_user_model_id(identity)
         except Exception:
             pass  # Cosmetic: costs the icon, never worth failing to start over.
-    else:
-        from .win32 import APP_USER_MODEL_ID, take_taskbar_identity
-        take_taskbar_identity(
-            APP_USER_MODEL_ID, include="genau", exclude="genauvr",
-            config_path=config.config_path,
-        )
 
     logger = configure_logging("genau", config.log_file("genau_listener"))
     install_exception_logging(logger)
@@ -208,7 +171,7 @@ class DriveStack:
     """What Genau drives the device with: the hand, what varies it, what moves
     the clip on, and the sender that puts it on the wire."""
 
-    direct_state: DirectControlState
+    robot_hand: RobotHandState
     cruise_control: CruiseControlState
     clip_advance: ClipAdvanceState
     tcode_sender: RateLimitedTCodeSender
@@ -221,42 +184,17 @@ def _build_drive_stack(args, logger: logging.Logger) -> DriveStack:
     the hand and the stack, the readout draws all three, and a second copy of
     any of them would leave a key moving one while the picture follows another.
     """
-    direct_state = DirectControlState(playing=False, speed=50, bpm=bpm_for_speed(50))
+    robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     cruise_control = CruiseControlState()
     sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
     logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
     return DriveStack(
-        direct_state=direct_state,
+        robot_hand=robot_hand,
         cruise_control=cruise_control,
         clip_advance=ClipAdvanceState(),
         tcode_sender=RateLimitedTCodeSender(
-            sink, direct_state=direct_state, cruise=cruise_control),
+            sink, robot_hand=robot_hand, cruise=cruise_control),
     )
-
-
-def _start_voice_control(config, args, command_file: Path, logger: logging.Logger) -> None:
-    """Listen for spoken commands, standalone only.
-
-    Under Fun Time the orchestrator owns the microphone, and the model is a
-    large download this repo does not ship -- so a config with no voice section,
-    or a venv without vosk, is a Genau with no voice rather than a failure.
-    """
-    if config.voice is None or args.fun_time:
-        return
-    from .voice import VOICE_AVAILABLE, VOICE_COMMANDS, VoiceListener
-
-    if not VOICE_AVAILABLE:
-        return
-    listener = VoiceListener(
-        commands=VOICE_COMMANDS,
-        cmd_file=command_file,
-        model_path=config.voice.model_path,
-        confidence_threshold=config.voice.confidence_threshold,
-        device_index=config.voice.device_index,
-        sample_rate=config.voice.sample_rate,
-    )
-    start_daemon_thread(target=listener.run, name="genau-voice")
-    logger.info("Voice control enabled (model=%s)", config.voice.model_path)
 
 
 @dataclass(frozen=True)
@@ -359,12 +297,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         height=args.height,
         x=args.x,
         y=args.y,
-        icon_path=config.project_dir / "genau_icon.ico",
-        hybrid_title="Hybrid Nau+Genau",
-        hybrid_icon_path=config.project_dir / "hybrid_icon.ico",
-        # Borderless only under Fun Time, which owns the slot's geometry; run
-        # standalone the window keeps its chrome so it can be moved and closed.
-        borderless=args.fun_time,
+        icon_path=Path(args.icon) if args.icon else None,
+        video_title="Video Nau+Genau",
     )
 
     state = SharedState()
@@ -387,14 +321,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     paused = Flag()
     hud = Flag()
-    # Genau paints its clips unless something tells it otherwise: standalone it
-    # owns its window outright, and an orchestrator that hides Genau in some of
-    # its modes asserts DISPLAY_OFF/DISPLAY_ON as those modes change.  Defaulting
-    # dark instead would make a bare `python -m genau` come up black.
-    display = Flag(on=True)
 
     drive = _build_drive_stack(args, logger)
-    _start_voice_control(config, args, command_file, logger)
 
     notifier = GenauNotifier(args.notify_host, args.notify_port)
     pipeline = _build_clip_pipeline(
@@ -410,13 +338,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         paused=paused,
         step_clip=selection.step,
         condemn_clip=selection.condemn_current,
-        direct_state=drive.direct_state,
+        robot_hand=drive.robot_hand,
         cruise_control_state=drive.cruise_control,
         set_stroke_phase=drive.tcode_sender.set_stroke_phase,
         clip_advance_state=drive.clip_advance,
         stop_event=stop_event,
         hud=hud,
-        display=display,
         set_volume=view.set_volume,
         reorder_clips=partial(_reorder_clips, clips_folder, config, selection, logger),
     )
@@ -438,28 +365,22 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         now_source=clock,
         read_paused_state=read_paused_state,
         tcode_sender=drive.tcode_sender,
-        broker_cmd_file=broker_cmd_file_for_mode(config.broker_cmd_file, fun_time=args.fun_time),
         status_file=Path(args.status_file) if args.status_file else None,
-        # Named by whoever launched us when there is one: standalone this is our
-        # own state dir, but under Fun Time the reader is Nau, which is told the
-        # path by Fun Time and must be told the same one.
-        drive_file=Path(args.drive_file) if args.drive_file else config.genau_drive_file,
+        # Named by Fun Time, whose Nau is told the same path.
+        drive_file=Path(args.drive_file),
         console_file=Path(args.console_file) if args.console_file else None,
         set_console=view.set_console,
         present_scene=view.present,
         set_hud_mode=view.set_hud_mode,
-        set_blank=view.set_blank,
     )
     lifecycle = GenauLifecycleController(
         renderer=renderer,
         controls=controls,
-        stop_event=stop_event,
-        notifier=notifier,
         resize_delay_ms=config.genau.resize_debounce_ms,
         now_source=clock,
         dashboard_cmd_file=dashboard_cmd_file,
-        on_toggle_playing=lambda: toggle_playing(drive.direct_state),
-        on_pause_playing=lambda: space_action(drive.direct_state, pause_only=args.fun_time),
+        on_toggle_playing=lambda: toggle_playing(drive.robot_hand),
+        on_pause_playing=lambda: pause_playing(drive.robot_hand),
         console_pointer=ConsolePointer(view, dashboard_cmd_file),
     )
 

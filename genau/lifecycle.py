@@ -44,18 +44,14 @@ class GenauLifecycleController:
         *,
         renderer,
         controls: GenauControls,
-        stop_event,
-        notifier,
         resize_delay_ms: int,
         on_toggle_playing,
         on_pause_playing,
         console_pointer,
-        dashboard_cmd_file=None,
+        dashboard_cmd_file,
         now_source=time.monotonic,
     ):
         self.renderer = renderer
-        self.stop_event = stop_event
-        self.notifier = notifier
         self.resize_delay_ms = resize_delay_ms
         self.now_source = now_source
         self.dashboard_cmd_file = dashboard_cmd_file
@@ -128,8 +124,4 @@ class GenauLifecycleController:
         Ctrl+Q.  In a session it is the session that quits — see
         :mod:`genau.session_quit` — and this window stays up until the teardown
         reaches it, so nothing goes out ahead of the closing cover."""
-        if not quit_gesture(self.dashboard_cmd_file):
-            return
-        self.stop_event.set()
-        self.notifier.notify_visible(False)
-        self.notifier.close()
+        quit_gesture(self.dashboard_cmd_file)

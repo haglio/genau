@@ -26,9 +26,8 @@ class VolumeControl:
 
     def __init__(self, dashboard) -> None:
         self._dashboard = dashboard
-        # Full and unmuted until something says otherwise: a standalone Nau is
-        # never told, and a chip opening at silence would report a level the
-        # player is not at.
+        # Full and unmuted until Fun Time says otherwise: a chip opening at
+        # silence would report a level the player is not at.
         self._hud = VolumeHud()
 
     @property

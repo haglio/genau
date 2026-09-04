@@ -92,8 +92,6 @@ def _build_controller(**overrides):
         renderer=renderer,
         now_source=clock,
         controls=overrides.get("controls") or _controls(),
-        stop_event=stop_event,
-        notifier=notifier,
         resize_delay_ms=75,
         console_pointer=pointer,
         dashboard_cmd_file=overrides.get("dashboard_cmd_file"),
@@ -149,33 +147,16 @@ class TestTheMapIsTheRegistrys:
         AttributeError an unguarded call would raise inside the frame loop."""
         controller, *_ = _build_controller()
 
-        controller._handle_key(_key(pygame.K_j))  # no direct_state wired
+        controller._handle_key(_key(pygame.K_j))  # no robot_hand wired
 
 
 class TestClosingTheWindow:
-    def test_ctrl_q_closes_and_moves_no_control(self):
-        controller, _renderer, _pointer, notifier, stop_event = _build_controller()
-
-        controller._handle_key(_key(pygame.K_q, pygame.KMOD_CTRL))
-
-        assert stop_event.is_set()
-        assert notifier.visible_updates == [False]
-
     def test_q_without_the_modifier_is_not_a_key_at_all(self):
         controller, _renderer, _pointer, _notifier, stop_event = _build_controller()
 
         controller._handle_key(_key(pygame.K_q))
 
         assert not stop_event.is_set()
-
-    def test_on_close_stops_notifier(self):
-        controller, _renderer, _pointer, notifier, stop_event = _build_controller()
-
-        controller.on_close()
-
-        assert stop_event.is_set()
-        assert notifier.visible_updates == [False]
-        assert notifier.closed == 1
 
     def test_in_a_session_closing_asks_the_session_and_this_window_stays(self, tmp_path):
         """Genau placed in a Fun Time session is one window of six.  Closing it on

@@ -134,14 +134,14 @@ class TestTheLoopAndTheTeardown:
 
 
 class TestTheOneHandEveryPartIsGiven:
-    """Genau has exactly one DirectControlState, and four parts move or read it.
+    """Genau has exactly one RobotHandState, and four parts move or read it.
 
     Build a second anywhere in here and the app still runs: the key moves one
     hand, the command file moves another, and the picture follows a third.
     """
 
     @pytest.mark.parametrize(
-        "part", ["DirectControlState", "CruiseControlState", "ClipAdvanceState",
+        "part", ["RobotHandState", "CruiseControlState", "ClipAdvanceState",
                  "RateLimitedTCodeSender"],
     )
     def test_the_module_builds_exactly_one_of_it(self, part):
@@ -153,14 +153,14 @@ class TestTheOneHandEveryPartIsGiven:
     def test_the_sender_is_given_the_hand_it_was_built_beside(self):
         stack = _function("_build_drive_stack")
 
-        assert _keyword(_call(stack, "RateLimitedTCodeSender"), "direct_state") == "direct_state"
-        assert _keyword(_call(stack, "DriveStack"), "direct_state") == "direct_state"
+        assert _keyword(_call(stack, "RateLimitedTCodeSender"), "robot_hand") == "robot_hand"
+        assert _keyword(_call(stack, "DriveStack"), "robot_hand") == "robot_hand"
 
     def test_every_part_of_the_app_is_given_that_same_stack(self):
         startup = _startup()
 
         assert len(_calls(startup, "_build_drive_stack")) == 1
-        for named in ("direct_state", "cruise_control_state", "clip_advance_state"):
+        for named in ("robot_hand", "cruise_control_state", "clip_advance_state"):
             assert _keyword(_call(startup, "GenauControls"), named).startswith("drive.")
         assert _keyword(
             _call(startup, "GenauRefreshController"), "tcode_sender") == "drive.tcode_sender"
@@ -175,42 +175,9 @@ class TestTheOneHandEveryPartIsGiven:
 
 
 class TestWhichFileEachChannelIsGiven:
-    def test_the_broker_is_told_who_owns_the_handoff(self):
-        """Under Fun Time the orchestrator owns it and Genau must not also write
-        PARK/RESUME; standalone there is nobody else to."""
-        given = _keyword(_call(_startup(), "GenauRefreshController"), "broker_cmd_file")
-
-        assert given == ("broker_cmd_file_for_mode(config.broker_cmd_file, "
-                         "fun_time=args.fun_time)")
-
-    def test_the_drive_readout_goes_where_the_launcher_said_or_to_our_own(self):
-        """Under Fun Time the reader is Nau, told the path by Fun Time, so Genau
-        has to be told the same one; standalone it is our own state dir."""
+    def test_the_drive_readout_goes_where_fun_time_said(self):
+        """The reader is Nau, told the path by Fun Time, so Genau has to be told
+        the same one."""
         given = _keyword(_call(_startup(), "GenauRefreshController"), "drive_file")
 
-        assert given == ("Path(args.drive_file) if args.drive_file "
-                         "else config.genau_drive_file")
-
-
-class TestTheWindowIsToldWhoIsRunningIt:
-    def test_it_is_borderless_only_under_an_orchestrator(self):
-        """Fun Time owns the slot's geometry; standalone the window keeps its
-        chrome so it can be moved and closed."""
-        assert _keyword(_call(_startup(), "PygameView"), "borderless") == "args.fun_time"
-
-
-class TestTheVoiceListener:
-    def test_it_is_started_only_standalone_and_only_with_a_model(self):
-        """Under Fun Time the orchestrator owns the microphone."""
-        voice = _function("_start_voice_control")
-        guards = [_said(n.test) for n in ast.walk(voice) if isinstance(n, ast.If)]
-
-        assert "config.voice is None or args.fun_time" in guards
-        assert "not VOICE_AVAILABLE" in guards
-
-    def test_it_writes_to_the_same_file_the_tick_drains(self):
-        """Given anything else, every spoken command is written where nothing
-        reads it and the feature is silently inert."""
-        voice = _function("_start_voice_control")
-
-        assert _keyword(_call(voice, "VoiceListener"), "cmd_file") == "command_file"
+        assert given == "Path(args.drive_file)"

@@ -61,8 +61,7 @@ class Keyboard:
     def __init__(self, cmd_file: Path | None = None) -> None:
         self.session = SpySession()
         self.modes = SpyModes()
-        self.stop_event = _Flag()
-        self.keys = Keys(self.session, self.modes, Dashboard(cmd_file), self.stop_event)
+        self.keys = Keys(self.session, self.modes, Dashboard(cmd_file))
 
     def state(self) -> dict:
         return {
@@ -72,19 +71,10 @@ class Keyboard:
             "seeks": tuple(self.session.seeks),
             "version_cycles": self.session.version_cycles,
             "length_toggles": self.modes.length_toggles,
-            "stopping": self.stop_event.is_set(),
         }
 
 
-class _Flag:
-    def __init__(self) -> None:
-        self._set = False
 
-    def set(self) -> None:
-        self._set = True
-
-    def is_set(self) -> bool:
-        return self._set
 
 
 # key, and the ONLY state going down on it may move.
@@ -139,22 +129,15 @@ class TestQuitting:
         assert keyboard.keys.press(pygame.K_q, pygame.KMOD_CTRL) is True
 
         assert cmd_file.read_text(encoding="utf-8").split() == ["quit"]
-        assert keyboard.state()["stopping"] is False
 
-    def test_ctrl_q_standalone_stops_this_player(self):
-        keyboard = Keyboard()
-
-        keyboard.keys.press(pygame.K_q, pygame.KMOD_CTRL)
-
-        assert keyboard.state()["stopping"] is True
-
-    def test_q_on_its_own_is_not_a_quit(self):
+    def test_q_on_its_own_is_not_a_quit(self, tmp_path):
         """It is the one binding that reads a modifier, and a bare q has to go
         on meaning nothing rather than ending the session."""
-        keyboard = Keyboard()
+        cmd_file = tmp_path / "dashboard_cmd.txt"
+        keyboard = Keyboard(cmd_file)
 
         assert keyboard.keys.press(pygame.K_q) is False
-        assert keyboard.state()["stopping"] is False
+        assert not cmd_file.exists()
 
 
 class TestAKeyNothingIsBoundTo:

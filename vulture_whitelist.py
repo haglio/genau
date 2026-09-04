@@ -14,3 +14,7 @@ _.draw_color  # type: ignore[name-defined]
 # see either reader.
 WINREG_AVAILABLE  # type: ignore[name-defined]
 OPENXR_AVAILABLE  # type: ignore[name-defined]
+
+# genau.win32's shortcut stamping is GenauVR's now -- genau_vr/app.py reaches it
+# at launch -- and the per-package scan of genau/ cannot see that caller.
+take_taskbar_identity  # type: ignore[name-defined]

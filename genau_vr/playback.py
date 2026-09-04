@@ -1,6 +1,6 @@
 """Playback engine, waveform generation, and T-Code output.
 
-Copied from Genau's engine.py, direct_control.py, tcode.py, and
+Copied from Genau's engine.py, the Robot Hand, tcode.py, and
 refresh_logic.py — flattened into a single module for GenauVR.
 """
 from __future__ import annotations
@@ -52,7 +52,7 @@ def update_engine(
 
 
 # ---------------------------------------------------------------------------
-# Waveform / Direct control (from genau/direct_control.py)
+# The Robot Hand (from player_core/robot_hand.py)
 # ---------------------------------------------------------------------------
 
 class WaveformShape(Enum):
@@ -74,7 +74,7 @@ def bpm_for_speed(speed: int) -> float:
 
 
 @dataclass
-class DirectControlState:
+class RobotHandState:
     playing: bool = False
     speed: int = 50
     bpm: float = 0.0
@@ -89,35 +89,35 @@ class DirectControlState:
         _recompute_center(self)
 
 
-def _recompute_center(state: DirectControlState) -> None:
+def _recompute_center(state: RobotHandState) -> None:
     half = state.amplitude // 2
     state.center = max(half, min(100 - half, state.intended_center))
 
 
-def set_speed(state: DirectControlState, speed: int) -> None:
+def set_speed(state: RobotHandState, speed: int) -> None:
     state.speed = max(MIN_SPEED, min(MAX_SPEED, speed))
     state.bpm = bpm_for_speed(state.speed)
 
 
-def adjust_speed(state: DirectControlState, delta: int) -> None:
+def adjust_speed(state: RobotHandState, delta: int) -> None:
     set_speed(state, state.speed + delta)
 
 
-def set_amplitude(state: DirectControlState, value: int) -> None:
+def set_amplitude(state: RobotHandState, value: int) -> None:
     state.amplitude = max(0, min(100, value))
     _recompute_center(state)
 
 
-def adjust_amplitude(state: DirectControlState, delta: int) -> None:
+def adjust_amplitude(state: RobotHandState, delta: int) -> None:
     set_amplitude(state, state.amplitude + delta)
 
 
-def set_center(state: DirectControlState, value: int) -> None:
+def set_center(state: RobotHandState, value: int) -> None:
     state.intended_center = max(0, min(100, value))
     _recompute_center(state)
 
 
-def adjust_center(state: DirectControlState, delta: int) -> None:
+def adjust_center(state: RobotHandState, delta: int) -> None:
     half = state.amplitude // 2
     lo, hi = half, 100 - half
     new = state.intended_center + delta
@@ -127,7 +127,7 @@ def adjust_center(state: DirectControlState, delta: int) -> None:
     _recompute_center(state)
 
 
-def cycle_shape(state: DirectControlState) -> None:
+def cycle_shape(state: RobotHandState) -> None:
     """Move on to the next waveform shape, wrapping at the end."""
     shapes = list(WaveformShape)
     state.shape = shapes[(shapes.index(state.shape) + 1) % len(shapes)]
@@ -215,23 +215,23 @@ class RateLimitedTCodeSender:
         self,
         sink: TCodeSink,
         *,
-        direct_state: DirectControlState | None = None,
+        robot_hand: RobotHandState | None = None,
         min_interval: float = 1.0 / 30.0,
     ) -> None:
         self._sink = sink
-        self._direct_state = direct_state
+        self._robot_hand = robot_hand
         self._min_interval = min_interval
         self._last_send_time: float = 0.0
         self._last_phase: float = 0.0
         self._stroke_phase: float = 0.0
 
     def _compute_position(self) -> int:
-        if self._direct_state is not None:
+        if self._robot_hand is not None:
             return phase_to_position(
                 self._stroke_phase,
-                shape=self._direct_state.shape,
-                amplitude=self._direct_state.amplitude,
-                center=self._direct_state.center,
+                shape=self._robot_hand.shape,
+                amplitude=self._robot_hand.amplitude,
+                center=self._robot_hand.center,
             )
         return phase_to_position(self._stroke_phase)
 

@@ -7,8 +7,8 @@ through the same notice channel, because Nau is the only one that can tell the
 request had nowhere to go.
 
 A scripted video is mostly not scripted: a funscript's action comes in runs with
-quiet stretches between them (which is why Hybrid has Genau fill those in at
-all).  "Jump to funscript" skips the stretch you are in; "next funscripted"
+quiet stretches between them (which is why video mode has the Robot Hand fill
+those in at all).  "Jump to funscript" skips the stretch you are in; "next funscripted"
 gives up on this video and finds one that is scripted, landing on its action
 rather than at its top.
 """

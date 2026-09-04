@@ -392,7 +392,7 @@ def library_playlist(
     rng: random.Random,
     kind_of: Callable[[Path], str] | None = None,
 ) -> list[tuple[Path, Path | None]]:
-    """Full standalone build: filter by *mode*, version-dedup, shuffle, pair.
+    """The library as a playlist: filter by *mode*, version-dedup, shuffle, pair.
 
     Deterministic for a seeded *rng*. This is the single composition both
     startup and the length-mode toggle use, so their playlists stay

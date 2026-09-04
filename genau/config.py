@@ -26,14 +26,6 @@ GENAU_DRIVE_FILENAME = "genau_drive.txt"
 
 
 @dataclass(frozen=True)
-class VoiceConfig:
-    model_path: str = "vosk-model-small-en-us-0.15"
-    confidence_threshold: float = 0.7
-    device_index: int | None = None
-    sample_rate: int = 16000
-
-
-@dataclass(frozen=True)
 class GenauConfig:
     shuffle_on_load: bool
     beats_per_loop: float
@@ -51,13 +43,10 @@ class GenauConfig:
 
 @dataclass(frozen=True)
 class ProjectConfig:
-    project_dir: Path
     config_path: Path
     clips_dir: Path
     state_dir: Path
     genau: GenauConfig
-    broker_cmd_file: Path
-    voice: VoiceConfig | None = None
 
     @property
     def genau_cmd_file(self) -> Path:
@@ -71,7 +60,7 @@ class ProjectConfig:
     def genau_drive_file(self) -> Path:
         """Where Genau says what it is driving the device with, for Nau to draw.
 
-        In Hybrid the readout belongs to Nau's console — the controls that move
+        In video mode the readout belongs to Nau's console — the controls that move
         these numbers are on it — so Genau publishes rather than paints.
         """
         return self.state_dir / GENAU_DRIVE_FILENAME
@@ -101,11 +90,8 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         raise ValueError(f"Missing required config section: genau (in {path})")
 
     state_dir = _resolve_path(base, raw["state_dir"])
-    broker_cmd_raw = raw.get("broker_cmd_file")
-    broker_cmd_file = _resolve_path(base, broker_cmd_raw) if broker_cmd_raw else state_dir / "broker_cmd.txt"
 
     return ProjectConfig(
-        project_dir=base,
         config_path=path,
         clips_dir=_resolve_path(base, raw["clips_dir"]),
         state_dir=state_dir,
@@ -123,17 +109,4 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
             tcode_udp_host=str(genau_raw.get("tcode_udp_host", "127.0.0.1")),
             tcode_udp_port=int(genau_raw.get("tcode_udp_port", 50557)),
         ),
-        broker_cmd_file=broker_cmd_file,
-        voice=_parse_voice_config(raw.get("voice_control")),
-    )
-
-
-def _parse_voice_config(raw: dict[str, Any] | None) -> VoiceConfig | None:
-    if raw is None:
-        return None
-    return VoiceConfig(
-        model_path=str(raw.get("model_path", VoiceConfig.model_path)),
-        confidence_threshold=float(raw.get("confidence_threshold", VoiceConfig.confidence_threshold)),
-        device_index=raw.get("device_index"),
-        sample_rate=int(raw.get("sample_rate", VoiceConfig.sample_rate)),
     )

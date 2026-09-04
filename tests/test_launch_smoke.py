@@ -1,8 +1,8 @@
 """The launch smoke test: everything each launcher's ``-m`` imports, imported.
 
-Three apps ship from this repo -- Genau, Nau and Genau VR -- each with its own
-shortcut, its own ``.vbs``, and its own package, and the suite can be entirely
-green while any of their icons does nothing. Every other test here runs under
+One app ships from this repo with a shortcut of its own, Genau VR -- Genau and
+Nau are Fun Time's windows, launched by it -- and the suite can be entirely
+green while that icon does nothing. Every other test here runs under
 ``tests/conftest.py``, which moves this tree to the front of ``sys.path`` before
 collection precisely because a sibling worktree or an ancestor directory would
 otherwise answer for it; the launchers have no such help, so what resolves at
@@ -40,8 +40,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # itself, and a module the launch reaches only from inside main() -- asserted
 # present, so a walk that silently found nothing cannot pass as a clean launch.
 LAUNCHES = (
-    ("genau", "launch.vbs", "genau.state"),
-    ("nau", "launch_nau.vbs", "nau.session"),
     ("genau_vr", "launch_vr.vbs", "genau_vr.vr_session"),
 )
 

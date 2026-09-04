@@ -44,11 +44,11 @@ class Beat:
     published over UDP and a paused flag read off a file; on its own it follows
     its own hand, whose speed *is* the BPM and whose stopping *is* the pause.
     The four numbers below are the same four either way, which is what lets one
-    engine serve both -- and ``direct_active`` is which of the two answered, the
+    engine serve both -- and ``robot_hand_active`` is which of the two answered, the
     fact the rest of the tick branches on.
     """
 
-    direct_active: bool
+    robot_hand_active: bool
     auto_active: bool
     raw_bpm: float | None
     paused: bool

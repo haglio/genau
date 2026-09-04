@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import DirectControlState
+from player_core.robot_hand import RobotHandState
 
 from genau.clip_advance import ClipAdvanceState
 from genau.controls import GenauControls
@@ -35,7 +35,7 @@ def _controls(**over) -> GenauControls:
         engine=PlaybackEngine(phase=0.0, last_tick=0.0),
         paused=Flag(),
         step_clip=lambda _step: None,
-        direct_state=over.get("direct") or DirectControlState(speed=50, amplitude=60),
+        robot_hand=over.get("direct") or RobotHandState(speed=50, amplitude=60),
         cruise_control_state=over.get("cruise") or CruiseControlState(),
         clip_advance_state=ClipAdvanceState(interval=20),
     )
@@ -102,37 +102,37 @@ class TestHowOftenTheReadoutGoesOut:
 class TestHowOftenTheConsoleIsReRead:
     def test_the_first_tick_reads_it(self, tmp_path):
         console = tmp_path / "console.txt"
-        _publish(console, "nau")
+        _publish(console, "video")
         shown = []
         readout = _readout(console_file=console, set_console=shown.append)
 
         readout.update(1.0)
 
-        assert shown[-1].console.mode == "nau"
+        assert shown[-1].console.mode == "video"
 
     def test_a_tick_too_soon_after_it_keeps_the_model_it_had(self, tmp_path):
         console = tmp_path / "console.txt"
-        _publish(console, "nau")
+        _publish(console, "video")
         shown = []
         readout = _readout(console_file=console, set_console=shown.append)
         readout.update(1.0)
 
-        _publish(console, "hybrid")
+        _publish(console, "video")
         readout.update(1.0 + JUST_UNDER_CONSOLE)
 
-        assert shown[-1].console.mode == "nau"
+        assert shown[-1].console.mode == "video"
 
     def test_a_tick_far_enough_after_it_takes_the_new_one(self, tmp_path):
         console = tmp_path / "console.txt"
-        _publish(console, "nau")
+        _publish(console, "video")
         shown = []
         readout = _readout(console_file=console, set_console=shown.append)
         readout.update(1.0)
 
-        _publish(console, "hybrid")
+        _publish(console, "video")
         readout.update(1.0 + JUST_OVER_CONSOLE)
 
-        assert shown[-1].console.mode == "hybrid"
+        assert shown[-1].console.mode == "video"
 
     def test_a_standalone_genau_names_itself(self, tmp_path):
         """No file behind it, and the panel still draws sensibly."""
@@ -146,7 +146,7 @@ class TestHowOftenTheConsoleIsReRead:
         """Fun Time replaces this file while Genau polls it, so a lost race must
         not empty the panel for a frame."""
         console = tmp_path / "console.txt"
-        _publish(console, "hybrid")
+        _publish(console, "video")
         shown = []
         readout = _readout(console_file=console, set_console=shown.append)
         readout.update(1.0)
@@ -154,7 +154,7 @@ class TestHowOftenTheConsoleIsReRead:
         console.write_text("{\"mo", encoding="utf-8")   # caught mid-replace
         readout.update(1.0 + JUST_OVER_CONSOLE)
 
-        assert shown[-1].console.mode == "hybrid"
+        assert shown[-1].console.mode == "video"
 
 
 class TestWhatThePanelIsToldEachTime:
@@ -194,7 +194,7 @@ class TestTheSpanTheTraceIsDrawnOver:
 
     @pytest.mark.parametrize("beats_per_loop", [2.0, 4.0, 8.0])
     def test_it_is_one_whole_cycle_at_the_slowest_speed(self, beats_per_loop):
-        from player_core.direct_control import MIN_BPM
+        from player_core.robot_hand import MIN_BPM
 
         shown = []
         _readout(beats_per_loop=beats_per_loop, set_console=shown.append).update(1.0)

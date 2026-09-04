@@ -3,8 +3,7 @@
 In genau mode Genau owns the main slot, so it draws Fun Time's console itself
 and a press on that console has to reach Fun Time the way a press on the
 dashboard would: as a command on the dashboard's own channel, routed like any
-other.  Standalone there is no dashboard and nowhere to ask, so the same presses
-are inert rather than an error.
+other.
 
 Held together here rather than as four callbacks threaded from the composition
 root, because they are one device: what the press took hold of is what the drag
@@ -18,13 +17,13 @@ from player_core.file_channel import append_command
 
 
 class ConsolePointer:
-    def __init__(self, view, dashboard_cmd_file: Path | None = None):
+    def __init__(self, view, dashboard_cmd_file: Path):
         self.view = view
         self.dashboard_cmd_file = dashboard_cmd_file
 
     def _post(self, command: str) -> None:
-        """Ask Fun Time for what the console just said.  Inert with no dashboard."""
-        if command and self.dashboard_cmd_file is not None:
+        """Ask Fun Time for what the console just said."""
+        if command:
             append_command(self.dashboard_cmd_file, command)
 
     def press(self, mx: int, my: int) -> None:

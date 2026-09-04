@@ -5,11 +5,11 @@ vocabulary.
 
 | App | Module | Launcher | What it is |
 | --- | --- | --- | --- |
-| **Genau** | `genau/` | `launch.vbs` | A pygame window that plays short clips and drives an OSR2 over T-Code, scrubbing the clip to wherever the device is. |
-| **Nau** | `nau/` | `launch_nau.vbs` | A full-length player with a playlist, funscript playback and the console the family's drive readout is drawn on. |
+| **Genau** | `genau/` | Fun Time | A pygame window that plays short clips and drives an OSR2 with the Robot Hand over T-Code, scrubbing the clip to wherever the device is. |
+| **Nau** | `nau/` | Fun Time | A full-length player with a playlist, funscript playback and the console the family's drive readout is drawn on. |
 | **GenauVR** | `genau_vr/` | `launch_vr.vbs` | The same idea in a headset: VR180 clips on a sphere, driven by the same stroke arithmetic. |
 
-Each runs standalone, and Genau and Nau also run as windows inside **Fun Time**,
+GenauVR runs standalone; Genau and Nau run only as windows inside **Fun Time**,
 the orchestrator in a sibling repo. Which of the two owns the main slot is Fun
 Time's decision, and both are told so over the file channel below.
 
@@ -41,7 +41,7 @@ committed.
 
 `genau_config.json` is git-ignored — it names real paths on a real machine.
 `genau_config.example.json` is its committed template and documents every key:
-`clips_dir`, `vr_clips_dir`, `state_dir`, `broker_cmd_file`, `voice_control`,
+`clips_dir`, `vr_clips_dir`, `state_dir`,
 and a `genau` and a `nau` section for each player's own settings.
 
 Relative paths in it are resolved against the config file, not against whatever
@@ -73,7 +73,7 @@ One record in `genau/controls.py`:
 ```python
 Control(
     name="speed",
-    needs=("direct_state",),
+    needs=("robot_hand",),
     verbs=(
         Verb("SPEED_DOWN", _stepper(-5), key="K_j"),
         Verb("SPEED_UP", _stepper(5), key="K_l"),

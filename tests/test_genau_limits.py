@@ -9,13 +9,13 @@ be made in both or the console dimmed an arrow the status file called live.
 from __future__ import annotations
 
 import pytest
-from player_core.direct_control import MAX_SPEED, MIN_SPEED, DirectControlState
+from player_core.robot_hand import MAX_SPEED, MIN_SPEED, RobotHandState
 
 from genau.limits import control_limits
 
 
 def _limits(**state):
-    return control_limits(DirectControlState(**state))
+    return control_limits(RobotHandState(**state))
 
 
 class TestTheTravelEnds:
@@ -108,7 +108,7 @@ class TestBothPublicationsReadTheSameSix:
 
         from genau.status_writer import build_status_text
 
-        direct = DirectControlState(**hand)
+        direct = RobotHandState(**hand)
         limits = control_limits(direct)
         said = dict(
             line.split("=", 1)

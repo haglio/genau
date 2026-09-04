@@ -55,11 +55,10 @@ class SpyPlayer:
 class SpyRoom:
     """What the room published, and when it was asked for it."""
 
-    def __init__(self, log: list[str], *, genau_behind: bool = True) -> None:
+    def __init__(self, log: list[str]) -> None:
         self._log = log
         self.console = ConsoleModel()
         self.drive = DriveHud()
-        self.genau_drives = genau_behind
 
     def refresh(self) -> None:
         self._log.append("refresh")
@@ -69,7 +68,7 @@ class SpyGate:
     def __init__(self, log: list[str]) -> None:
         self._log = log
 
-    def readout(self, published, *, genau_behind: bool) -> DriveHud:
+    def readout(self, published) -> DriveHud:
         self._log.append("readout")
         return published if published is not None else DriveHud()
 

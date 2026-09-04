@@ -1,14 +1,11 @@
 """Whose taskbar button these windows belong to.
 
-Standalone, each player is its own application and stamps its own pinned
-shortcut.  Under an orchestrator they are windows of the application the user
-actually launched, so it passes its own AppUserModelID and they take that —
-without stamping anything, since the pin behind that identity is the
-orchestrator's to keep up to date.
+Genau and Nau are windows of the application the user actually launched, so
+Fun Time passes its own AppUserModelID and they take that — without stamping
+anything, since the pin behind that identity is Fun Time's to keep up to date.
 """
 from __future__ import annotations
 
-from pathlib import Path
 from unittest.mock import patch
 
 # ``genau.app`` and ``nau.app`` are imported inside the tests, not here: importing
@@ -23,8 +20,8 @@ def _preparse():
 
 
 def _nau():
-    from nau.app import _APP_USER_MODEL_ID, _set_aumid
-    return _APP_USER_MODEL_ID, _set_aumid
+    from nau.app import _set_aumid
+    return _set_aumid
 
 
 class TestPreparseTaskbarIdentity:
@@ -42,7 +39,7 @@ class TestPreparseTaskbarIdentity:
 
         assert _preparse()(argv) == "Example.App"
 
-    def test_no_flag_means_genau_is_its_own_application(self):
+    def test_no_flag_names_no_identity(self):
         preparse = _preparse()
 
         assert preparse(["--fun-time"]) is None
@@ -57,30 +54,26 @@ class TestPreparseTaskbarIdentity:
 
 
 class TestNauTakesTheIdentityItIsGiven:
-    def test_told_one_it_takes_it_and_stamps_nothing(self):
-        """The pinned shortcut behind that identity is the orchestrator's."""
-        _identity, set_aumid = _nau()
+    def test_told_one_it_takes_it(self):
+        """The pinned shortcut behind that identity is Fun Time's."""
+        set_aumid = _nau()
 
-        with patch("player_core.taskbar.set_app_user_model_id") as claim, \
-             patch("genau.win32.take_taskbar_identity") as own:
-            set_aumid(Path("C:/example/genau_config.json"), "Example.App")
+        with patch("player_core.taskbar.set_app_user_model_id") as claim:
+            set_aumid("Example.App")
 
         claim.assert_called_once_with("Example.App")
-        own.assert_not_called()
 
-    def test_told_none_it_is_its_own_application(self):
-        own_identity, set_aumid = _nau()
+    def test_told_none_it_claims_nothing(self):
+        set_aumid = _nau()
 
-        with patch("player_core.taskbar.set_app_user_model_id") as claim, \
-             patch("genau.win32.take_taskbar_identity") as own:
-            set_aumid(Path("C:/example/genau_config.json"), None)
+        with patch("player_core.taskbar.set_app_user_model_id") as claim:
+            set_aumid(None)
 
         claim.assert_not_called()
-        assert own.call_args[0][0] == own_identity
 
     def test_a_refusal_never_stops_the_player_starting(self):
         """An icon is not worth failing to open a window over."""
-        _identity, set_aumid = _nau()
+        set_aumid = _nau()
 
         with patch("player_core.taskbar.set_app_user_model_id", side_effect=OSError):
-            set_aumid(Path("C:/example/genau_config.json"), "Example.App")
+            set_aumid("Example.App")

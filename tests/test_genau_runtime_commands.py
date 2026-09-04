@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 import pytest
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import DirectControlState, WaveformShape
+from player_core.robot_hand import RobotHandState, WaveformShape
 
 from genau.clip_advance import MAX_INTERVAL_S, MIN_INTERVAL_S, ClipAdvanceState
 from genau.controls import QUARTER_CYCLE_OFFSET_COMMAND, GenauControls
@@ -117,14 +117,14 @@ class TestApplyRuntimeCommand:
         two are now reported unhandled like any other unknown line.
         """
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        ds = DirectControlState(playing=True, speed=50)
+        ds = RobotHandState(playing=True, speed=50)
 
         handled = _answered(
             verb,
             engine=engine,
             paused=Flag(),
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is False
@@ -162,13 +162,13 @@ class TestApplyRuntimeCommand:
     def test_pause_sets_direct_state_not_playing(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True)
+        ds = RobotHandState(playing=True)
 
         apply_runtime_command("PAUSE", GenauControls(
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         ))
 
         assert ds.playing is False
@@ -176,13 +176,13 @@ class TestApplyRuntimeCommand:
     def test_resume_sets_direct_state_playing(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag(on=True)
-        ds = DirectControlState(playing=False)
+        ds = RobotHandState(playing=False)
 
         apply_runtime_command("RESUME", GenauControls(
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         ))
 
         assert ds.playing is True
@@ -190,14 +190,14 @@ class TestApplyRuntimeCommand:
     def test_speed_down_decreases_speed(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, speed=50)
+        ds = RobotHandState(playing=True, speed=50)
 
         handled = _answered(
             "SPEED_DOWN",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -206,14 +206,14 @@ class TestApplyRuntimeCommand:
     def test_speed_up_increases_speed(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, speed=50)
+        ds = RobotHandState(playing=True, speed=50)
 
         handled = _answered(
             "SPEED_UP",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -222,14 +222,14 @@ class TestApplyRuntimeCommand:
     def test_amplitude_down_decreases_amplitude(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, amplitude=80)
+        ds = RobotHandState(playing=True, amplitude=80)
 
         handled = _answered(
             "AMPLITUDE_DOWN",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -238,14 +238,14 @@ class TestApplyRuntimeCommand:
     def test_amplitude_up_increases_amplitude(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, amplitude=80)
+        ds = RobotHandState(playing=True, amplitude=80)
 
         handled = _answered(
             "AMPLITUDE_UP",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -254,14 +254,14 @@ class TestApplyRuntimeCommand:
     def test_center_down_decreases_center(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
+        ds = RobotHandState(playing=True, intended_center=50, amplitude=40)
 
         handled = _answered(
             "CENTER_DOWN",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -270,14 +270,14 @@ class TestApplyRuntimeCommand:
     def test_center_up_increases_center(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
+        ds = RobotHandState(playing=True, intended_center=50, amplitude=40)
 
         handled = _answered(
             "CENTER_UP",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -286,7 +286,7 @@ class TestApplyRuntimeCommand:
     def test_cycle_shape_advances_shape(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True)
+        ds = RobotHandState(playing=True)
         assert ds.shape == WaveformShape.SINE
 
         handled = _answered(
@@ -294,7 +294,7 @@ class TestApplyRuntimeCommand:
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -303,7 +303,7 @@ class TestApplyRuntimeCommand:
     def test_cycle_shape_prev_reverses_shape(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True)
+        ds = RobotHandState(playing=True)
         assert ds.shape == WaveformShape.SINE
 
         handled = _answered(
@@ -311,7 +311,7 @@ class TestApplyRuntimeCommand:
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -345,7 +345,7 @@ class TestApplyRuntimeCommand:
                 paused=paused,
                 step_clip=lambda _step: None,
             )
-            assert handled is False, f"{cmd} should be ignored without direct_state"
+            assert handled is False, f"{cmd} should be ignored without robot_hand"
 
     def test_toggle_cruise_ignored_without_cruise_control_state(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
@@ -408,14 +408,14 @@ class TestApplyRuntimeCommand:
     def test_amp_sets_amplitude(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, amplitude=80)
+        ds = RobotHandState(playing=True, amplitude=80)
 
         handled = _answered(
             "AMP 50",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -424,14 +424,14 @@ class TestApplyRuntimeCommand:
     def test_center_sets_center(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, intended_center=50, amplitude=40)
+        ds = RobotHandState(playing=True, intended_center=50, amplitude=40)
 
         handled = _answered(
             "CENTER 80",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -440,14 +440,14 @@ class TestApplyRuntimeCommand:
     def test_speed_sets_speed(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True, speed=50)
+        ds = RobotHandState(playing=True, speed=50)
 
         handled = _answered(
             "SPEED 30",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is True
@@ -464,19 +464,19 @@ class TestApplyRuntimeCommand:
                 paused=paused,
                 step_clip=lambda _step: None,
             )
-            assert handled is False, f"{cmd} should be ignored without direct_state"
+            assert handled is False, f"{cmd} should be ignored without robot_hand"
 
     def test_numeric_command_with_non_integer_is_ignored(self):
         engine = PlaybackEngine(phase=0.0, last_tick=0.0)
         paused = Flag()
-        ds = DirectControlState(playing=True)
+        ds = RobotHandState(playing=True)
 
         handled = _answered(
             "AMP abc",
             engine=engine,
             paused=paused,
             step_clip=lambda _step: None,
-            direct_state=ds,
+            robot_hand=ds,
         )
 
         assert handled is False
@@ -572,69 +572,6 @@ class TestApplyRuntimeCommand:
             )
             assert handled is False, f"{cmd} should be ignored without a hud flag"
 
-    def test_display_off_marks_genau_not_the_active_display(self):
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        paused = Flag()
-        display = Flag(on=True)
-
-        handled = _answered(
-            "DISPLAY_OFF",
-            engine=engine,
-            paused=paused,
-            step_clip=lambda _step: None,
-            display=display,
-        )
-
-        assert handled is True
-        assert display.on is False
-
-    def test_display_on_marks_genau_the_active_display(self):
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        paused = Flag()
-        display = Flag()
-
-        handled = _answered(
-            "DISPLAY_ON",
-            engine=engine,
-            paused=paused,
-            step_clip=lambda _step: None,
-            display=display,
-        )
-
-        assert handled is True
-        assert display.on is True
-
-    def test_display_commands_do_not_touch_playback(self):
-        """DISPLAY_* is about what's painted, not whether the hand strokes:
-        a paused hand stays paused and a running one keeps running."""
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        paused = Flag(on=True)
-        direct = DirectControlState(playing=False)
-        display = Flag(on=True)
-
-        apply_runtime_command("DISPLAY_OFF", GenauControls(
-            engine=engine,
-            paused=paused,
-            step_clip=lambda _step: None,
-            direct_state=direct,
-            display=display,
-        ))
-
-        assert paused.on is True
-        assert direct.playing is False
-
-    def test_display_commands_ignored_without_a_display_flag(self):
-        engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        paused = Flag()
-
-        for cmd in ("DISPLAY_ON", "DISPLAY_OFF"):
-            handled = _answered(
-                cmd,
-                engine=engine,
-                paused=paused,
-                step_clip=lambda _step: None,
-            )
-            assert handled is False, f"{cmd} should be ignored without a display flag"
 
 
 class TestClipAdvanceCommands:

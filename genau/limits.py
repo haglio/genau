@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from player_core.direct_control import MAX_SPEED, MIN_SPEED, DirectControlState
+from player_core.robot_hand import MAX_SPEED, MIN_SPEED, RobotHandState
 
 
 @dataclass(frozen=True)
@@ -24,16 +24,16 @@ class ControlLimits:
     spd_at_min: bool
 
 
-def control_limits(direct: DirectControlState) -> ControlLimits:
+def control_limits(hand: RobotHandState) -> ControlLimits:
     # The center's range is what the travel leaves it: it cannot push a stroke
     # off the top or bottom of the device, so it stops half a travel in from
     # each end.
-    half = direct.amplitude // 2
+    half = hand.amplitude // 2
     return ControlLimits(
-        amp_at_max=direct.amplitude >= 100,
-        amp_at_min=direct.amplitude <= 0,
-        ctr_at_max=direct.center >= 100 - half,
-        ctr_at_min=direct.center <= half,
-        spd_at_max=direct.speed >= MAX_SPEED,
-        spd_at_min=direct.speed <= MIN_SPEED,
+        amp_at_max=hand.amplitude >= 100,
+        amp_at_min=hand.amplitude <= 0,
+        ctr_at_max=hand.center >= 100 - half,
+        ctr_at_min=hand.center <= half,
+        spd_at_max=hand.speed >= MAX_SPEED,
+        spd_at_min=hand.speed <= MIN_SPEED,
     )

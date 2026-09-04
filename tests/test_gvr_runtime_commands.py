@@ -8,7 +8,7 @@ rewired to a sibling action (AMP to the center setter), mis-signed (SPEED_DOWN
 speeding up) or inverted (PAUSE setting the hand playing) moves a key the row
 does not name, or fails to move the one it does, and dies here.
 
-The collaborators are real: a real ``DirectControlState``, a real
+The collaborators are real: a real ``RobotHandState``, a real
 ``PlaybackEngine``, a real ``CruiseControlState``, a real ``threading.Event``.
 Only the two the runtime reaches *out* through are stood in for — the clip
 stepper, which is the app's own playlist move, and the audio sink, which would
@@ -25,7 +25,7 @@ import pytest
 
 from genau_vr.controls import GenauVrControls
 from genau_vr.cruise_control import CruiseControlState
-from genau_vr.playback import DirectControlState, PlaybackEngine, WaveformShape
+from genau_vr.playback import PlaybackEngine, RobotHandState, WaveformShape
 from genau_vr.runtime_commands import apply_runtime_command
 from genau_vr.voice import VOICE_COMMANDS
 
@@ -84,7 +84,7 @@ class Runtime:
         self.audio = AudioSink()
         self.stop_event = threading.Event()
         self.cruise = CruiseControlState(active=start.get("cruise", False))
-        self.direct = DirectControlState(
+        self.direct = RobotHandState(
             playing=start.get("playing", True),
             speed=start.get("speed", 50),
             amplitude=start.get("amplitude", 60),
@@ -92,7 +92,7 @@ class Runtime:
             shape=start.get("shape", WaveformShape.TRIANGLE),
         )
 
-    def apply(self, command: str, *, direct_state: object = ...) -> bool:
+    def apply(self, command: str, *, robot_hand: object = ...) -> bool:
         """Run one verb; True when the dispatcher answered it.
 
         The dispatcher returns nothing — an unanswered verb goes on the log,
@@ -103,7 +103,7 @@ class Runtime:
         with _nothing_logged() as unanswered:
             apply_runtime_command(command, GenauVrControls(
                 step_clip=self.stepper,
-                direct_state=self.direct if direct_state is ... else direct_state,
+                robot_hand=self.direct if robot_hand is ... else robot_hand,
                 cruise_control_state=self.cruise,
                 stop_event=self.stop_event,
                 audio_player=self.audio,
@@ -246,7 +246,7 @@ class TestWhatTheRuntimeWasNotGiven:
     def test_a_stroke_verb_is_refused_without_the_stroke_state(self, verb):
         runtime = Runtime()
 
-        assert runtime.apply(verb, direct_state=None) is False
+        assert runtime.apply(verb, robot_hand=None) is False
 
     def test_pause_is_refused_without_the_hand_it_would_stop(self):
         """It used to move a second flag as well, which had no source in this
@@ -254,7 +254,7 @@ class TestWhatTheRuntimeWasNotGiven:
         and it is the hand's."""
         runtime = Runtime()
 
-        assert runtime.apply("PAUSE", direct_state=None) is False
+        assert runtime.apply("PAUSE", robot_hand=None) is False
 
     @pytest.mark.parametrize("verb", ["QUIT", "VOLUME_UP", "CRUISE_ON"])
     def test_a_verb_whose_collaborator_is_missing_is_named_on_the_log(self, verb, caplog):
@@ -268,7 +268,7 @@ class TestWhatTheRuntimeWasNotGiven:
 
         with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
             apply_runtime_command(verb, GenauVrControls(
-                step_clip=runtime.stepper, direct_state=runtime.direct,
+                step_clip=runtime.stepper, robot_hand=runtime.direct,
             ))
 
         assert verb in caplog.text
@@ -328,7 +328,7 @@ def test_an_unknown_verb_is_named_on_the_log(caplog):
 
     with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
         apply_runtime_command("NOT_A_VERB", GenauVrControls(
-            step_clip=runtime.stepper, direct_state=runtime.direct))
+            step_clip=runtime.stepper, robot_hand=runtime.direct))
 
     assert "NOT_A_VERB" in caplog.text
 
@@ -338,6 +338,6 @@ def test_a_verb_it_acts_on_says_nothing(caplog):
 
     with caplog.at_level("WARNING", logger="genau_vr.runtime_commands"):
         apply_runtime_command("NEXT", GenauVrControls(
-            step_clip=runtime.stepper, direct_state=runtime.direct))
+            step_clip=runtime.stepper, robot_hand=runtime.direct))
 
     assert caplog.records == []

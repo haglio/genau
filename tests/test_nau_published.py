@@ -15,10 +15,10 @@ from player_core.drive_readout import DriveHud, drive_text
 from nau.published import Published
 
 GENAU_MODE = "genau"
-NAU_MODE = "nau"
+VIDEO_MODE = "video"
 
 
-def _console_file(path: Path, mode: str = NAU_MODE, **over) -> Path:
+def _console_file(path: Path, mode: str = VIDEO_MODE, **over) -> Path:
     payload = {"mode": mode, "active": True, "osr2": "off"}
     payload.update(over)
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -36,25 +36,6 @@ def files(tmp_path: Path) -> tuple[Path, Path]:
     return tmp_path / "console.json", tmp_path / "drive.txt"
 
 
-class TestWithNobodyPublishing:
-    def test_the_console_still_draws_the_players_own_controls(self):
-        """Standalone there is no room to describe, and a panel that waited for
-        one would never appear."""
-        published = Published(None, None)
-
-        published.refresh()
-
-        assert published.console.mode == NAU_MODE
-        assert published.genau_drives is False
-
-    def test_there_is_no_stroke_at_all(self):
-        published = Published(None, None)
-
-        published.refresh()
-
-        assert published.drive is None
-
-
 class TestReadingTheConsole:
     def test_what_fun_time_said_is_what_the_panel_shows(self, files):
         console_file, drive_file = files
@@ -64,7 +45,6 @@ class TestReadingTheConsole:
         published.refresh()
 
         assert published.console.mode == GENAU_MODE
-        assert published.genau_drives is True
 
     def test_a_torn_read_keeps_the_panel_that_was_there(self, files):
         """Fun Time replaces this file while the player polls it, so a lost race
@@ -115,28 +95,14 @@ class TestReadingTheStroke:
 
         assert published.drive.position == 4_000
 
-    def test_it_is_not_read_at_all_while_genau_is_not_driving(self, files):
-        """In every other mode the file on disk is last session's, or another
-        player's, and the picture would draw a stroke nobody is making."""
+    def test_the_stroke_is_read_in_video_mode_too(self, files):
+        """The Robot Hand is behind the screen in both modes — it takes the
+        funscript's gaps in video mode — so its readout is drawn there as well."""
         console_file, drive_file = files
-        _console_file(console_file, NAU_MODE)
-        _drive_file(drive_file)
-        published = Published(console_file, drive_file)
-
-        published.refresh()
-
-        assert published.drive is None
-
-    def test_the_stroke_read_while_driving_survives_leaving_genau_mode(self, files):
-        """The device is where Genau left it, so what it last said about the
-        stroke is still the truest thing anyone has said about it."""
-        console_file, drive_file = files
-        _console_file(console_file, GENAU_MODE)
+        _console_file(console_file, VIDEO_MODE)
         _drive_file(drive_file, position=4_000)
         published = Published(console_file, drive_file)
-        published.refresh()
 
-        _console_file(console_file, NAU_MODE)
         published.refresh()
 
         assert published.drive.position == 4_000
