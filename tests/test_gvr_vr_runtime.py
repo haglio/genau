@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from genau_vr.vr_runtime import (
+    _QUIT_SERVICES,
     Probe,
     Readiness,
     active_runtime_json,
@@ -13,6 +14,9 @@ from genau_vr.vr_runtime import (
     explain,
     launcher_for_runtime,
     probe,
+    runtime_quit_tool,
+    runtime_was_running,
+    stop_runtime,
 )
 
 
@@ -31,11 +35,13 @@ def _xr():
     return xr
 
 
-def _pimax_tree(root, *, with_client: bool = True):
+def _pimax_tree(root, *, with_client: bool = True, with_quit_tool: bool = False):
     """Lay out a Pimax install the way the real one sits on disk."""
     runtime_json = root / "Pimax" / "Runtime" / "PiOpenXR_64.json"
     runtime_json.parent.mkdir(parents=True)
     runtime_json.write_text("{}", encoding="utf-8")
+    if with_quit_tool:
+        (runtime_json.parent / "launcher.exe").write_text("", encoding="utf-8")
     client = root / "Pimax" / "PimaxClient" / "pimaxui" / "PimaxClient.exe"
     if with_client:
         client.parent.mkdir(parents=True)
@@ -153,7 +159,7 @@ def test_ensure_ready_starts_the_runtime_and_waits_for_the_headset(tmp_path):
         patch("genau_vr.vr_runtime.probe",
               side_effect=[Probe(Readiness.NO_HEADSET), Probe(Readiness.READY)]),
         patch("genau_vr.vr_runtime.runtime_launcher", return_value=launcher),
-        patch("genau_vr.vr_runtime.is_running", return_value=False),
+        patch("genau_vr.vr_runtime.process_running", return_value=False),
         patch("genau_vr.vr_runtime.start_runtime") as start,
         patch("genau_vr.vr_runtime.time.sleep"),
     ):
@@ -167,7 +173,7 @@ def test_ensure_ready_does_not_restart_a_runtime_that_is_already_up(tmp_path):
     with (
         patch("genau_vr.vr_runtime.probe", return_value=Probe(Readiness.NO_HEADSET)),
         patch("genau_vr.vr_runtime.runtime_launcher", return_value=launcher),
-        patch("genau_vr.vr_runtime.is_running", return_value=True),
+        patch("genau_vr.vr_runtime.process_running", return_value=True),
         patch("genau_vr.vr_runtime.start_runtime") as start,
         patch("genau_vr.vr_runtime.time.sleep"),
     ):
@@ -194,7 +200,7 @@ def test_ensure_ready_gives_up_after_the_timeout(tmp_path):
     with (
         patch("genau_vr.vr_runtime.probe", return_value=Probe(Readiness.NO_HEADSET)),
         patch("genau_vr.vr_runtime.runtime_launcher", return_value=tmp_path / "PimaxClient.exe"),
-        patch("genau_vr.vr_runtime.is_running", return_value=False),
+        patch("genau_vr.vr_runtime.process_running", return_value=False),
         patch("genau_vr.vr_runtime.start_runtime"),
         patch("genau_vr.vr_runtime.time", fake_time),
     ):
@@ -223,3 +229,101 @@ def test_explain_falls_back_to_the_raw_detail_for_an_unknown_failure():
 def test_explain_never_raises_on_a_readiness_it_has_no_wording_for():
     """A crash inside the error path would put us back to failing silently."""
     assert explain(Probe(Readiness.READY, detail="ready")) 
+
+
+# --- Putting the runtime back down --------------------------------------
+
+
+def test_runtime_was_running_reads_the_display_server_not_the_client():
+    """The client comes and goes; pi_server is what holds the headset on."""
+    with patch("genau_vr.vr_runtime.process_running", return_value=True) as running:
+        assert runtime_was_running() is True
+    running.assert_called_once_with("pi_server.exe")
+
+
+def test_runtime_was_running_is_false_when_nothing_drives_the_headset():
+    with patch("genau_vr.vr_runtime.process_running", return_value=False):
+        assert runtime_was_running() is False
+
+
+def test_runtime_quit_tool_sits_beside_the_registered_runtime(tmp_path):
+    runtime_json, _ = _pimax_tree(tmp_path, with_quit_tool=True)
+    with patch("genau_vr.vr_runtime.active_runtime_json", return_value=runtime_json):
+        assert runtime_quit_tool() == runtime_json.parent / "launcher.exe"
+
+
+def test_runtime_quit_tool_is_none_when_the_vendor_ships_no_such_tool(tmp_path):
+    runtime_json, _ = _pimax_tree(tmp_path)
+    with patch("genau_vr.vr_runtime.active_runtime_json", return_value=runtime_json):
+        assert runtime_quit_tool() is None
+
+
+def test_stop_runtime_kills_the_client_then_quits_both_services(tmp_path):
+    """The client first -- it is the one thing that would restart the services --
+    then the two quits its own Exit runs, in that order."""
+    runtime_json, client = _pimax_tree(tmp_path, with_quit_tool=True)
+    tool = runtime_json.parent / "launcher.exe"
+    with (
+        patch("genau_vr.vr_runtime.WINREG_AVAILABLE", True),
+        patch("genau_vr.vr_runtime.runtime_launcher", return_value=client),
+        patch("genau_vr.vr_runtime.process_running", return_value=True),
+        patch("genau_vr.vr_runtime.active_runtime_json", return_value=runtime_json),
+        patch("genau_vr.vr_runtime._run_quietly") as run,
+    ):
+        stop_runtime()
+    assert [call.args[0] for call in run.call_args_list] == [
+        ["taskkill", "/IM", "PimaxClient.exe", "/T", "/F"],
+        [str(tool), "PiPlatformService", "quit"],
+        [str(tool), "PiPlayService", "quit"],
+    ]
+
+
+def test_stop_runtime_still_quits_the_services_when_the_client_is_gone(tmp_path):
+    """The services outlive the client, so its absence is not the stack's."""
+    runtime_json, client = _pimax_tree(tmp_path, with_quit_tool=True)
+    with (
+        patch("genau_vr.vr_runtime.WINREG_AVAILABLE", True),
+        patch("genau_vr.vr_runtime.runtime_launcher", return_value=client),
+        patch("genau_vr.vr_runtime.process_running", return_value=False),
+        patch("genau_vr.vr_runtime.active_runtime_json", return_value=runtime_json),
+        patch("genau_vr.vr_runtime._run_quietly") as run,
+    ):
+        stop_runtime()
+    assert [call.args[0][1] for call in run.call_args_list] == list(_QUIT_SERVICES)
+
+
+def test_stop_runtime_does_nothing_it_cannot_do():
+    """No registered runtime, no quit tool, nothing to kill -- and no raise."""
+    with (
+        patch("genau_vr.vr_runtime.WINREG_AVAILABLE", True),
+        patch("genau_vr.vr_runtime.runtime_launcher", return_value=None),
+        patch("genau_vr.vr_runtime.active_runtime_json", return_value=None),
+        patch("genau_vr.vr_runtime._run_quietly") as run,
+    ):
+        stop_runtime()
+    run.assert_not_called()
+
+
+def test_stop_runtime_asks_nothing_of_a_machine_without_the_registry():
+    """It runs in a finally: a machine this cannot work on is not an error."""
+    with (
+        patch("genau_vr.vr_runtime.WINREG_AVAILABLE", False),
+        patch("genau_vr.vr_runtime._run_quietly") as run,
+    ):
+        stop_runtime()
+    run.assert_not_called()
+
+
+def test_stop_runtime_survives_a_quit_command_that_will_not_run(tmp_path):
+    """It runs on the way out: a runtime that will not answer is not an error."""
+    runtime_json, client = _pimax_tree(tmp_path, with_quit_tool=True)
+    with (
+        patch("genau_vr.vr_runtime.WINREG_AVAILABLE", True),
+        patch("genau_vr.vr_runtime.runtime_launcher", return_value=client),
+        patch("genau_vr.vr_runtime.process_running", return_value=False),
+        patch("genau_vr.vr_runtime.active_runtime_json", return_value=runtime_json),
+        patch("genau_vr.vr_runtime.subprocess.run", side_effect=OSError("gone")) as run,
+    ):
+        stop_runtime()  # no raise
+    assert run.call_count == len(_QUIT_SERVICES)
+
