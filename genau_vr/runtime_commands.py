@@ -7,7 +7,6 @@ from genau.control_registry import look_up
 
 from .controls import VERBS, GenauVrControls
 
-
 logger = logging.getLogger(__name__)
 
 

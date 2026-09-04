@@ -17,8 +17,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genau.session_quit import quit_gesture
 from player_core.file_channel import append_command
+
+from genau.session_quit import quit_gesture
 
 
 class Dashboard:

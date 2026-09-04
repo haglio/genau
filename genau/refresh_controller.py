@@ -8,16 +8,17 @@ from player_core.cruise_control import tick_cruise_control
 from player_core.direct_control import POSITION_MAX
 from player_core.file_channel import consume_command_file
 
-from .engine import update_engine
 from .clip_advance import tick_clip_advance
 from .config import GENAU_STATUS_FILENAME
 from .controls import GenauControls
 from .device_handoff import DeviceHandoff
 from .drive_readout import DriveReadout
-from .tick_failures import TickFailures
+from .engine import update_engine
 from .refresh_logic import Beat, display_index_for_phase, read_shared_state_snapshot
 from .runtime_commands import apply_runtime_command
 from .status_writer import write_status_file
+from .tick_failures import TickFailures
+
 
 class GenauRefreshController:
     def __init__(

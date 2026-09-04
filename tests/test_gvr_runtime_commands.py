@@ -18,15 +18,14 @@ recording calls.
 from __future__ import annotations
 
 import logging
-from contextlib import contextmanager
-
 import threading
+from contextlib import contextmanager
 
 import pytest
 
+from genau_vr.controls import GenauVrControls
 from genau_vr.cruise_control import CruiseControlState
 from genau_vr.playback import DirectControlState, PlaybackEngine, WaveformShape
-from genau_vr.controls import GenauVrControls
 from genau_vr.runtime_commands import apply_runtime_command
 from genau_vr.voice import VOICE_COMMANDS
 

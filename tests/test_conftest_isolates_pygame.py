@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import genau.pygame_view as pygame_view
+from genau import pygame_view
 
 
 def test_the_view_is_mocked_even_though_it_was_already_imported(mock_pygame):

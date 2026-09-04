@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import dataclasses
+
 import pytest
 
 from genau_vr.playback import (
     DirectControlState,
     PlaybackEngine,
     WaveformShape,
+    _waveform_raw,
     bpm_for_speed,
     cycle_shape,
     display_index_for_phase,
-    _waveform_raw,
     display_phase_for_position,
     format_tcode_command,
     phase_to_position,

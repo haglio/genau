@@ -2,19 +2,18 @@
 from __future__ import annotations
 
 import logging
+import threading
 from contextlib import contextmanager
 
-import threading
-
 import pytest
+from player_core.cruise_control import CruiseControlState
+from player_core.direct_control import DirectControlState, WaveformShape
 
+from genau.clip_advance import MAX_INTERVAL_S, MIN_INTERVAL_S, ClipAdvanceState
 from genau.controls import QUARTER_CYCLE_OFFSET_COMMAND, GenauControls
-from genau.runtime_commands import apply_runtime_command
 from genau.engine import PlaybackEngine
 from genau.flags import Flag
-from player_core.direct_control import DirectControlState, WaveformShape
-from player_core.cruise_control import CruiseControlState
-from genau.clip_advance import MAX_INTERVAL_S, MIN_INTERVAL_S, ClipAdvanceState
+from genau.runtime_commands import apply_runtime_command
 
 
 @contextmanager

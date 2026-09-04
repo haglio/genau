@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from player_core.direct_control import DirectControlState, WaveformShape
 from player_core.funscript import HANDOFF_RAMP_MS
 from player_core.tcode import HANDOFF_MS
 
-from player_core.direct_control import DirectControlState, WaveformShape
 from genau.tcode import RateLimitedTCodeSender
 
 

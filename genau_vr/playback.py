@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
-
 # ---------------------------------------------------------------------------
 # Engine (from genau/engine.py)
 # ---------------------------------------------------------------------------
@@ -138,17 +137,16 @@ def _waveform_raw(phase: float, shape: WaveformShape) -> float:
     frac = phase % 1.0
     if shape is WaveformShape.SINE:
         return (1 - math.cos(2 * math.pi * phase)) / 2
-    elif shape is WaveformShape.TRIANGLE:
+    if shape is WaveformShape.TRIANGLE:
         return 1 - abs(2 * frac - 1)
-    elif shape is WaveformShape.ROUNDED_SQUARE:
+    if shape is WaveformShape.ROUNDED_SQUARE:
         k = 3.0
         return (1 - math.tanh(k * math.cos(2 * math.pi * frac)) / math.tanh(k)) / 2
-    elif shape is WaveformShape.SAWTOOTH:
+    if shape is WaveformShape.SAWTOOTH:
         rise = 0.3
         if frac < rise:
             return frac / rise
-        else:
-            return 1 - (frac - rise) / (1 - rise)
+        return 1 - (frac - rise) / (1 - rise)
     raise ValueError(f"unknown waveform shape: {shape!r}")
 
 
@@ -166,8 +164,7 @@ def display_phase_for_position(phase: float, shape: WaveformShape) -> float:
     peak = _PEAK_PHASE[shape]
     if frac <= peak:
         return raw * 0.5
-    else:
-        return 1.0 - raw * 0.5
+    return 1.0 - raw * 0.5
 
 
 def phase_to_position(

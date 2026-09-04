@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import math
 
-import pytest
-
 import numpy as np
+import pytest
 
 from genau_vr import projection
 from genau_vr.projection import (

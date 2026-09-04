@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .clip_advance import ClipAdvanceState
 from player_core.cruise_control import CruiseControlState
 from player_core.direct_control import DirectControlState
 
+from .clip_advance import ClipAdvanceState
 from .limits import control_limits
 
 

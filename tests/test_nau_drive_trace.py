@@ -14,8 +14,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from player_core.funscript import HANDOFF_RAMP_MS, Funscript
-
 from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
     DRIVEN_BY_GENAU,
@@ -25,6 +23,8 @@ from player_core.drive_readout import (
     TRACE_SAMPLES,
     DriveHud,
 )
+from player_core.funscript import HANDOFF_RAMP_MS, Funscript
+
 from nau.descent_latch import DescentLatch
 from nau.drive_trace import drive_readout
 

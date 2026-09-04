@@ -11,8 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from player_core.funscript import Funscript
+
 from nau.dashboard import Dashboard
 from nau.overlay import HeatmapStrip
 from nau.pointer import Pointer
@@ -113,7 +113,7 @@ def _recording_strip(bits: Bits) -> None:
                         loop_state="recording", record_in_ms=1000.0, position_ms=1200.0)
 
 
-@pytest.fixture()
+@pytest.fixture
 def bits(tmp_path: Path) -> Bits:
     return Bits(tmp_path)
 

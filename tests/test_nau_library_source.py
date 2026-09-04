@@ -238,6 +238,7 @@ def test_standalone_source_serves_all_videos_by_default():
     F-mode, so the default source serves scripted and unscripted alike."""
     import random
     from pathlib import Path
+
     from nau.library import LibraryEntry
     from nau.library_source import LibrarySource
 
@@ -257,6 +258,7 @@ def test_standalone_source_serves_all_videos_by_default():
 def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):
     import json
     import random
+
     from nau.library import LibraryEntry
     from nau.library_source import LibrarySource
 
@@ -288,6 +290,7 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
 
 def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
     import random
+
     from nau.library import LibraryEntry
     from nau.library_source import LibrarySource
 

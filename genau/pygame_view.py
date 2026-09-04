@@ -6,8 +6,6 @@ from pathlib import Path
 import numpy as np
 import pygame
 from PIL import Image
-from pygame._sdl2.video import Renderer, Texture, Window
-
 from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.volume import (
@@ -18,6 +16,8 @@ from player_core.volume import (
     hit_part,
     volume_at,
 )
+from pygame._sdl2.video import Renderer, Texture, Window
+
 from .layout import compute_video_rects
 
 # Near-black magenta used as the Win32 color key for HUD transparency.

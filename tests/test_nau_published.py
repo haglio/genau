@@ -10,7 +10,6 @@ import json
 from pathlib import Path
 
 import pytest
-
 from player_core.drive_readout import DriveHud, drive_text
 
 from nau.published import Published
@@ -32,7 +31,7 @@ def _drive_file(path: Path, position: int = 4_000) -> Path:
     return path
 
 
-@pytest.fixture()
+@pytest.fixture
 def files(tmp_path: Path) -> tuple[Path, Path]:
     return tmp_path / "console.json", tmp_path / "drive.txt"
 

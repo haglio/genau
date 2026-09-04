@@ -7,13 +7,15 @@ from functools import partial
 from pathlib import Path
 
 import pygame
-
-from genau.win32 import window_chrome_height
-from player_core.tcode import UdpTCodeSink
+from player_core.console_hud import ConsolePainter
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.status import StatusWriter
+from player_core.tcode import UdpTCodeSink
+from player_core.tcode_driver import FunscriptTCodeDriver
+
+from genau.win32 import window_chrome_height
 
 from .cli import (
     DEFAULT_CONFIG,
@@ -25,27 +27,25 @@ from .cli import (
     resolve_playlist,
 )
 from .clip_jumps import ClipJumps
-from .dashboard import Dashboard
-from .library_source import DEFAULT_MODE
-from .drive_gate import DriveGate
-from .keys import Keys
-from .modes import Modes, reload_playlist
-from .pointer import Pointer
-from .published import Published
-from .volume_control import VolumeControl
 from .clip_nav import ClipNav
+from .dashboard import Dashboard
 from .display import Display
+from .drive_gate import DriveGate
 from .funscript_jumps import FunscriptJumps
 from .input import Input
-from player_core.console_hud import ConsolePainter
-from .notice import NoticeWriter
+from .keys import Keys
+from .library_source import DEFAULT_MODE
 from .loading import LoadingCanceled, LoadingScreen
+from .modes import Modes, reload_playlist
+from .notice import NoticeWriter
 from .overlay import HeatmapStrip, LoopThumbCapture
 from .painter import HUD_OVERLAYS, ConsolePanel, Painter
+from .pointer import Pointer
+from .published import Published
 from .runtime import apply_command
 from .session import PlayerSession
 from .status import status_fields
-from player_core.tcode_driver import FunscriptTCodeDriver
+from .volume_control import VolumeControl
 
 logger = logging.getLogger(__name__)
 

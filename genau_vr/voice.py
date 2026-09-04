@@ -42,8 +42,8 @@ for _word, _value in _NUMBER_WORDS.items():
     VOICE_COMMANDS[f"speed {_word}"] = f"SPEED {_value}"
 
 try:
-    import vosk
     import sounddevice as sd
+    import vosk
 except Exception:
     vosk = None  # type: ignore[assignment]
     sd = None  # type: ignore[assignment]

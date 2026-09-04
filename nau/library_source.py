@@ -14,9 +14,9 @@ from pathlib import Path
 from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
+    FULL,
     MIXED,
     SHORTS,
-    FULL,
     LibraryEntry,
     group_versions,
     library_playlist,
