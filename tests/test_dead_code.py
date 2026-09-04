@@ -14,7 +14,7 @@ from app_support.dead_code import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKAGES = (ROOT / "genau", ROOT / "nau", ROOT / "genau_vr", ROOT / "tools",)
+PACKAGES = (ROOT / "genau", ROOT / "nau", ROOT / "tools",)
 SCANNED = PACKAGES
 WHITELIST = ROOT / "vulture_whitelist.py"
 
@@ -28,7 +28,7 @@ def test_the_whitelist_still_suppresses_what_it_claims_to():
 
 
 def test_every_package_in_the_tree_is_scanned():
-    assert_every_package_is_scanned(ROOT, ("genau", "nau", "genau_vr", "tools",))
+    assert_every_package_is_scanned(ROOT, ("genau", "nau", "tools",))
 
 
 def test_nothing_is_imported_or_assigned_and_left_unread():

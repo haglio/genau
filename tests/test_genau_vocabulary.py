@@ -2,24 +2,25 @@
 
 Genau is the *receiving* half of two contracts Fun Time owns: the verbs it
 writes into ``genau_cmd.txt``, and the field names it reads back out of
-``genau_status.txt``.  Neither has a schema anywhere — the verbs are bare
-string literals inside a dispatcher and the fields are an f-string — so a
-rename, a drop or a quietly-added spelling is invisible in review and silent at
-runtime: an unknown verb is logged and ignored, and a renamed status field
-reads as absent.
+``genau_status.txt``.  Neither has a schema anywhere — the verbs are string
+literals inside a registry and the fields are an f-string — so a rename, a drop
+or a quietly-added spelling is invisible in review and silent at runtime: an
+unknown verb is logged and ignored, and a renamed status field reads as absent.
 
-So the set is written out here, and gated from two sides that fail differently:
+The registry that answers the verbs lives in ``player_core`` now, so a second
+shell (Fun Time's headset) can run it; this window's contract with Fun Time is
+still this repo's to keep.  So the set is written out here and gated from three
+sides:
 
-* **behavior** — every verb below is answered by a fully-wired dispatcher, and
-  every retired spelling still is not.  This catches a verb *dropped* or
-  *re-spelled* by a restructure, whatever shape the dispatcher takes.
-* **source** — the uppercase literals in the package equal these verbs plus the
-  named non-verbs.  This catches a verb *added*, which no behavioral probe can
-  discover, and it holds whether the verbs live in an elif chain, a table, an
-  enum or a module of their own.
-
-Neither half alone is enough, which is why both are here.  Adding a verb means
-editing this file, on purpose, in the same commit — which is the whole point.
+* **behavior** — every verb below is answered by the dispatcher this window
+  runs, fully wired, and every retired spelling still is not.  This catches a
+  verb *dropped* or *re-spelled* in the engine.
+* **the registry** — the verbs it declares are exactly these, and the keys it
+  declares mean exactly these verbs.  This catches a verb *added* there without
+  a line here.
+* **the window** — nothing under ``genau/`` spells a verb or declares a key.
+  A verb literal back in this package is a control plumbed by hand again,
+  which is what moving the registry out ended.
 """
 from __future__ import annotations
 
@@ -36,11 +37,6 @@ REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 
 # What a verb looks like on the wire: upper case, words joined by underscores.
 _VERB_SHAPED = re.compile(r"^[A-Z][A-Z0-9_]*$")
-
-
-# --------------------------------------------------------------------------
-# Genau
-# --------------------------------------------------------------------------
 
 # Every verb ``genau_cmd.txt`` may carry.  The value beside each is the argument
 # a probe sends it, or None when the verb stands alone.
@@ -81,18 +77,12 @@ GENAU_VERBS: dict[str, str | None] = {
 }
 
 # Upper-case literals in ``genau/`` that are *not* genau_cmd verbs, each named
-# for the protocol it does belong to.  Held as an equality with the verbs above
-# so a new one is a deliberate line in a diff rather than a silent widening of
-# what the scan tolerates.
+# for what it does belong to.  Held as an equality with the scan so a new one is
+# a deliberate line in a diff rather than a silent widening of what the scan
+# tolerates.
 GENAU_NOT_VERBS: dict[str, str] = {
-    "AUTO": "genau/state.py — a UDP verb the broker sends",
-    "BPM": "genau/state.py — a UDP verb the broker sends",
-    "SYNC": "genau/state.py — a UDP verb the broker sends",
-    "APPDATA": "genau/win32.py — an environment variable",
-    "L0": "genau/tcode.py — the T-Code axis",
     "RGB": "genau/pygame_view.py — a pygame surface format",
     "RGBA": "genau/pygame_view.py — a pygame surface format",
-    "T": "genau/cache_utils.py — an ISO-8601 date separator",
 }
 
 # The keys Genau's own window answers to, and the verb each one means.  Thirteen
@@ -140,64 +130,12 @@ GENAU_STATUS_FIELDS = (
 )
 
 
-# --------------------------------------------------------------------------
-# GenauVR
-# --------------------------------------------------------------------------
-
-GVR_VERBS: dict[str, str | None] = {
-    "QUIT": None,
-    "PREV": None,
-    "NEXT": None,
-    "PAUSE": None,
-    "RESUME": None,
-    "SPEED_DOWN": None,
-    "SPEED_UP": None,
-    "AMPLITUDE_DOWN": None,
-    "AMPLITUDE_UP": None,
-    "CENTER_DOWN": None,
-    "CENTER_UP": None,
-    "CYCLE_SHAPE": None,
-    "TOGGLE_CRUISE": None,
-    "CRUISE_ON": None,
-    "CRUISE_OFF": None,
-    "VOLUME_UP": None,
-    "VOLUME_DOWN": None,
-    "AMP": "50",
-    "CENTER": "50",
-    "SPEED": "50",
-}
-
-GVR_NOT_VERBS: dict[str, str] = {
-    "CSV": "genau_vr/vr_runtime.py — an OpenXR structure-type suffix",
-    "L0": "genau_vr/playback.py — the T-Code axis",
-    "I": "genau_vr/playback.py — the T-Code interval suffix",
-    "I": "genau_vr/playback.py — the T-Code interval suffix",
-}
-
-# Genau answers to twelve verbs GenauVR does not: it has a clip folder to
-# reorder, a lock, a HUD and a console volume chip, and none of
-# those exist in the headset.  GenauVR answers to two Genau does not — its own
-# audio player's level.  Written down so the *divergence* is a reviewed fact and
-# not something a reader has to diff two dispatchers to discover.
-ONLY_GENAU = frozenset({
-    "WEIRD", "LATEST", "SHUFFLE", "OFFSET_QUARTER_CYCLE", "CYCLE_SHAPE_PREV",
-    "TOGGLE_LOCK", "LOCK_ON", "LOCK_OFF", "CLIP_SECONDS_DOWN", "CLIP_SECONDS_UP",
-    "CLIP_SECONDS", "HUD_ON", "HUD_OFF", "SET_VOLUME",
-})
-ONLY_GVR = frozenset({"VOLUME_UP", "VOLUME_DOWN"})
-
-
-# --------------------------------------------------------------------------
-# The two gates
-# --------------------------------------------------------------------------
-
-
 def _key_names(tree: ast.AST) -> dict[int, str]:
     """The ``key=`` a ``Verb(...)`` was declared with, by node id.
 
     A pygame constant's name is verb-shaped (``K_PERIOD``) but is not a verb, so
     the scan below has to tell the two apart by where they sit rather than by
-    how they are spelled.  These get their own gate instead.
+    how they are spelled.
     """
     named: dict[int, str] = {}
     for node in ast.walk(tree):
@@ -230,10 +168,6 @@ def _scan(package: str) -> tuple[set[str], set[str]]:
     return verbs, keys
 
 
-def _verb_shaped_literals(package: str) -> set[str]:
-    return _scan(package)[0]
-
-
 @contextmanager
 def _unanswered(logger_name: str):
     """Collect the dispatcher's warnings — its only report of a verb it refused."""
@@ -255,19 +189,17 @@ def _unanswered(logger_name: str):
 
 
 def _genau_answers(line: str) -> bool:
-    """Send one line to a Genau dispatcher with every collaborator wired."""
+    """Send one line to the dispatcher this window runs, every collaborator wired."""
+    from player_core.clip_advance import ClipAdvanceState
     from player_core.cruise_control import CruiseControlState
+    from player_core.flag import Flag
+    from player_core.genau_controls import GenauControls, apply_runtime_command
     from player_core.robot_hand import RobotHandState
+    from player_core.robot_hand_beat import BeatEngine
 
-    from genau.clip_advance import ClipAdvanceState
-    from genau.controls import GenauControls
-    from genau.engine import PlaybackEngine
-    from genau.flags import Flag
-    from genau.runtime_commands import apply_runtime_command
-
-    with _unanswered("genau.runtime_commands") as refused:
+    with _unanswered("player_core.genau_controls") as refused:
         apply_runtime_command(line, GenauControls(
-            engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+            engine=BeatEngine(phase=0.0, last_tick=0.0),
             paused=Flag(),
             step_clip=lambda _step: None,
             condemn_clip=lambda: None,
@@ -279,30 +211,6 @@ def _genau_answers(line: str) -> bool:
             hud=Flag(),
             set_volume=lambda _level, _muted: None,
             reorder_clips=lambda _recent: None,
-        ))
-    return not refused
-
-
-def _gvr_answers(line: str) -> bool:
-    """Send one line to a GenauVR dispatcher with every collaborator wired."""
-    from genau_vr.controls import GenauVrControls
-    from genau_vr.cruise_control import CruiseControlState
-    from genau_vr.playback import RobotHandState
-    from genau_vr.runtime_commands import apply_runtime_command
-
-    class _Audio:
-        volume = 0.25
-
-        def adjust_volume(self, delta: float) -> None:
-            self.volume += delta
-
-    with _unanswered("genau_vr.runtime_commands") as refused:
-        apply_runtime_command(line, GenauVrControls(
-            step_clip=lambda _step: None,
-            robot_hand=RobotHandState(playing=True, speed=50, amplitude=60, center=40),
-            cruise_control_state=CruiseControlState(),
-            stop_event=threading.Event(),
-            audio_player=_Audio(),
         ))
     return not refused
 
@@ -324,101 +232,33 @@ class TestGenauAnswersEveryVerbWrittenDown:
         assert _genau_answers("EXAMPLE_VERB") is False
         assert _genau_answers("EXAMPLE_VERB 7") is False
 
-    def test_the_source_names_these_verbs_and_no_others(self):
-        assert _verb_shaped_literals("genau") == set(GENAU_VERBS) | set(GENAU_NOT_VERBS)
+    def test_the_registry_declares_these_verbs_and_no_others(self):
+        """The registry is where verbs are added, so it is where a widening of
+        the vocabulary would first show -- and a verb it stopped declaring is one
+        Fun Time still sends."""
+        from player_core.genau_controls import VERBS
 
-    def test_the_source_declares_these_keys_and_no_others(self):
-        assert _scan("genau")[1] == set(GENAU_KEYS)
+        assert set(VERBS) == set(GENAU_VERBS)
 
     def test_each_key_stands_for_the_verb_written_down_beside_it(self):
-        from genau.controls import KEYS
+        from player_core.genau_controls import KEYS
 
         assert {name: verb.spelling for name, (_control, verb) in KEYS.items()} == GENAU_KEYS
 
-    def test_genau_vr_declares_no_keys(self):
-        """The headset has no keyboard; its controls arrive as verbs only."""
-        assert _scan("genau_vr")[1] == set()
 
-    def test_no_control_declares_a_verb_that_is_not_written_down(self):
-        """The registry is where verbs are added, so it is where a widening of
-        the vocabulary would first show."""
-        from genau.controls import VERBS
-
-        assert set(VERBS) <= set(GENAU_VERBS)
-
-
-class TestGenauVrAnswersEveryVerbWrittenDown:
-    @pytest.mark.parametrize("verb", sorted(GVR_VERBS))
-    def test_a_verb_written_down_is_answered(self, verb):
-        assert _gvr_answers(_spelling(verb, GVR_VERBS[verb])) is True
-
-    def test_a_verb_nobody_sends_is_refused(self):
-        assert _gvr_answers("EXAMPLE_VERB") is False
-        assert _gvr_answers("EXAMPLE_VERB 7") is False
-
-    def test_the_source_names_these_verbs_and_no_others(self):
-        assert _verb_shaped_literals("genau_vr") == set(GVR_VERBS) | set(GVR_NOT_VERBS)
-
-    def test_every_spoken_phrase_names_a_verb(self):
-        from genau_vr.voice import VOICE_COMMANDS
-
-        spoken = {phrase.split()[0] for phrase in VOICE_COMMANDS.values()}
-        assert spoken <= set(GVR_VERBS)
-
-
-class TestHowManyFilesAControlIsSpreadOver:
-    """The number this whole item exists to move.
-
-    A control used to be hand-plumbed through four to six files -- a keyword
-    parameter and a branch in the dispatcher, a parameter and an attribute and a
-    hand-off line on the tick, a branch in the key handler, a line in the status
-    file -- and the two hottest files in the repo changed together in 22 of 46
-    commits because of it.
-
-    Held as a ceiling that fails rather than as a note, and measured the way a
-    reader would: which files in the package spell the verb at all.  Two are
-    allowed, and only two: the registry that declares it, and the voice grammar,
-    which maps spoken phrases to verbs and is a second vocabulary by nature.
+class TestTheWindowSpellsNoVerbOfItsOwn:
+    """The registry left this package, and with it every verb.  A verb-shaped
+    literal back in ``genau/`` is a control plumbed by hand again -- a branch in
+    a key handler, a spelling in the composition root -- which is what a control
+    being declared once put an end to.
     """
 
-    DECLARED_IN = "controls.py"
-    MAY_ALSO_SPELL_IT = "voice.py"
+    def test_the_window_names_no_verb(self):
+        assert _scan("genau")[0] == set(GENAU_NOT_VERBS)
 
-    # A genuine second home for a verb would be written down here; there is
-    # none now that the broker is Fun Time's to park and resume.
-    ELSEWHERE: dict[str, set[str]] = {}
-
-    @staticmethod
-    def _files_naming(verb: str, package: str) -> set[str]:
-        naming = set()
-        for path in sorted((REPO_DIR / package).rglob("*.py")):
-            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            if any(isinstance(n, ast.Constant) and n.value == verb
-                   for n in ast.walk(tree)):
-                naming.add(path.name)
-        return naming
-
-    @pytest.mark.parametrize("verb", sorted(GENAU_VERBS))
-    def test_genau_declares_it_in_one_file(self, verb):
-        naming = self._files_naming(verb, "genau")
-
-        assert self.DECLARED_IN in naming
-        allowed = {self.DECLARED_IN, self.MAY_ALSO_SPELL_IT} | self.ELSEWHERE.get(verb, set())
-        assert naming <= allowed, verb
-
-    @pytest.mark.parametrize("verb", sorted(GVR_VERBS))
-    def test_genau_vr_declares_it_in_one_file(self, verb):
-        naming = self._files_naming(verb, "genau_vr")
-
-        assert self.DECLARED_IN in naming
-        assert naming <= {self.DECLARED_IN, self.MAY_ALSO_SPELL_IT}, verb
-
-    def test_the_registry_is_the_only_file_that_declares_a_key(self):
-        """The other half of the plumbing: a key used to be a branch in the key
-        handler, a callback parameter, and a lambda in the composition root."""
-        from genau.controls import KEYS
-
-        assert set(_scan("genau")[1]) == set(KEYS)
+    def test_the_window_declares_no_key(self):
+        """A key goes beside its verb in the registry, nowhere else."""
+        assert _scan("genau")[1] == set()
 
     def test_the_window_keeps_exactly_the_two_keys_that_have_no_verb(self):
         """The registry is where a key goes.  Two cannot be there: ESC and SPACE
@@ -435,28 +275,12 @@ class TestHowManyFilesAControlIsSpreadOver:
         assert {kw.arg for kw in calls[0].keywords} == {"K_ESCAPE", "K_SPACE"}
 
 
-class TestTheTwoDispatchersDivergeOnlyWhereSaid:
-    """One vocabulary, two receivers — and the difference is a written fact.
-
-    Both halves matter: a verb GenauVR silently stops answering would otherwise
-    look like a widening of ONLY_GENAU, and a verb copied across from Genau
-    would look like nothing at all.
-    """
-
-    def test_genau_answers_the_shared_verbs_and_its_own(self):
-        assert set(GENAU_VERBS) - set(GVR_VERBS) == ONLY_GENAU
-
-    def test_genau_vr_answers_the_shared_verbs_and_its_own(self):
-        assert set(GVR_VERBS) - set(GENAU_VERBS) == ONLY_GVR
-
-
 class TestTheStatusFileFunTimeReads:
     def test_it_publishes_exactly_these_fields_in_this_order(self):
+        from player_core.clip_advance import ClipAdvanceState
         from player_core.cruise_control import CruiseControlState
+        from player_core.genau_status import build_status_text
         from player_core.robot_hand import RobotHandState
-
-        from genau.clip_advance import ClipAdvanceState
-        from genau.status_writer import build_status_text
 
         text = build_status_text(
             RobotHandState(),
@@ -470,9 +294,8 @@ class TestTheStatusFileFunTimeReads:
     def test_every_line_is_a_key_and_a_value(self):
         """No field may go out bare — a reader splits on the first ``=``."""
         from player_core.cruise_control import CruiseControlState
+        from player_core.genau_status import build_status_text
         from player_core.robot_hand import RobotHandState
-
-        from genau.status_writer import build_status_text
 
         text = build_status_text(RobotHandState(), CruiseControlState())
 

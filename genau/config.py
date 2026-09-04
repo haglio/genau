@@ -15,13 +15,11 @@ def _resolve_path(base: Path, raw: str) -> Path:
     return p if p.is_absolute() else (base / p).resolve()
 
 
-# The four files the orchestrator channel is made of.  Named here rather than
-# spelled at the point of use: the status file's name used to be a literal in
-# the middle of the refresh loop, which is how it came to be rooted somewhere
-# the other three are not.
+# The files of the orchestrator channel this window is told about.  Named here
+# rather than spelled at the point of use; the fourth, the status file, is
+# named beside the engine that writes it (player_core.genau_status).
 GENAU_CMD_FILENAME = "genau_cmd.txt"
 GENAU_PAUSED_FILENAME = "genau_paused.txt"
-GENAU_STATUS_FILENAME = "genau_status.txt"
 GENAU_DRIVE_FILENAME = "genau_drive.txt"
 
 

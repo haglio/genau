@@ -388,7 +388,7 @@ class TestTheConfigsOwnDefaults:
         assert getattr(args, name) == expected
 
     def test_the_device_defaults_to_the_port_the_family_listens_on(self):
-        """50557 is the broker's, and Genau's, and GenauVR's."""
+        """50557 is the broker's, and Genau's."""
         args = build_parser({}).parse_args([])
 
         assert (args.tcode_host, args.tcode_port) == ("127.0.0.1", 50557)

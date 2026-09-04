@@ -113,7 +113,7 @@ def discover_clips(clips_dir: Path | None) -> list[LibraryEntry]:
     """Clip videos in *clips_dir* (unscripted, always treated as shorts)."""
     if clips_dir is None or not clips_dir.is_dir():
         return []
-    from genau.video import SUPPORTED_VIDEO_EXTS
+    from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
 
     clips: list[LibraryEntry] = []
     for path in sorted(clips_dir.iterdir()):

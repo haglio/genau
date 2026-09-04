@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genau.video import SUPPORTED_VIDEO_EXTS
+from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
 
 from .library import LibraryEntry
 

@@ -142,7 +142,7 @@ class TestTheOneHandEveryPartIsGiven:
 
     @pytest.mark.parametrize(
         "part", ["RobotHandState", "CruiseControlState", "ClipAdvanceState",
-                 "RateLimitedTCodeSender"],
+                 "RobotHandTCodeDriver"],
     )
     def test_the_module_builds_exactly_one_of_it(self, part):
         """Asked of the whole module rather than one function: a second one
@@ -153,7 +153,7 @@ class TestTheOneHandEveryPartIsGiven:
     def test_the_sender_is_given_the_hand_it_was_built_beside(self):
         stack = _function("_build_drive_stack")
 
-        assert _keyword(_call(stack, "RateLimitedTCodeSender"), "robot_hand") == "robot_hand"
+        assert _keyword(_call(stack, "RobotHandTCodeDriver"), "robot_hand") == "robot_hand"
         assert _keyword(_call(stack, "DriveStack"), "robot_hand") == "robot_hand"
 
     def test_every_part_of_the_app_is_given_that_same_stack(self):
