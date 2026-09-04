@@ -9,11 +9,12 @@ name: merge gate (full suite)
 # handling, hidden-subprocess flags) that does not exist off-Windows. genau
 # imports three sibling packages -- app_support, shared_ui and player_core --
 # installed editable from local paths and never published, so CI checks them out
-# adjacent and installs them the same way. shared_ui is here because the HUD
-# chrome in player_core draws the family's marks from it; importing it pulls in
-# no Qt (the geometry and its Pillow renderer import neither), though pip does
-# fetch PyQt6 alongside it, which costs a wheel on the runner and nothing at run
-# time. Every editable install uses compat mode (see
+# adjacent and installs them the same way. shared_ui is here for the family's
+# marks, which the HUD chrome in player_core draws, and for shared_ui.alert,
+# which GenauVR says a failed startup through -- that one does import Qt, from
+# the PyQt6 pip already fetches alongside shared_ui, inside the call rather than
+# at module scope, so nothing loads Qt on a run that starts. Every editable
+# install uses compat mode (see
 # CLAUDE.md): setuptools' default editable finder would otherwise shadow the
 # repo's own genau/nau/genau_vr packages. pygame runs headless through the dummy
 # SDL video driver. No libmpv is provisioned: nothing the suite imports reaches

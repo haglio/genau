@@ -107,18 +107,17 @@ def test_main_puts_a_failure_that_is_not_about_vr_on_screen_too():
     assert "no clips_dir" in mock_popup.call_args[0][0]
 
 
-def test_error_popup_is_topmost_so_a_hidden_launch_cannot_bury_it():
-    """Launched from a shortcut, GenauVR has no foreground rights to claim."""
-    user32 = MagicMock()
-    with patch("genau_vr.app.ctypes.windll") as windll:
-        windll.user32 = user32
-        from genau_vr.app import _show_error_popup
+def test_the_error_popup_is_the_familys_dialog_under_genau_vrs_own_icon():
+    """Launched from a shortcut, GenauVR has no foreground rights to claim --
+    the dialog carries WindowStaysOnTopHint for it, and the icon is what puts
+    its name on the taskbar button rather than the python host's."""
+    with patch("shared_ui.alert.show_alert") as show_alert:
+        from genau_vr.app import ICON_FILE, _show_error_popup
         _show_error_popup("something went wrong")
 
-    flags = user32.MessageBoxW.call_args[0][3]
-    MB_SETFOREGROUND, MB_TOPMOST = 0x00010000, 0x00040000
-    assert flags & MB_SETFOREGROUND
-    assert flags & MB_TOPMOST
+    show_alert.assert_called_once_with(
+        "GenauVR", "something went wrong", icon=ICON_FILE,
+    )
 
 
 def test_a_named_clip_that_is_not_there_raises_instead_of_exiting(tmp_path):

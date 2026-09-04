@@ -5,7 +5,6 @@ Features: voice commands, cruise control, VR controller pitch adjust.
 from __future__ import annotations
 
 import argparse
-import ctypes
 import logging
 import threading
 import time
@@ -36,21 +35,15 @@ from .playback import (
 logger = logging.getLogger(__name__)
 
 
-def _show_error_popup(message: str) -> None:
-    """Show a Win32 MessageBox error dialog.
+ICON_FILE = Path(__file__).resolve().parent.parent / "genau_vr_icon.ico"
 
-    GenauVR is launched hidden from a shortcut, so it has no claim on the
-    foreground: without these two flags the dialog opens *behind* whatever the
-    user is looking at, which reads as having crashed with no explanation.
-    """
-    MB_OK = 0x0
-    MB_ICONERROR = 0x10
-    MB_SETFOREGROUND = 0x00010000
-    MB_TOPMOST = 0x00040000
-    ctypes.windll.user32.MessageBoxW(
-        None, message, "GenauVR",
-        MB_OK | MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST,
-    )
+
+def _show_error_popup(message: str) -> None:
+    """Say why GenauVR could not start, in the family's colors under its own
+    icon.  Qt is imported here because this is the only window it ever draws."""
+    from shared_ui.alert import show_alert
+
+    show_alert("GenauVR", message, icon=ICON_FILE)
 
 
 def _configure_logging() -> tuple[logging.Logger, IO[str]]:
@@ -127,8 +120,7 @@ def _name_this_process() -> None:
     """
     try:
         from app_support.process_identity import ProcessNamer
-        icon = Path(__file__).resolve().parent.parent / "genau_vr_icon.ico"
-        ProcessNamer("Genau VR", icon=icon).prepare_launcher("GenauVR")
+        ProcessNamer("Genau VR", icon=ICON_FILE).prepare_launcher("GenauVR")
     except Exception:
         pass  # Cosmetic: costs a name in the task list, never a launch.
 
