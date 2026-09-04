@@ -25,17 +25,16 @@ import pygame
 class Input:
     """One frame's events, dealt to the things that answer them."""
 
-    def __init__(self, pointer, keys, dashboard, stop_event) -> None:
+    def __init__(self, pointer, keys, dashboard) -> None:
         self._pointer = pointer
         self._keys = keys
         self._dashboard = dashboard
-        self._stop_event = stop_event
 
     def deal(self, events, win_w: int, win_h: int) -> None:
         """Answer *events*, in the order SDL queued them."""
         for ev in events:
             if ev.type == pygame.QUIT:
-                self._dashboard.take_quit_gesture(self._stop_event)
+                self._dashboard.take_quit_gesture()
             elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
                 self._pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
             elif ev.type == pygame.MOUSEBUTTONUP and ev.button == 1:

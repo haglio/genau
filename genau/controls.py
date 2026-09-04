@@ -27,8 +27,8 @@ from player_core.cruise_control import (
     enable_cruise_control,
     toggle_cruise_control,
 )
-from player_core.direct_control import (
-    DirectControlState,
+from player_core.robot_hand import (
+    RobotHandState,
     adjust_amplitude,
     adjust_center,
     adjust_speed,
@@ -58,13 +58,12 @@ class GenauControls:
     paused: Flag
     step_clip: Callable[[int], None]
     condemn_clip: Callable[[], None] | None = None
-    direct_state: DirectControlState | None = None
+    robot_hand: RobotHandState | None = None
     cruise_control_state: CruiseControlState | None = None
     set_stroke_phase: Callable[[float], None] | None = None
     clip_advance_state: ClipAdvanceState | None = None
     stop_event: threading.Event | None = None
     hud: Flag | None = None
-    display: Flag | None = None
     set_volume: Callable[[int, bool], None] | None = None
     reorder_clips: Callable[[bool], None] | None = None
 
@@ -82,28 +81,28 @@ QUARTER_CYCLE_OFFSET_COMMAND = "OFFSET_QUARTER_CYCLE"
 def _stepper(step: int) -> Act:
     """A verb that nudges the hand's speed by a fixed amount."""
     def act(controls: GenauControls, _value: str) -> bool:
-        adjust_speed(controls.direct_state, step)
+        adjust_speed(controls.robot_hand, step)
         return True
     return act
 
 
 def _amplitude_step(step: int) -> Act:
     def act(controls: GenauControls, _value: str) -> bool:
-        adjust_amplitude(controls.direct_state, step)
+        adjust_amplitude(controls.robot_hand, step)
         return True
     return act
 
 
 def _center_step(step: int) -> Act:
     def act(controls: GenauControls, _value: str) -> bool:
-        adjust_center(controls.direct_state, step)
+        adjust_center(controls.robot_hand, step)
         return True
     return act
 
 
 def _shape_step(step: int) -> Act:
     def act(controls: GenauControls, _value: str) -> bool:
-        cycle_shape(controls.direct_state, step)
+        cycle_shape(controls.robot_hand, step)
         return True
     return act
 
@@ -119,7 +118,7 @@ def _number_setter(setter) -> Act:
             number = int(value)
         except ValueError:
             return False
-        setter(controls.direct_state, number)
+        setter(controls.robot_hand, number)
         return True
     return act
 
@@ -217,8 +216,8 @@ def _playing(playing: bool) -> Act:
     """
     def act(controls: GenauControls, _value: str) -> bool:
         controls.paused.on = not playing
-        if controls.direct_state is not None:
-            controls.direct_state.playing = playing
+        if controls.robot_hand is not None:
+            controls.robot_hand.playing = playing
         return True
     return act
 
@@ -257,7 +256,7 @@ def _volume_shown(controls: GenauControls, value: str) -> bool:
 CONTROLS: tuple[Control, ...] = (
     Control(
         name="speed",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(
             Verb("SPEED_DOWN", _stepper(-5), key="K_j"),
             Verb("SPEED_UP", _stepper(5), key="K_l"),
@@ -266,7 +265,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="amplitude",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(
             Verb("AMPLITUDE_DOWN", _amplitude_step(-10), key="K_7"),
             Verb("AMPLITUDE_UP", _amplitude_step(10), key="K_9"),
@@ -275,7 +274,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="center",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(
             Verb("CENTER_DOWN", _center_step(-5), key="K_u"),
             Verb("CENTER_UP", _center_step(5), key="K_o"),
@@ -284,7 +283,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="shape",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(
             Verb("CYCLE_SHAPE", _shape_step(1), key="K_i"),
             Verb("CYCLE_SHAPE_PREV", _shape_step(-1)),
@@ -363,17 +362,6 @@ CONTROLS: tuple[Control, ...] = (
         verbs=(
             Verb("HUD_ON", _flag_set("hud", True)),
             Verb("HUD_OFF", _flag_set("hud", False)),
-        ),
-    ),
-    # Whether Genau owns the screen right now, which is not the same as whether
-    # the hand is stroking: an orchestrator switching to a mode Genau doesn't
-    # display sends DISPLAY_OFF, and Genau goes dark without touching playback.
-    Control(
-        name="display",
-        needs=("display",),
-        verbs=(
-            Verb("DISPLAY_ON", _flag_set("display", True)),
-            Verb("DISPLAY_OFF", _flag_set("display", False)),
         ),
     ),
     Control(

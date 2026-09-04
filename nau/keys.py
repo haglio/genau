@@ -20,9 +20,8 @@ from .runtime import SEEK_STEP_MS
 class Keys:
     """What each key does, and nothing about which key it was."""
 
-    def __init__(self, session, modes, dashboard, stop_event) -> None:
+    def __init__(self, session, modes, dashboard) -> None:
         self._dashboard = dashboard
-        self._stop_event = stop_event
         self._on_press = {
             pygame.K_ESCAPE: session.toggle_pause,
             # Held rather than tapped: pressing marks the loop's in point and
@@ -40,7 +39,7 @@ class Keys:
     def press(self, key: int, mod: int = 0) -> bool:
         """Answer a key going down; False if nothing is bound to it."""
         if key == pygame.K_q and mod & pygame.KMOD_CTRL:
-            self._dashboard.take_quit_gesture(self._stop_event)
+            self._dashboard.take_quit_gesture()
             return True
         return self._act(self._on_press, key)
 

@@ -16,9 +16,9 @@ import numpy as np
 import pytest
 from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
-    DRIVEN_BY_GENAU,
     DRIVEN_BY_NEUTRAL,
     DRIVEN_BY_NOTHING,
+    DRIVEN_BY_ROBOT_HAND,
     POSITION_MAX,
     TRACE_SAMPLES,
     DriveHud,
@@ -85,12 +85,10 @@ def _script_ahead(*, from_ms: int = 8_000, to_ms: int = 9_000) -> Funscript:
                               for t in range(from_ms, to_ms + 1, 200)])
 
 
-def _read(script, *, at: int, published=None, genau_behind=True,
-          latch=None) -> DriveHud:
+def _read(script, *, at: int, published=None, latch=None) -> DriveHud:
     return drive_readout(
         published if published is not None else _stroke(),
-        script=script, position_ms=at, genau_behind=genau_behind,
-        latch=latch)
+        script=script, position_ms=at, latch=latch)
 
 
 def _colors(hud: DriveHud) -> list[str]:
@@ -118,13 +116,13 @@ class TestOneLineTwoDrivers:
                     published=_parked_stroke())
 
         assert _colors(hud) == [
-            DRIVEN_BY_FUNSCRIPT, DRIVEN_BY_NEUTRAL, DRIVEN_BY_GENAU]
+            DRIVEN_BY_FUNSCRIPT, DRIVEN_BY_NEUTRAL, DRIVEN_BY_ROBOT_HAND]
 
     def test_a_script_about_to_start_up_shows_the_stroke_handing_over(self):
         hud = _read(_script_ahead(), at=0)
 
         assert _colors(hud) == [
-            DRIVEN_BY_GENAU, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
+            DRIVEN_BY_ROBOT_HAND, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
 
     def test_the_runs_touch_so_the_line_never_breaks_at_the_joins(self):
         hud = _read(_script(until_ms=2_000), at=1_000,
@@ -133,13 +131,11 @@ class TestOneLineTwoDrivers:
         for left, right in zip(hud.runs, hud.runs[1:]):
             assert left[1] == right[0]
 
-    def test_in_nau_the_gap_is_nobody_s_and_rests_on_the_park(self):
-        """No Genau behind that screen, and the script's own driver rests the
-        device — so past the buffer the picture is the park, not a stroke that
-        is not coming."""
-        hud = drive_readout(
-            None, script=_script(until_ms=2_000), position_ms=0,
-            genau_behind=False)
+    def test_with_nothing_published_the_gap_is_nobody_s_and_rests_on_the_park(self):
+        """Nothing published yet, and the script's own driver rests the device
+        — so past the buffer the picture is the park, not a stroke that is not
+        coming."""
+        hud = drive_readout(None, script=_script(until_ms=2_000), position_ms=0)
         gap_start = hud.runs[-1][0]
 
         assert _colors(hud) == [
@@ -298,7 +294,7 @@ class TestAFloorOnTheParkEndsOnItsTouchDown:
         green_start = hud.runs[-1][0]
 
         assert _colors(hud) == [
-            DRIVEN_BY_GENAU, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
+            DRIVEN_BY_ROBOT_HAND, DRIVEN_BY_NEUTRAL, DRIVEN_BY_FUNSCRIPT]
         assert hud.waveform[blue_end] <= 0.03            # ends ON the park...
         flat = hud.waveform[blue_end + 1:green_start - 10]
         assert max(flat) <= 0.03                          # ...and stays flat
@@ -609,7 +605,7 @@ class TestForecastsDieWithTheirWave:
         landed = _read(script, at=3_120, published=self._touching(let_go=0.0),
                        latch=latch)
 
-        assert DRIVEN_BY_GENAU not in _colors(landed)
+        assert DRIVEN_BY_ROBOT_HAND not in _colors(landed)
 
 
 class TestThePillFollowsTheLine:
@@ -627,7 +623,7 @@ class TestThePillFollowsTheLine:
         hud = _read(_script_ahead(), at=3_320, published=published,
                     latch=DescentLatch())
 
-        assert hud.driven == DRIVEN_BY_GENAU
+        assert hud.driven == DRIVEN_BY_ROBOT_HAND
 
     def test_buffer_through_the_gray(self):
         hud = _read(_script_ahead(), at=4_500, published=_parked_stroke())
@@ -681,8 +677,7 @@ class TestNothingToFoldIn:
     def test_an_unscripted_video_leaves_the_readout_alone(self):
         published = _stroke()
 
-        assert drive_readout(published, script=None, position_ms=0,
-                             genau_behind=True) == published
+        assert drive_readout(published, script=None, position_ms=0) == published
 
     def test_a_single_run_still_names_its_driver(self):
         """The painter's fallback color for empty segments is the OSR2 state,

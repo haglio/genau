@@ -5,8 +5,8 @@ import dataclasses
 import pytest
 
 from genau_vr.playback import (
-    DirectControlState,
     PlaybackEngine,
+    RobotHandState,
     WaveformShape,
     _waveform_raw,
     bpm_for_speed,
@@ -23,14 +23,14 @@ from genau_vr.playback import (
 
 class TestCycleShape:
     def test_it_walks_the_shapes_in_order(self):
-        state = DirectControlState(playing=True, shape=WaveformShape.TRIANGLE)
+        state = RobotHandState(playing=True, shape=WaveformShape.TRIANGLE)
 
         cycle_shape(state)
 
         assert state.shape is WaveformShape.ROUNDED_SQUARE
 
     def test_it_wraps_from_the_last_shape_to_the_first(self):
-        state = DirectControlState(playing=True, shape=WaveformShape.SAWTOOTH)
+        state = RobotHandState(playing=True, shape=WaveformShape.SAWTOOTH)
 
         cycle_shape(state)
 
@@ -42,7 +42,7 @@ class TestCycleShape:
         import pytest
 
         with pytest.raises(TypeError):
-            cycle_shape(DirectControlState(), -1)
+            cycle_shape(RobotHandState(), -1)
 
 
 class TestBpmForSpeed:
@@ -67,7 +67,7 @@ class TestBpmForSpeed:
 
 class TestDirectControlState:
     def test_default_state(self):
-        state = DirectControlState(playing=True, speed=50)
+        state = RobotHandState(playing=True, speed=50)
         assert state.playing is True
         assert state.speed == 50
         # A number, not a call to the function that computed it: comparing it
@@ -76,7 +76,7 @@ class TestDirectControlState:
         assert state.shape is WaveformShape.SINE
 
     def test_amplitude_default(self):
-        state = DirectControlState()
+        state = RobotHandState()
         assert state.amplitude == 100
         assert state.center == 50
 
@@ -86,7 +86,7 @@ class TestTheCenterTheSwingIsBuiltAround:
     cannot be centered somewhere its own travel would take it off either end."""
 
     def test_a_full_swing_can_only_be_centered_in_the_middle(self):
-        state = DirectControlState(amplitude=100, intended_center=20)
+        state = RobotHandState(amplitude=100, intended_center=20)
 
         assert state.center == 50
         assert state.intended_center == 20, "what was asked for survives the clamp"
@@ -94,14 +94,14 @@ class TestTheCenterTheSwingIsBuiltAround:
     @pytest.mark.parametrize("asked_for, reachable", [(10, 20), (50, 50), (95, 80)])
     def test_a_narrower_swing_can_travel(self, asked_for, reachable):
         """Amplitude 40 leaves half of it, 20, clear at each end."""
-        state = DirectControlState(amplitude=40, intended_center=asked_for)
+        state = RobotHandState(amplitude=40, intended_center=asked_for)
 
         assert state.center == reachable
 
     def test_widening_the_swing_pulls_the_center_back_in(self):
         """The clamp is re-run on every change, not only on the center's own:
         without that, widening around a raised center swings off the top."""
-        state = DirectControlState(amplitude=40, intended_center=80)
+        state = RobotHandState(amplitude=40, intended_center=80)
 
         set_amplitude(state, 100)
 
@@ -113,7 +113,7 @@ class TestTheSpeedRange:
     @pytest.mark.parametrize("asked_for, held_at", [(-20, 5), (0, 5), (5, 5),
                                                     (100, 100), (400, 100)])
     def test_a_speed_outside_the_range_saturates(self, asked_for, held_at):
-        state = DirectControlState()
+        state = RobotHandState()
 
         set_speed(state, asked_for)
 
@@ -122,7 +122,7 @@ class TestTheSpeedRange:
     def test_the_pace_follows_the_speed_that_was_actually_taken(self):
         """Not the one that was asked for -- a clamped speed with an unclamped
         bpm would drive the device faster than the control says."""
-        state = DirectControlState()
+        state = RobotHandState()
 
         set_speed(state, 400)
 

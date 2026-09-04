@@ -3,14 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import DirectControlState, WaveformShape
+from player_core.robot_hand import RobotHandState, WaveformShape
 
 from genau.clip_advance import ClipAdvanceState
 from genau.status_writer import build_status_text, write_status_file
 
 
 def test_build_status_text_defaults():
-    ds = DirectControlState()
+    ds = RobotHandState()
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs)
@@ -23,7 +23,7 @@ def test_build_status_text_defaults():
 
 
 def test_build_status_text_cruise_active():
-    ds = DirectControlState()
+    ds = RobotHandState()
     cs = CruiseControlState(active=True)
 
     text = build_status_text(ds, cs)
@@ -32,7 +32,7 @@ def test_build_status_text_cruise_active():
 
 
 def test_build_status_text_shape():
-    ds = DirectControlState(shape=WaveformShape.TRIANGLE)
+    ds = RobotHandState(shape=WaveformShape.TRIANGLE)
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs)
@@ -41,7 +41,7 @@ def test_build_status_text_shape():
 
 
 def test_build_status_text_amp_at_max():
-    ds = DirectControlState(amplitude=100)
+    ds = RobotHandState(amplitude=100)
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs)
@@ -51,7 +51,7 @@ def test_build_status_text_amp_at_max():
 
 
 def test_build_status_text_amp_at_min():
-    ds = DirectControlState(amplitude=0)
+    ds = RobotHandState(amplitude=0)
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs)
@@ -61,7 +61,7 @@ def test_build_status_text_amp_at_min():
 
 
 def test_build_status_text_spd_at_max():
-    ds = DirectControlState(speed=100)
+    ds = RobotHandState(speed=100)
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs)
@@ -71,7 +71,7 @@ def test_build_status_text_spd_at_max():
 
 
 def test_build_status_text_spd_at_min():
-    ds = DirectControlState(speed=5)
+    ds = RobotHandState(speed=5)
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs)
@@ -82,7 +82,7 @@ def test_build_status_text_spd_at_min():
 
 def test_build_status_text_ctr_at_limits_given_amplitude():
     # amplitude=100 → half=50 → center clamped to [50, 50]
-    ds = DirectControlState(amplitude=100, center=50, intended_center=50)
+    ds = RobotHandState(amplitude=100, center=50, intended_center=50)
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs)
@@ -93,7 +93,7 @@ def test_build_status_text_ctr_at_limits_given_amplitude():
 
 def test_build_status_text_ctr_not_at_limits():
     # amplitude=20 → half=10 → center range [10, 90]
-    ds = DirectControlState(amplitude=20, center=50, intended_center=50)
+    ds = RobotHandState(amplitude=20, center=50, intended_center=50)
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs)
@@ -103,7 +103,7 @@ def test_build_status_text_ctr_not_at_limits():
 
 
 def test_build_status_text_hud_active():
-    ds = DirectControlState()
+    ds = RobotHandState()
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs, hud_active=True)
@@ -112,7 +112,7 @@ def test_build_status_text_hud_active():
 
 
 def test_build_status_text_hud_inactive():
-    ds = DirectControlState()
+    ds = RobotHandState()
     cs = CruiseControlState()
 
     text = build_status_text(ds, cs, hud_active=False)
@@ -121,7 +121,7 @@ def test_build_status_text_hud_inactive():
 
 
 def test_write_status_file_creates_file(tmp_path: Path):
-    ds = DirectControlState()
+    ds = RobotHandState()
     cs = CruiseControlState()
     path = tmp_path / "genau_status.txt"
 
@@ -134,7 +134,7 @@ def test_write_status_file_creates_file(tmp_path: Path):
 
 
 def test_write_status_file_skips_when_unchanged(tmp_path: Path):
-    ds = DirectControlState()
+    ds = RobotHandState()
     cs = CruiseControlState()
     path = tmp_path / "genau_status.txt"
 
@@ -146,7 +146,7 @@ def test_write_status_file_skips_when_unchanged(tmp_path: Path):
 
 
 def test_build_status_text_reports_the_clip_held_by_default():
-    text = build_status_text(DirectControlState(), CruiseControlState())
+    text = build_status_text(RobotHandState(), CruiseControlState())
 
     assert "locked=1" in text
 
@@ -154,7 +154,7 @@ def test_build_status_text_reports_the_clip_held_by_default():
 def test_build_status_text_reports_a_released_clip():
     aa = ClipAdvanceState(locked=False)
 
-    text = build_status_text(DirectControlState(), CruiseControlState(), clip_advance=aa)
+    text = build_status_text(RobotHandState(), CruiseControlState(), clip_advance=aa)
 
     assert "locked=0" in text
 
@@ -163,7 +163,7 @@ def test_build_status_text_names_the_clip_on_screen():
     """The one thing about Genau an orchestrator cannot work out for itself:
     which clip is up, so a reopened session can be pointed back at it."""
     text = build_status_text(
-        DirectControlState(), CruiseControlState(), clip=Path("C:/clips/alpha.mp4"),
+        RobotHandState(), CruiseControlState(), clip=Path("C:/clips/alpha.mp4"),
     )
 
     assert "clip=C:\\clips\\alpha.mp4" in text or "clip=C:/clips/alpha.mp4" in text
@@ -172,6 +172,6 @@ def test_build_status_text_names_the_clip_on_screen():
 def test_build_status_text_names_no_clip_before_one_is_up():
     """Genau publishes from its refresh loop, which can run a tick before the
     first clip is decoded; an empty value reads as nothing to come back to."""
-    text = build_status_text(DirectControlState(), CruiseControlState())
+    text = build_status_text(RobotHandState(), CruiseControlState())
 
     assert "clip=\n" in text

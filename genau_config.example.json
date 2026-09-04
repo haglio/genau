@@ -2,11 +2,6 @@
   "clips_dir": "C:/path/to/suite-root/videos/genau/clips",
   "vr_clips_dir": "C:/path/to/suite-root/videos/genau/vr_clips",
   "state_dir": "state",
-  "broker_cmd_file": "C:/path/to/suite-root/projects/fun_time/state/broker_cmd.txt",
-  "voice_control": {
-    "model_path": "vosk-model-small-en-us-0.15",
-    "device_index": 1
-  },
   "genau": {
     "shuffle_on_load": true,
     "beats_per_loop": 1.0,

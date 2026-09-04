@@ -18,7 +18,7 @@ from genau_vr.cruise_control import (
     tick_cruise_control,
     toggle_cruise_control,
 )
-from genau_vr.playback import DirectControlState, WaveformShape
+from genau_vr.playback import RobotHandState, WaveformShape
 
 # Far enough ahead that nothing is due; a case that wants a thing to happen
 # brings that one thing's clock back.
@@ -34,11 +34,11 @@ def _cruising(**over) -> CruiseControlState:
     return CruiseControlState(**fields)
 
 
-def _stroke(**over) -> DirectControlState:
+def _stroke(**over) -> RobotHandState:
     fields = dict(amplitude=100, intended_center=50, speed=50,
                   shape=WaveformShape.SINE)
     fields.update(over)
-    return DirectControlState(**fields)
+    return RobotHandState(**fields)
 
 
 class TestTurningItOnAndOff:

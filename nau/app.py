@@ -15,8 +15,6 @@ from player_core.status import StatusWriter
 from player_core.tcode import UdpTCodeSink
 from player_core.tcode_driver import FunscriptTCodeDriver
 
-from genau.win32 import window_chrome_height
-
 from .cli import (
     DEFAULT_CONFIG,
     audio_muted,
@@ -34,7 +32,6 @@ from .drive_gate import DriveGate
 from .funscript_jumps import FunscriptJumps
 from .input import Input
 from .keys import Keys
-from .library_source import DEFAULT_MODE
 from .loading import LoadingCanceled, LoadingScreen
 from .modes import Modes, reload_playlist
 from .notice import NoticeWriter
@@ -49,31 +46,25 @@ from .volume_control import VolumeControl
 
 logger = logging.getLogger(__name__)
 
-_APP_USER_MODEL_ID = "Nau.App"
-
-_ICON_PATH = Path(__file__).resolve().parent.parent / "nau_icon.ico"
-
-
-def _load_icon_surface():
-    """Nau's window icon (pink N) as a pygame surface, or None."""
-    if not _ICON_PATH.exists():
+def _load_icon_surface(icon_path: Path | None):
+    """The window icon Fun Time handed over as a pygame surface, or None."""
+    if icon_path is None or not icon_path.exists():
         return None
     try:
         from PIL import Image
-        img = Image.open(_ICON_PATH).convert("RGBA")
+        img = Image.open(icon_path).convert("RGBA")
         return pygame.image.fromstring(img.tobytes(), img.size, "RGBA")
     except Exception:
         # Broad, because a window without its icon is still a window -- but
         # said, because a permanently missing icon otherwise reads in the log
         # exactly like one that loaded.
-        logger.debug("No window icon: %s could not be read", _ICON_PATH,
+        logger.debug("No window icon: %s could not be read", icon_path,
                      exc_info=True)
         return None
 
 
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    _name_this_process()
     config = load_config(DEFAULT_CONFIG)
     args = build_parser(config).parse_args(argv)
 
@@ -84,53 +75,18 @@ def main(argv: list[str] | None = None) -> int:
     return _run(args)
 
 
-def _name_this_process() -> None:
-    """Leave ``launch_nau.vbs`` an interpreter that says "Nau" next time.
-
-    Windows takes what it shows about a process from the file it was started
-    from, so a plain ``pythonw.exe`` puts Nau in the task list as one more
-    anonymous "Python" -- indistinguishable from Genau, which shares this venv,
-    and from everything else the machine is running.
-
-    Naming this process on the way in is the one thing that cannot be done:
-    writing the copy takes the very interpreter being named.  So each run makes
-    it for the run after and the launcher picks it up, which costs one launch,
-    once.  Under Fun Time it is Fun Time's own copy that is running instead --
-    Nau is one of its windows then, not an application the user opened -- and
-    this still prepares the standalone one, which is about Nau's own shortcut
-    rather than about who started this run.
-    """
-    try:
-        from app_support.process_identity import ProcessNamer
-        ProcessNamer("Nau", icon=_ICON_PATH).prepare_launcher("Nau")
-    # tests/test_process_names.py reads this function as text and requires this
-    # handler, which is what says a naming failure can never cost a launch; the
-    # exception is left unbound so that line stays the one it looks for.
-    except Exception:
-        # Costs a name in the task list, never a launch.
-        logger.debug("Left the launcher unnamed", exc_info=True)
-
-
-def _set_aumid(config_path, taskbar_identity: str | None = None) -> None:
+def _set_aumid(taskbar_identity: str | None) -> None:
     """Claim this window's place on the taskbar, before there is a window.
 
-    *taskbar_identity* is an orchestrator saying these windows are its own: run
-    under Fun Time, Nau is not an application the user launched but one window of
-    the one they did, and it belongs on that button with the rest.  Told one, Nau
-    takes it and stamps nothing — the pinned shortcut being stamped belongs to
-    whoever owns that identity, and it is theirs to keep up to date.
-
-    Standalone there is no one to say, so Nau is its own application as before.
+    *taskbar_identity* is Fun Time's own: Nau is not an application the user
+    launched but one window of the one they did, and it belongs on that button
+    with the rest.
     """
+    if not taskbar_identity:
+        return
     try:
-        from genau.win32 import take_taskbar_identity
-        if taskbar_identity:
-            from player_core.taskbar import set_app_user_model_id
-            set_app_user_model_id(taskbar_identity)
-            return
-        take_taskbar_identity(
-            _APP_USER_MODEL_ID, include="nau", exclude="genau", config_path=config_path,
-        )
+        from player_core.taskbar import set_app_user_model_id
+        set_app_user_model_id(taskbar_identity)
     except Exception:
         # A window on the wrong taskbar button is a launch that happened.
         logger.debug("No taskbar identity claimed", exc_info=True)
@@ -145,12 +101,10 @@ def _open_window(args):
     also why Fun Time, which waits on this window by caption, now finds it
     within its budget however cold the duration cache is.
 
-    Borderless under Fun Time, like the satellites: the mode is on the in-video
-    HUD, so the title bar would carry nothing.  With
-    no chrome the client area is the whole rect Fun Time sizes it to, and the
-    caption survives only for Alt-Tab and the window lookup.  Standalone it keeps
-    its chrome — so the window can be dragged and closed — and its client is sized
-    down to leave the video inside the rect.
+    Borderless, like the satellites: the mode is on the in-video HUD, so the
+    title bar would carry nothing.  With no chrome the client area is the whole
+    rect Fun Time sizes it to, and the caption survives only for Alt-Tab and the
+    window lookup.
     """
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
     # click that focuses this window, so every press on the console has to be
@@ -158,24 +112,18 @@ def _open_window(args):
     # player_core.sdl_hints for the whole mechanism.
     deliver_the_focusing_click()
     pygame.init()
-    if args.borderless:
-        pos_y, client_h, flags = args.y, args.height, pygame.NOFRAME
-    else:
-        chrome = window_chrome_height()
-        pos_y, client_h, flags = (args.y + chrome if args.y is not None else None,
-                                  max(1, args.height - chrome), 0)
-    if args.x is not None and pos_y is not None:
-        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{pos_y}"
-    icon = _load_icon_surface()
+    if args.x is not None and args.y is not None:
+        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
+    icon = _load_icon_surface(args.icon)
     if icon is not None:
         pygame.display.set_icon(icon)  # must precede set_mode to take effect
-    screen = pygame.display.set_mode((args.width, client_h), flags)
+    screen = pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
     pygame.display.set_caption("Nau")
     return screen
 
 
-def _status_writer(args, drive_gate) -> StatusWriter | None:
-    """The status file this player publishes, or None when nobody asked for one.
+def _status_writer(args, drive_gate) -> StatusWriter:
+    """The status file this player publishes.
 
     Every status carries the touch-down the trace chose for the boundary in
     play, so the arbiter ends Genau's turn where the picture drew it ending.
@@ -183,8 +131,6 @@ def _status_writer(args, drive_gate) -> StatusWriter | None:
     built: the choice is made while the frame is painted, and the writer
     publishes at its own throttled cadence in between.
     """
-    if args.status_file is None:
-        return None
     return StatusWriter(
         args.status_file,
         lambda session: status_fields(session, drive_gate.handoff_touch()))
@@ -218,7 +164,7 @@ def _commands(session, stop_event, *, modes, jumps, funscript_jumps, volume,
 
 
 def _run(args) -> int:
-    _set_aumid(args.config, args.taskbar_identity)
+    _set_aumid(args.taskbar_identity)
     screen = _open_window(args)
     # mpv renders the video directly into this window; overlays go on top.  Until
     # it does, the window is the loading screen's to paint.
@@ -233,28 +179,26 @@ def _run(args) -> int:
     loading = LoadingScreen(screen)
     try:
         # The long part of startup, and so the part the loading screen reports.
-        # Fun Time passes --playlist and owns its selection; standalone builds the
-        # remembered mode's playlist itself. Either way the source (when present)
-        # powers version cycling, the length modes, and folding each video's
-        # versions to a single rotation slot.
+        # Fun Time passes --playlist and owns its selection; the source (when
+        # present) powers version cycling, the length modes, and folding each
+        # video's versions to a single rotation slot.
         source = library_source(args, on_progress=loading.update)
-        pairs = resolve_playlist(
-            args, source=source, mode=remembered.length_mode or DEFAULT_MODE)
+        pairs = resolve_playlist(args, source=source)
     except LoadingCanceled:
         logger.info("Closed while loading; never started playback")
         pygame.quit()
         return 0
     if not pairs:
-        logger.error("No videos found (need --playlist or --videos-dir/--scripts-dir)")
+        logger.error("No videos in the playlist Fun Time passed")
         pygame.quit()
         return 1
     scripted = sum(1 for _, fs in pairs if fs is not None)
     logger.info("Found %d video(s), %d with funscripts", len(pairs), scripted)
 
     clock = pygame.time.Clock()
-    paused_file: Path | None = args.paused_file
-    command_file: Path | None = args.command_file
-    start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)
+    paused_file = args.paused_file
+    command_file = args.command_file
+    start_paused = read_paused_state(paused_file, logger=logger)
 
     player = MpvPlayer(wid, muted=audio_muted(args))
     session = PlayerSession(
@@ -322,18 +266,15 @@ def _run(args) -> int:
     # The length filter, the compilation and Fun Time's own narrowing, as the
     # console draws them and the memory keeps them.  See nau.modes.
     modes = Modes(source, session, jumps, remembered=remembered.length_mode)
-    # RELOAD_PLAYLIST: Fun Time owns the playlist file when it passes one, and
-    # rewrites it whenever the room's selection changes.  Standalone there is
-    # nobody writing one, so there is nothing to take up.
+    # RELOAD_PLAYLIST: Fun Time owns the playlist file and rewrites it whenever
+    # the room's selection changes.
     take_up_playlist = partial(
-        reload_playlist, session, jumps,
-        partial(resolve_playlist, args, source=source)
-        if args.playlist is not None else None)
+        reload_playlist, session, jumps, partial(resolve_playlist, args, source=source))
     # What this window's keyboard and mouse reach, and what SDL's events are
     # taken to mean.  See nau.keys, nau.pointer, nau.input.
-    keys = Keys(session, modes, dashboard, stop_event)
+    keys = Keys(session, modes, dashboard)
     pointer = Pointer(session, heatmap, volume, console_hud, dashboard)
-    window_input = Input(pointer, keys, dashboard, stop_event)
+    window_input = Input(pointer, keys, dashboard)
     # What a verb from Fun Time reaches.  See nau.runtime for what each does.
     commands = _commands(
         session, stop_event, modes=modes, jumps=jumps,
@@ -352,15 +293,12 @@ def _run(args) -> int:
         win_w, win_h = screen.get_size()
         window_input.deal(pygame.event.get(), win_w, win_h)
 
-        if paused_file is not None:
-            session.set_paused(read_paused_state(paused_file, logger=logger))
-        if command_file is not None:
-            for cmd in consume_command_file(command_file, logger=logger, uppercase=False):
-                commands(cmd)
+        session.set_paused(read_paused_state(paused_file, logger=logger))
+        for cmd in consume_command_file(command_file, logger=logger, uppercase=False):
+            commands(cmd)
 
         session.advance()
-        if status_writer is not None:
-            status_writer.write(session)
+        status_writer.write(session)
 
         # Write the mode down whenever it moves, whichever path moved it, so the
         # next session — which opens on this one's resumed playlist — can name it

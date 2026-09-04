@@ -1,8 +1,8 @@
-"""Standalone library source: discovered entries + durations + clips.
+"""The library behind the playlist: discovered entries + durations + clips.
 
 Bundles everything the length-mode toggle needs so startup and the runtime
-switch build playlists from the same data. Fun Time drives its own explicit
-playlist and does not use this.
+switch build playlists from the same data.  Fun Time passes the playlist
+itself; this is what version cycling and the length modes rebuild it from.
 """
 from __future__ import annotations
 
@@ -138,8 +138,7 @@ def build_library_source(
     Pass *durations* to supply them directly (tests); otherwise a
     *duration_cache* is probed (cached) and persisted — for the entries that
     need one, which is those whose kind Evolver has not recorded yet.  Every
-    video is served: Nau standalone is a general player, and narrowing to
-    scripted videos is Fun Time's F-mode.  *metadata_root*, when given, makes
+    video is served: narrowing to scripted videos is Fun Time's F-mode.  *metadata_root*, when given, makes
     version grouping read Evolver's sidecars instead of guessing from names.
 
     *on_progress* is called ``(phase, done, total)`` as the work the user waits

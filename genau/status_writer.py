@@ -3,21 +3,21 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import DirectControlState
+from player_core.robot_hand import RobotHandState
 
 from .clip_advance import ClipAdvanceState
 from .limits import control_limits
 
 
 def build_status_text(
-    direct: DirectControlState,
+    hand: RobotHandState,
     cruise: CruiseControlState,
     *,
     clip_advance: ClipAdvanceState | None = None,
     hud_active: bool = False,
     clip: Path | None = None,
 ) -> str:
-    limits = control_limits(direct)
+    limits = control_limits(hand)
     advance = clip_advance or ClipAdvanceState()
     return (
         f"cruise={'1' if cruise.active else '0'}\n"
@@ -27,7 +27,7 @@ def build_status_text(
         # without it a reopened session can only start Genau at the top of a
         # freshly scanned folder.  Empty until the first clip is on screen.
         f"clip={clip if clip is not None else ''}\n"
-        f"shape={direct.shape.value}\n"
+        f"shape={hand.shape.value}\n"
         f"amp_at_max={'1' if limits.amp_at_max else '0'}\n"
         f"amp_at_min={'1' if limits.amp_at_min else '0'}\n"
         f"ctr_at_max={'1' if limits.ctr_at_max else '0'}\n"
@@ -40,7 +40,7 @@ def build_status_text(
 
 def write_status_file(
     path: Path,
-    direct: DirectControlState,
+    hand: RobotHandState,
     cruise: CruiseControlState,
     *,
     clip_advance: ClipAdvanceState | None = None,
@@ -48,7 +48,7 @@ def write_status_file(
     clip: Path | None = None,
 ) -> bool:
     text = build_status_text(
-        direct, cruise, clip_advance=clip_advance, hud_active=hud_active, clip=clip,
+        hand, cruise, clip_advance=clip_advance, hud_active=hud_active, clip=clip,
     )
     try:
         if path.read_text(encoding="utf-8") == text:

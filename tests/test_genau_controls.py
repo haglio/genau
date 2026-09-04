@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import pytest
-from player_core.direct_control import DirectControlState
+from player_core.robot_hand import RobotHandState
 
 from genau.control_registry import Control, Verb, bind
 from genau.controls import CONTROLS, VERBS, GenauControls
@@ -54,10 +54,10 @@ class TestAControlSaysWhatItCannotActWithout:
         assert Control(name="free", verbs=()).can_act(_controls()) is True
 
     def test_a_need_this_build_did_not_wire_stops_the_control(self):
-        needy = Control(name="needy", verbs=(), needs=("direct_state",))
+        needy = Control(name="needy", verbs=(), needs=("robot_hand",))
 
         assert needy.can_act(_controls()) is False
-        assert needy.can_act(_controls(direct_state=DirectControlState())) is True
+        assert needy.can_act(_controls(robot_hand=RobotHandState())) is True
 
     def test_every_need_names_a_field_that_exists(self):
         """A misspelled need would read as absent and silence the control."""

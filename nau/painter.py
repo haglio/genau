@@ -67,8 +67,7 @@ class ConsolePanel:
         other way round, the pill and the line describe the frame before this
         one."""
         self._room.refresh()
-        drive = self._drive_gate.readout(
-            self._room.drive, genau_behind=self._room.genau_drives)
+        drive = self._drive_gate.readout(self._room.drive)
         return self._console_hud.bgra(ConsoleHud(
             modes=self._modes.hud,
             # Nau knows its own playback rate; Fun Time does not publish it, so

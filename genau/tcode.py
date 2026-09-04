@@ -1,21 +1,21 @@
-"""Genau's phase-driven T-Code sender.
+"""Genau's phase-driven T-Code sender: the Robot Hand put on the wire.
 
 The wire format and the UDP sink live in ``player_core.tcode``, beneath every
 OSR2 driver in the family; what stays here is the one driver that is Genau's
 own — turning the stroke engine's continuous phase into rate-limited position
-commands, shaped by the direct-control state.
+commands, shaped by the Robot Hand's state.
 """
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
 from player_core import wave_stack
-from player_core.direct_control import POSITION_MAX, phase_to_position
 from player_core.funscript import HANDOFF_RAMP_MS
+from player_core.robot_hand import POSITION_MAX, phase_to_position
 from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
 
 if TYPE_CHECKING:
-    from player_core.direct_control import DirectControlState
+    from player_core.robot_hand import RobotHandState
 
 # The rise only exists when there is a gap to climb: at full amplitude the
 # stroke's floor IS the park, and holding the swing there would delay a resume
@@ -29,12 +29,12 @@ class RateLimitedTCodeSender:
         self,
         sink: TCodeSink,
         *,
-        direct_state: DirectControlState | None = None,
+        robot_hand: RobotHandState | None = None,
         cruise=None,
         min_interval: float = 1.0 / 30.0,
     ) -> None:
         self._sink = sink
-        self._direct_state = direct_state
+        self._robot_hand = robot_hand
         # Cruise control's own stroke, when it has one: several waves summed,
         # each at its own speed, so there is no one phase to read it off — the
         # stack is asked where it is instead.  None, or holding no waves, and
@@ -128,12 +128,12 @@ class RateLimitedTCodeSender:
         if self._cruise is not None and self._cruise.stack:
             return round(POSITION_MAX * wave_stack.position(
                 self._cruise.stack, self._cruise.clock) / 100)
-        if self._direct_state is not None:
+        if self._robot_hand is not None:
             return phase_to_position(
                 self._stroke_phase,
-                shape=self._direct_state.shape,
-                amplitude=self._direct_state.amplitude,
-                center=self._direct_state.center,
+                shape=self._robot_hand.shape,
+                amplitude=self._robot_hand.amplitude,
+                center=self._robot_hand.center,
             )
         return phase_to_position(self._stroke_phase)
 

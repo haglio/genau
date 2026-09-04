@@ -20,7 +20,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import DirectControlState, WaveformShape
+from player_core.robot_hand import RobotHandState, WaveformShape
 from test_genau_refresh_controller import (
     FakeLoader,
     FakeNotifier,
@@ -52,8 +52,7 @@ class Seam:
     def __init__(self, tmp_path: Path, **start):
         self.paused = Flag(on=bool(start.get("paused", False)))
         self.hud = Flag(on=bool(start.get("hud", False)))
-        self.display = Flag(on=bool(start.get("display", True)))
-        self.direct = DirectControlState(
+        self.direct = RobotHandState(
             playing=bool(start.get("playing", False)),
             speed=start.get("speed", 50),
             amplitude=start.get("amplitude", 60),
@@ -80,13 +79,12 @@ class Seam:
                 paused=self.paused,
                 step_clip=self.selection.step,
                 condemn_clip=self.selection.condemn_current,
-                direct_state=self.direct,
+                robot_hand=self.direct,
                 cruise_control_state=self.cruise,
                 set_stroke_phase=self.tcode.set_stroke_phase,
                 clip_advance_state=self.advance,
                 stop_event=self.stop_event,
                 hud=self.hud,
-                display=self.display,
                 set_volume=lambda level, muted: self.volumes.append((level, muted)),
                 reorder_clips=self.reorders.append,
             ),
@@ -130,7 +128,6 @@ class Seam:
             "reorders": tuple(self.reorders),
             "volumes": tuple(self.volumes),
             "hud": self.hud.on,
-            "display": self.display.on,
             "stopping": self.stop_event.is_set(),
         }
 
@@ -179,8 +176,6 @@ SEAM = [
     ("CLIP_SECONDS_UP", {}, {"interval": 21}),
     ("HUD_ON", {}, {"hud": True}),
     ("HUD_OFF", {"hud": True}, {"hud": False}),
-    ("DISPLAY_ON", {"display": False}, {"display": True}),
-    ("DISPLAY_OFF", {}, {"display": False}),
     # The five that carry a value.
     ("AMP 80", {}, {"amplitude": 80}),
     ("CENTER 65", {}, {"center": 65, "intended_center": 65}),

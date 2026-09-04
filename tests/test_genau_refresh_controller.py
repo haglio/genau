@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import DirectControlState
+from player_core.robot_hand import RobotHandState
 
 from genau.clip_advance import ClipAdvanceState
 from genau.controls import GenauControls
@@ -131,14 +131,12 @@ def _build_controller(
     pending_clip_name: str | None = None,
     # The state the app itself opens on: not playing, mid speed.  Genau always
     # has one, so a test that does not care about it still gets it.
-    direct_state: DirectControlState | None = None,
+    robot_hand: RobotHandState | None = None,
     tcode_sender: FakeTCodeSender | None = None,
     cruise_control: CruiseControlState | None = None,
     clip_advance: ClipAdvanceState | None = None,
-    broker_cmd_file: Path | None = None,
     hud: Flag | None = None,
     set_hud_mode=None,
-    display: Flag | None = None,
     command_file: Path | None = None,
     status_file: Path | None = None,
 ):
@@ -146,7 +144,6 @@ def _build_controller(
     consoles: list = []
     present_calls: list[int] = []
     hud_mode_calls: list[bool] = []
-    blank_calls: list[bool] = []
 
     loader = FakeLoader(loading=loading)
     notifier = FakeNotifier()
@@ -163,14 +160,13 @@ def _build_controller(
         paused=Flag(),
         step_clip=selection.step,
         condemn_clip=selection.condemn_current,
-        direct_state=direct_state if direct_state is not None else DirectControlState(),
+        robot_hand=robot_hand if robot_hand is not None else RobotHandState(),
         cruise_control_state=cruise_control,
         set_stroke_phase=(
             tcode_sender.set_stroke_phase if tcode_sender is not None else None
         ),
         clip_advance_state=clip_advance,
         hud=hud,
-        display=display,
         # A Genau with no chip to draw still answers SET_VOLUME: the level is the
         # orchestrator's, and refusing it would put an unhandled verb on the log
         # every time the room's volume moved.
@@ -198,11 +194,9 @@ def _build_controller(
         consume_command=lambda _path, logger=None: (commands if commands is not None else ([command] if command else [])),
         read_paused_state=lambda _path, logger=None: paused_state,
         tcode_sender=tcode_sender,
-        broker_cmd_file=broker_cmd_file,
         set_console=consoles.append,
         present_scene=lambda: present_calls.append(1),
         set_hud_mode=set_hud_mode or hud_mode_calls.append,
-        set_blank=blank_calls.append,
     )
     return {
         "controller": controller,
@@ -216,7 +210,6 @@ def _build_controller(
         "consoles": consoles,
         "present_calls": present_calls,
         "hud_mode_calls": hud_mode_calls,
-        "blank_calls": blank_calls,
     }
 
 
@@ -314,23 +307,23 @@ def test_refresh_calls_adopt_pending_clip():
 
 
 def test_direct_mode_playing_advances_phase():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     entry = {"frames": [object() for _ in range(8)]}
     # SharedState has auto_active=False, but direct mode should override
-    built = _build_controller(entry=entry, direct_state=dc)
+    built = _build_controller(entry=entry, robot_hand=dc)
     # Advance the clock so dt > 0 (engine.last_tick starts at 5.0)
     built["controller"].now_source = lambda: 5.05
 
     built["controller"].refresh()
 
-    # Engine should have advanced phase since direct_state.playing=True
+    # Engine should have advanced phase since robot_hand.playing=True
     assert built["engine"].phase != 0.25  # initial was 0.25
 
 
 def test_direct_mode_not_playing_freezes_phase():
-    dc = DirectControlState(playing=False, bpm=120.0)
+    dc = RobotHandState(playing=False, bpm=120.0)
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc)
+    built = _build_controller(entry=entry, robot_hand=dc)
 
     built["controller"].refresh()
 
@@ -338,10 +331,10 @@ def test_direct_mode_not_playing_freezes_phase():
 
 
 def test_direct_mode_calls_tcode_sender():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode)
 
     built["controller"].refresh()
 
@@ -351,10 +344,10 @@ def test_direct_mode_calls_tcode_sender():
 
 
 def test_direct_mode_paused_does_not_send_tcode():
-    dc = DirectControlState(playing=False, bpm=120.0)
+    dc = RobotHandState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode)
 
     built["controller"].refresh()
 
@@ -362,10 +355,10 @@ def test_direct_mode_paused_does_not_send_tcode():
 
 
 def test_direct_mode_publishes_the_drive_readout():
-    dc = DirectControlState(playing=True, bpm=120.0, amplitude=70, intended_center=60)
+    dc = RobotHandState(playing=True, bpm=120.0, amplitude=70, intended_center=60)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode)
 
     built["controller"].refresh()
 
@@ -377,10 +370,10 @@ def test_direct_mode_publishes_the_drive_readout():
 
 
 def test_direct_mode_calls_present_scene():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode)
 
     built["controller"].refresh()
 
@@ -388,99 +381,14 @@ def test_direct_mode_calls_present_scene():
 
 
 def test_pause_command_stops_direct_mode_playback():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode, command="PAUSE")
 
     built["controller"].refresh()
 
     assert dc.playing is False
-
-
-def test_pause_command_writes_park_to_broker_cmd_file(tmp_path):
-    broker_cmd = tmp_path / "broker_cmd.txt"
-    dc = DirectControlState(playing=True, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
-        command="PAUSE", broker_cmd_file=broker_cmd,
-    )
-
-    built["controller"].refresh()
-
-    assert broker_cmd.read_text(encoding="utf-8") == "PARK"
-
-
-def test_pause_without_broker_cmd_file_does_not_error():
-    dc = DirectControlState(playing=True, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
-
-    built["controller"].refresh()  # No broker_cmd_file — should not raise
-
-
-def test_resume_command_writes_resume_to_broker_cmd_file(tmp_path):
-    broker_cmd = tmp_path / "broker_cmd.txt"
-    dc = DirectControlState(playing=False, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
-        command="RESUME", broker_cmd_file=broker_cmd,
-    )
-
-    built["controller"].refresh()
-
-    assert broker_cmd.read_text(encoding="utf-8") == "RESUME"
-
-
-def test_pause_between_refreshes_writes_park(tmp_path):
-    """Pause via lifecycle controller (not command file) is detected on next refresh."""
-    broker_cmd = tmp_path / "broker_cmd.txt"
-    dc = DirectControlState(playing=True, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
-        broker_cmd_file=broker_cmd,
-    )
-
-    # First refresh — playing, no transition
-    built["controller"].refresh()
-    assert not broker_cmd.exists()
-
-    # Pause happens outside the refresh loop (e.g. space key)
-    dc.playing = False
-
-    # Next refresh should detect the transition
-    built["controller"].refresh()
-    assert broker_cmd.read_text(encoding="utf-8") == "PARK"
-
-
-def test_resume_between_refreshes_writes_resume(tmp_path):
-    """Resume via lifecycle controller is detected on next refresh."""
-    broker_cmd = tmp_path / "broker_cmd.txt"
-    dc = DirectControlState(playing=False, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
-        broker_cmd_file=broker_cmd,
-    )
-
-    # First refresh — paused, no transition
-    built["controller"].refresh()
-    assert not broker_cmd.exists()
-
-    # Resume happens outside the refresh loop
-    dc.playing = True
-
-    # Next refresh should detect the transition
-    built["controller"].refresh()
-    assert broker_cmd.read_text(encoding="utf-8") == "RESUME"
 
 
 def test_losing_the_device_walks_it_down_and_rests_the_stroke():
@@ -488,10 +396,10 @@ def test_losing_the_device_walks_it_down_and_rests_the_stroke():
     forward from the sender's stroke phase — rested at the swing's foot the
     moment playback stops, so what Nau draws waiting behind the seam is the
     stroke that will actually resume, rising out of the park."""
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode, command="PAUSE")
 
     built["controller"].refresh()
 
@@ -499,10 +407,10 @@ def test_losing_the_device_walks_it_down_and_rests_the_stroke():
 
 
 def test_staying_paused_hands_over_only_once():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="PAUSE")
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode, command="PAUSE")
 
     built["controller"].refresh()
     built["controller"].refresh()
@@ -511,10 +419,10 @@ def test_staying_paused_hands_over_only_once():
 
 
 def test_resume_command_starts_direct_mode_playback():
-    dc = DirectControlState(playing=False, bpm=120.0)
+    dc = RobotHandState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="RESUME")
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode, command="RESUME")
 
     built["controller"].refresh()
 
@@ -522,10 +430,10 @@ def test_resume_command_starts_direct_mode_playback():
 
 
 def test_speed_up_command_via_refresh():
-    dc = DirectControlState(playing=True, bpm=120.0, speed=50)
+    dc = RobotHandState(playing=True, bpm=120.0, speed=50)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode, command="SPEED_UP")
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode, command="SPEED_UP")
 
     built["controller"].refresh()
 
@@ -533,12 +441,12 @@ def test_speed_up_command_via_refresh():
 
 
 def test_toggle_cruise_command_via_refresh():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     auto = CruiseControlState(active=False)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode, cruise_control=auto, command="TOGGLE_CRUISE"
+        entry=entry, robot_hand=dc, tcode_sender=tcode, cruise_control=auto, command="TOGGLE_CRUISE"
     )
 
     built["controller"].refresh()
@@ -547,11 +455,11 @@ def test_toggle_cruise_command_via_refresh():
 
 
 def test_toggle_lock_command_via_refresh():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     aa = ClipAdvanceState(locked=True)
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=FakeTCodeSender(),
+        entry=entry, robot_hand=dc, tcode_sender=FakeTCodeSender(),
         clip_advance=aa, command="TOGGLE_LOCK",
     )
 
@@ -561,12 +469,12 @@ def test_toggle_lock_command_via_refresh():
 
 
 def test_cruise_control_ticks_during_refresh():
-    dc = DirectControlState(playing=True, bpm=120.0, speed=50)
+    dc = RobotHandState(playing=True, bpm=120.0, speed=50)
     auto = CruiseControlState(active=True, rng=random.Random(42))
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode, cruise_control=auto
+        entry=entry, robot_hand=dc, tcode_sender=tcode, cruise_control=auto
     )
     # Advance clock enough that auto pilot actually triggers changes
     tick = 0.0
@@ -579,11 +487,11 @@ def test_cruise_control_ticks_during_refresh():
 
 
 def _run_clip_advance(*, playing: bool, seconds: float = 15.0, locked: bool = False):
-    dc = DirectControlState(playing=playing, bpm=120.0)
+    dc = RobotHandState(playing=playing, bpm=120.0)
     aa = ClipAdvanceState(locked=locked, interval=10)
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=FakeTCodeSender(), clip_advance=aa
+        entry=entry, robot_hand=dc, tcode_sender=FakeTCodeSender(), clip_advance=aa
     )
     tick = 0.0
     for _ in range(int(seconds / 0.1)):
@@ -604,7 +512,7 @@ def test_a_locked_genau_stays_on_its_clip():
 
 
 def test_the_clip_is_held_while_the_room_is_paused():
-    """OmniPause reaches Genau as PAUSE, which clears direct_state.playing.
+    """OmniPause reaches Genau as PAUSE, which clears robot_hand.playing.
 
     The advance has to read that: a paused room that keeps swapping clips
     leaves the user looking at something they never chose to move to.
@@ -614,27 +522,27 @@ def test_the_clip_is_held_while_the_room_is_paused():
 
 def test_broker_auto_uses_broker_bpm_for_phase():
     """When broker signals auto, direct mode should use broker BPM for phase."""
-    dc = DirectControlState(playing=False, bpm=60.0)
+    dc = RobotHandState(playing=False, bpm=60.0)
     state = SharedState(auto_active=True, raw_bpm=120.0)
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(state=state, entry=entry, direct_state=dc)
+    built = _build_controller(state=state, entry=entry, robot_hand=dc)
     built["controller"].now_source = lambda: 5.05
 
     built["controller"].refresh()
 
-    # Phase should have advanced using broker BPM (120), not direct_state BPM (60)
+    # Phase should have advanced using broker BPM (120), not robot_hand BPM (60)
     # With 120 BPM, beats_per_loop=4, loop_duration = (60/120)*4 = 2s
     # dt=0.05, phase advance = 0.05/2 = 0.025 → 0.25 + 0.025 = 0.275
     assert abs(built["engine"].phase - 0.275) < 0.001
 
 
 def test_broker_auto_does_not_send_tcode():
-    """When broker signals auto, T-Code should not be sent even if direct_state.playing."""
-    dc = DirectControlState(playing=True, bpm=120.0)
+    """When broker signals auto, T-Code should not be sent even if robot_hand.playing."""
+    dc = RobotHandState(playing=True, bpm=120.0)
     state = SharedState(auto_active=True, raw_bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(state=state, entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(state=state, entry=entry, robot_hand=dc, tcode_sender=tcode)
 
     built["controller"].refresh()
 
@@ -643,10 +551,10 @@ def test_broker_auto_does_not_send_tcode():
 
 def test_broker_auto_uses_linear_display_phase():
     """When broker signals auto, display should use engine phase directly, not waveform."""
-    dc = DirectControlState(playing=False, bpm=60.0)
+    dc = RobotHandState(playing=False, bpm=60.0)
     state = SharedState(auto_active=True, raw_bpm=120.0)
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(state=state, entry=entry, direct_state=dc)
+    built = _build_controller(state=state, entry=entry, robot_hand=dc)
 
     built["controller"].refresh()
 
@@ -657,13 +565,13 @@ def test_broker_auto_uses_linear_display_phase():
 
 def test_broker_auto_does_not_tick_cruise_control():
     """When broker signals auto, cruise control should not modify direct state."""
-    dc = DirectControlState(playing=True, bpm=120.0, speed=50)
+    dc = RobotHandState(playing=True, bpm=120.0, speed=50)
     cruise = CruiseControlState(active=True, rng=random.Random(42))
     state = SharedState(auto_active=True, raw_bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     built = _build_controller(
-        state=state, entry=entry, direct_state=dc, tcode_sender=tcode, cruise_control=cruise,
+        state=state, entry=entry, robot_hand=dc, tcode_sender=tcode, cruise_control=cruise,
     )
     tick = 0.0
     for _ in range(200):
@@ -676,10 +584,10 @@ def test_broker_auto_does_not_tick_cruise_control():
 
 def test_broker_auto_respects_sync_pulses():
     """When broker signals auto, sync pulses should pull phase toward zero."""
-    dc = DirectControlState(playing=False, bpm=60.0)
+    dc = RobotHandState(playing=False, bpm=60.0)
     state = SharedState(auto_active=True, raw_bpm=120.0, sync_pulse_id=1)
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(state=state, entry=entry, direct_state=dc)
+    built = _build_controller(state=state, entry=entry, robot_hand=dc)
 
     built["controller"].refresh()
 
@@ -691,11 +599,11 @@ def test_broker_auto_respects_sync_pulses():
 
 def test_broker_auto_cleared_resumes_direct_control():
     """When broker auto clears, direct control resumes: T-Code sends, overlay updates."""
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     state = SharedState(auto_active=False, raw_bpm=0.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(state=state, entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(state=state, entry=entry, robot_hand=dc, tcode_sender=tcode)
 
     built["controller"].refresh()
 
@@ -704,12 +612,12 @@ def test_broker_auto_cleared_resumes_direct_control():
 
 
 def test_multiline_commands_all_applied():
-    dc = DirectControlState(playing=False, bpm=120.0)
+    dc = RobotHandState(playing=False, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     hud = Flag()
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
+        entry=entry, robot_hand=dc, tcode_sender=tcode,
         commands=["RESUME", "HUD_ON"],
         hud=hud,
     )
@@ -720,68 +628,13 @@ def test_multiline_commands_all_applied():
     assert hud.on is True
 
 
-def test_paused_alone_does_not_blank():
-    """Standalone Genau boots paused and is driven from the keyboard — a paused
-    hand still shows its clip. Only an orchestrator saying "you aren't the
-    display" (DISPLAY_OFF) blanks it."""
-    dc = DirectControlState(playing=False, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
-
-    built["controller"].refresh()
-
-    assert built["blank_calls"] == [False]
-
-
-def test_playing_does_not_blank():
-    dc = DirectControlState(playing=True, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
-
-    built["controller"].refresh()
-
-    assert built["blank_calls"] == [False]
-
-
-def test_inactive_display_blanks():
-    dc = DirectControlState(playing=False, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
-        display=Flag(),
-    )
-
-    built["controller"].refresh()
-
-    assert built["blank_calls"] == [True]
-
-
-def test_display_off_command_blanks_within_the_same_refresh():
-    dc = DirectControlState(playing=False, bpm=120.0)
-    tcode = FakeTCodeSender()
-    entry = {"frames": [object() for _ in range(8)]}
-    display = Flag(on=True)
-    built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
-        command="DISPLAY_OFF", display=display,
-    )
-
-    built["controller"].refresh()
-
-    assert display.on is False
-    assert built["blank_calls"] == [True]
-
-
 def test_hud_on_command_calls_set_hud_mode():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     hud = Flag()
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
+        entry=entry, robot_hand=dc, tcode_sender=tcode,
         commands=["HUD_ON"],
         hud=hud,
     )
@@ -792,12 +645,12 @@ def test_hud_on_command_calls_set_hud_mode():
 
 
 def test_hud_off_command_calls_set_hud_mode_false():
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     hud = Flag(on=True)
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
+        entry=entry, robot_hand=dc, tcode_sender=tcode,
         commands=["HUD_OFF"],
         hud=hud,
     )
@@ -808,13 +661,13 @@ def test_hud_off_command_calls_set_hud_mode_false():
 
 
 def test_the_hud_is_published_in_the_status_file(tmp_path):
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     entry = {"frames": [object() for _ in range(8)]}
     hud = Flag(on=True)
     cruise = CruiseControlState()
     built = _build_controller(
-        entry=entry, direct_state=dc, tcode_sender=tcode,
+        entry=entry, robot_hand=dc, tcode_sender=tcode,
         cruise_control=cruise, hud=hud,
         command_file=tmp_path / "genau_cmd.txt",
     )
@@ -835,7 +688,7 @@ class TestWhereTheStatusFileGoes:
     def _ticked(tmp_path, **over):
         built = _build_controller(
             entry={"frames": [object() for _ in range(4)]},
-            direct_state=DirectControlState(playing=True, bpm=120.0),
+            robot_hand=RobotHandState(playing=True, bpm=120.0),
             tcode_sender=FakeTCodeSender(),
             cruise_control=CruiseControlState(),
             **over,
@@ -869,11 +722,11 @@ def test_the_frame_shown_is_where_the_device_is():
     # The clip is the picture of the device: half way up the axis is half way
     # through the half of the clip that is showing. Eight frames, so the front
     # half is the last four of them and 5000 of 9999 lands in the middle of it.
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     tcode._position = 5000
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode)
 
     built["controller"].refresh()
 
@@ -884,11 +737,11 @@ def test_turning_at_the_top_puts_the_other_half_of_the_clip_on_the_way_down():
     # The one place the halves may be swapped is an end, where they show the
     # same frame — so the way down is the back half, and the height that showed
     # frame 5 climbing shows its opposite number in the loop coming back.
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     tcode._position = 5000
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode)
     controller = built["controller"]
 
     controller.refresh()
@@ -905,11 +758,11 @@ def test_turning_at_the_top_puts_the_other_half_of_the_clip_on_the_way_down():
 def test_a_stroke_that_never_reaches_an_end_keeps_the_half_it_is_in():
     # Working the middle of the axis shows the middle of the one half, up and
     # back down it, rather than rolling on into the other.
-    dc = DirectControlState(playing=True, bpm=120.0)
+    dc = RobotHandState(playing=True, bpm=120.0)
     tcode = FakeTCodeSender()
     tcode._position = 3000
     entry = {"frames": [object() for _ in range(8)]}
-    built = _build_controller(entry=entry, direct_state=dc, tcode_sender=tcode)
+    built = _build_controller(entry=entry, robot_hand=dc, tcode_sender=tcode)
     controller = built["controller"]
 
     for position in (3000, 6000, 8000, 6000, 3000, 6000):

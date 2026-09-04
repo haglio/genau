@@ -12,7 +12,6 @@ test_nau_keys and test_nau_dashboard.
 """
 from __future__ import annotations
 
-import threading
 from types import SimpleNamespace
 
 import pygame
@@ -49,16 +48,15 @@ class SpyKeys:
 
 class SpyDashboard:
     def __init__(self) -> None:
-        self.asked_with: list[object] = []
+        self.asked = 0
 
-    def take_quit_gesture(self, stop_event) -> None:
-        self.asked_with.append(stop_event)
+    def take_quit_gesture(self) -> None:
+        self.asked += 1
 
 
-def _input() -> tuple[Input, SpyPointer, SpyKeys, SpyDashboard, threading.Event]:
+def _input() -> tuple[Input, SpyPointer, SpyKeys, SpyDashboard]:
     pointer, keys, dashboard = SpyPointer(), SpyKeys(), SpyDashboard()
-    stop_event = threading.Event()
-    return Input(pointer, keys, dashboard, stop_event), pointer, keys, dashboard, stop_event
+    return Input(pointer, keys, dashboard), pointer, keys, dashboard
 
 
 def _deal(window_input, *events) -> None:
@@ -69,27 +67,17 @@ class TestTheWindowBeingClosed:
     def test_a_quit_gesture_is_asked_of_the_session_rather_than_taken(self):
         """The close box and Alt+F4 arrive here.  In a session it is the session
         that goes, not this one window out of six -- see nau.dashboard."""
-        window_input, _p, _k, dashboard, stop_event = _input()
+        window_input, _p, _k, dashboard = _input()
 
         _deal(window_input, SimpleNamespace(type=pygame.QUIT))
 
-        assert dashboard.asked_with == [stop_event]
-
-    def test_the_loop_is_not_stopped_here(self):
-        """Whether this player comes down is the dashboard's answer, and it
-        keeps running until the teardown reaches it."""
-        window_input, _p, _k, _d, stop_event = _input()
-
-        _deal(window_input, SimpleNamespace(type=pygame.QUIT))
-
-        assert not stop_event.is_set()
-
+        assert dashboard.asked == 1
 
 class TestTheMouse:
     def test_a_left_press_lands_at_its_place_in_this_window(self):
         """The size comes from the frame rather than the event, so everything in
         one frame is read against one window."""
-        window_input, pointer, _k, _d, _s = _input()
+        window_input, pointer, _k, _d = _input()
 
         _deal(window_input, SimpleNamespace(
             type=pygame.MOUSEBUTTONDOWN, button=1, pos=(120, 480)))
@@ -97,7 +85,7 @@ class TestTheMouse:
         assert pointer.calls == [("press", 120, 480, WIN_W, WIN_H)]
 
     def test_a_left_release_ends_whatever_was_held(self):
-        window_input, pointer, _k, _d, _s = _input()
+        window_input, pointer, _k, _d = _input()
 
         _deal(window_input, SimpleNamespace(type=pygame.MOUSEBUTTONUP, button=1))
 
@@ -107,7 +95,7 @@ class TestTheMouse:
         """Right, middle and the two wheel buttons: nothing on this HUD answers
         them, and a press that fell through to the left button's branch would
         seek the video from wherever the right button was clicked."""
-        window_input, pointer, _k, _d, _s = _input()
+        window_input, pointer, _k, _d = _input()
 
         for button in (2, 3, 4, 5):
             _deal(window_input,
@@ -119,7 +107,7 @@ class TestTheMouse:
     def test_a_drag_is_a_move_with_the_left_button_down(self):
         """``buttons`` is the whole mouse, left first; reading another slot
         turns every drag into a hover and the timeline stops scrubbing."""
-        window_input, pointer, _k, _d, _s = _input()
+        window_input, pointer, _k, _d = _input()
 
         _deal(window_input, SimpleNamespace(
             type=pygame.MOUSEMOTION, pos=(300, 200), buttons=(1, 0, 0)))
@@ -127,7 +115,7 @@ class TestTheMouse:
         assert pointer.calls == [("motion", 300, 200, True, WIN_W, WIN_H)]
 
     def test_a_move_with_nothing_held_is_a_hover(self):
-        window_input, pointer, _k, _d, _s = _input()
+        window_input, pointer, _k, _d = _input()
 
         _deal(window_input, SimpleNamespace(
             type=pygame.MOUSEMOTION, pos=(300, 200), buttons=(0, 1, 0)))
@@ -139,7 +127,7 @@ class TestTheKeyboard:
     def test_a_key_going_down_carries_its_modifiers(self):
         """Ctrl+Q is a binding, so the modifier has to travel with the key --
         dropped, Ctrl+Q becomes a bare Q and quits nothing."""
-        window_input, _p, keys, _d, _s = _input()
+        window_input, _p, keys, _d = _input()
 
         _deal(window_input, SimpleNamespace(
             type=pygame.KEYDOWN, key=pygame.K_q, mod=pygame.KMOD_CTRL))
@@ -149,7 +137,7 @@ class TestTheKeyboard:
     def test_a_key_coming_up_is_its_own_gesture(self):
         """Holding R marks a loop's in point and letting go marks its out
         point, so the release is half of it rather than nothing."""
-        window_input, _p, keys, _d, _s = _input()
+        window_input, _p, keys, _d = _input()
 
         _deal(window_input, SimpleNamespace(type=pygame.KEYUP, key=pygame.K_r))
 
@@ -160,7 +148,7 @@ class TestAFrameOfEvents:
     def test_they_are_answered_in_the_order_they_arrived(self):
         """SDL's queue is the order the user did things in, and a press
         answered after the release that ended it leaves the drag latched."""
-        window_input, pointer, _k, _d, _s = _input()
+        window_input, pointer, _k, _d = _input()
 
         _deal(window_input,
               SimpleNamespace(type=pygame.MOUSEBUTTONDOWN, button=1, pos=(10, 20)),

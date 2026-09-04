@@ -50,9 +50,8 @@ def _writer(args, gate):
     return _status_writer(args, gate)
 
 
-def _args(status_file: Path | None):
-    argv = [] if status_file is None else ["--status-file", str(status_file)]
-    return build_parser({}).parse_args(argv)
+def _args(status_file: Path):
+    return build_parser({}).parse_args(["--status-file", str(status_file)])
 
 
 class TestTheStatusFileNauPublishes:
@@ -88,18 +87,6 @@ class TestTheStatusFileNauPublishes:
         writer.write(StubSession())
 
         assert "handoff_touch_ms=\n" in status.read_text(encoding="utf-8")
-
-    def test_a_player_nobody_asked_for_a_status_from_publishes_nothing(self):
-        """Standalone there is no orchestrator polling, and no file to write."""
-        assert _writer(_args(None), FakeGate(4200)) is None
-
-    def test_the_gate_is_not_asked_at_all_when_there_is_no_file(self):
-        gate = FakeGate(4200)
-
-        _writer(_args(None), gate)
-
-        assert gate.asked == 0
-
 
 def _run_body() -> ast.FunctionDef:
     """`_run`'s syntax tree.
@@ -210,10 +197,9 @@ class TestWhatABlankedFrameStillDoes:
 
 
 class TestWhenSomethingCosmeticFails:
-    """Three things Nau does on the way in are decoration -- its window icon,
-    the name it leaves for the task list, the taskbar button it claims -- and
-    every one of them catches everything, because none of them may cost a
-    launch.  Caught silently, though, a permanently broken one is
+    """Two things Nau does on the way in are decoration -- its window icon and
+    the taskbar button it claims -- and both catch everything, because neither
+    may cost a launch.  Caught silently, though, a permanently broken one is
     indistinguishable in the log from one that works.
     """
 
@@ -221,12 +207,11 @@ class TestWhenSomethingCosmeticFails:
         self, tmp_path, caplog, monkeypatch,
     ):
         from nau import app
-        not_an_icon = tmp_path / "nau_icon.ico"
+        not_an_icon = tmp_path / "icon.ico"
         not_an_icon.write_text("this is not an icon", encoding="utf-8")
-        monkeypatch.setattr(app, "_ICON_PATH", not_an_icon)
 
         with caplog.at_level(logging.DEBUG, logger="nau.app"):
-            surface = app._load_icon_surface()
+            surface = app._load_icon_surface(not_an_icon)
 
         assert surface is None
         assert "icon" in caplog.records[0].getMessage().lower()
@@ -243,7 +228,6 @@ class TestWhichConfigTheFlagsAreReadAgainst:
     def _main(self, monkeypatch, argv):
         from nau import app
         landed = []
-        monkeypatch.setattr(app, "_name_this_process", lambda: None)
         monkeypatch.setattr(app, "_run", lambda args: landed.append(args) or 0)
         app.main(argv)
         return landed[0]

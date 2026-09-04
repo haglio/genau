@@ -3,8 +3,8 @@
 Two publications of the drive, on two cadences.  The readout's trace scrolls, so
 it cannot wait on a change the way the status file does and is throttled
 instead; the console around it -- mode, OSR2, broker -- moves a few times a
-minute and is re-read far less often than the readout is rebuilt.  In Hybrid the
-panel belongs to Nau's console, because the controls that move these numbers are
+minute and is re-read far less often than the readout is rebuilt.  In video mode
+the panel belongs to Nau's console, because the controls that move these numbers are
 up there, and Genau's window is only the transparent layer driving the device.
 """
 from __future__ import annotations
@@ -41,7 +41,7 @@ class DriveReadout:
         set_console=None,
         current_clip=lambda: None,
     ):
-        self.direct_state = controls.direct_state
+        self.robot_hand = controls.robot_hand
         self.cruise_control = controls.cruise_control_state
         self.clip_advance = controls.clip_advance_state
         self.beats_per_loop = beats_per_loop
@@ -52,8 +52,7 @@ class DriveReadout:
         self.current_clip = current_clip
         self._last_drive_publish = 0.0
         # The console around the readout -- mode, OSR2, broker -- as Fun Time
-        # published it; genau mode defaults it to itself so a standalone Genau
-        # still draws a sensible panel with no file behind it.
+        # published it; its own mode until the first publish lands.
         self._console_model = ConsoleModel(mode="genau")
         self._last_console_read = 0.0
 
@@ -83,9 +82,9 @@ class DriveReadout:
         ))
 
     def _build_drive_hud(self) -> DriveHud:
-        from player_core.direct_control import MIN_BPM, POSITION_MAX
+        from player_core.robot_hand import MIN_BPM, POSITION_MAX
 
-        ds = self.direct_state
+        ds = self.robot_hand
         position = 0
         start_phase = 0.0
         let_go = None
@@ -138,13 +137,13 @@ class DriveReadout:
         them is moving over a span this long. It is walked in time instead.
         """
         from player_core import wave_stack
-        from player_core.direct_control import sample_waveform
+        from player_core.robot_hand import sample_waveform
 
         if self.cruise_control is not None and self.cruise_control.stack:
             return wave_stack.trace(
                 self.cruise_control.stack, self.cruise_control.clock,
                 TRACE_SAMPLES, display_seconds)
-        ds = self.direct_state
+        ds = self.robot_hand
         return sample_waveform(
             ds.shape, ds.amplitude, ds.center, TRACE_SAMPLES,
             start_phase=start_phase,
@@ -154,7 +153,7 @@ class DriveReadout:
     def _publish_drive(self, hud: DriveHud, now: float) -> None:
         """Say the readout for Nau to draw, at a fraction of the refresh rate.
 
-        In Hybrid this panel belongs to Nau's console — the controls that move
+        In video mode this panel belongs to Nau's console — the controls that move
         these numbers are up there, so the numbers are too — and Genau's window is
         only the transparent layer driving the device.  The trace scrolls, so this
         cannot wait for a change the way the status file does; it is throttled

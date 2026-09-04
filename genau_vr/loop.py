@@ -24,9 +24,9 @@ from .controls import GenauVrControls
 from .cruise_control import CruiseControlState, tick_cruise_control
 from .pitch import PitchControl
 from .playback import (
-    DirectControlState,
     PlaybackEngine,
     RateLimitedTCodeSender,
+    RobotHandState,
     display_phase_for_position,
     update_engine,
 )
@@ -88,7 +88,7 @@ def render_views(session, renderer, views, pitch_mat) -> None:
 def controls_for(
     carousel: ClipCarousel,
     engine: PlaybackEngine,
-    state: DirectControlState,
+    state: RobotHandState,
     cruise: CruiseControlState,
     audio,
     stop_event: threading.Event,
@@ -105,7 +105,7 @@ def controls_for(
 
     return GenauVrControls(
         step_clip=step_clip,
-        direct_state=state,
+        robot_hand=state,
         cruise_control_state=cruise,
         stop_event=stop_event,
         audio_player=audio,
@@ -124,7 +124,7 @@ def run_loop(
 ) -> None:
     import glfw
 
-    state = controls.direct_state
+    state = controls.robot_hand
     cruise = controls.cruise_control_state
     stop_event = controls.stop_event
     pitch = PitchControl()

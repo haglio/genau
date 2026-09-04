@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 from pathlib import Path
 
 import pytest
@@ -19,7 +18,7 @@ from nau.mode_memory import RememberedMode
 
 
 class TestResolvePlaylist:
-    def test_playlist_file_wins_over_discovery(self, tmp_path):
+    def test_the_playlist_file_is_read(self, tmp_path):
         playlist = tmp_path / "nau_playlist.tsv"
         vid = tmp_path / "a.mp4"
         vid.write_text("fake")
@@ -68,83 +67,6 @@ class TestResolvePlaylist:
         pairs = resolve_playlist(args, source=source)
 
         assert pairs == [(upscale, None)]
-
-    def test_discovery_dedups_versions_and_applies_no_length_filter(self, tmp_path):
-        vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
-        vids.mkdir()
-        scripts.mkdir()
-        big = vids / "Jane-1080p.mp4"
-        small = vids / "Jane-540.mp4"
-        short = vids / "teaser-1080p.mp4"
-        big.write_text("a much bigger body")  # canonical
-        small.write_text("sm")
-        short.write_text("teaser")
-        big_fs = scripts / "Jane-1080p.funscript"
-        big_fs.write_text("{}")
-        (scripts / "Jane-540.funscript").write_text("{}")
-        (scripts / "teaser-1080p.funscript").write_text("{}")
-        args = build_parser({}).parse_args([
-            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
-        ])
-        durations = {big: 300.0, small: 300.0, short: 10.0}
-
-        pairs = resolve_playlist(args, durations=durations, rng=random.Random(0))
-
-        # Jane folded to its canonical (largest) version; the teaser survives,
-        # because the mode the player opens in applies no length filter.
-        assert sorted(video for video, _fs in pairs) == sorted([big, short])
-        assert (big, big_fs) in pairs
-
-    def test_discovery_builds_for_the_mode_it_is_given(self, tmp_path):
-        """Startup resumes the mode the last session closed in, so the playlist
-        it builds has to be that mode's, not always the default."""
-        vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
-        vids.mkdir()
-        scripts.mkdir()
-        long_vid = vids / "feature-1080p.mp4"
-        short = vids / "teaser-1080p.mp4"
-        long_vid.write_text("x")
-        short.write_text("x")
-        args = build_parser({}).parse_args([
-            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
-        ])
-        durations = {long_vid: 300.0, short: 10.0}
-
-        pairs = resolve_playlist(
-            args, durations=dict(durations), rng=random.Random(0), mode=SHORTS)
-
-        assert [video for video, _fs in pairs] == [short]
-
-    def test_discovery_deterministic_with_seed(self, tmp_path):
-        vids = tmp_path / "videos"
-        scripts = tmp_path / "scripts"
-        vids.mkdir()
-        scripts.mkdir()
-        for i in range(5):
-            (vids / f"v{i}-1080p.mp4").write_text("x")
-        args = build_parser({}).parse_args([
-            "--videos-dir", str(vids), "--scripts-dir", str(scripts),
-        ])
-        durations = {vids / f"v{i}-1080p.mp4": 300.0 for i in range(5)}
-
-        a = resolve_playlist(args, durations=dict(durations), rng=random.Random(7))
-        b = resolve_playlist(args, durations=dict(durations), rng=random.Random(7))
-        assert a == b
-
-    def test_no_sources_returns_empty(self):
-        args = build_parser({}).parse_args([])
-
-        assert resolve_playlist(args) == []
-
-
-class TestBorderless:
-    def test_borderless_is_off_by_default_and_on_by_flag(self):
-        """Standalone keeps its chrome; Fun Time passes --borderless to drop it."""
-        assert build_parser({}).parse_args([]).borderless is False
-        assert build_parser({}).parse_args(["--borderless"]).borderless is True
-
 
 class TestLibrarySource:
     def test_none_without_dirs(self):
@@ -244,8 +166,8 @@ FUN_TIME_ARGV = [
     "--y", "0",
     "--width", "1280",
     "--height", "1024",
-    "--borderless",
     "--taskbar-identity", "Example.Orchestrator",
+    "--icon", "C:/example/fun_time/icon.ico",
     "--metadata-dir", "C:/example/library/metadata",
 ]
 
@@ -266,8 +188,8 @@ LANDS_AS = {
     "y": 0,
     "width": 1280,
     "height": 1024,
-    "borderless": True,
     "taskbar_identity": "Example.Orchestrator",
+    "icon": Path("C:/example/fun_time/icon.ico"),
 }
 
 
@@ -296,8 +218,9 @@ class TestTheCommandLineFunTimeLaunchesNauWith:
         assert args.metadata_dir is None
 
 
-class TestTheStandaloneFlags:
-    """What Nau's own shortcut passes, which Fun Time never does."""
+class TestTheRestOfTheFlags:
+    """What the parser also takes: the library's own directories, read off the
+    config, and the quiet run a test asks for."""
 
     @pytest.mark.parametrize("option", ["taskbar_identity", "notice_file"])
     def test_the_parser_always_defines_what_the_app_reads_off_it(self, option):
@@ -347,7 +270,6 @@ EVERY_FLAG_ARGV = [
     "--height", "1024",
     "--x", "1920",
     "--y", "0",
-    "--borderless",
     "--tcode-host", "10.0.0.7",
     "--tcode-port", "51000",
     "--command-file", "C:/example/state/nau_cmd.txt",
@@ -358,6 +280,7 @@ EVERY_FLAG_ARGV = [
     "--dashboard-cmd-file", "C:/example/state/dashboard_cmd.txt",
     "--no-audio",
     "--taskbar-identity", "Example.Orchestrator",
+    "--icon", "C:/example/fun_time/icon.ico",
 ]
 
 EVERY_FLAG_LANDS_AS = {
@@ -373,7 +296,6 @@ EVERY_FLAG_LANDS_AS = {
     "height": 1024,
     "x": 1920,
     "y": 0,
-    "borderless": True,
     "tcode_host": "10.0.0.7",
     "tcode_port": 51000,
     "command_file": Path("C:/example/state/nau_cmd.txt"),
@@ -384,6 +306,7 @@ EVERY_FLAG_LANDS_AS = {
     "dashboard_cmd_file": Path("C:/example/state/dashboard_cmd.txt"),
     "no_audio": True,
     "taskbar_identity": "Example.Orchestrator",
+    "icon": Path("C:/example/fun_time/icon.ico"),
 }
 
 NO_FLAGS_LANDS_AS = {
@@ -399,7 +322,6 @@ NO_FLAGS_LANDS_AS = {
     "height": 900,
     "x": None,
     "y": None,
-    "borderless": False,
     "tcode_host": "127.0.0.1",
     "tcode_port": 50557,
     "command_file": None,
@@ -410,6 +332,7 @@ NO_FLAGS_LANDS_AS = {
     "dashboard_cmd_file": None,
     "no_audio": False,
     "taskbar_identity": None,
+    "icon": None,
 }
 
 

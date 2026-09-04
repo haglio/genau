@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 
 def test_pygame_view_create(mock_pygame):
@@ -12,32 +12,18 @@ def test_pygame_view_create(mock_pygame):
     assert view.height == 600
 
 
-def test_borderless_fills_the_whole_rect(mock_pygame):
-    """Under Fun Time the window has no title bar — the mode it used to name is on
-    the HUD — so it is chromeless and its client area is the whole rect, both to
-    reclaim the space and to keep the Hybrid layer aligned with Nau's video."""
+def test_the_window_fills_the_whole_rect_with_no_chrome(mock_pygame):
+    """The window has no title bar — the mode it used to name is on the HUD — so
+    it is chromeless and its client area is the whole rect, both to reclaim the
+    space and to keep the video-mode layer aligned with Nau's video."""
     import genau.pygame_view as pv
 
-    pv.PygameView(width=800, height=600, x=100, y=50, title="Genau", borderless=True)
+    pv.PygameView(width=800, height=600, x=100, y=50, title="Genau")
 
     _title, kwargs = pv.Window.call_args
     assert kwargs["size"] == (800, 600)   # the whole rect, no chrome subtracted
     assert kwargs["borderless"] is True
     assert pv.Window.return_value.position == (100, 50)  # the rect's own corner
-
-
-def test_standalone_keeps_its_chrome(mock_pygame):
-    """Run on its own (the default), the window keeps a title bar so it can be
-    dragged and closed — the client is sized down to leave the video in the rect."""
-    import genau.pygame_view as pv
-
-    with patch.object(pv, "get_window_chrome_height", return_value=31):
-        pv.PygameView(width=800, height=600, x=100, y=50, title="Genau")
-
-    _title, kwargs = pv.Window.call_args
-    assert kwargs["size"] == (800, 600 - 31)          # room left for the chrome
-    assert kwargs.get("borderless", False) is False
-    assert pv.Window.return_value.position == (100, 50 + 31)
 
 
 def test_hud_mode_defaults_to_false(mock_pygame):
@@ -61,15 +47,7 @@ def test_present_scene_skips_texture_in_hud_mode(mock_pygame):
     texture.draw.assert_not_called()
 
 
-def test_blank_defaults_to_false(mock_pygame):
-    from genau.pygame_view import PygameView
-
-    view = PygameView(width=800, height=600)
-
-    assert view._blank is False
-
-
-def test_present_scene_skips_texture_when_blank(mock_pygame):
+def test_present_scene_draws_the_texture(mock_pygame):
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
@@ -78,51 +56,6 @@ def test_present_scene_skips_texture_when_blank(mock_pygame):
     view._current_texture = texture
     view._video_size = (1920, 1080)
     view.hud_active = False
-    view.set_blank(True)
-
-    view._present_scene()
-
-    texture.draw.assert_not_called()
-
-
-def test_present_scene_skips_the_console_when_blank(mock_pygame):
-    from genau.pygame_view import PygameView
-
-    view = PygameView(width=800, height=600)
-    view.hud_active = False
-    view._console = MagicMock()  # non-None would normally trigger a draw
-    view._draw_console = MagicMock()
-    view.set_blank(True)
-
-    view._present_scene()
-
-    view._draw_console.assert_not_called()
-
-
-def test_present_scene_clears_to_black_when_blank(mock_pygame):
-    from genau.pygame_view import PygameView
-
-    view = PygameView(width=800, height=600)
-    view.hud_active = False
-    view.set_blank(True)
-
-    view._present_scene()
-
-    assert view.renderer.draw_color == (0, 0, 0, 255)
-    view.renderer.clear.assert_called()
-    view.renderer.present.assert_called()
-
-
-def test_present_scene_draws_texture_when_not_blank(mock_pygame):
-    from genau.pygame_view import PygameView
-
-    view = PygameView(width=800, height=600)
-    view.window.size = (800, 600)
-    texture = MagicMock()
-    view._current_texture = texture
-    view._video_size = (1920, 1080)
-    view.hud_active = False
-    view.set_blank(False)
 
     view._present_scene()
 
@@ -162,7 +95,7 @@ def test_present_scene_tiles_portrait_texture(mock_pygame):
 
 
 def test_hud_mode_leaves_the_console_and_the_volume_to_nau(mock_pygame):
-    """HUD mode is Hybrid: this window is a transparent layer over Nau's, and the
+    """HUD mode is video mode: this window is a see-through layer over Nau's, and the
     readout is drawn inside Nau's console beneath the controls that move it.
     Drawing it here as well would put the same panel on screen twice — and the
     same goes for the volume chip, where two sliders would disagree about which
@@ -335,46 +268,39 @@ def test_the_transparency_holds_the_handle_it_took_when_the_window_was_made(mock
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600, title="Genau",
-                      hybrid_title="Hybrid Nau+Genau")
+                      video_title="Video Nau+Genau")
     view._layered = MagicMock()
     view._layered.hwnd = 0x1234
 
     view.set_hud_mode(True)
 
-    assert view.window.title == "Hybrid Nau+Genau"
+    assert view.window.title == "Video Nau+Genau"
     assert view._layered.hwnd == 0x1234
 
 
-def test_hud_window_identity_hybrid_when_active_else_base(mock_pygame):
-    from pathlib import Path
-
+def test_hud_window_identity_is_the_video_caption_when_active_else_base(mock_pygame):
     from genau.pygame_view import hud_window_identity
 
-    args = dict(base_title="Genau", base_icon=Path("g.ico"),
-                hybrid_title="Hybrid Nau+Genau", hybrid_icon=Path("h.ico"))
-    assert hud_window_identity(True, **args) == ("Hybrid Nau+Genau", Path("h.ico"))
-    assert hud_window_identity(False, **args) == ("Genau", Path("g.ico"))
+    args = dict(base_title="Genau", video_title="Video Nau+Genau")
+    assert hud_window_identity(True, **args) == "Video Nau+Genau"
+    assert hud_window_identity(False, **args) == "Genau"
 
 
-def test_hud_window_identity_stays_genau_without_a_hybrid_identity(mock_pygame):
+def test_hud_window_identity_stays_genau_without_a_video_caption(mock_pygame):
     from genau.pygame_view import hud_window_identity
 
-    assert hud_window_identity(
-        True, base_title="Genau", base_icon=None, hybrid_title=None, hybrid_icon=None
-    ) == ("Genau", None)
+    assert hud_window_identity(True, base_title="Genau", video_title=None) == "Genau"
 
 
-def test_set_hud_mode_swaps_window_title_to_hybrid_and_back(mock_pygame, tmp_path):
+def test_set_hud_mode_swaps_window_title_to_the_video_caption_and_back(mock_pygame):
     from genau.pygame_view import PygameView
 
-    view = PygameView(
-        width=800, height=600, title="Genau",
-        hybrid_title="Hybrid Nau+Genau", hybrid_icon_path=tmp_path / "h.ico",
-    )
+    view = PygameView(width=800, height=600, title="Genau",
+                      video_title="Video Nau+Genau")
     view._layered = MagicMock()
 
     view.set_hud_mode(True)
-    assert view.window.title == "Hybrid Nau+Genau"
+    assert view.window.title == "Video Nau+Genau"
 
     view.set_hud_mode(False)
     assert view.window.title == "Genau"

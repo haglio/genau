@@ -7,8 +7,8 @@ it needs cannot be read off a single publish:
 and then held, because re-read live every frame it breathed with the beat
 between Genau's publish cadence and the frame clock, and the seam flickered.
 Holding one means knowing when it is void — and it is void whenever the wave it
-was cut from stopped describing this approach: a stint with nobody behind the
-screen, a different video, a seek, or a pause long enough for the media clock
+was cut from stopped describing this approach: a stint with nothing published,
+a different video, a seek, or a pause long enough for the media clock
 and the wall clock to part company.
 
 *Who has the device.*  ``DriveHud.let_go`` is Genau's own latch of the height it
@@ -65,19 +65,18 @@ class DriveGate:
         self._position = 0
         self._stalled = 0
 
-    def readout(self, published: DriveHud | None, *, genau_behind: bool) -> DriveHud:
+    def readout(self, published: DriveHud | None) -> DriveHud:
         """The readout to draw, with this video's funscript folded into it.
 
-        *published* is Genau's readout as it last said it; *genau_behind* says
-        whether Genau is there to take the gaps at all.  In Nau's own mode there
-        is no Genau behind the screen, and nothing published is believed.
+        *published* is Genau's readout as it last said it, or None while it has
+        not published one yet.
         """
-        drive = published if genau_behind else None
+        drive = published
         position = int(self._session.position_ms)
         if drive is None:
-            # A stint without Genau behind the screen: the wave keeps moving
-            # while nothing here watches it, so every held forecast is void by
-            # the time it could be read again.
+            # A stint with nothing published: the wave keeps moving while
+            # nothing here watches it, so every held forecast is void by the
+            # time it could be read again.
             self._latch.void_all()
         if drive is not None:
             if self._video != self._session.current_video:
@@ -104,7 +103,6 @@ class DriveGate:
             script=self._session.current_funscript,
             position_ms=position,
             speed=self._session.speed,
-            genau_behind=genau_behind,
             latch=self._latch,
         )
 

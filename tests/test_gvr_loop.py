@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 
 from genau_vr.cruise_control import CruiseControlState
-from genau_vr.playback import DirectControlState, PlaybackEngine
+from genau_vr.playback import PlaybackEngine, RobotHandState
 
 
 class FakeView:
@@ -109,7 +109,7 @@ def _run(session, renderer, *, commands=(), speed=50, clips=("alpha.mp4",),
 
     said = list(commands)
     engine = PlaybackEngine(last_tick=0.0)
-    state = DirectControlState(playing=playing, speed=speed)
+    state = RobotHandState(playing=playing, speed=speed)
     carousel = ClipCarousel(
         [Path(name) for name in clips], _frames(frames),
         audio=MagicMock(), decode=lambda _path: _frames(frames),
@@ -253,7 +253,7 @@ class TestSteppingTheClipFromAVerb:
             [Path(name) for name in clips], _frames(4),
             audio=MagicMock(), decode=lambda _path: _frames(4),
         )
-        controls = controls_for(carousel, engine, DirectControlState(playing=True),
+        controls = controls_for(carousel, engine, RobotHandState(playing=True),
                                 CruiseControlState(), MagicMock(),
                                 threading.Event())
         return engine, carousel, controls

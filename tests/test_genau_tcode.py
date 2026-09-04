@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from player_core.direct_control import DirectControlState, WaveformShape
 from player_core.funscript import HANDOFF_RAMP_MS
+from player_core.robot_hand import RobotHandState, WaveformShape
 from player_core.tcode import HANDOFF_MS
 
 from genau.tcode import RateLimitedTCodeSender
@@ -53,7 +53,7 @@ class TestRateLimitedTCodeSender:
 
 
 class TestTakingOver:
-    """Genau does not hold the device the whole time — in Hybrid a funscript has
+    """Genau does not hold the device the whole time — in video mode a funscript has
     it for every scripted stretch — so it comes back to a device parked wherever
     that script left it, with its own phase run on without it."""
 
@@ -173,8 +173,8 @@ class TestTheRiseOutOfThePark:
 
     def _sender(self):
         sink = FakeTCodeSink()
-        state = DirectControlState(amplitude=30, center=50)  # floor at 35%
-        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        state = RobotHandState(amplitude=30, center=50)  # floor at 35%
+        sender = RateLimitedTCodeSender(sink, robot_hand=state, min_interval=0.0)
         sender.maybe_send(phase=0.5, now=0.5)   # mid-swing when the script takes it
         sink.sent.clear()
         return sink, sender
@@ -239,8 +239,8 @@ class TestTheRiseOutOfThePark:
         """His confirmed case stays exactly as it was: the wave starts the
         moment Genau has the device again."""
         sink = FakeTCodeSink()
-        state = DirectControlState(amplitude=100, center=50)
-        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        state = RobotHandState(amplitude=100, center=50)
+        sender = RateLimitedTCodeSender(sink, robot_hand=state, min_interval=0.0)
         sender.maybe_send(phase=0.0, now=0.5)
         sink.sent.clear()
 
@@ -260,8 +260,8 @@ class TestLetGoThroughTheRoundTrip:
 
     def _sender(self):
         sink = FakeTCodeSink()
-        state = DirectControlState(amplitude=30, center=50)  # floor at 35%
-        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        state = RobotHandState(amplitude=30, center=50)  # floor at 35%
+        sender = RateLimitedTCodeSender(sink, robot_hand=state, min_interval=0.0)
         sender.maybe_send(phase=0.5, now=0.5)
         return sender
 
@@ -294,8 +294,8 @@ class TestLetGoThroughTheRoundTrip:
 
     def test_a_skipped_climb_clears_it_at_once(self):
         sink = FakeTCodeSink()
-        state = DirectControlState(amplitude=100, center=50)    # floor on the park
-        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        state = RobotHandState(amplitude=100, center=50)    # floor on the park
+        sender = RateLimitedTCodeSender(sink, robot_hand=state, min_interval=0.0)
         sender.maybe_send(phase=0.5, now=0.5)
         sender.hand_over()
 
@@ -307,8 +307,8 @@ class TestLetGoThroughTheRoundTrip:
 class TestSenderWithDirectState:
     def test_reads_amplitude_from_state(self):
         sink = FakeTCodeSink()
-        state = DirectControlState(amplitude=50, center=50)
-        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        state = RobotHandState(amplitude=50, center=50)
+        sender = RateLimitedTCodeSender(sink, robot_hand=state, min_interval=0.0)
         sender.maybe_send(phase=0.5, now=1.0)
         # amplitude=50, center=50: tip should be ~7500, not 9999
         pos_value = int(sink.sent[0][2:6])
@@ -316,8 +316,8 @@ class TestSenderWithDirectState:
 
     def test_reads_shape_from_state(self):
         sink = FakeTCodeSink()
-        state = DirectControlState(shape=WaveformShape.TRIANGLE)
-        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        state = RobotHandState(shape=WaveformShape.TRIANGLE)
+        sender = RateLimitedTCodeSender(sink, robot_hand=state, min_interval=0.0)
         sender.maybe_send(phase=0.25, now=1.0)
         # Triangle at 0.25 should be 5000 (same as sine at 0.25 for default params)
         pos_value = int(sink.sent[0][2:6])
@@ -325,7 +325,7 @@ class TestSenderWithDirectState:
 
     def test_current_position(self):
         sink = FakeTCodeSink()
-        state = DirectControlState()
-        sender = RateLimitedTCodeSender(sink, direct_state=state, min_interval=0.0)
+        state = RobotHandState()
+        sender = RateLimitedTCodeSender(sink, robot_hand=state, min_interval=0.0)
         sender.maybe_send(phase=0.5, now=1.0)
         assert sender.current_position() == 9999

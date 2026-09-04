@@ -26,9 +26,9 @@ from .config import DEFAULT_CONFIG, VrConfig, clips_to_play, load_config
 from .cruise_control import CruiseControlState
 from .loop import controls_for, run_loop
 from .playback import (
-    DirectControlState,
     PlaybackEngine,
     RateLimitedTCodeSender,
+    RobotHandState,
     UdpTCodeSink,
     WaveformShape,
 )
@@ -216,11 +216,11 @@ def _start(argv: list[str] | None) -> None:
     audio = AudioPlayer()
     audio.load_for_clip(clip_list[0])
 
-    state = DirectControlState(playing=True, speed=args.speed, shape=WaveformShape.SINE)
+    state = RobotHandState(playing=True, speed=args.speed, shape=WaveformShape.SINE)
     engine = PlaybackEngine(last_tick=time.monotonic())
     cruise = CruiseControlState()
     tcode_sink = UdpTCodeSink(tcode_host, tcode_port)
-    tcode_sender = RateLimitedTCodeSender(tcode_sink, direct_state=state)
+    tcode_sender = RateLimitedTCodeSender(tcode_sink, robot_hand=state)
 
     cmd_file = config.state_dir / "genau_vr_cmd.txt"
 

@@ -22,7 +22,7 @@ from .cruise_control import (
     toggle_cruise_control,
 )
 from .playback import (
-    DirectControlState,
+    RobotHandState,
     adjust_amplitude,
     adjust_center,
     adjust_speed,
@@ -46,7 +46,7 @@ class GenauVrControls:
     """
 
     step_clip: Callable[[int], None]
-    direct_state: DirectControlState | None = None
+    robot_hand: RobotHandState | None = None
     cruise_control_state: CruiseControlState | None = None
     stop_event: threading.Event | None = None
     audio_player: object | None = None
@@ -77,14 +77,14 @@ def _playing(playing: bool) -> Act:
     else.  There is one fact here, and it is the hand's.
     """
     def act(controls: GenauVrControls, _value: str) -> bool:
-        controls.direct_state.playing = playing
+        controls.robot_hand.playing = playing
         return True
     return act
 
 
 def _hand_step(move) -> Act:
     def act(controls: GenauVrControls, _value: str) -> bool:
-        move(controls.direct_state)
+        move(controls.robot_hand)
         return True
     return act
 
@@ -100,7 +100,7 @@ def _number_setter(setter) -> Act:
             number = int(value)
         except ValueError:
             return False
-        setter(controls.direct_state, number)
+        setter(controls.robot_hand, number)
         return True
     return act
 
@@ -122,7 +122,7 @@ def _volume_step(delta: float) -> Act:
 CONTROLS: tuple[Control, ...] = (
     Control(
         name="speed",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(
             Verb("SPEED_DOWN", _hand_step(lambda hand: adjust_speed(hand, -5))),
             Verb("SPEED_UP", _hand_step(lambda hand: adjust_speed(hand, 5))),
@@ -131,7 +131,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="amplitude",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(
             Verb("AMPLITUDE_DOWN", _hand_step(lambda hand: adjust_amplitude(hand, -10))),
             Verb("AMPLITUDE_UP", _hand_step(lambda hand: adjust_amplitude(hand, 10))),
@@ -140,7 +140,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="center",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(
             Verb("CENTER_DOWN", _hand_step(lambda hand: adjust_center(hand, -5))),
             Verb("CENTER_UP", _hand_step(lambda hand: adjust_center(hand, 5))),
@@ -149,7 +149,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="shape",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(Verb("CYCLE_SHAPE", _hand_step(cycle_shape)),),
     ),
     Control(
@@ -176,7 +176,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="pause",
-        needs=("direct_state",),
+        needs=("robot_hand",),
         verbs=(Verb("PAUSE", _playing(False)), Verb("RESUME", _playing(True))),
     ),
 )

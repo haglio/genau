@@ -25,30 +25,12 @@ from .layout import compute_video_rects
 HUD_COLOR_KEY = (1, 0, 1)
 
 
-def get_window_chrome_height() -> int:
-    """What a bordered window costs at the top — see genau.win32.
-
-    Kept here as the name Nau and this view both already reach for; the
-    measuring itself is Win32's and lives with the rest of it.
-    """
-    from .win32 import window_chrome_height
-
-    return window_chrome_height()
-
-
-def hud_window_identity(
-    active: bool,
-    *,
-    base_title: str,
-    base_icon: Path | None,
-    hybrid_title: str | None,
-    hybrid_icon: Path | None,
-) -> tuple[str, Path | None]:
-    """The window title + icon for the HUD state: the Hybrid identity while the
-    HUD is on (Fun Time Hybrid mode) when one was supplied, else Genau's own."""
-    if active and hybrid_title is not None:
-        return hybrid_title, hybrid_icon if hybrid_icon is not None else base_icon
-    return base_title, base_icon
+def hud_window_identity(active: bool, *, base_title: str, video_title: str | None) -> str:
+    """The window's caption for the HUD state: the video-mode one while the HUD
+    is on, when one was supplied, else Genau's own."""
+    if active and video_title is not None:
+        return video_title
+    return base_title
 
 
 @dataclass(frozen=True)
@@ -105,9 +87,7 @@ class PygameView:
         y: int = 0,
         title: str = "Genau",
         icon_path: Path | None = None,
-        hybrid_title: str | None = None,
-        hybrid_icon_path: Path | None = None,
-        borderless: bool = False,
+        video_title: str | None = None,
     ) -> None:
         # Before the window exists, and before pygame.init(): SDL otherwise eats
         # the click that focuses this window, so every press on the console has
@@ -115,32 +95,23 @@ class PygameView:
         # See player_core.sdl_hints for the whole mechanism.
         deliver_the_focusing_click()
         pygame.init()
-        # Borderless under Fun Time, like the satellites and Nau: with no chrome
-        # the client area is the whole rect Fun Time sizes the window to — and,
-        # in Hybrid, this transparent layer lines up with Nau's video beneath it
-        # pixel for pixel, where a title bar on one and not the other would
-        # shift them apart.  The main slot's mode is drawn on the in-video HUD,
-        # so the bar would carry nothing.
-        # Standalone it keeps its chrome, so it can be dragged and closed like any
-        # window, and the client is sized down to leave the video inside the rect.
-        if borderless:
-            self.window = Window(title, size=(width, height), borderless=True)
-            self.window.position = (x, y)
-        else:
-            chrome = get_window_chrome_height()
-            self.window = Window(title, size=(width, max(1, height - chrome)))
-            self.window.position = (x, y + chrome)
+        # Borderless, like the satellites and Nau: with no chrome the client area
+        # is the whole rect Fun Time sizes the window to — and, in video mode,
+        # this see-through layer lines up with Nau's video beneath it pixel for
+        # pixel, where a title bar on one and not the other would shift them
+        # apart.  The main slot's mode is drawn on the in-video HUD, so the bar
+        # would carry nothing.
+        self.window = Window(title, size=(width, height), borderless=True)
+        self.window.position = (x, y)
         load_window_icon(self.window, icon_path)
-        # Fun Time Hybrid mode shows this window as "Hybrid Nau+Genau" with its
-        # own icon; genau mode is plain "Genau".  Driven off the HUD toggle.
+        # Fun Time's video mode shows this window as "Video Nau+Genau"; genau
+        # mode is plain "Genau".  Driven off the HUD toggle.
         self._base_title = title
-        self._base_icon_path = icon_path
         # Taken while the caption is still the one the window was made with, and
         # held: the HUD renames this window, and a handle looked up afterwards
         # would be a handle found by a caption that had just changed.
         self._layered = _layered_window(title)
-        self._hybrid_title = hybrid_title
-        self._hybrid_icon_path = hybrid_icon_path
+        self._video_title = video_title
         self.renderer = Renderer(self.window, accelerated=True)
         self.clock = pygame.time.Clock()
         self._width = width
@@ -162,11 +133,6 @@ class PygameView:
         self._volume = VolumeHud()
         self._volume_painter = VolumeHudPainter()
         self.hud_active: bool = False
-        # When blank, the window paints solid black and draws no clip or overlay.
-        # Genau uses this while it isn't the active display (e.g. Nau mode), so an
-        # alt-tab never lands on a frozen last frame.  HUD mode overrides it: a
-        # transparent HUD must keep letting the window beneath show through.
-        self._blank: bool = False
 
     @property
     def width(self) -> int:
@@ -235,9 +201,6 @@ class PygameView:
         names itself; forgotten when it is over nothing."""
         self._console_hover = self._console_painter.hover_at(mx, my)
 
-    def set_blank(self, blank: bool) -> None:
-        self._blank = blank
-
     def blit_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
         self._video_size = (w, h)
@@ -250,15 +213,14 @@ class PygameView:
         self._present_scene()
 
     def _present_scene(self) -> None:
-        # HUD wins over blank: a transparent HUD must keep the color key so the
-        # window beneath shows through, never a black fill over it.
+        # The HUD keeps the color key so the window beneath shows through.
         if self.hud_active:
             self.renderer.draw_color = HUD_COLOR_KEY + (255,)
         else:
             self.renderer.draw_color = (0, 0, 0, 255)
         self.renderer.clear()
 
-        show_clip = not self.hud_active and not self._blank
+        show_clip = not self.hud_active
         if show_clip and self._current_texture is not None:
             if self._video_size is not None:
                 win_w, win_h = self.window.size
@@ -269,10 +231,10 @@ class PygameView:
                 self._current_texture.draw()
         if show_clip and self._loading_text:
             self._draw_loading_overlay()
-        # Not while the HUD is on: that is Hybrid, where this window is a
-        # transparent layer over Nau's and Nau draws the console over its own
+        # Not while the HUD is on: that is video mode, where this window is a
+        # see-through layer over Nau's and Nau draws the console over its own
         # video.  Drawing it here too would put the same console on screen twice.
-        if not self._blank and not self.hud_active and self._console is not None:
+        if not self.hud_active and self._console is not None:
             self._draw_console()
             self._draw_volume()
         self.renderer.present()
@@ -309,8 +271,8 @@ class PygameView:
     def _draw_volume(self) -> None:
         """Blit the primary display's volume chip, bottom-right.
 
-        Beside the console, and drawn under the same condition: in Hybrid this
-        window is a transparent layer over Nau's, and Nau draws both there — a
+        Beside the console, and drawn under the same condition: in video mode
+        this window is a see-through layer over Nau's, and Nau draws both there — a
         chip here too would put two sliders on screen disagreeing about which
         press the level came from.  ``timeline_h=0`` says there is no scrubber
         under it, which is what this window has and Nau's does not; the chip
@@ -327,15 +289,8 @@ class PygameView:
         if active == self.hud_active:
             return
         self.hud_active = active
-        title, icon = hud_window_identity(
-            active,
-            base_title=self._base_title,
-            base_icon=self._base_icon_path,
-            hybrid_title=self._hybrid_title,
-            hybrid_icon=self._hybrid_icon_path,
-        )
-        self.window.title = title
-        load_window_icon(self.window, icon)
+        self.window.title = hud_window_identity(
+            active, base_title=self._base_title, video_title=self._video_title)
         # Order-free now: the transparency holds the handle it took when the
         # window was made, so the rename above cannot reach it.
         if self._layered is not None:

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 from .playback import WaveformShape, _recompute_center, set_speed
 
 if TYPE_CHECKING:
-    from .playback import DirectControlState
+    from .playback import RobotHandState
 
 
 def _snap_to_5(value: float) -> int:
@@ -43,7 +43,7 @@ def disable_cruise_control(state: CruiseControlState) -> None:
 
 
 def tick_cruise_control(
-    direct: DirectControlState,
+    hand: RobotHandState,
     cc: CruiseControlState,
     now: float,
 ) -> None:
@@ -62,20 +62,20 @@ def tick_cruise_control(
         cc._next_retarget = now + cc.rng.uniform(3, 8)
 
     lerp_rate = 2.0 * dt
-    direct.amplitude = _snap_to_5(max(0, min(100,
-        direct.amplitude + (cc._amplitude_target - direct.amplitude) * lerp_rate
+    hand.amplitude = _snap_to_5(max(0, min(100,
+        hand.amplitude + (cc._amplitude_target - hand.amplitude) * lerp_rate
     )))
-    direct.intended_center = _snap_to_5(max(0, min(100,
-        direct.intended_center + (cc._center_target - direct.intended_center) * lerp_rate
+    hand.intended_center = _snap_to_5(max(0, min(100,
+        hand.intended_center + (cc._center_target - hand.intended_center) * lerp_rate
     )))
-    _recompute_center(direct)
+    _recompute_center(hand)
 
     if now >= cc._next_speed_change:
         delta = cc.rng.choice([-5, 5])
-        set_speed(direct, direct.speed + delta)
+        set_speed(hand, hand.speed + delta)
         cc._next_speed_change = now + cc.rng.uniform(2, 5)
 
     if now >= cc._next_shape_change:
         shapes = list(WaveformShape)
-        direct.shape = cc.rng.choice(shapes)
+        hand.shape = cc.rng.choice(shapes)
         cc._next_shape_change = now + cc.rng.uniform(5, 15)

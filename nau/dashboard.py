@@ -25,28 +25,23 @@ from genau.session_quit import quit_gesture
 class Dashboard:
     """Fun Time's command channel, as one of its windows asks on it."""
 
-    def __init__(self, cmd_file: Path | None) -> None:
+    def __init__(self, cmd_file: Path) -> None:
         self._cmd_file = cmd_file
 
     def post(self, command: str) -> None:
         """Ask Fun Time for *command*.
 
         Appended, because that file carries every mouse- and voice-driven writer
-        at once and the dispatch loop drains it a tick at a time.  Standalone
-        (no Fun Time) there is nowhere to ask, so a control is inert rather than
-        pretending: it goes on showing whatever is actually the case.
+        at once and the dispatch loop drains it a tick at a time.
         """
-        if self._cmd_file is not None:
-            append_command(self._cmd_file, command)
+        append_command(self._cmd_file, command)
 
-    def take_quit_gesture(self, stop_event) -> None:
+    def take_quit_gesture(self) -> None:
         """Answer a quit gesture on this player: the close box, Alt+F4, Ctrl+Q.
 
-        Under Fun Time it is the session that goes, not this player, so the ask
-        goes out and *stop_event* is left alone — Nau stays up until the
-        teardown reaches it, which is what puts the closing cover over all six
-        windows instead of this one blinking out ahead of them.  With nobody to
-        ask, the gesture stops this player as it always did.
+        It is the session that goes, not this player: the ask goes out and Nau
+        stays up until the teardown reaches it, which is what puts the closing
+        cover over all six windows instead of this one blinking out ahead of
+        them.
         """
-        if quit_gesture(self._cmd_file):
-            stop_event.set()
+        quit_gesture(self._cmd_file)

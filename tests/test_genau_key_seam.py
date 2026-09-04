@@ -14,12 +14,14 @@ its verb does?
 """
 from __future__ import annotations
 
+import tempfile
 import threading
+from pathlib import Path
 
 import pygame
 import pytest
 from player_core.cruise_control import CruiseControlState
-from player_core.direct_control import DirectControlState, WaveformShape
+from player_core.robot_hand import RobotHandState, WaveformShape
 
 from genau.clip_advance import ClipAdvanceState
 from genau.controls import GenauControls
@@ -46,16 +48,7 @@ class FakeSelection:
         return True
 
 
-class FakeNotifier:
-    def __init__(self) -> None:
-        self.visible_updates: list[bool] = []
-        self.closed = 0
 
-    def notify_visible(self, value: bool) -> None:
-        self.visible_updates.append(value)
-
-    def close(self) -> None:
-        self.closed += 1
 
 
 class Keys:
@@ -67,10 +60,11 @@ class Keys:
 
     def __init__(self, **start):
         self.selection = FakeSelection()
-        self.notifier = FakeNotifier()
         self.stop_event = threading.Event()
+        self.dashboard_cmd_file = (
+            Path(tempfile.mkdtemp(prefix="genau-keys-")) / "dashboard_cmd.txt")
         self.engine = PlaybackEngine(phase=0.0, last_tick=0.0)
-        self.direct = DirectControlState(
+        self.direct = RobotHandState(
             playing=bool(start.get("playing", False)),
             speed=start.get("speed", 50),
             amplitude=start.get("amplitude", 60),
@@ -85,7 +79,7 @@ class Keys:
             paused=Flag(),
             step_clip=self.selection.step,
             condemn_clip=self.selection.condemn_current,
-            direct_state=self.direct,
+            robot_hand=self.direct,
             cruise_control_state=self.cruise,
             clip_advance_state=self.advance,
             stop_event=self.stop_event,
@@ -110,26 +104,21 @@ class Keys:
             "locked": self.advance.locked,
             "steps": tuple(self.selection.step_calls),
             "condemned": self.selection.discard_calls,
-            "stopping": self.stop_event.is_set(),
         }
 
 
 def _build(keys: Keys) -> GenauLifecycleController:
-    """Wire the controller the way run_listener does.
-
-    ``pause_only`` is False here, which is Genau standalone.
-    """
-    from player_core.direct_control import space_action, toggle_playing
+    """Wire the controller the way run_listener does."""
+    from player_core.robot_hand import pause_playing, toggle_playing
 
     return GenauLifecycleController(
         renderer=FakeRenderer(),
         controls=keys.controls,
-        stop_event=keys.stop_event,
-        notifier=keys.notifier,
         resize_delay_ms=75,
         on_toggle_playing=lambda: toggle_playing(keys.direct),
-        on_pause_playing=lambda: space_action(keys.direct, pause_only=False),
+        on_pause_playing=lambda: pause_playing(keys.direct),
         console_pointer=FakePointer(),
+        dashboard_cmd_file=keys.dashboard_cmd_file,
     )
 
 
@@ -172,7 +161,7 @@ PRESSES = [
     # The two that have no verb: the window's own play/pause pair.
     ("K_ESCAPE", 0, {}, {"playing": True}),
     ("K_ESCAPE", 0, {"playing": True}, {"playing": False}),
-    ("K_SPACE", 0, {}, {"playing": True}),
+    ("K_SPACE", 0, {}, {}),
     ("K_SPACE", 0, {"playing": True}, {"playing": False}),
 ]
 
@@ -214,15 +203,14 @@ def test_a_key_genau_does_not_use_moves_nothing():
     assert keys.state() == before
 
 
-def test_ctrl_q_asks_the_window_to_close_and_moves_no_control():
+def test_ctrl_q_asks_the_session_to_quit_and_moves_no_control():
     keys = Keys()
     before = keys.state()
 
     keys.press(pygame.K_q, pygame.KMOD_CTRL)
 
-    assert keys.stop_event.is_set() is True
-    assert keys.state() == {**before, "stopping": True}
-    assert keys.notifier.visible_updates == [False]
+    assert keys.dashboard_cmd_file.read_text(encoding="utf-8").split() == ["quit"]
+    assert keys.state() == before
 
 
 class TestAKeyAndItsVerbAgree:

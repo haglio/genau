@@ -21,10 +21,9 @@ from app_support.process_identity import ProcessNamer
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
-# app name, role, icon, entry point, launcher
+# app name, role, icon, entry point, launcher.  Genau and Nau are Fun Time's
+# windows now and have no launcher of their own; GenauVR still does.
 APPS = [
-    ("Genau", "Genau", "genau_icon.ico", "genau/app.py", "launch.vbs"),
-    ("Nau", "Nau", "nau_icon.ico", "nau/app.py", "launch_nau.vbs"),
     ("Genau VR", "GenauVR", "genau_vr_icon.ico", "genau_vr/app.py", "launch_vr.vbs"),
 ]
 

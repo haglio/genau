@@ -15,7 +15,7 @@ from player_core.playlist import read_playlist
 
 from .duration_cache import DurationCache
 from .library import collapse_playlist_versions
-from .library_source import DEFAULT_MODE, LibrarySource, build_library_source
+from .library_source import LibrarySource, build_library_source
 from .mode_memory import ModeMemory
 
 DEFAULT_CONFIG = Path(__file__).resolve().parent.parent / "genau_config.json"
@@ -43,14 +43,11 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--notice-file", type=Path, default=nau.get("notice_file"),
                    help="Where to publish one-shot notices for the Fun Time overlay")
     p.add_argument("--playlist", type=Path, default=None,
-                   help="Video/funscript pair file (overrides directory discovery)")
+                   help="Video/funscript pair file: the selection Fun Time made")
     p.add_argument("--width", type=int, default=1200)
     p.add_argument("--height", type=int, default=900)
     p.add_argument("--x", type=int, default=None)
     p.add_argument("--y", type=int, default=None)
-    p.add_argument("--borderless", action="store_true", default=False,
-                   help="Drop the title bar (Fun Time owns the slot's geometry); "
-                        "standalone keeps its chrome so the window can be moved and closed")
     p.add_argument("--tcode-host", default=nau.get("tcode_udp_host", "127.0.0.1"))
     p.add_argument("--tcode-port", type=int, default=nau.get("tcode_udp_port", 50557))
     p.add_argument("--command-file", type=Path, default=None,
@@ -69,9 +66,11 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--no-audio", action="store_true", default=False,
                    help="Never extract or play audio (silent)")
     p.add_argument("--taskbar-identity", default=None,
-                   help="Group this window under an orchestrator's taskbar button "
-                        "instead of Nau's own; the orchestrator passes its own "
-                        "AppUserModelID.  Standalone, Nau is its own application")
+                   help="Group this window under Fun Time's taskbar button: its "
+                        "AppUserModelID")
+    p.add_argument("--icon", type=Path, default=None,
+                   help="The window icon Fun Time hands over, so an Alt-Tab entry "
+                        "says whose window this is")
     return p
 
 
@@ -134,30 +133,16 @@ def library_source(
 
 
 def resolve_playlist(
-    args,
-    *,
-    source: LibrarySource | None = None,
-    durations: dict[Path, float] | None = None,
-    rng: random.Random | None = None,
-    mode: str = DEFAULT_MODE,
+    args, *, source: LibrarySource | None = None,
 ) -> list[tuple[Path, Path | None]]:
-    """Initial playlist: an explicit file collapsed to one entry per version
-    group, else deduped full-length discovery.
+    """The playlist Fun Time passed, collapsed to one entry per version group.
 
-    Fun Time passes ``--playlist`` with every version of every video; a library
-    *source*, when present, folds those into one slot each (matching the set
-    "cycle version" walks). Without a source — no library dirs — the file is
-    returned verbatim, since Nau then has no grouping to apply. *mode* is the
-    length mode to build for, which startup resumes from the last session rather
-    than always assuming the default. *durations* and *rng* are injectable seams
-    for tests; production probes (cached) and shuffles nondeterministically.
+    Fun Time lists every version of every video; a library *source*, when
+    present, folds those into one slot each (matching the set "cycle version"
+    walks).  Without a source — no library dirs — the file is returned verbatim,
+    since Nau then has no grouping to apply.
     """
-    if args.playlist is not None:
-        pairs = read_playlist(Path(args.playlist))
-        if source is not None:
-            pairs = collapse_playlist_versions(pairs, source.version_index)
-        return pairs
-    source = source or library_source(args, rng=rng, durations=durations)
-    if source is None:
-        return []
-    return source.playlist_for(mode)
+    pairs = read_playlist(Path(args.playlist))
+    if source is not None:
+        pairs = collapse_playlist_versions(pairs, source.version_index)
+    return pairs

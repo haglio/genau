@@ -252,7 +252,7 @@ class TestWhereWin32CannotBeBound:
 
 class TestTheHudTransparency:
     """Color-key transparency is what lets Nau's video show through Genau's
-    overlay in Hybrid.  It was thirty lines of inline ctypes inside the view,
+    overlay in video mode.  It was thirty lines of inline ctypes inside the view,
     reached only through a method every test replaced with a mock -- so the
     COLORREF conversion, the two style edits and the failure report had never
     been run by anything.
@@ -339,7 +339,7 @@ class TestTheHudTransparency:
         assert layered._user32.SetLayeredWindowAttributes.call_count == 0
 
     def test_a_window_it_could_not_find_is_said_once_and_then_let_be(self, caplog):
-        """Losing the transparency costs the Hybrid look, not the session."""
+        """Losing the transparency costs the video-mode look, not the session."""
         with caplog.at_level("WARNING", logger="genau.win32"):
             layered = self._layered(hwnd=0)
             layered.set_transparent(True)

@@ -36,9 +36,9 @@ from dataclasses import replace
 
 from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
-    DRIVEN_BY_GENAU,
     DRIVEN_BY_NEUTRAL,
     DRIVEN_BY_NOTHING,
+    DRIVEN_BY_ROBOT_HAND,
     POSITION_MAX,
     TRACE_SAMPLES,
     DriveHud,
@@ -91,14 +91,12 @@ def drive_readout(
     script,
     position_ms: int,
     speed: float = 1.0,
-    genau_behind: bool,
     latch: DescentLatch | None = None,
 ) -> DriveHud:
     """The readout to draw, folding the funscript's own shape into it.
 
-    *published* is Genau's readout as it last said it, or None where there is no
-    Genau behind the screen (Nau's own mode); *genau_behind* says whether Genau
-    is there to take the gaps.  Who holds the device right now is read off the
+    *published* is Genau's readout as it last said it, or None while it has not
+    published one yet.  Who holds the device right now is read off the
     publish itself — ``let_go`` is set exactly while Genau has handed it over —
     rather than off the console's round-tripped state, which trails the arbiter
     by a couple of publish intervals.
@@ -135,8 +133,6 @@ def drive_readout(
     # never depends on where inside a knot the playhead sits.
     anchor_ms = position_ms - slide * step
     stroke = base.waveform if len(base.waveform) == TRACE_SAMPLES else None
-    if not genau_behind:
-        stroke = None
 
     def stroke_at(index: float) -> float:
         """The published stroke at a possibly fractional sample offset.
@@ -290,7 +286,7 @@ def drive_readout(
                     # flicker — see _SEAM_FEATHER_MS.
                     weight = 1 - (ends_at - sample_ms) / feather_ms
                     value = value * (1 - weight) + seam_top * weight
-            return value, DRIVEN_BY_GENAU
+            return value, DRIVEN_BY_ROBOT_HAND
         # The script's stretch — opening with the blue's exit.  A stroke whose
         # floor rests on the park needs no ramp: the blue swings on past the
         # boundary to its touch-down and the gray runs flat from there — his
@@ -315,7 +311,7 @@ def drive_readout(
                         # with the flat gray cannot flicker.
                         weight = 1 - (touch - sample_ms) / feather_ms
                         value = value * (1 - weight)
-                    return value, DRIVEN_BY_GENAU
+                    return value, DRIVEN_BY_ROBOT_HAND
             else:
                 since = sample_ms - turn_start
                 if since < ramp_ms:
@@ -348,7 +344,7 @@ def drive_readout(
     # instead it would sit on Genau's frozen position over a gray ramp at every
     # handoff, for as long as the console lags the arbiter.
     height, who_now = at(position_ms, script.planned_position_at(position_ms) / 100)
-    if who_now == DRIVEN_BY_GENAU:
+    if who_now == DRIVEN_BY_ROBOT_HAND:
         marker = base.position
     else:
         marker = round(height * POSITION_MAX)

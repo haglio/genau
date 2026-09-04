@@ -89,12 +89,12 @@ class TestTheTwoStepsAVolumePressTakes:
         assert view.shown == [(70, False)]
         assert _lines(_posted(tmp_path)) == ["audio_set_volume|70"]
 
-    def test_the_chip_moves_even_with_no_dashboard_to_ask(self, tmp_path):
-        """Standalone there is nowhere to ask, and a slider that would not move
-        because of that reads as broken."""
+    def test_the_chip_moves_before_fun_time_answers(self, tmp_path):
+        """Shown first, asked for second: the chip is following the pointer and
+        Fun Time's answer is a tick away."""
         view = FakeView(volume=VolumePress("audio_mute", 40, True))
 
-        ConsolePointer(view).press(3, 4)
+        ConsolePointer(view, _posted(tmp_path)).press(3, 4)
 
         assert view.shown == [(40, True)]
 
@@ -114,25 +114,16 @@ class TestDraggingAndLettingGo:
 
         assert _lines(_posted(tmp_path)) == []
 
-    def test_letting_go_reaches_the_view(self):
+    def test_letting_go_reaches_the_view(self, tmp_path):
         view = FakeView()
 
-        ConsolePointer(view).release()
+        ConsolePointer(view, _posted(tmp_path)).release()
 
         assert view.released == 1
 
-    def test_the_cursor_moving_tells_the_view_where_it_is(self):
+    def test_the_cursor_moving_tells_the_view_where_it_is(self, tmp_path):
         view = FakeView()
 
-        ConsolePointer(view).motion(11, 13)
+        ConsolePointer(view, _posted(tmp_path)).motion(11, 13)
 
         assert view.hovered == [(11, 13)]
-
-
-def test_a_standalone_genau_has_nowhere_to_ask_and_does_not(tmp_path):
-    """No dashboard, so a press on the console is inert rather than an error."""
-    view = FakeView(pressed="next")
-
-    ConsolePointer(view).press(3, 4)   # must not raise
-
-    assert not _posted(tmp_path).exists()

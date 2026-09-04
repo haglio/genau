@@ -48,10 +48,11 @@ PLAYER_LOOPS = {
 
 
 class TestQuitGesture:
-    def test_in_a_session_it_asks_and_this_player_stays(self, tmp_path: Path):
+    def test_it_asks_the_session(self, tmp_path: Path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
-        assert quit_gesture(cmd_file) is False
+        quit_gesture(cmd_file)
+
         assert cmd_file.read_text(encoding="utf-8").split() == [SESSION_QUIT]
 
     def test_the_ask_is_the_dashboards_own_quit_verb(self):
@@ -69,11 +70,6 @@ class TestQuitGesture:
         quit_gesture(cmd_file)
 
         assert cmd_file.read_text(encoding="utf-8").split() == ["main_next", SESSION_QUIT]
-
-    def test_standalone_the_gesture_ends_this_player(self):
-        """No dashboard is what standalone means: there is nobody to ask, and
-        closing the window is exactly what the user asked for."""
-        assert quit_gesture(None) is True
 
 
 def _calls(source: Path, name: str) -> bool:

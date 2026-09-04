@@ -310,11 +310,3 @@ class TestTakingUpAPlaylistFunTimeRewrote:
 
         assert jumps.left == 1
 
-    def test_a_player_that_builds_its_own_playlist_has_nothing_to_take_up(self):
-        """Standalone there is no file anyone else writes, so the verb means
-        nothing rather than rebuilding the list under the user."""
-        session, jumps = FakeSession(), FakeJumps("Vol6")
-
-        reload_playlist(session, jumps, None)
-
-        assert (session.replaced, jumps.left) == ([], 0)
