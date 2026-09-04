@@ -25,7 +25,7 @@ voice = [
 dev = [
     "pytest",
     "pytest-timeout",
-    "ruff",
+    "ruff==0.16.6",
     "vulture",
 ]
 vr = [
