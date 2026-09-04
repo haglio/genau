@@ -153,12 +153,16 @@ def main(argv: list[str] | None = None) -> None:
         )
         return
     _name_this_process()
+    runtime_was_up = vr_runtime.runtime_was_running()  # before _start's ensure_ready() moves it
     try:
         _start(argv)
     except Exception as exc:
         log.exception("GenauVR failed to start")
         _show_error_popup(f"GenauVR could not start.\n\nDetail: {exc}")
     finally:
+        if not runtime_was_up:
+            log.info("Stopping the VR runtime this session started")
+            vr_runtime.stop_runtime()
         fault_fp.close()
 
 

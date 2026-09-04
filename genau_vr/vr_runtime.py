@@ -1,9 +1,11 @@
-"""Is the VR runtime ready — and if not, can we bring it up ourselves?
+"""Is the VR runtime ready — and if not, can we bring it up and back down?
 
 GenauVR launches hidden from a shortcut, so a startup that dies on its way to
 the headset leaves nothing on screen to read. Asking this question *before*
 decoding a clip or opening a window keeps the failure fast and the answer
 specific: no runtime at all, a runtime whose headset is off, or ready to render.
+
+It comes up hidden, so quitting it falls to us too: :func:`stop_runtime`.
 """
 from __future__ import annotations
 
@@ -66,6 +68,16 @@ _OPENXR_KEY = r"SOFTWARE\Khronos\OpenXR\1"
 _LAUNCHER_RELATIVE_PATHS = (
     Path("PimaxClient") / "pimaxui" / "PimaxClient.exe",
 )
+
+# Putting it back down again.  Pimax publishes no CLI for this: _QUIT_SERVICES
+# are the commands its own client logs itself running on Exit, through the tool
+# beside the runtime it registered, and PiPlayService's blocks until pi_server
+# -- the display server whose exit is the headset going off -- has gone.  A
+# renamed service would cost a headset left on, not a broken session.
+_QUIT_TOOL_NAME = "launcher.exe"
+_QUIT_SERVICES = ("PiPlatformService", "PiPlayService")  # the client's own order
+_DISPLAY_SERVER_NAME = "pi_server.exe"
+QUIT_TIMEOUT_S = 15.0  # PiPlayService's quit waits on pi_server: ~3s in practice
 
 def probe() -> Probe:
     """Ask OpenXR for a head-mounted display, without opening a window."""
@@ -139,23 +151,69 @@ def runtime_launcher() -> Path | None:
     return launcher_for_runtime(runtime_json)
 
 
-def is_running(executable: Path) -> bool:
-    """Whether a process with *executable*'s file name is already running."""
+def process_running(image_name: str) -> bool:
+    """Whether any process with this image name is running."""
     try:
         output = subprocess.check_output(
-            ["tasklist", "/FI", f"IMAGENAME eq {executable.name}", "/NH", "/FO", "CSV"],
+            ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/NH", "/FO", "CSV"],
             text=True,
             **hidden_subprocess_kwargs(),
         )
     except (OSError, subprocess.SubprocessError):
         return False
-    return executable.name.lower() in output.lower()
+    return image_name.lower() in output.lower()
 
 
 def start_runtime(launcher: Path) -> None:
     """Start the VR runtime's own client, the way its desktop shortcut would."""
     logger.info("Starting VR runtime: %s", launcher)
     subprocess.Popen([str(launcher)], cwd=str(launcher.parent), **hidden_subprocess_kwargs())
+
+
+def runtime_was_running() -> bool:
+    """Whether the VR runtime was already up before this session asked for it."""
+    return process_running(_DISPLAY_SERVER_NAME)
+
+
+def runtime_quit_tool() -> Path | None:
+    """The vendor tool that quits whichever OpenXR runtime is active."""
+    runtime_json = active_runtime_json()
+    if runtime_json is None:
+        return None
+    candidate = runtime_json.parent / _QUIT_TOOL_NAME
+    return candidate if candidate.is_file() else None
+
+
+def stop_runtime() -> None:
+    """Quit the runtime the way its own client does -- for one WE started only."""
+    if not WINREG_AVAILABLE:
+        return
+    launcher = runtime_launcher()
+    if launcher is not None and process_running(launcher.name):
+        logger.info("Stopping VR runtime client: %s", launcher.name)
+        _run_quietly(["taskkill", "/IM", launcher.name, "/T", "/F"])  # first: it restarts them
+    tool = runtime_quit_tool()
+    if tool is None:
+        logger.info("No VR runtime quit tool to run")
+        return
+    for service in _QUIT_SERVICES:
+        logger.info("Quitting VR runtime service: %s", service)
+        _run_quietly([str(tool), service, "quit"], cwd=tool.parent)
+
+
+def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:
+    """Run *command* for its effect: this is teardown, so log, never raise."""
+    try:
+        subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            timeout=QUIT_TIMEOUT_S,
+            cwd=None if cwd is None else str(cwd),
+            **hidden_subprocess_kwargs(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        logger.warning("Could not run %s", command[0], exc_info=True)
 
 
 def ensure_ready(*, timeout_s: float = STARTUP_TIMEOUT_S, poll_s: float = POLL_S) -> Probe:
@@ -173,7 +231,7 @@ def ensure_ready(*, timeout_s: float = STARTUP_TIMEOUT_S, poll_s: float = POLL_S
     if launcher is None:
         logger.info("No VR runtime launcher to start (%s)", result.readiness.value)
         return result
-    if is_running(launcher):
+    if process_running(launcher.name):
         logger.info("VR runtime already running, but %s", result.readiness.value)
         return result
 
