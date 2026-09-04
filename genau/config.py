@@ -43,7 +43,6 @@ class GenauConfig:
 
 @dataclass(frozen=True)
 class ProjectConfig:
-    config_path: Path
     clips_dir: Path
     state_dir: Path
     genau: GenauConfig
@@ -92,7 +91,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     state_dir = _resolve_path(base, raw["state_dir"])
 
     return ProjectConfig(
-        config_path=path,
         clips_dir=_resolve_path(base, raw["clips_dir"]),
         state_dir=state_dir,
         genau=GenauConfig(
