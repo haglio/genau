@@ -5,7 +5,6 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
-
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v"}

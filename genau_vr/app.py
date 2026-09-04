@@ -20,10 +20,10 @@ from app_support.logging_utils import (
 
 from . import vr_runtime
 from .audio import AudioPlayer
+from .carousel import ClipCarousel
 from .clip import load_clip
 from .config import DEFAULT_CONFIG, VrConfig, clips_to_play, load_config
 from .cruise_control import CruiseControlState
-from .carousel import ClipCarousel
 from .loop import controls_for, run_loop
 from .playback import (
     DirectControlState,

@@ -220,7 +220,7 @@ class TestWhenSomethingCosmeticFails:
     def test_an_icon_it_cannot_read_is_said_rather_than_swallowed(
         self, tmp_path, caplog, monkeypatch,
     ):
-        import nau.app as app
+        from nau import app
         not_an_icon = tmp_path / "nau_icon.ico"
         not_an_icon.write_text("this is not an icon", encoding="utf-8")
         monkeypatch.setattr(app, "_ICON_PATH", not_an_icon)
@@ -241,7 +241,7 @@ class TestWhichConfigTheFlagsAreReadAgainst:
     """
 
     def _main(self, monkeypatch, argv):
-        import nau.app as app
+        from nau import app
         landed = []
         monkeypatch.setattr(app, "_name_this_process", lambda: None)
         monkeypatch.setattr(app, "_run", lambda args: landed.append(args) or 0)

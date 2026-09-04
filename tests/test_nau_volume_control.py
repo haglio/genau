@@ -24,12 +24,12 @@ TRACK_LEFT_END = (704, 585)
 OFF_THE_CHIP = (400, 585)  # same row, out over the video
 
 
-@pytest.fixture()
+@pytest.fixture
 def cmd_file(tmp_path: Path) -> Path:
     return tmp_path / "dashboard_cmd.txt"
 
 
-@pytest.fixture()
+@pytest.fixture
 def control(cmd_file: Path) -> VolumeControl:
     return VolumeControl(Dashboard(cmd_file))
 

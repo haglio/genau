@@ -259,13 +259,14 @@ def _unanswered(logger_name: str):
 
 def _genau_answers(line: str) -> bool:
     """Send one line to a Genau dispatcher with every collaborator wired."""
+    from player_core.cruise_control import CruiseControlState
+    from player_core.direct_control import DirectControlState
+
     from genau.clip_advance import ClipAdvanceState
     from genau.controls import GenauControls
     from genau.engine import PlaybackEngine
     from genau.flags import Flag
     from genau.runtime_commands import apply_runtime_command
-    from player_core.cruise_control import CruiseControlState
-    from player_core.direct_control import DirectControlState
 
     with _unanswered("genau.runtime_commands") as refused:
         apply_runtime_command(line, GenauControls(
@@ -464,10 +465,11 @@ class TestTheTwoDispatchersDivergeOnlyWhereSaid:
 
 class TestTheStatusFileFunTimeReads:
     def test_it_publishes_exactly_these_fields_in_this_order(self):
-        from genau.clip_advance import ClipAdvanceState
-        from genau.status_writer import build_status_text
         from player_core.cruise_control import CruiseControlState
         from player_core.direct_control import DirectControlState
+
+        from genau.clip_advance import ClipAdvanceState
+        from genau.status_writer import build_status_text
 
         text = build_status_text(
             DirectControlState(),
@@ -480,9 +482,10 @@ class TestTheStatusFileFunTimeReads:
 
     def test_every_line_is_a_key_and_a_value(self):
         """No field may go out bare — a reader splits on the first ``=``."""
-        from genau.status_writer import build_status_text
         from player_core.cruise_control import CruiseControlState
         from player_core.direct_control import DirectControlState
+
+        from genau.status_writer import build_status_text
 
         text = build_status_text(DirectControlState(), CruiseControlState())
 

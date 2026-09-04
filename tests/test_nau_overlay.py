@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 from player_core.funscript import Funscript
+
 from nau.heatmap import build_heatmap
 from nau.overlay import (
     TIMELINE_HEIGHT,
@@ -210,8 +211,9 @@ class TestHeatmapBgra:
     def _framed_strip(self, win_w=200):
         # Production builds the color row at the inset track width, then frames
         # it to full window width.
-        from nau.overlay import heatmap_bgra
         from player_core.timeline import bar_track_x
+
+        from nau.overlay import heatmap_bgra
         x0, x1 = bar_track_x(win_w)
         strip = HeatmapStrip()
         strip.update("v.mp4", _funscript(), 4000.0, width=x1 - x0)  # window 0..4000

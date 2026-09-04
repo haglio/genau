@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 
-
 def test_pygame_view_create(mock_pygame):
     from genau.pygame_view import PygameView
 
@@ -204,6 +203,7 @@ def test_the_volume_chip_sits_where_naus_does_with_no_timeline_under_it(mock_pyg
     which is what a chip nine pixels above Nau's still passed."""
     from player_core.timeline import TIMELINE_HEIGHT
     from player_core.volume import CHIP_H, CHIP_W, chip_xy
+
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)
@@ -282,6 +282,7 @@ def test_the_published_level_is_what_the_chip_shows(mock_pygame):
     """Genau neither owns the level nor plays the sound — a companion process
     carries the clip music — so what it draws is whatever Fun Time last said."""
     from player_core.volume import VolumeHud
+
     from genau.pygame_view import PygameView
 
     view = PygameView(width=800, height=600)

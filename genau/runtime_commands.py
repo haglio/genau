@@ -5,7 +5,6 @@ import logging
 from .control_registry import look_up
 from .controls import VERBS, GenauControls
 
-
 logger = logging.getLogger(__name__)
 
 

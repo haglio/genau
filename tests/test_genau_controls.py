@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import pytest
+from player_core.direct_control import DirectControlState
 
 from genau.control_registry import Control, Verb, bind
 from genau.controls import CONTROLS, VERBS, GenauControls
 from genau.engine import PlaybackEngine
 from genau.flags import Flag
-from player_core.direct_control import DirectControlState
 
 
 def _controls(**fields) -> GenauControls:

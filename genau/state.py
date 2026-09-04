@@ -109,7 +109,7 @@ def udp_reader(host: str, port: int, state: SharedState, stop_event: threading.E
         while not stop_event.is_set():
             try:
                 data, _addr = sock.recvfrom(4096)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             apply_udp_line(
                 state, data.decode("utf-8", errors="replace").strip(), logger)

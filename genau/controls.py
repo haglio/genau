@@ -18,8 +18,8 @@ is absent is refused and logged rather than half-acted-on, which is the behavior
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from player_core.cruise_control import (
     CruiseControlState,
@@ -38,7 +38,6 @@ from player_core.direct_control import (
     set_speed,
 )
 
-from .control_registry import Control, Verb, bind, bind_keys
 from .clip_advance import (
     ClipAdvanceState,
     adjust_interval,
@@ -46,6 +45,7 @@ from .clip_advance import (
     set_locked,
     toggle_lock,
 )
+from .control_registry import Control, Verb, bind, bind_keys
 from .engine import PlaybackEngine
 from .flags import Flag
 

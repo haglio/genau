@@ -4,15 +4,15 @@ import random
 from pathlib import Path
 
 from nau.library import (
+    EXCERPT,
+    FULL_LENGTH,
     MIXED,
+    SHORT_MAX_S,
     LibraryEntry,
     VersionGroup,
     canonical_playlist,
     collapse_playlist_versions,
     group_versions,
-    EXCERPT,
-    FULL_LENGTH,
-    SHORT_MAX_S,
     library_playlist,
     normalize_title,
     select_library,

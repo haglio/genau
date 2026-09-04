@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from player_core.funscript import Funscript
+
 from nau.loop_controller import LoopController, LoopState
 
 

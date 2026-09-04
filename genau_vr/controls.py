@@ -10,8 +10,8 @@ tests/test_genau_vocabulary.py.
 from __future__ import annotations
 
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 from genau.control_registry import Control, Verb, bind
 

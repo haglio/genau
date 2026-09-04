@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import pytest
 import threading
 from pathlib import Path
+
+import pytest
 
 from nau.runtime import SEEK_STEP_MS, SPEED_STEP, apply_command
 from nau.session import MAX_SPEED_RATE, MIN_SPEED_RATE

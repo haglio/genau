@@ -9,11 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
-
 from player_core import wave_stack
 from player_core.direct_control import POSITION_MAX, phase_to_position
 from player_core.funscript import HANDOFF_RAMP_MS
+from player_core.tcode import HandoffGlide, TCodeSink, format_tcode_command
 
 if TYPE_CHECKING:
     from player_core.direct_control import DirectControlState

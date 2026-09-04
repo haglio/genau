@@ -228,7 +228,7 @@ def test_explain_falls_back_to_the_raw_detail_for_an_unknown_failure():
 
 def test_explain_never_raises_on_a_readiness_it_has_no_wording_for():
     """A crash inside the error path would put us back to failing silently."""
-    assert explain(Probe(Readiness.READY, detail="ready")) 
+    assert explain(Probe(Readiness.READY, detail="ready"))
 
 
 # --- Putting the runtime back down --------------------------------------

@@ -17,8 +17,9 @@ whole control was.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any
 
 # What a verb does when it lands: move something on the controls, and say
 # whether it could.  The value is the rest of the line after the verb, empty

@@ -9,9 +9,9 @@ be made in both or the console dimmed an arrow the status file called live.
 from __future__ import annotations
 
 import pytest
+from player_core.direct_control import MAX_SPEED, MIN_SPEED, DirectControlState
 
 from genau.limits import control_limits
-from player_core.direct_control import MAX_SPEED, MIN_SPEED, DirectControlState
 
 
 def _limits(**state):
@@ -104,8 +104,9 @@ class TestBothPublicationsReadTheSameSix:
 
     @pytest.mark.parametrize("hand", HANDS, ids=[str(sorted(h)) for h in HANDS])
     def test_the_status_file_says_what_the_readout_was_told(self, hand):
-        from genau.status_writer import build_status_text
         from player_core.cruise_control import CruiseControlState
+
+        from genau.status_writer import build_status_text
 
         direct = DirectControlState(**hand)
         limits = control_limits(direct)

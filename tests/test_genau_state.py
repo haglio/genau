@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 import socket
 import threading
-import logging
 from unittest.mock import MagicMock
 
 import pytest
-
 from app_support.threading_utils import wait_until
-from genau.state import SharedState, apply_udp_line, udp_reader
 
+from genau.state import SharedState, apply_udp_line, udp_reader
 
 # ---------------------------------------------------------------------------
 # SharedState defaults

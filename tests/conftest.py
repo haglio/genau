@@ -92,7 +92,7 @@ TMP_ROOT = Path(
 ).resolve()
 
 
-@pytest.fixture()
+@pytest.fixture
 def tmp_path() -> Path:
     TMP_ROOT.mkdir(parents=True, exist_ok=True)
     path = (TMP_ROOT / f"case_{uuid.uuid4().hex}").resolve()
@@ -114,7 +114,7 @@ def _cleanup_tmp_root():
         pass
 
 
-@pytest.fixture()
+@pytest.fixture
 def mock_pygame(monkeypatch):
     """Stand in for the pygame names ``genau.pygame_view`` binds, and return the
     fake ``pygame`` module itself.
@@ -128,7 +128,7 @@ def mock_pygame(monkeypatch):
     on the machine that also runs the live players.  Patching the attributes the
     view holds asks nothing about what has been imported, or when.
     """
-    import genau.pygame_view as pygame_view
+    from genau import pygame_view
 
     pygame = MagicMock()
     monkeypatch.setattr(pygame_view, "pygame", pygame)
@@ -177,13 +177,13 @@ def _deep_merge(base: dict, override: dict) -> None:
             base[key] = val
 
 
-@pytest.fixture()
+@pytest.fixture
 def cfg_path(tmp_path: Path) -> Path:
     """Return path to a written minimal valid genau config file."""
     return _write_genau_config(tmp_path)
 
 
-@pytest.fixture()
+@pytest.fixture
 def cfg_factory(tmp_path: Path):
     """Return a factory that writes a config with optional overrides."""
     def factory(overrides: dict | None = None) -> Path:

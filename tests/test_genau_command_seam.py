@@ -19,16 +19,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-
-from genau.clip_advance import ClipAdvanceState
-from genau.controls import GenauControls
-from genau.engine import PlaybackEngine
-from genau.flags import Flag
-from genau.refresh_controller import GenauRefreshController
-from genau.state import SharedState
 from player_core.cruise_control import CruiseControlState
 from player_core.direct_control import DirectControlState, WaveformShape
-
 from test_genau_refresh_controller import (
     FakeLoader,
     FakeNotifier,
@@ -36,6 +28,13 @@ from test_genau_refresh_controller import (
     FakeSelection,
     FakeTCodeSender,
 )
+
+from genau.clip_advance import ClipAdvanceState
+from genau.controls import GenauControls
+from genau.engine import PlaybackEngine
+from genau.flags import Flag
+from genau.refresh_controller import GenauRefreshController
+from genau.state import SharedState
 
 # One frozen instant for the whole tick, so the engine's phase only moves when a
 # verb moves it.

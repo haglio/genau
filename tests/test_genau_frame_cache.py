@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
+from rhcache_fixtures import write_rhcache
 
 from genau.frame_cache import read_rhcache_all_frames, read_rhcache_meta
-from rhcache_fixtures import write_rhcache
 
 
 def _make_frames(count: int, width: int = 8, height: int = 6) -> list[np.ndarray]:

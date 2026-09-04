@@ -6,9 +6,10 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 from player_core.cruise_control import CruiseControlState
+from player_core.direct_control import DirectControlState
+
 from genau.clip_advance import ClipAdvanceState
 from genau.controls import GenauControls
-from player_core.direct_control import DirectControlState
 from genau.engine import PlaybackEngine
 from genau.flags import Flag
 from genau.refresh_controller import GenauRefreshController

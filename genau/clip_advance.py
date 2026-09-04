@@ -38,7 +38,7 @@ class ClipAdvanceState:
     # have already asked to move on from it.  Together these make the timer
     # count the clip that is *on screen*, not the one we requested — see
     # tick_clip_advance.
-    _clip: "Path | None" = None
+    _clip: Path | None = None
     _awaiting_switch: bool = False
 
 
@@ -74,7 +74,7 @@ def tick_clip_advance(
     now: float,
     *,
     playing: bool,
-    on_screen_clip: "Path | None",
+    on_screen_clip: Path | None,
     step_clip: Callable[[int], None],
 ) -> None:
     dt = now - state._last_tick

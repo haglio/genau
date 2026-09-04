@@ -34,8 +34,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from player_core.funscript import HANDOFF_RAMP_MS, PARK_TOUCH_WAIT_CAP_MS
-
 from player_core.drive_readout import (
     DRIVEN_BY_FUNSCRIPT,
     DRIVEN_BY_GENAU,
@@ -45,6 +43,7 @@ from player_core.drive_readout import (
     TRACE_SAMPLES,
     DriveHud,
 )
+from player_core.funscript import HANDOFF_RAMP_MS, PARK_TOUCH_WAIT_CAP_MS
 
 from .descent_latch import DescentChoice, DescentLatch, DriveKey
 
