@@ -1,17 +1,18 @@
 # Genau
 
-Three clip players that share one repo, one config file and one command
-vocabulary.
+Two players that share one repo, one config file and one command vocabulary.
 
 | App | Module | Launcher | What it is |
 | --- | --- | --- | --- |
-| **Genau** | `genau/` | Fun Time | A pygame window that plays short clips and drives an OSR2 with the Robot Hand over T-Code, scrubbing the clip to wherever the device is. |
+| **Genau** | `genau/` | Fun Time | A pygame window around the family's clip player: short clips, scrubbed to wherever the OSR2 is as the Robot Hand drives it over T-Code. |
 | **Nau** | `nau/` | Fun Time | A full-length player with a playlist, funscript playback and the console the family's drive readout is drawn on. |
-| **GenauVR** | `genau_vr/` | `launch_vr.vbs` | The same idea in a headset: VR180 clips on a sphere, driven by the same stroke arithmetic. |
 
-GenauVR runs standalone; Genau and Nau run only as windows inside **Fun Time**,
-the orchestrator in a sibling repo. Which of the two owns the main slot is Fun
-Time's decision, and both are told so over the file channel below.
+Both run only as windows inside **Fun Time**, the orchestrator in a sibling
+repo. Which of the two owns the main slot is Fun Time's decision, and both are
+told so over the file channel below. Genau's engine -- the clips, the tick, the
+verbs it answers, the hand's driver -- lives in `../player_core`, because Fun
+Time's VR session runs the same engine in-process for its genau mode; what is
+here is the window.
 
 ## Installing
 
@@ -41,7 +42,7 @@ committed.
 
 `genau_config.json` is git-ignored — it names real paths on a real machine.
 `genau_config.example.json` is its committed template and documents every key:
-`clips_dir`, `vr_clips_dir`, `state_dir`,
+`clips_dir`, `state_dir`,
 and a `genau` and a `nau` section for each player's own settings.
 
 Relative paths in it are resolved against the config file, not against whatever
@@ -55,7 +56,7 @@ two:
 
 | File | Direction | What it carries |
 | --- | --- | --- |
-| `genau_cmd.txt` | Fun Time writes, Genau drains | One verb per line — `PAUSE`, `SPEED 90`, `HUD_ON`. The accepted set is `genau/controls.py`. |
+| `genau_cmd.txt` | Fun Time writes, Genau drains | One verb per line — `PAUSE`, `SPEED 90`, `HUD_ON`. The accepted set is `player_core.genau_controls`. |
 | `genau_paused.txt` | Fun Time writes, Genau polls | Whether the room is paused, while the broker is driving. |
 | `genau_status.txt` | Genau writes, Fun Time reads | What the hand is doing: cruise, lock, clip, shape, and which arrows are at their limits. |
 | `genau_drive.txt` | Genau writes, Nau reads | The drive readout, so Nau's console can draw the numbers Genau is driving with. |
@@ -68,7 +69,8 @@ to be a deliberate line in a diff.
 
 ## Adding a control
 
-One record in `genau/controls.py`:
+One record in `player_core/genau_controls.py`, and one line in this repo's
+`tests/test_genau_vocabulary.py` saying it is now part of the contract:
 
 ```python
 Control(
@@ -90,13 +92,4 @@ and the wiring all read it; none of them needs editing.
 
 ```
 .venv/Scripts/python.exe -m pytest tests/ -v
-```
-
-`tests/inventory.txt` lists every test the suite collects. Adding tests needs no
-edit; removing or renaming one does, so a test that stops running has to be named
-in the same commit:
-
-```
-python -m tools.update_inventory                     # take on new tests
-python -m tools.update_inventory --accept-removals   # ...and drop the gone
 ```

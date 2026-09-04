@@ -17,7 +17,7 @@ import symtable
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
-_PACKAGES = ("genau", "genau_vr", "nau", "sanitize", "tests")
+_PACKAGES = ("genau", "nau", "sanitize", "tests")
 
 # What every module has without binding it.  `__conditional_annotations__` is the
 # compiler's own: 3.14 builds annotations lazily and stashes the conditionally

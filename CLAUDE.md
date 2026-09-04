@@ -2,7 +2,7 @@
 
 ## Running tests
 
-Always use the project venv — several dependencies (`pygame-ce`, `opencv-python`) are not installed system-wide and will cause import errors if you use the bare `python` interpreter.
+Always use the project venv — its dependencies (`pygame-ce`, the sibling packages) are not installed system-wide and will cause import errors if you use the bare `python` interpreter.
 
 ```bash
 "C:/path/to/suite-root/projects/genau/.venv/Scripts/python.exe" -m pytest tests/ -v
@@ -15,7 +15,9 @@ In a worktree, the `.venv` does not exist locally — use the absolute path abov
 None of these apps may reach into another's repo. What they share lives in
 siblings installed editable into this venv, and a change to any of it belongs
 there, not here: `../player_core` (playback engine, playlist format, the
-orchestrator's command/paused file channel, the status writer), `../app_support`
+orchestrator's command/paused file channel, the status writer -- and Genau's
+whole engine, from the clip folder to the tick and the verbs it answers, which
+this repo's `genau/` only puts a pygame window around), `../app_support`
 (logging setup and exception hooks, `start_daemon_thread`,
 `preparse_config_path`, `hidden_subprocess_kwargs`), `../shared_ui` (design
 tokens, Qt widgets, and the family's icon geometry -- which the HUDs draw

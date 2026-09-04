@@ -3,8 +3,9 @@ from __future__ import annotations
 import time
 
 import pygame
+from player_core.control_registry import Control, Verb
+from player_core.genau_controls import KEYS, GenauControls
 
-from .controls import KEYS, Control, GenauControls, Verb
 from .session_quit import quit_gesture
 
 

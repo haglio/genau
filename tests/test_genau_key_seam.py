@@ -4,7 +4,7 @@ The window's keys and the orchestrator's verbs are two ways into one control,
 and until now they were two separate wires: a lambda in ``run_listener`` on one
 side, a branch in the dispatcher on the other, with nothing asserting they meant
 the same thing.  ``tests/test_genau_lifecycle.py`` pins key-to-callback and
-``tests/test_genau_command_seam.py`` pins verb-to-state; between them sat the
+player_core's ``tests/test_genau_command_seam.py`` pins verb-to-state; between them sat the
 callback-to-state half, which lived in ``run_listener`` and had no test at all.
 
 So this drives keys against the real states, in the same shape the command seam
@@ -20,13 +20,13 @@ from pathlib import Path
 
 import pygame
 import pytest
+from player_core.clip_advance import ClipAdvanceState
 from player_core.cruise_control import CruiseControlState
+from player_core.flag import Flag
+from player_core.genau_controls import GenauControls, apply_runtime_command
 from player_core.robot_hand import RobotHandState, WaveformShape
+from player_core.robot_hand_beat import BeatEngine
 
-from genau.clip_advance import ClipAdvanceState
-from genau.controls import GenauControls
-from genau.engine import PlaybackEngine
-from genau.flags import Flag
 from genau.lifecycle import GenauLifecycleController
 
 
@@ -63,7 +63,7 @@ class Keys:
         self.stop_event = threading.Event()
         self.dashboard_cmd_file = (
             Path(tempfile.mkdtemp(prefix="genau-keys-")) / "dashboard_cmd.txt")
-        self.engine = PlaybackEngine(phase=0.0, last_tick=0.0)
+        self.engine = BeatEngine(phase=0.0, last_tick=0.0)
         self.direct = RobotHandState(
             playing=bool(start.get("playing", False)),
             speed=start.get("speed", 50),
@@ -241,16 +241,17 @@ class TestAKeyAndItsVerbAgree:
 
     @pytest.mark.parametrize("key, verb", sorted(SAME.items()))
     def test_the_key_moves_what_the_verb_moves(self, key, verb):
-        from test_genau_command_seam import SEAM
+        """Two Genaus wired alike, one pressed at and one sent the verb, end
+        the same -- and the press moved something, so an agreement on nothing
+        cannot pass."""
+        pressed, sent = Keys(), Keys()
+        before = pressed.state()
 
-        rows = [moves for spelling, start, moves in SEAM
-                if spelling == verb and not start]
-        assert len(rows) == 1, f"{verb} has no plain row in the command seam"
-        pressed = [moves for pressed_key, _mod, start, moves in PRESSES
-                   if pressed_key == key and not start]
-        assert len(pressed) == 1
+        pressed.press(getattr(pygame, key))
+        apply_runtime_command(verb, sent.controls)
 
-        assert pressed[0] == rows[0]
+        assert pressed.state() == sent.state()
+        assert pressed.state() != before
 
     def test_the_slash_key_hands_the_phase_back_the_way_its_verb_does(self):
         """The one that had drifted.
@@ -262,8 +263,6 @@ class TestAKeyAndItsVerbAgree:
         same gesture jumped the hand from the window and did not from the
         orchestrator.
         """
-        from genau.runtime_commands import apply_runtime_command
-
         by_key: list[float] = []
         keys = Keys(cruise=True)
         keys.cruise.stack = _a_stack_the_device_was_following()

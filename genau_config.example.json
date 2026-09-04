@@ -1,6 +1,5 @@
 {
   "clips_dir": "C:/path/to/suite-root/videos/genau/clips",
-  "vr_clips_dir": "C:/path/to/suite-root/videos/genau/vr_clips",
   "state_dir": "state",
   "genau": {
     "shuffle_on_load": true,

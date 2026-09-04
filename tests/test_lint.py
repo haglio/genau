@@ -13,4 +13,4 @@ def test_the_ruff_config_is_the_familys():
 
 
 def test_ruff_finds_nothing():
-    assert_lint_is_clean(ROOT, ROOT / "genau", ROOT / "genau_vr", ROOT / "nau", ROOT / "tools", ROOT / "tests")
+    assert_lint_is_clean(ROOT, ROOT / "genau", ROOT / "nau", ROOT / "tools", ROOT / "tests")

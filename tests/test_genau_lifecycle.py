@@ -12,10 +12,10 @@ import threading
 
 import pygame
 import pytest
+from player_core.flag import Flag
+from player_core.genau_controls import KEYS, GenauControls
+from player_core.robot_hand_beat import BeatEngine
 
-from genau.controls import KEYS, GenauControls
-from genau.engine import PlaybackEngine
-from genau.flags import Flag
 from genau.lifecycle import GenauLifecycleController, keymap
 
 
@@ -61,7 +61,7 @@ class FakePointer:
 
 def _controls() -> GenauControls:
     return GenauControls(
-        engine=PlaybackEngine(phase=0.0, last_tick=0.0),
+        engine=BeatEngine(phase=0.0, last_tick=0.0),
         paused=Flag(),
         step_clip=lambda _step: None,
     )
@@ -116,7 +116,7 @@ class TestTheMapIsTheRegistrys:
             assert getattr(pygame, name) in controller.keys, name
 
     def test_every_declared_key_name_is_one_pygame_has(self):
-        """The name is a string here so genau.controls stays free of pygame; a
+        """The name is a string here so the registry stays free of pygame; a
         misspelling would otherwise be a key the window silently never answers."""
         for name in KEYS:
             assert isinstance(getattr(pygame, name, None), int), name
