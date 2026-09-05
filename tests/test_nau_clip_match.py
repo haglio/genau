@@ -20,6 +20,7 @@ from nau.clip_match import (
 )
 from nau.clip_nav import read_clip
 from nau.library import LibraryEntry
+from nau.sidecar import read_sidecar
 
 
 def _hashes(n: int, seed: int = 0) -> np.ndarray:
@@ -502,3 +503,47 @@ class TestMain:
 
         with pytest.raises(SystemExit):
             clip_match.main(["--config", str(config)])
+
+
+class TestTheSidecarIsReplacedWhole:
+    """Evolver's pipeline and a live Fun Time session both read a clip's sidecar;
+    written in place it was empty for the length of the write, and a reader
+    landing there took the blank for the sidecar (bug 8, the torn-file half).
+    Both writers here write beside it and rename over it: a write that cannot
+    land leaves the old file intact, and nothing sits beside it once it has."""
+
+    def _library(self, tmp_path):
+        root = tmp_path / "videos"
+        clip = root / "videos" / "clips" / "alpha.mp4"
+        clip.parent.mkdir(parents=True)
+        clip.write_bytes(b"")
+        metadata_root = root / "metadata"
+        sidecar = metadata_root / "clips" / "alpha.json"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text('{"video": {"prompt": "a"}}\n', encoding="utf-8")
+        return clip, metadata_root, sidecar
+
+    def test_record_leaves_the_old_sidecar_when_the_rename_is_refused(self, tmp_path, monkeypatch):
+        clip, metadata_root, sidecar = self._library(tmp_path)
+        before = sidecar.read_text(encoding="utf-8")
+
+        def refuse(_src, _dst):
+            raise OSError("the rename was refused")
+
+        monkeypatch.setattr("nau.clip_match.os.replace", refuse)
+        with pytest.raises(OSError):
+            clip_match.record(clip, tmp_path / "scene.mp4", offset=1.5, metadata_root=metadata_root)
+
+        assert sidecar.read_text(encoding="utf-8") == before
+        assert [p.name for p in sidecar.parent.iterdir()] == [sidecar.name]
+
+    def test_record_and_forget_leave_nothing_beside_the_sidecar(self, tmp_path):
+        clip, metadata_root, sidecar = self._library(tmp_path)
+        scene = tmp_path / "scene.mp4"
+
+        clip_match.record(clip, scene, offset=1.5, metadata_root=metadata_root)
+        assert read_sidecar(clip, metadata_root)["clip"]["scene_offset"] == 1.5
+        clip_match.forget(clip, scene, metadata_root=metadata_root)
+
+        assert "full_video" not in read_sidecar(clip, metadata_root)["clip"]
+        assert [p.name for p in sidecar.parent.iterdir()] == [sidecar.name]
