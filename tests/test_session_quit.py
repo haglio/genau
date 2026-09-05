@@ -14,7 +14,8 @@ window and the libmpv DLL and so cannot be exercised here — the same reason
 routes *through* differs: Nau's gesture is answered by ``nau.dashboard``, which
 has its own tests in ``test_nau_dashboard``; Genau's calls ``quit_gesture``
 directly.  Either way the regression is the same, and it is the call the loop
-makes that the scan is about.
+makes that the scan is about.  The gesture itself is ``player_core.session_quit``'s
+and tested there.
 
 Nau's events are dealt in ``nau.input`` now rather than inside its run loop, so
 for Nau the scan is a chain of two: the loop hands its events on, and the module
@@ -29,7 +30,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from genau.session_quit import SESSION_QUIT, quit_gesture
+from player_core.session_quit import SESSION_QUIT
 
 REPO = Path(__file__).resolve().parents[1]
 # Every loop that answers a quit gesture, and the call it answers it with.  The
@@ -47,29 +48,11 @@ PLAYER_LOOPS = {
 }
 
 
-class TestQuitGesture:
-    def test_it_asks_the_session(self, tmp_path: Path):
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-
-        quit_gesture(cmd_file)
-
-        assert cmd_file.read_text(encoding="utf-8").split() == [SESSION_QUIT]
-
-    def test_the_ask_is_the_dashboards_own_quit_verb(self):
-        """What the Quit button posts and the dispatch loop turns into the
-        teardown.  Rename it here and this player asks for something fun_time
-        does not answer, so the gesture would go quiet instead of wrong."""
-        assert SESSION_QUIT == "quit"
-
-    def test_it_joins_the_queue_rather_than_replacing_it(self, tmp_path: Path):
-        """The channel carries every writer at once and is drained a tick at a
-        time, so an ask that overwrote it would drop whatever was waiting."""
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("main_next\n", encoding="utf-8")
-
-        quit_gesture(cmd_file)
-
-        assert cmd_file.read_text(encoding="utf-8").split() == ["main_next", SESSION_QUIT]
+def test_the_ask_is_the_dashboards_own_quit_verb():
+    """What the Quit button posts and the dispatch loop turns into the
+    teardown.  Rename it and this player asks for something fun_time does
+    not answer, so the gesture would go quiet instead of wrong."""
+    assert SESSION_QUIT == "quit"
 
 
 def _calls(source: Path, name: str) -> bool:
