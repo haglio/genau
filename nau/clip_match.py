@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import re
 import subprocess
 from collections.abc import Callable, Iterable
@@ -323,7 +324,7 @@ def record(clip: Path, scene: Path, *, offset: float, metadata_root: Path) -> No
         return
     payload = read_sidecar(clip, metadata_root)
     payload.setdefault("clip", {}).update(full_video=str(scene), scene_offset=offset)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    _write_sidecar(path, payload)
 
 
 def forget(clip: Path, scene: Path, *, metadata_root: Path) -> None:
@@ -343,7 +344,24 @@ def forget(clip: Path, scene: Path, *, metadata_root: Path) -> None:
         return
     recorded.pop("full_video", None)
     recorded.pop("scene_offset", None)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    _write_sidecar(path, payload)
+
+
+def _write_sidecar(path: Path, payload: dict) -> None:
+    """Replace the sidecar whole: written beside it and renamed over it.
+
+    Evolver's pipeline and a live Fun Time session both read this file, and a
+    write in place left it empty for the length of the write -- a reader
+    landing there took the blank for the sidecar.  A rename within a directory
+    is atomic; a write is not.
+    """
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    try:
+        os.replace(tmp, path)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def match_library(
