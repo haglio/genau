@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import tomllib
 from pathlib import Path
 
@@ -47,17 +48,19 @@ def test_every_declared_runtime_dependency_is_imported_somewhere():
         declared = tomllib.load(fp)["project"]["dependencies"]
 
     tree = Path(__file__).resolve().parent.parent
-    sources = [
-        p.read_text(encoding="utf-8")
-        for p in tree.rglob("*.py")
-        if not any(part in {".venv", "__pycache__", ".claude"}
-                   for part in p.relative_to(tree).parts)
+    imported: set[str] = set()
+    for path in tree.rglob("*.py"):
+        if any(part in {".venv", "__pycache__", ".claude"}
+               for part in path.relative_to(tree).parts):
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                imported.update(alias.name.split(".")[0] for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+                imported.add(node.module.split(".")[0])
+    unimported = [
+        name for name in declared
+        if import_names.get(name, name.replace("-", "_")) not in imported
     ]
-    unimported = []
-    for name in declared:
-        module = import_names.get(name, name.replace("-", "_"))
-        if not any(f"import {module}" in text or f"from {module}" in text
-                   for text in sources):
-            unimported.append(name)
 
     assert not unimported, f"declared and never imported: {unimported}"
