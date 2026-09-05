@@ -58,7 +58,7 @@ class TestNauTakesTheIdentityItIsGiven:
         """The pinned shortcut behind that identity is Fun Time's."""
         set_aumid = _nau()
 
-        with patch("player_core.taskbar.set_app_user_model_id") as claim:
+        with patch("nau.app.set_app_user_model_id") as claim:
             set_aumid("Example.App")
 
         claim.assert_called_once_with("Example.App")
@@ -66,7 +66,7 @@ class TestNauTakesTheIdentityItIsGiven:
     def test_told_none_it_claims_nothing(self):
         set_aumid = _nau()
 
-        with patch("player_core.taskbar.set_app_user_model_id") as claim:
+        with patch("nau.app.set_app_user_model_id") as claim:
             set_aumid(None)
 
         claim.assert_not_called()
@@ -75,5 +75,5 @@ class TestNauTakesTheIdentityItIsGiven:
         """An icon is not worth failing to open a window over."""
         set_aumid = _nau()
 
-        with patch("player_core.taskbar.set_app_user_model_id", side_effect=OSError):
+        with patch("nau.app.set_app_user_model_id", side_effect=OSError):
             set_aumid("Example.App")
