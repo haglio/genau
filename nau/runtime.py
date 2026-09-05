@@ -104,8 +104,9 @@ def _dispatch(
             Path(funscript_part) if funscript_part else None,
         )
     elif keyword == "RELOAD_PLAYLIST":
-        if reload_playlist is not None:
-            reload_playlist()
+        if reload_playlist is None:
+            return False
+        reload_playlist()
     elif keyword == "TOGGLE_LENGTH_MODE":
         if toggle_length_mode is None:
             return False
