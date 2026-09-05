@@ -1,20 +1,19 @@
 """Configuration loader for Genau."""
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
+from app_support.config_reader import (
+    read_json_config,
+    require_path,
+    require_section,
+    require_typed,
+)
 from app_support.state_files import GENAU_CMD, GENAU_DRIVE, GENAU_PAUSED
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "genau_config.json"
-
-
-def _resolve_path(base: Path, raw: str) -> Path:
-    p = Path(raw)
-    return p if p.is_absolute() else (base / p).resolve()
 
 
 # The files of the orchestrator channel this window is told about are named
@@ -71,37 +70,31 @@ class ProjectConfig:
 
 
 def load_config(config_path: str | Path | None = None) -> ProjectConfig:
-    path = Path(config_path).expanduser() if config_path else DEFAULT_CONFIG_PATH
-    if not path.is_absolute():
-        path = (PROJECT_DIR / path).resolve()
-    if not path.exists():
-        raise FileNotFoundError(f"Config file not found: {path}")
-
-    with path.open("r", encoding="utf-8") as fp:
-        raw: dict[str, Any] = json.load(fp)
-
+    # Every required key is asked for by name, so a config short of one says
+    # which, and in which file, rather than a bare KeyError from a launcher
+    # with no console to raise into.
+    path, raw = read_json_config(Path(config_path) if config_path else DEFAULT_CONFIG_PATH,
+                                 default_dir=PROJECT_DIR)
     base = path.parent
+    genau_raw = require_section(raw, "genau", path)
 
-    genau_raw = raw.get("genau")
-    if genau_raw is None:
-        raise ValueError(f"Missing required config section: genau (in {path})")
-
-    state_dir = _resolve_path(base, raw["state_dir"])
+    def genau_value(key: str, cast: type):
+        return require_typed(genau_raw, key, path, cast=cast, context="config.genau")
 
     return ProjectConfig(
-        clips_dir=_resolve_path(base, raw["clips_dir"]),
-        state_dir=state_dir,
+        clips_dir=require_path(raw, "clips_dir", path, base=base),
+        state_dir=require_path(raw, "state_dir", path, base=base),
         genau=GenauConfig(
-            shuffle_on_load=bool(genau_raw["shuffle_on_load"]),
-            beats_per_loop=float(genau_raw["beats_per_loop"]),
-            clip_cache_size=int(genau_raw["clip_cache_size"]),
-            bpm_smoothing=float(genau_raw["bpm_smoothing"]),
-            sync_strength=float(genau_raw["sync_strength"]),
-            udp_host=str(genau_raw["udp_host"]),
-            udp_port=int(genau_raw["udp_port"]),
-            notify_host=str(genau_raw["notify_host"]),
-            notify_port=int(genau_raw["notify_port"]),
-            resize_debounce_ms=int(genau_raw["resize_debounce_ms"]),
+            shuffle_on_load=genau_value("shuffle_on_load", bool),
+            beats_per_loop=genau_value("beats_per_loop", float),
+            clip_cache_size=genau_value("clip_cache_size", int),
+            bpm_smoothing=genau_value("bpm_smoothing", float),
+            sync_strength=genau_value("sync_strength", float),
+            udp_host=genau_value("udp_host", str),
+            udp_port=genau_value("udp_port", int),
+            notify_host=genau_value("notify_host", str),
+            notify_port=genau_value("notify_port", int),
+            resize_debounce_ms=genau_value("resize_debounce_ms", int),
             tcode_udp_host=str(genau_raw.get("tcode_udp_host", "127.0.0.1")),
             tcode_udp_port=int(genau_raw.get("tcode_udp_port", 50557)),
         ),
