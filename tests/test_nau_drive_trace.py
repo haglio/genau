@@ -658,6 +658,35 @@ class TestThePublishedTouch:
         assert next_handoff_touch(script, 3_200, latch) == latch.choice_for(3_000).touch
         assert abs(next_handoff_touch(script, 1_000, latch) - blue_end_ms) <= STEP_MS
 
+    def test_the_status_reads_the_playhead_on_the_trace_s_grid(self):
+        """The trace keys its choice by a turn found from the playhead snapped
+        to its 40 ms grid; the status looked one up from the raw playhead
+        (bug 66).  Across a turn's end that sits off the grid, the raw read
+        left the turn up to a quantum before the trace's picture did, and
+        the field went empty while the picture still showed the descent it
+        had chosen.  Read at every millisecond around both ends of such a
+        turn, the raw read must say what the grid read says."""
+        from nau.status import next_handoff_touch
+        # One cluster whose turn runs 3005..12005: both ends off the grid.
+        script = Funscript(actions=[(t, 0 if (t // 200) % 2 else 100)
+                                  for t in range(8_005, 9_006, 200)])
+        latch = DescentLatch()
+        published = _stroke(
+            amplitude=100,
+            waveform=tuple(0.5 + 0.5 * np.sin(i / 3) for i in range(TRACE_SAMPLES)))
+        playheads = [*range(0, 2_960, 40), *range(2_960, 3_100),
+                     *range(3_100, 11_960, 40), *range(11_960, 12_100)]
+
+        disagreements = []
+        for at in playheads:
+            _read(script, at=at, published=published, latch=latch)
+            on_the_grid = at - at % 40
+            if next_handoff_touch(script, at, latch) != next_handoff_touch(script, on_the_grid, latch):
+                disagreements.append(at)
+
+        assert latch.choice_for(3_005).touch is not None  # the turn had a touch to publish
+        assert disagreements == []
+
     def test_a_ramp_boundary_publishes_no_touch(self):
         from nau.status import next_handoff_touch
         script = _script_ahead()
