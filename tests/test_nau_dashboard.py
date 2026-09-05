@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from genau.session_quit import SESSION_QUIT
+from player_core.session_quit import SESSION_QUIT
+
 from nau.dashboard import Dashboard
 
 
