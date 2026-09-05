@@ -5,8 +5,7 @@ import time
 import pygame
 from player_core.control_registry import Control, Verb
 from player_core.genau_controls import KEYS, GenauControls
-
-from .session_quit import quit_gesture
+from player_core.session_quit import quit_gesture
 
 
 def _press(control: Control, verb: Verb, controls: GenauControls):
@@ -123,6 +122,6 @@ class GenauLifecycleController:
     def on_close(self) -> None:
         """Every gesture that means "quit this window": the close box, Alt+F4,
         Ctrl+Q.  In a session it is the session that quits — see
-        :mod:`genau.session_quit` — and this window stays up until the teardown
+        :mod:`player_core.session_quit` — and this window stays up until the teardown
         reaches it, so nothing goes out ahead of the closing cover."""
         quit_gesture(self.dashboard_cmd_file)

@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app_support.state_files import GENAU_CMD, GENAU_DRIVE, GENAU_PAUSED
+
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "genau_config.json"
 
@@ -15,12 +17,10 @@ def _resolve_path(base: Path, raw: str) -> Path:
     return p if p.is_absolute() else (base / p).resolve()
 
 
-# The files of the orchestrator channel this window is told about.  Named here
-# rather than spelled at the point of use; the fourth, the status file, is
-# named beside the engine that writes it (player_core.genau_status).
-GENAU_CMD_FILENAME = "genau_cmd.txt"
-GENAU_PAUSED_FILENAME = "genau_paused.txt"
-GENAU_DRIVE_FILENAME = "genau_drive.txt"
+# The files of the orchestrator channel this window is told about are named
+# once for the family, in app_support.state_files, beside who writes and who
+# reads each; the fourth, the status file, is read from there by the engine
+# that writes it (player_core.genau_status).
 
 
 @dataclass(frozen=True)
@@ -47,11 +47,11 @@ class ProjectConfig:
 
     @property
     def genau_cmd_file(self) -> Path:
-        return self.state_dir / GENAU_CMD_FILENAME
+        return self.state_dir / GENAU_CMD
 
     @property
     def genau_paused_file(self) -> Path:
-        return self.state_dir / GENAU_PAUSED_FILENAME
+        return self.state_dir / GENAU_PAUSED
 
     @property
     def genau_drive_file(self) -> Path:
@@ -60,7 +60,7 @@ class ProjectConfig:
         In video mode the readout belongs to Nau's console — the controls that move
         these numbers are on it — so Genau publishes rather than paints.
         """
-        return self.state_dir / GENAU_DRIVE_FILENAME
+        return self.state_dir / GENAU_DRIVE
 
     @property
     def logs_dir(self) -> Path:

@@ -7,7 +7,7 @@ end up here, on the one file the dashboard's own buttons write to.
 
 Quitting arrives on it too, which is why the gesture lives beside the asks
 rather than with the window: in a session, closing this window means quitting
-the session, and that is a verb like any other.  See :mod:`genau.session_quit`
+the session, and that is a verb like any other.  See :mod:`player_core.session_quit`
 for why.
 
 Lived as two closures inside ``nau.app``'s run loop, where the file was the
@@ -18,8 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.file_channel import append_command
-
-from genau.session_quit import quit_gesture
+from player_core.session_quit import quit_gesture
 
 
 class Dashboard:
