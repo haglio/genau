@@ -46,12 +46,7 @@ from player_core.drive_readout import (
 from player_core.funscript import HANDOFF_RAMP_MS, PARK_TOUCH_WAIT_CAP_MS
 
 from .descent_latch import DescentChoice, DescentLatch, DriveKey
-
-# The window into the script slides continuously, so read at the raw playhead it
-# would move — and repaint the console — at Nau's full frame rate.  Quantized to
-# the cadence Genau's own publishes already repaint at while the stroke scrolls,
-# the green moves exactly as smoothly as the blue, for the same cost.
-_SLIDE_QUANTUM_MS = 40
+from .trace_grid import on_the_grid
 
 # A resumed stroke opening this close to the park needs no climb: the sender
 # skips its rise there (the park already IS the stroke's floor, full amplitude)
@@ -115,7 +110,13 @@ def drive_readout(
     base = published or DriveHud()
     if script is None:
         return base
-    position_ms -= position_ms % _SLIDE_QUANTUM_MS
+    # The window into the script slides continuously, so read at the raw
+    # playhead it would move — and repaint the console — at Nau's full frame
+    # rate.  Quantized to the cadence Genau's own publishes already repaint at
+    # while the stroke scrolls, the green moves exactly as smoothly as the
+    # blue, for the same cost; and the status reads the same grid before it
+    # looks up what was chosen here (nau.trace_grid).
+    position_ms = on_the_grid(position_ms)
     span_ms = round(base.trace_seconds * 1000 * speed)
     step = span_ms / max(1, TRACE_SAMPLES - 1)
     ramp_ms = round(HANDOFF_RAMP_MS * speed)

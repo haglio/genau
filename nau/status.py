@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .trace_grid import on_the_grid
+
 if TYPE_CHECKING:
     # For the annotation only.  This module is the field set itself, and it is
     # worth being able to read it -- by import or by syntax tree -- without
@@ -30,6 +32,10 @@ def next_handoff_touch(script, position_ms: int, latch: DescentLatch) -> int | N
     """
     if script is None:
         return None
+    # On the trace's grid, as the trace read it: the raw playhead crosses a
+    # boundary up to a quantum before the snapped one does, and asked there
+    # it named a turn the trace had not chosen for yet.
+    position_ms = on_the_grid(position_ms)
     if script.is_resting_at(position_ms):
         _, boundary = script.turn_bounds_at(position_ms)
     else:
