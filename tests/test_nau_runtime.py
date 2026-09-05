@@ -80,6 +80,15 @@ class TestAnUnhandledCommand:
 
         assert "TOGGLE_LENGTH_MODE" in caplog.text
 
+    def test_the_one_verb_that_went_quiet_unwired_is_named_too(self, caplog):
+        """RELOAD_PLAYLIST answered "handled" with its callback absent while
+        the other eleven collaborator verbs answer False and get named here
+        (bug 65)."""
+        with caplog.at_level("WARNING", logger="nau.runtime"):
+            apply_command("RELOAD_PLAYLIST", SpySession())
+
+        assert "RELOAD_PLAYLIST" in caplog.text
+
     def test_a_verb_it_acts_on_says_nothing(self, caplog):
         with caplog.at_level("WARNING", logger="nau.runtime"):
             apply_command("NEXT", SpySession())
