@@ -16,6 +16,7 @@ from app_support.logging_utils import (
     install_exception_logging,
 )
 from app_support.threading_utils import start_daemon_thread
+from app_support.win32 import set_app_user_model_id
 from player_core.broker_feed import BrokerFeed, udp_reader
 from player_core.clip_advance import ClipAdvanceState
 from player_core.clip_cache import ClipCacheStore, DecodeRequestState
@@ -143,9 +144,8 @@ def main(argv: list[str] | None = None) -> int:
     identity = _preparse_taskbar_identity(argv)
     if identity:
         try:
-            from player_core.taskbar import set_app_user_model_id
             set_app_user_model_id(identity)
-        except Exception:
+        except OSError:
             pass  # Cosmetic: costs the icon, never worth failing to start over.
 
     logger = configure_logging("genau", config.log_file("genau_listener"))

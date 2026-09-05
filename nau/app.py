@@ -7,6 +7,7 @@ from functools import partial
 from pathlib import Path
 
 import pygame
+from app_support.win32 import set_app_user_model_id
 from player_core.console_hud import ConsolePainter
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
@@ -85,9 +86,8 @@ def _set_aumid(taskbar_identity: str | None) -> None:
     if not taskbar_identity:
         return
     try:
-        from player_core.taskbar import set_app_user_model_id
         set_app_user_model_id(taskbar_identity)
-    except Exception:
+    except OSError:
         # A window on the wrong taskbar button is a launch that happened.
         logger.debug("No taskbar identity claimed", exc_info=True)
 
