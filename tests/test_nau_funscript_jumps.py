@@ -153,7 +153,7 @@ class TestNextFunscripted:
 
     def test_a_video_scripted_from_the_top_is_not_seeked_into(self, tmp_path):
         """The action already starts where the video does, so there is nothing to
-        skip — and seeking anyway would drop the first strokes."""
+        skip — and seeking anyway would drop the first cycles."""
         video0 = tmp_path / "alpha.mp4"
         video1, script1 = _scripted(tmp_path, "beta")
         session = FakeSession(

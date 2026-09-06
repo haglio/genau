@@ -1,4 +1,4 @@
-"""Funscript activity heatmap: average stroke speed per time bucket -> color.
+"""Funscript activity heatmap: average travel speed per time bucket -> color.
 
 Pure logic, no pygame: build_heatmap turns a Funscript into one color per
 horizontal pixel of the strip; overlay.py owns the drawing.
@@ -9,7 +9,7 @@ from player_core.funscript import Funscript
 
 # Anchor colors for the classic funscript-heatmap feel: idle bins read as
 # near-black, then blue -> cyan -> green -> yellow -> red as the average
-# stroke speed (0-100 position units per second) climbs to 500.
+# travel speed (0-100 position units per second) climbs to 500.
 _GRADIENT: list[tuple[float, tuple[int, int, int]]] = [
     (0.0, (10, 14, 30)),
     (100.0, (30, 70, 230)),
@@ -31,7 +31,7 @@ def _speed_to_color(speed: float) -> tuple[int, int, int]:
 def build_heatmap(
     fs: Funscript, buckets: int, *, start_ms: float, end_ms: float,
 ) -> list[tuple[int, int, int]]:
-    """One color per equal bin of [start_ms, end_ms], by average stroke speed.
+    """One color per equal bin of [start_ms, end_ms], by average travel speed.
 
     Each action segment spreads its |pos delta| over the bins it overlaps,
     proportional to the overlap; a bin's speed is its accumulated travel

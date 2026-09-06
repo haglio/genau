@@ -13,7 +13,7 @@ can see:
   WINDOW's, so the strip lines up with the plain bar underneath it.  One width
   for the row and another for the frame is not a slip.
 * The room's two published files are read before anything drawn believes them,
-  and the stroke is read through the gate before the console panel is built out
+  and the motion is read through the gate before the console panel is built out
   of it -- otherwise the pill and the line describe the frame before this one.
 * The ids are the Z-ORDER, not the call order: the heatmap is under the loop's
   frames, which are under the console and the chip, which are all under the
@@ -51,7 +51,7 @@ class ConsolePanel:
 
     Its own part, because it is where the frame's reading of the outside world
     happens: the room's two published files, and the gate that says how much of
-    the stroke to believe.  The other three overlays read none of that.
+    the motion to believe.  The other three overlays read none of that.
     """
 
     def __init__(self, session, *, room, drive_gate, console_hud, modes) -> None:
@@ -63,7 +63,7 @@ class ConsolePanel:
 
     def bgra(self, *, hover):
         """This frame's panel.  Reads the room first, then asks the gate what of
-        the stroke it published this video's picture may believe -- drawn the
+        the motion it published this video's picture may believe -- drawn the
         other way round, the pill and the line describe the frame before this
         one."""
         self._room.refresh()

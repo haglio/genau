@@ -18,7 +18,7 @@ from player_core.drive_readout import DriveHud, read_drive
 
 
 class Published:
-    """The last whole console and stroke this player managed to read."""
+    """The last whole console and motion this player managed to read."""
 
     def __init__(self, console_file: Path, drive_file: Path) -> None:
         self._console_file = console_file

@@ -36,13 +36,13 @@ class TestBuildHeatmap:
         assert build_heatmap(Funscript(actions=[]), 4, start_ms=0, end_ms=10_000) == [_NEAR_BLACK] * 4
         assert build_heatmap(Funscript(actions=[(500, 80)]), 4, start_ms=0, end_ms=10_000) == [_NEAR_BLACK] * 4
 
-    def test_full_stroke_per_bin_reads_as_100_units_per_second(self):
+    def test_full_travel_per_bin_reads_as_100_units_per_second(self):
         fs = Funscript(actions=[(0, 0), (1000, 100), (2000, 0), (3000, 100), (4000, 0)])
 
         assert build_heatmap(fs, 4, start_ms=0, end_ms=4000) == [_BLUE] * 4
 
     def test_segment_spanning_bins_splits_travel_by_overlap(self):
-        # One 100-unit stroke across the whole 2s: 50 units land in each
+        # One 100-unit segment across the whole 2s: 50 units land in each
         # 1s bin -> 50 units/s -> the halfway near-black->blue color.
         fs = Funscript(actions=[(0, 0), (2000, 100)])
 
@@ -75,7 +75,7 @@ class TestBuildHeatmap:
         assert build_heatmap(fs, 1, start_ms=0, end_ms=2000) == [(20, 42, 130)]
 
     def test_actions_past_the_video_end_only_count_in_range_travel(self):
-        # Half of the 100-unit stroke happens after the video ends; the
+        # Half of the 100-unit segment happens after the video ends; the
         # single 1s bin sees 50 units -> 50 units/s.
         fs = Funscript(actions=[(0, 0), (2000, 100)])
 
@@ -84,7 +84,7 @@ class TestBuildHeatmap:
 
 class TestBuildHeatmapWindow:
     def test_sub_range_buckets_only_see_their_window(self):
-        # Full strokes at 100 units/s throughout: a [1000, 3000] window
+        # Full-range segments at 100 units/s throughout: a [1000, 3000] window
         # split into two 1s bins reads blue in each.
         fs = Funscript(actions=[(0, 0), (1000, 100), (2000, 0), (3000, 100), (4000, 0)])
 
@@ -96,7 +96,7 @@ class TestBuildHeatmapWindow:
         assert build_heatmap(fs, 2, start_ms=2000, end_ms=4000) == [_NEAR_BLACK] * 2
 
     def test_segment_straddling_the_window_start_counts_only_the_overlap(self):
-        # Stroke spans [500, 1500]; the window sees its second half: 50
+        # The segment spans [500, 1500]; the window sees its second half: 50
         # units land in the single 1s bin -> 50 units/s.
         fs = Funscript(actions=[(500, 0), (1500, 100)])
 
