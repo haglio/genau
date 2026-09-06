@@ -71,7 +71,7 @@ class TestReadingTheConsole:
         assert published.console.mode == GENAU_MODE
 
 
-class TestReadingTheStroke:
+class TestReadingTheMotion:
     def test_genaus_own_readout_arrives_while_it_is_driving(self, files):
         console_file, drive_file = files
         _console_file(console_file, GENAU_MODE)
@@ -83,7 +83,7 @@ class TestReadingTheStroke:
         assert published.drive is not None
         assert published.drive.position == 4_000
 
-    def test_a_torn_read_keeps_the_stroke_that_was_there(self, files):
+    def test_a_torn_read_keeps_the_motion_that_was_there(self, files):
         console_file, drive_file = files
         _console_file(console_file, GENAU_MODE)
         _drive_file(drive_file, position=4_000)
@@ -95,7 +95,7 @@ class TestReadingTheStroke:
 
         assert published.drive.position == 4_000
 
-    def test_the_stroke_is_read_in_video_mode_too(self, files):
+    def test_the_motion_is_read_in_video_mode_too(self, files):
         """The Robot Hand is behind the screen in both modes — it takes the
         funscript's gaps in video mode — so its readout is drawn there as well."""
         console_file, drive_file = files

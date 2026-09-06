@@ -256,7 +256,7 @@ class TestAKeyAndItsVerbAgree:
     def test_the_slash_key_hands_the_phase_back_the_way_its_verb_does(self):
         """The one that had drifted.
 
-        Letting go of cruise control hands the single stroke the phase of the
+        Letting go of cruise control hands the single motion the phase of the
         wave the device was mostly following, so it picks up where the stack
         left it.  The key used to discard that phase -- both reach the same
         toggle_cruise_control, and only the verb read what it returns -- so the
@@ -283,7 +283,7 @@ class TestAKeyAndItsVerbAgree:
 
     def test_taking_cruise_control_over_with_the_key_hands_nothing_back(self):
         """The other direction: there is no wave to pick up from, and a phase
-        handed over on the way *in* would move a stroke that is about to be
+        handed over on the way *in* would move a motion that is about to be
         replaced."""
         handed_back: list[float] = []
         keys = Keys()

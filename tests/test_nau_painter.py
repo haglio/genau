@@ -197,8 +197,8 @@ class TestWhatTheBlankHasToTakeDown:
 
 
 class TestTheConsolePanel:
-    def test_the_room_is_read_before_the_stroke_is_believed(self):
-        """The console and the stroke arrive as two files somebody else
+    def test_the_room_is_read_before_the_motion_is_believed(self):
+        """The console and the motion arrive as two files somebody else
         publishes.  Read after the readout, both the pill and the drawn line
         would be a frame behind the room they describe."""
         log: list[str] = []
