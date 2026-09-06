@@ -345,7 +345,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         condemn_clip=selection.condemn_current,
         robot_hand=drive.robot_hand,
         cruise_control_state=drive.cruise_control,
-        set_stroke_phase=drive.tcode_sender.set_stroke_phase,
+        set_motion_phase=drive.tcode_sender.set_motion_phase,
         clip_advance_state=drive.clip_advance,
         stop_event=stop_event,
         hud=hud,

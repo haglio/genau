@@ -266,7 +266,7 @@ class TestAKeyAndItsVerbAgree:
         by_key: list[float] = []
         keys = Keys(cruise=True)
         keys.cruise.stack = _a_stack_the_device_was_following()
-        keys.controls.set_stroke_phase = by_key.append
+        keys.controls.set_motion_phase = by_key.append
 
         keys.press(pygame.K_SLASH)
 
@@ -276,7 +276,7 @@ class TestAKeyAndItsVerbAgree:
         by_verb: list[float] = []
         keys.cruise.active = True
         keys.cruise.stack = _a_stack_the_device_was_following()
-        keys.controls.set_stroke_phase = by_verb.append
+        keys.controls.set_motion_phase = by_verb.append
         apply_runtime_command("TOGGLE_CRUISE", keys.controls)
 
         assert by_verb == by_key
@@ -287,7 +287,7 @@ class TestAKeyAndItsVerbAgree:
         replaced."""
         handed_back: list[float] = []
         keys = Keys()
-        keys.controls.set_stroke_phase = handed_back.append
+        keys.controls.set_motion_phase = handed_back.append
 
         keys.press(pygame.K_SLASH)
 
