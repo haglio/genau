@@ -40,8 +40,8 @@ include = ["genau*", "nau*"]
 # package the way a launcher would -- a few seconds each on a cold Windows
 # runner. 240 s also leaves the 180 s child guard in tests/test_win32.py
 # reachable, so it fails with its own message. --timeout-method=thread is the
-# half that pays for itself: it dumps the hung stack, which turns a stalled
-# required check into a one-line diagnosis. tests/test_timeouts.py holds all
-# three halves of it.
+# half that pays for itself: it dumps the stack of the test that stopped, which
+# turns a stalled required check into a one-line diagnosis.
+# tests/test_timeouts.py holds all three halves of it.
 addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin"
 testpaths = ["tests"]
