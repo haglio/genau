@@ -72,10 +72,10 @@ class LoadingCanceled(Exception):
     """The user closed the loading window before the library finished."""
 
 
-# Nau's own pink (its icon's), on near-black, with the timeline's inset,
+# Nau's own magenta (its icon's), on near-black, with the timeline's inset,
 # bordered track for the bar — so the wait looks like the app it opens into.
 _BACKGROUND = (12, 12, 14)
-_PINK = (200, 80, 160)
+_MAGENTA = (200, 80, 160)
 _TEXT = (215, 215, 220)
 _TRACK_FILL = (34, 34, 38)
 _TRACK_BORDER = (70, 70, 78)
@@ -126,7 +126,7 @@ class LoadingScreen:
 
         # Name over message over bar, laid out as one block and centered as one,
         # so the group sits in the middle of whatever rect Nau was given.
-        title = self._title_font.render("Nau", True, _PINK)
+        title = self._title_font.render("Nau", True, _MAGENTA)
         line = self._message_font.render(message, True, _TEXT)
         bar_w = int(width * _BAR_WIDTH_FRAC)
         block_h = (
@@ -144,7 +144,7 @@ class LoadingScreen:
         pygame.draw.rect(self._surface, _TRACK_BORDER, track, _BORDER_W)
         if fraction:
             inner = track.inflate(-_BORDER_W * 2, -_BORDER_W * 2)
-            pygame.draw.rect(self._surface, _PINK, pygame.Rect(
+            pygame.draw.rect(self._surface, _MAGENTA, pygame.Rect(
                 inner.left, inner.top, max(1, int(inner.width * fraction)), inner.height,
             ))
 

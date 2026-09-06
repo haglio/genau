@@ -20,7 +20,7 @@ from pygame._sdl2.video import Renderer, Texture, Window
 
 from .layout import compute_video_rects
 
-# Near-black magenta used as the Win32 color key for HUD transparency.
+# Near-black violet used as the Win32 color key for HUD transparency.
 # Any pixel drawn in this exact color becomes fully transparent.
 HUD_COLOR_KEY = (1, 0, 1)
 
