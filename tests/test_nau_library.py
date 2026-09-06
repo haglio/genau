@@ -126,7 +126,7 @@ class TestGroupVersions:
         groups = group_versions(entries)
 
         assert len(groups) == 3
-        assert all(len(g.members) == 2 for g in groups)
+        assert all(len(g.entries) == 2 for g in groups)
 
 
 
@@ -434,7 +434,7 @@ class TestCollapsePlaylistVersions:
 
         assert result == [(Path("Richard_topaz.mp4"), None), (Path("Other.mp4"), None)]
 
-    def test_keeps_the_kept_members_funscript(self):
+    def test_keeps_the_funscript_of_the_entry_it_keeps(self):
         index = self._index([_entry("Richard.mp4", 166), _entry("Richard_topaz.mp4", 6035)])
         pairs = [
             (Path("Richard_topaz.mp4"), Path("Richard_topaz.funscript")),
@@ -481,7 +481,7 @@ class TestGroupVersionsByRecordedId:
 
         groups = group_versions([rec_a, rec_b, richard, richard_up], lambda v: ids.get(v))
 
-        member_sets = [sorted(str(m.video) for m in g.members) for g in groups]
-        assert sorted([str(rec_a.video), str(rec_b.video)]) in member_sets
-        assert sorted([str(richard.video), str(richard_up.video)]) in member_sets
+        entry_sets = [sorted(str(m.video) for m in g.entries) for g in groups]
+        assert sorted([str(rec_a.video), str(rec_b.video)]) in entry_sets
+        assert sorted([str(richard.video), str(richard_up.video)]) in entry_sets
         assert len(groups) == 2

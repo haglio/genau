@@ -388,9 +388,9 @@ def match_library(
     # Every clip file is looked for in its own right. Evolver reads a version
     # family off the name, so two different cuts saved as "X" and "X (2)" are
     # one family — and searching for a family rather than a file hashes only one
-    # member, leaving the other unfindable however exactly its frames sit in a
-    # scene. Clip families are nearly all one member each, so grouping them
-    # would save the sweep almost nothing and cost the members it dropped.
+    # entry, leaving the other unfindable however exactly its frames sit in a
+    # scene. Clip families are nearly all one entry each, so grouping them
+    # would save the sweep almost nothing and cost the entries it dropped.
     #
     # Scenes still group, by the narrower name-derived family rather than the
     # recorded one, which does not promise a shared timeline: unrelated scenes of
@@ -401,9 +401,9 @@ def match_library(
     scenes = group_versions([e for e in entries if metas[e.video] is None], _cut_of)
     # Kept only to carry a settled answer across to a genuine re-encode below.
     families = {
-        member.video: family
+        entry.video: family
         for family in group_versions([e for e in entries if metas[e.video] is not None], versions)
-        for member in family.members
+        for entry in family.entries
     }
     hashes: dict[Path, np.ndarray] = {}
 
@@ -439,14 +439,14 @@ def match_library(
         # is not in, and gave that scene the wrong clip's funscript. One that
         # really is another encode aligns here too, at its own offset; one that
         # does not is told nothing, and loses what an earlier run told it.
-        for member in families[match.clip].members:
-            if member.video == match.clip:
+        for entry in families[match.clip].entries:
+            if entry.video == match.clip:
                 continue
-            own = align(hashed(member.video), hashed(scene), fps=fps)
+            own = align(hashed(entry.video), hashed(scene), fps=fps)
             if own is None:
-                forget(member.video, scene, metadata_root=metadata_root)
+                forget(entry.video, scene, metadata_root=metadata_root)
             else:
-                record(member.video, scene, offset=own.offset, metadata_root=metadata_root)
+                record(entry.video, scene, offset=own.offset, metadata_root=metadata_root)
     return matched
 
 
@@ -478,11 +478,11 @@ def _cut_of(video: Path) -> str | None:
 def _cheapest(family: VersionGroup) -> Path:
     """The version of a video that costs least to decode.
 
-    Members are ordered largest-first, and an upscale is many times the size of
+    Entries are ordered largest-first, and an upscale is many times the size of
     its original — minutes rather than seconds to read — for pictures that are
     the same either way.
     """
-    return family.members[-1].video
+    return family.entries[-1].video
 
 
 def main(argv: list[str] | None = None) -> int:
