@@ -205,7 +205,7 @@ def _genau_answers(line: str) -> bool:
             condemn_clip=lambda: None,
             robot_hand=RobotHandState(playing=True, speed=50, amplitude=60, center=40),
             cruise_control_state=CruiseControlState(),
-            set_stroke_phase=lambda _phase: None,
+            set_motion_phase=lambda _phase: None,
             clip_advance_state=ClipAdvanceState(),
             stop_event=threading.Event(),
             hud=Flag(),
