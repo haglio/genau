@@ -5,7 +5,7 @@ from genau.layout import compute_video_rects
 
 class TestLandscapeVideo:
     def test_wider_video_letterboxed_vertically(self):
-        """16:9 video in 4:3 window -> full width, bars top/bottom."""
+        """16:9 video in 4:3 window -> full width, bars above and below."""
         rects = compute_video_rects(1920, 1080, 1200, 900)
 
         assert len(rects) == 1

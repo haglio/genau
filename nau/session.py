@@ -105,7 +105,7 @@ class PlayerSession:
 
         Locked is mpv's own ``loop_file``, so a video repeats seamlessly in place
         the way a locked satellite's clip does.  Unlocked, the file reaches its end
-        and :meth:`advance` steps to the next entry, wrapping at the bottom — the
+        and :meth:`advance` steps to the next entry, wrapping at the end — the
         playlist plays around rather than stopping.
         """
         self._locked = locked
@@ -450,7 +450,7 @@ class PlayerSession:
                 self._tcode.park()
 
         # The end of the file, with nothing holding it: step to the next entry,
-        # wrapping at the bottom so the playlist plays around.  Only ever reached
+        # wrapping at the end so the playlist plays around.  Only ever reached
         # unlocked — a lock is mpv's own loop-file, which restarts the file rather
         # than ending it — and never mid-loop, where the A/B range owns the end.
         #

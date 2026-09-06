@@ -1,6 +1,6 @@
 """What the mouse does to Nau's window.
 
-Four things are under the pointer, each floating over the one behind it: the
+Four things are under the pointer, each floating over the one under it: the
 console's buttons, the volume chip at the right-hand end of the timeline row,
 the rest of that row, and the video everywhere else.  800x600 with no heatmap
 built puts the row's top edge at y=576 and the inset track between x=40 and
@@ -195,7 +195,7 @@ class TestPressingTheTimeline:
 class TestPressingTheVolumeChip:
     def test_the_chip_takes_the_press_before_the_video_behind_it(self, bits):
         """It floats over the video, so a press on it is never also a press on
-        what is behind it."""
+        what is under it."""
         bits.press(ON_THE_VOLUME_CHIP)
 
         assert bits.volume.hud.volume == 50
@@ -221,7 +221,7 @@ class TestPressingAConsoleButton:
 
     def test_a_press_the_console_took_never_reaches_the_chip(self, tmp_path):
         """The console is drawn over the top-left corner and the chip sits at
-        the bottom right, but the order is what makes that a fact rather than a
+        the lower right, but the order is what makes that a fact rather than a
         coincidence of where they happen to be."""
         bits = Bits(tmp_path, SpyConsole(asks="main_next"))
 

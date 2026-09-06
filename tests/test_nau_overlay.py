@@ -18,7 +18,7 @@ def _funscript():
 
 
 class TestTheHeightOfTheTimelineRow:
-    """How tall the bottom of the window is, whatever is drawn there.
+    """How tall the lower edge of the window is, whatever is drawn there.
 
     Every video has a clickable timeline — the heatmap where there is a
     funscript, a plain progress bar where there is not — so the row is never
@@ -34,7 +34,7 @@ class TestTheHeightOfTheTimelineRow:
 
     def test_an_unscripted_video_still_leaves_the_row_the_bar_needs(self):
         """The strip is 0 there, and a row of no height would put the whole
-        timeline outside the window and the chip on its bottom edge."""
+        timeline outside the window and the chip on its lower edge."""
         strip = HeatmapStrip()
         strip.update("plain.mp4", None, 4000.0, width=40)
 

@@ -1,6 +1,6 @@
 """One painted frame: what Nau puts on top of mpv's video, and in what order.
 
-Four things are drawn every frame -- the timeline along the bottom, the console
+Four things are drawn every frame -- the timeline along the lower edge, the console
 in the top-left corner, the volume chip above the timeline's right-hand end, and
 the loop's two frames above their marks -- and the order they are built in is
 load-bearing in ways nothing was watching: the heatmap's color row is built at
@@ -200,7 +200,7 @@ class TestTheConsolePanel:
     def test_the_room_is_read_before_the_motion_is_believed(self):
         """The console and the motion arrive as two files somebody else
         publishes.  Read after the readout, both the pill and the drawn line
-        would be a frame behind the room they describe."""
+        would be a frame late for the room they describe."""
         log: list[str] = []
 
         _console(FakeSession(), log).bgra(hover=None)

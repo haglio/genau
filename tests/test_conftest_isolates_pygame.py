@@ -4,7 +4,7 @@
 fixture that swaps `sys.modules["pygame"]` reaches them only while that module
 has never been imported.  Any test module importing `nau.app` first -- it pulls
 the view in -- left those names as the real SDL ones, and the twenty-three view
-tests behind the fixture went on to build real windows on the machine that also
+tests relying on the fixture went on to build real windows on the machine that also
 runs the live players.  Alphabetical collection was the only thing standing
 between the suite and that.
 

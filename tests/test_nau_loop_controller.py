@@ -63,7 +63,7 @@ class TestLoopController:
 
     def test_release_before_start_floors_out_to_the_start(self):
         # The record-down point is a hard floor for the out point too: an out
-        # behind the start (the EOF-wrap race, since seeks are clamped) can't
+        # before the start (the EOF-wrap race, since seeks are clamped) can't
         # flip the loop — it collapses to the minimum loop at the start.
         lc = LoopController(None)  # unscripted: exact, unsnapped bounds
         lc.on_record_down(5000)

@@ -25,7 +25,7 @@ def _built_for(mode: str) -> list[tuple[Path, Path | None]]:
 
 
 class FakeSource:
-    """The library behind the playlist: it can build a list for any mode."""
+    """The library backing the playlist: it can build a list for any mode."""
 
     def __init__(self) -> None:
         self.asked: list[str] = []

@@ -2,7 +2,7 @@
 
 Genau and Nau are windows of the application the user actually launched, so
 Fun Time passes its own AppUserModelID and they take that — without stamping
-anything, since the pin behind that identity is Fun Time's to keep up to date.
+anything, since the pin carrying that identity is Fun Time's to keep up to date.
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ class TestPreparseTaskbarIdentity:
 
 class TestNauTakesTheIdentityItIsGiven:
     def test_told_one_it_takes_it(self):
-        """The pinned shortcut behind that identity is Fun Time's."""
+        """The pinned shortcut carrying that identity is Fun Time's."""
         set_aumid = _nau()
 
         with patch("nau.app.set_app_user_model_id") as claim:

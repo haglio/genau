@@ -96,7 +96,7 @@ class TestReadingTheMotion:
         assert published.drive.position == 4_000
 
     def test_the_motion_is_read_in_video_mode_too(self, files):
-        """The Robot Hand is behind the screen in both modes — it takes the
+        """The Robot Hand is driving in both modes — it takes the
         funscript's gaps in video mode — so its readout is drawn there as well."""
         console_file, drive_file = files
         _console_file(console_file, VIDEO_MODE)

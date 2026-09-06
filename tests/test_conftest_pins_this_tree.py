@@ -69,7 +69,7 @@ def test_the_suite_imports_its_own_tree_from_a_foreign_directory(tmp_path: Path)
 
 def test_a_tree_already_imported_before_the_pin_is_named_outright(tmp_path: Path):
     """The path fix cannot undo an import that already happened, so the guard
-    behind it has to say which tree won rather than let the suite run on it.
+    after it has to say which tree won rather than let the suite run on it.
 
     Reached by a plugin that imports `nau` before conftest does — `sys.modules`
     then holds the decoy's, whatever the path is rearranged to afterwards.

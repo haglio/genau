@@ -65,7 +65,7 @@ def _deal(window_input, *events) -> None:
 
 class TestTheWindowBeingClosed:
     def test_a_quit_gesture_is_asked_of_the_session_rather_than_taken(self):
-        """The close box and Alt+F4 arrive here.  In a session it is the session
+        """The close button and Alt+F4 arrive here.  In a session it is the session
         that goes, not this one window out of six -- see nau.dashboard."""
         window_input, _p, _k, dashboard = _input()
 

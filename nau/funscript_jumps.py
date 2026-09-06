@@ -29,7 +29,7 @@ class FunscriptJumps:
     def jump_to_funscript(self) -> None:
         """Skip ahead to where this video's scripting next starts up.
 
-        An unscripted video and one whose last run is already behind the
+        An unscripted video and one whose last run is already past the
         playhead answer the same way: there is nothing ahead to jump to.  That
         is an ordinary outcome rather than an error, so it is said rather than
         logged and swallowed.
@@ -49,7 +49,7 @@ class FunscriptJumps:
         """Move to the next playlist entry that has a funscript, at its action.
 
         Forward from where we are and wrapping, so it reaches a scripted video
-        behind us rather than reporting failure while one exists — the same
+        we have already passed rather than reporting failure while one exists — the same
         wrap ``step`` navigates with.  The video on screen is never the answer:
         "next" has to move, and reloading it would read as the command having
         restarted the video for nothing.

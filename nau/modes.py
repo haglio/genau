@@ -36,7 +36,7 @@ def reload_playlist(session, jumps, resolve) -> None:
     new list.
 
     Replaced rather than loaded, so the video on screen carries on: only what
-    "next" reaches has changed.  The compilation is left behind with it, because
+    "next" reaches has changed.  The compilation is dropped with it, because
     the playlist is no longer the one a compilation put there.
     """
     session.replace_playlist(resolve())
@@ -50,7 +50,7 @@ class Modes:
         self._source = source
         self._session = session
         self._jumps = jumps
-        # Empty when there is no library behind the playlist (Fun Time can hand
+        # Empty when there is no library backing the playlist (Fun Time can hand
         # Nau one without library dirs): no length filter is running, so the HUD
         # has no mode to name and the toggle has nothing to rebuild.
         self._length_mode = (remembered or DEFAULT_MODE) if source is not None else ""

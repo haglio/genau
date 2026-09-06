@@ -1,6 +1,6 @@
 """A player in a session does not quit itself — it asks the session to quit.
 
-Every gesture that ends one of these windows on its own — the close box, Alt+F4,
+Every gesture that ends one of these windows on its own — the close button, Alt+F4,
 Ctrl+Q — ends only that window, and inside a Fun Time session that is wrong: the
 sequencer put six windows up together and there is nothing to refill the gap one
 leaving makes.  It bit for real.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4,
@@ -8,7 +8,7 @@ so it closed Nau, then the portrait satellite, then the landscape one, one press
 at a time, while the dashboard, Genau and the audio companion carried on and the
 session had to be ended by voice.
 
-The scan at the bottom is what covers the run loops themselves, which need a real
+The scan further down is what covers the run loops themselves, which need a real
 window and the libmpv DLL and so cannot be exercised here — the same reason
 ``test_focus_clickthrough`` reads its guarantee off the source.  What each loop
 routes *through* differs: Nau's gesture is answered by ``nau.dashboard``, which
