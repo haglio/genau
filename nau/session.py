@@ -315,26 +315,26 @@ class PlayerSession:
     def cycle_version(self) -> None:
         """Swap the current entry for its next same-content version, cyclically.
 
-        Uses the version index (members ordered largest-first) to find the
+        Uses the version index (entries ordered largest-first) to find the
         current video's alternates; a no-op for singletons or when no index was
         supplied.  The swap happens *in place*, so the playlist keeps one entry
         per distinct video — prev/next still navigate the deduped set rather than
         the version we cycled away from.  The new file starts from the
         beginning; nothing of the old one is preserved.
         """
-        members = self._version_index.get(self.current_video)
-        if members is None or len(members) <= 1:
+        versions = self._version_index.get(self.current_video)
+        if versions is None or len(versions) <= 1:
             return
-        videos = [vid for vid, _fs in members]
+        videos = [vid for vid, _fs in versions]
         # Not dead defensiveness: Fun Time writes the playlist from its own
         # selection, so a video can arrive mapped to a family it is not a
-        # member of.  Cycling it must not swap in somebody else's version --
+        # part of.  Cycling it must not swap in somebody else's version --
         # see test_a_version_the_index_does_not_know_is_left_alone.
         try:
             pos = videos.index(self.current_video)
         except ValueError:
             return
-        self._playlist[self._index] = members[(pos + 1) % len(members)]
+        self._playlist[self._index] = versions[(pos + 1) % len(versions)]
         self.load(self._index)
 
     def load_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:

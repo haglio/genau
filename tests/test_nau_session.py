@@ -855,16 +855,16 @@ class TestCycleVersion:
         session.cycle_version()
         assert player.opened == before
 
-    def test_cycles_to_next_member_by_index_order(self, tmp_path):
+    def test_cycles_to_next_version_by_index_order(self, tmp_path):
         big = tmp_path / "Jane-1080p.mp4"
         small = tmp_path / "Jane-540.mp4"
         for p in (big, small):
             p.write_text("x")
-        members = [(big, None), (small, None)]
+        versions = [(big, None), (small, None)]
         player = FakePlayer()
         session = PlayerSession(
             [(big, None)], player=player, tcode=FakeTCode(),
-            version_index={big: members, small: members},
+            version_index={big: versions, small: versions},
         )
 
         session.cycle_version()
@@ -874,12 +874,12 @@ class TestCycleVersion:
         assert session.current_video == big
 
     def test_a_family_of_three_walks_forward_and_wraps(self, tmp_path):
-        """Two members cannot say which way the cycle goes -- forward and
+        """Two versions cannot say which way the cycle goes -- forward and
         backward are the same step modulo two -- and CYCLE_VERSION is a command
         Fun Time sends and a HUD control, so the order it walks a family is the
         observable behavior.
 
-        The index orders members largest-first, which is the order the library
+        The index orders versions largest-first, which is the order the library
         builds it in: the canonical file, then its smaller versions.
         """
         original = tmp_path / "Jane Doe - scene one.mp4"
@@ -887,11 +887,11 @@ class TestCycleVersion:
         small = tmp_path / "Jane Doe - scene one-540.mp4"
         for path in (original, upscale, small):
             path.write_text("x")
-        members = [(original, None), (upscale, None), (small, None)]
+        versions = [(original, None), (upscale, None), (small, None)]
         player = FakePlayer()
         session = PlayerSession(
             [(original, None)], player=player, tcode=FakeTCode(),
-            version_index={video: members for video, _fs in members},
+            version_index={video: versions for video, _fs in versions},
         )
 
         walked = []
@@ -908,11 +908,11 @@ class TestCycleVersion:
         upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
         for path in (original, upscale):
             path.write_text("x")
-        members = [(original, None), (upscale, None)]
+        versions = [(original, None), (upscale, None)]
         player = FakePlayer()
         session = PlayerSession(
             [(original, None)], player=player, tcode=FakeTCode(),
-            version_index={video: members for video, _fs in members},
+            version_index={video: versions for video, _fs in versions},
         )
         opened_before = len(player.opened)
 
@@ -929,11 +929,11 @@ class TestCycleVersion:
         upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
         for path in (stranger, original, upscale):
             path.write_text("x")
-        members = [(original, None), (upscale, None)]
+        versions = [(original, None), (upscale, None)]
         player = FakePlayer()
         session = PlayerSession(
             [(stranger, None)], player=player, tcode=FakeTCode(),
-            version_index={stranger: members},
+            version_index={stranger: versions},
         )
 
         session.cycle_version()
@@ -949,11 +949,11 @@ class TestCycleVersion:
         b = tmp_path / "b.mp4"
         for p in (x, a1, a2, b):
             p.write_text("x")
-        members = [(a1, None), (a2, None)]
+        versions = [(a1, None), (a2, None)]
         player = FakePlayer()
         session = PlayerSession(
             [(x, None), (a1, None), (b, None)], player=player, tcode=FakeTCode(),
-            version_index={a1: members, a2: members},
+            version_index={a1: versions, a2: versions},
         )
         session.step(1)
         assert session.current_video == a1

@@ -115,20 +115,20 @@ class LibraryEntry:
 class VersionGroup:
     """Entries that are versions of one video, ordered largest-first.
 
-    Members share a title prefix — an upscale is the original's name plus a
+    Entries share a title prefix — an upscale is the original's name plus a
     tag. The first (largest) entry is the canonical version to shuffle into a
     playlist; the rest are alternates reachable via "cycle version".
     """
 
-    members: tuple[LibraryEntry, ...]
+    entries: tuple[LibraryEntry, ...]
 
     @property
     def canonical(self) -> LibraryEntry:
-        return self.members[0]
+        return self.entries[0]
 
     @property
     def alternates(self) -> list[LibraryEntry]:
-        return list(self.members[1:])
+        return list(self.entries[1:])
 
 
 def _title_tokens(stem: str) -> tuple[str, ...]:
@@ -152,9 +152,9 @@ def _matching_group(
     """
     if not toks:
         return None
-    for members, gtoks in zip(groups, group_tokens):
+    for group, gtoks in zip(groups, group_tokens):
         if gtoks and _is_prefix(gtoks, toks):
-            return members
+            return group
     return None
 
 
@@ -192,7 +192,7 @@ def _group_by_recorded_id(
             order.append(gid)
         by_id[gid].append(entry)
     groups = [
-        VersionGroup(members=tuple(sorted(by_id[gid], key=lambda e: (-e.size, str(e.video)))))
+        VersionGroup(entries=tuple(sorted(by_id[gid], key=lambda e: (-e.size, str(e.video)))))
         for gid in order
     ]
     groups.extend(_group_by_name(unrecorded))
@@ -210,7 +210,7 @@ def _group_by_name(entries: list[LibraryEntry]) -> list[VersionGroup]:
     where a shared runtime would fold genuinely different scenes of like length.
 
     Entries are matched shortest-title-first, so an original anchors the group
-    its longer-named upscales join. Within a group members are ordered
+    its longer-named upscales join. Within a group entries are ordered
     largest-file first (canonical first); group order follows first appearance.
     """
     order = {entry: i for i, entry in enumerate(entries)}
@@ -225,10 +225,10 @@ def _group_by_name(entries: list[LibraryEntry]) -> list[VersionGroup]:
             group_tokens.append(toks)
         else:
             anchor.append(entry)
-    groups.sort(key=lambda members: min(order[m] for m in members))
+    groups.sort(key=lambda group: min(order[m] for m in group))
     return [
-        VersionGroup(members=tuple(sorted(members, key=lambda e: (-e.size, str(e.video)))))
-        for members in groups
+        VersionGroup(entries=tuple(sorted(group, key=lambda e: (-e.size, str(e.video)))))
+        for group in groups
     ]
 
 
@@ -240,8 +240,8 @@ def collapse_playlist_versions(
 
     *version_index* (from :func:`version_index_from_groups`) maps each known
     video to its group's pairs, largest-first. Each group is emitted once, at
-    its first-seen position, keeping the largest member actually present in
-    *pairs* (with that member's funscript from *pairs*). Videos absent from the
+    its first-seen position, keeping the largest entry actually present in
+    *pairs* (with that entry's funscript from *pairs*). Videos absent from the
     index pass through unchanged. This turns Fun Time's raw per-file playlist
     into the one-slot-per-video rotation the main slot player shows, matching the
     set :meth:`PlayerSession.cycle_version` walks.
@@ -251,10 +251,10 @@ def collapse_playlist_versions(
     collapsed: list[tuple[Path, Path | None]] = []
     seen: set[Path] = set()
     for video, _funscript in pairs:
-        members = version_index.get(video)
-        if members:
-            group_id = members[0][0]
-            keep = next((v for v, _ in members if v in present), video)
+        versions = version_index.get(video)
+        if versions:
+            group_id = versions[0][0]
+            keep = next((v for v, _ in versions if v in present), video)
         else:
             group_id = video
             keep = video
@@ -371,14 +371,14 @@ def version_index_from_groups(
     """Map every video to its group's (video, funscript) pairs, largest-first.
 
     This is what :meth:`PlayerSession.cycle_version` consults to walk between
-    versions of the same content — each member points at the same ordered
+    versions of the same content — each entry points at the same ordered
     pair list, so cycling is stable regardless of which one is playing.
     """
     index: dict[Path, list[tuple[Path, Path | None]]] = {}
     for group in groups:
-        members = [group.canonical, *group.alternates]
-        pairs = entries_to_pairs(members)
-        for entry in members:
+        versions = [group.canonical, *group.alternates]
+        pairs = entries_to_pairs(versions)
+        for entry in versions:
             index[entry.video] = pairs
     return index
 
