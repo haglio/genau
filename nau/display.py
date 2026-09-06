@@ -12,7 +12,7 @@ nothing and OmniPause freezes it while it is very much on screen), so blanking
 can only key off being told it is off screen.
 
 mpv owns this window's pixels — the video renders straight into it, over the
-pygame surface behind — so the black is an opaque overlay composited on top of
+pygame surface under it — so the black is an opaque overlay composited on top of
 the video, the same channel the HUD already rides.  The HUD comes down with the
 video: a blanked player shows nothing at all, which is both what "off" means
 and why nothing here depends on the order mpv composites overlays in.

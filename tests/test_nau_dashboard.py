@@ -30,7 +30,7 @@ class TestAskingForSomething:
 
 
 class TestAQuitGesture:
-    """The close box, Alt+F4, Ctrl+Q -- every way this window is told to go."""
+    """The close button, Alt+F4, Ctrl+Q -- every way this window is told to go."""
 
     def test_in_a_session_it_asks_and_this_player_keeps_running(self, tmp_path: Path):
         """Nau stays up until the teardown reaches it, so the closing cover is

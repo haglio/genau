@@ -15,7 +15,7 @@ from nau.clip_match import (
     frame_hashes,
     locate,
     match_library,
-    picture_box,
+    picture_crop,
     record,
 )
 from nau.clip_nav import read_clip
@@ -65,12 +65,12 @@ class TestPictureBox:
     def test_finds_the_picture_inside_a_pillarboxed_frame(self):
         report = self._report(1440, 1080, x=240)
 
-        assert picture_box([report], 1920, 1080) == (1440, 1080, 240, 0)
+        assert picture_crop([report], 1920, 1080) == (1440, 1080, 240, 0)
 
     def test_a_frame_with_no_bars_is_left_alone(self):
         report = self._report(1920, 1080)
 
-        assert picture_box([report], 1920, 1080) is None
+        assert picture_crop([report], 1920, 1080) is None
 
     def test_the_widest_window_wins(self):
         """A window that lands on a fade or a dark shot reads black where there
@@ -79,7 +79,7 @@ class TestPictureBox:
         dark = self._report(600, 400, x=660, y=340)
         lit = self._report(1440, 1080, x=240)
 
-        assert picture_box([dark, lit, dark], 1920, 1080) == (1440, 1080, 240, 0)
+        assert picture_crop([dark, lit, dark], 1920, 1080) == (1440, 1080, 240, 0)
 
     def test_a_video_that_reads_as_nearly_all_black_is_left_alone(self):
         """Below this much picture the likelier story is a dark video, not a
@@ -87,17 +87,17 @@ class TestPictureBox:
         sliver = int(1080 * MIN_PICTURE_FRACTION) - 20
         report = self._report(1920, sliver, y=(1080 - sliver) // 2)
 
-        assert picture_box([report], 1920, 1080) is None
+        assert picture_crop([report], 1920, 1080) is None
 
     def test_nothing_measured_means_nothing_cropped(self):
-        assert picture_box(["ffmpeg version 7.1", ""], 1920, 1080) is None
+        assert picture_crop(["ffmpeg version 7.1", ""], 1920, 1080) is None
 
     def test_the_rectangle_is_even_on_every_side(self):
         """Chroma is subsampled, so ffmpeg's crop refuses an odd rectangle."""
-        box = picture_box([self._report(1437, 1077, x=241, y=1)], 1920, 1080)
+        crop = picture_crop([self._report(1437, 1077, x=241, y=1)], 1920, 1080)
 
-        assert box is not None
-        assert not any(value % 2 for value in box)
+        assert crop is not None
+        assert not any(value % 2 for value in crop)
 
 
 class TestSampleFrames:
@@ -291,8 +291,8 @@ class TestMatchLibrary:
             ("w/Nora Quill - Brink (2).mp4", 50, {"clip": clip, "version": {"group": "Nora Quill - Brink"}}),
         ))
 
-    def test_a_family_member_is_measured_rather_than_told(self, tmp_path):
-        """The winner's answer used to go to every member of its family. Where a
+    def test_a_family_entry_is_measured_rather_than_told(self, tmp_path):
+        """The winner's answer used to go to every entry of its family. Where a
         family is two different cuts, that filed one under a scene it is not in
         — and handed that scene the wrong cut's funscript."""
         lib, meta, entries = self._two_cuts_in_one_family(tmp_path)
@@ -343,7 +343,7 @@ class TestMatchLibrary:
 
     def test_a_wrong_match_an_earlier_run_wrote_is_dropped(self, tmp_path):
         """Self-healing: the sidecars already carry answers handed out on trust,
-        and a member proved not to be in that scene must lose the one it has
+        and an entry proved not to be in that scene must lose the one it has
         rather than keep pointing at it."""
         lib, meta, entries = self._two_cuts_in_one_family(tmp_path)
         scene_one = lib / "other" / "Nora-Quill_540-izB4YKFa.mp4"
@@ -447,8 +447,8 @@ class TestMatchLibrary:
     def test_matches_a_scene_bucketed_under_a_shared_version_group(self, tmp_path):
         """Evolver's version group is not always one video — it buckets by a
         title read out of the name, so unrelated scenes of a performer land in
-        one group. Read as a family, the biggest member's name is what the
-        candidates are gated on and the smallest member's frames are what gets
+        one group. Read as a family, the biggest entry's name is what the
+        candidates are gated on and the smallest entry's frames are what gets
         searched, which leaves the clip of every other scene in the bucket
         unmatchable however exactly its frames align."""
         lib, meta, entries = _library(tmp_path, (

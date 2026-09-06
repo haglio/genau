@@ -41,7 +41,7 @@ class LoopController:
         if self._state != LoopState.MARKING:
             return
         # The record-down point is a hard floor: the loop only extends forward
-        # from it. Seeks are clamped to it while marking, so an out point behind
+        # from it. Seeks are clamped to it while marking, so an out point before
         # the start only arises from the EOF-wrap race — floor it to the start
         # rather than let snap_loop flip the loop backwards.
         out_ms = max(position_ms, self._in_ms)

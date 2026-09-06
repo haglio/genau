@@ -175,7 +175,7 @@ class TestClosingTheWindow:
         assert notifier.closed == 0
 
     def test_in_a_session_ctrl_q_goes_the_same_way(self, tmp_path):
-        """Not only the close box: every gesture that means "quit this window"."""
+        """Not only the close button: every gesture that means "quit this window"."""
         cmd_file = tmp_path / "dashboard_cmd.txt"
         controller, _renderer, _pointer, _notifier, stop_event = _build_controller(
             dashboard_cmd_file=cmd_file,

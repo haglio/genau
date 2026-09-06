@@ -228,7 +228,7 @@ def _run(args) -> int:
     status_writer = _status_writer(args, drive_gate)
     stop_event = threading.Event()
     # Every control on this HUD asks Fun Time rather than acting; so does
-    # the close box.  See nau.dashboard.
+    # the close button.  See nau.dashboard.
     dashboard = Dashboard(args.dashboard_cmd_file)
     # The main player's sound, as Fun Time publishes it.  Nau's own mpv is one
     # of two sinks it drives (Genau's clip audio is the other), so the level

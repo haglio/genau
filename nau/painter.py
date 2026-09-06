@@ -2,7 +2,7 @@
 
 mpv owns the window and hardware-decodes the video; everything Nau shows is an
 overlay bitmap on top of it, updated in place under a stable id.  Four things,
-every painted frame: the timeline along the bottom, the console in the top-left
+every painted frame: the timeline along the lower edge, the console in the top-left
 corner, the volume chip above the timeline's right-hand end, and the loop's two
 frames above their marks.
 
@@ -18,7 +18,7 @@ can see:
 * The ids are the Z-ORDER, not the call order: the heatmap is under the loop's
   frames, which are under the console and the chip, which are all under the
   black :mod:`nau.display` puts up when the room takes this slot away.  The
-  thumbnails are drawn last and composite second from the bottom.
+  thumbnails are drawn last and composite second from the lower edge.
 
 Lived inline in ``nau.app``'s run loop, where a frame could not be painted
 without a window and libmpv, so none of the three had a test.

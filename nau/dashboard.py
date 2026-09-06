@@ -36,7 +36,7 @@ class Dashboard:
         append_command(self._cmd_file, command)
 
     def take_quit_gesture(self) -> None:
-        """Answer a quit gesture on this player: the close box, Alt+F4, Ctrl+Q.
+        """Answer a quit gesture on this player: the close button, Alt+F4, Ctrl+Q.
 
         It is the session that goes, not this player: the ask goes out and Nau
         stays up until the teardown reaches it, which is what puts the closing

@@ -4,11 +4,11 @@ The main player's sound is Fun Time's to decide — Nau's mpv is one of two sink
 it drives, Genau's clip audio being the other — so the level here is drawn and
 reported, never set.  A press shows the new level at once *and* asks for it at
 the same time: the authority's answer is a tick away, and a slider that waited
-for it would drag a frame behind the pointer.  The answer overwrites this one
+for it would trail the pointer by a frame.  The answer overwrites this one
 either way, so an ignored press corrects itself rather than sticking.
 
 The geometry is the shared chip's (:mod:`player_core.volume`), placed from the
-window's bottom-right corner and riding up with the timeline row beneath it.
+window's lower-right corner and riding up with the timeline row beneath it.
 This takes window coordinates and does that undoing itself, so nothing above it
 holds a second idea of where the chip is.
 
@@ -48,9 +48,9 @@ class VolumeControl:
                  win_w: int, win_h: int, timeline_h: int) -> bool:
         """Take a press at window ``(mx, my)``; False if it missed the chip.
 
-        A miss falls through to the video behind, where it seeks or pauses — the
+        A miss falls through to the video under it, where it seeks or pauses — the
         chip floats over the video, so a press on it is never also a press on
-        what is behind it.
+        what is under it.
         """
         return self._press(*chip_local(mx, my, win_w=win_w, win_h=win_h,
                                        timeline_h=timeline_h))

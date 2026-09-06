@@ -2,7 +2,7 @@
 
 The chip floats at the right-hand end of the timeline row, so every case here
 goes through real window coordinates rather than chip-local ones — the offset
-from the window's bottom-right corner is half of what a press has to get right,
+from the window's lower-right corner is half of what a press has to get right,
 and a test written in chip-local pixels cannot see the chip move.
 
 800x600 with a 24px timeline row puts the chip at (678, 577); the speaker is its
@@ -79,7 +79,7 @@ class TestPressingTheSlider:
 
     def test_the_new_level_is_shown_before_fun_time_has_answered(self, control):
         """Fun Time holds the authority and its answer is a tick away; a slider
-        that waited for it would drag a frame behind the pointer."""
+        that waited for it would trail the pointer by a frame."""
         control.press_at(*TRACK_HALFWAY, **WIN)
 
         assert control.hud.volume == 50
@@ -110,7 +110,7 @@ class TestAPressThatMissed:
 
     def test_a_taller_timeline_row_lifts_the_chip_off_the_pointer(self, control):
         """A loop being recorded grows the strip to 48px and the chip rides up
-        with it, so a press near the bottom edge is on the video now."""
+        with it, so a press near the lower edge is on the video now."""
         near_the_bottom = (744, 595)
 
         assert control.press_at(*near_the_bottom, win_w=800, win_h=600, timeline_h=24)

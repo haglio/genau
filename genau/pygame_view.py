@@ -38,7 +38,7 @@ class VolumePress:
     """What a press on the volume chip asks for, and what to show meanwhile.
 
     Fun Time holds the authority over the level and its answer is a tick away,
-    so a slider that waited for it would drag a frame behind the pointer.  The
+    so a slider that waited for it would trail the pointer by a frame.  The
     chip shows this at once; Fun Time's answer overwrites it either way, which
     is what corrects a press it decides to ignore.
     """
@@ -269,7 +269,7 @@ class PygameView:
         texture.draw(dstrect=pygame.Rect(hud_xy(), size))
 
     def _draw_volume(self) -> None:
-        """Blit the primary display's volume chip, bottom-right.
+        """Blit the primary display's volume chip, lower-right.
 
         Beside the console, and drawn under the same condition: in video mode
         this window is a see-through layer over Nau's, and Nau draws both there — a

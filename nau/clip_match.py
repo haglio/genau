@@ -87,7 +87,7 @@ MIN_PICTURE_FRACTION = 0.5
 _CROP_REPORT = re.compile(r"crop=(\d+):(\d+):(\d+):(\d+)")
 
 
-def picture_box(
+def picture_crop(
     reports: Iterable[str], width: int, height: int,
 ) -> tuple[int, int, int, int] | None:
     """The ``crop=w:h:x:y`` of the picture inside *width* x *height*, or None.
@@ -106,22 +106,22 @@ def picture_box(
     if not corners:
         return None
     left = min(corner[0] for corner in corners)
-    top = min(corner[1] for corner in corners)
+    upper = min(corner[1] for corner in corners)
     right = max(corner[2] for corner in corners)
-    bottom = max(corner[3] for corner in corners)
+    lower = max(corner[3] for corner in corners)
 
     # Chroma is subsampled, so an odd rectangle is one ffmpeg's crop refuses.
     # Rounding outward keeps this the widest reading rather than the tightest.
-    left, top = max(0, left - left % 2), max(0, top - top % 2)
-    box_width = min(width - left, right - left + right % 2)
-    box_height = min(height - top, bottom - top + bottom % 2)
-    box_width, box_height = box_width - box_width % 2, box_height - box_height % 2
+    left, upper = max(0, left - left % 2), max(0, upper - upper % 2)
+    crop_width = min(width - left, right - left + right % 2)
+    crop_height = min(height - upper, lower - upper + lower % 2)
+    crop_width, crop_height = crop_width - crop_width % 2, crop_height - crop_height % 2
 
-    if box_width >= width and box_height >= height:
+    if crop_width >= width and crop_height >= height:
         return None
-    if box_width < width * MIN_PICTURE_FRACTION or box_height < height * MIN_PICTURE_FRACTION:
+    if crop_width < width * MIN_PICTURE_FRACTION or crop_height < height * MIN_PICTURE_FRACTION:
         return None
-    return box_width, box_height, left, top
+    return crop_width, crop_height, left, upper
 
 
 def _probe(video: Path) -> tuple[int, int, float] | None:
@@ -170,7 +170,7 @@ def content_crop(video: Path) -> tuple[int, int, int, int] | None:
         return None
     width, height, duration = probed
     reports = [_cropdetect(video, duration * point) for point in PROBE_POINTS]
-    return picture_box(reports, width, height)
+    return picture_crop(reports, width, height)
 
 
 def sample_frames(video: Path, fps: float) -> np.ndarray:

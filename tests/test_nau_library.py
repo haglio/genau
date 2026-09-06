@@ -135,7 +135,7 @@ class TestCanonicalPlaylist:
         entries = [
             _entry("Jane-Doe-540.mp4", 100),
             _entry("Jane-Doe-1080p.mp4", 900),  # canonical of its group
-            _entry("John-Roe-720p.mp4", 200),  # sole member
+            _entry("John-Roe-720p.mp4", 200),  # sole entry
         ]
 
         playlist = canonical_playlist(entries, random.Random(0))

@@ -1,4 +1,4 @@
-"""The library behind the playlist: discovered entries + durations + clips.
+"""The library backing the playlist: discovered entries + durations + clips.
 
 Bundles everything the length-mode toggle needs so startup and the runtime
 switch build playlists from the same data.  Fun Time passes the playlist
@@ -54,7 +54,7 @@ def length_mode_rebuilds(requested: str, current: str, *, in_compilation: bool) 
     """
     return requested != current or in_compilation
 
-# The two waits a caller can put a loading screen behind.  Walking the library
+# The two waits a caller can cover with a loading screen.  Walking the library
 # tree has no count to report until it finishes, so it reports (0, 0); probing
 # durations counts entries, and is the phase that can run to tens of seconds on
 # a cold cache — one ffprobe per unprobed video.  Naming the phases (rather than
@@ -143,7 +143,7 @@ def build_library_source(
 
     *on_progress* is called ``(phase, done, total)`` as the work the user waits
     through proceeds — before each phase and before each duration probe, so the
-    count reported is the work already behind it.  It may raise to abort the
+    count reported is the work already done.  It may raise to abort the
     build; nothing here catches that, which is how the loading screen turns a
     closed window into an immediate exit rather than one deferred to the end.
     """

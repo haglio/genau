@@ -124,7 +124,7 @@ def mock_pygame(monkeypatch):
     Texture, Window`` -- so swapping the entries in ``sys.modules`` reaches those
     names only while the view has never been imported.  Once anything has
     imported it (``nau.app`` does), the bindings are already the real SDL ones
-    and the swap is inert: the tests behind this fixture then build real windows
+    and the swap is inert: the tests relying on this fixture then build real windows
     on the machine that also runs the live players.  Patching the attributes the
     view holds asks nothing about what has been imported, or when.
     """

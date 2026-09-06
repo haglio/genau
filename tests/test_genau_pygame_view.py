@@ -151,8 +151,8 @@ def test_the_volume_chip_sits_where_naus_does_with_no_timeline_under_it(mock_pyg
 
 class TestAPressOnTheVolumeChip:
     """Fun Time owns the level, so a press is a request — but its answer is a
-    tick away, and a slider that waited for it would drag a frame behind the
-    pointer.  So the press says both what to ask for and what to show meanwhile,
+    tick away, and a slider that waited for it would trail the pointer by a
+    frame.  So the press says both what to ask for and what to show meanwhile,
     and the caller does both; asking is not itself a move."""
 
     @staticmethod
@@ -207,7 +207,7 @@ class TestAPressOnTheVolumeChip:
         assert view._volume == VolumeHud(volume=30, muted=False)
 
     def test_a_press_nowhere_near_it_asks_for_nothing(self, mock_pygame):
-        """So the console behind the chip gets it instead."""
+        """So the console under the chip gets it instead."""
         assert self._view(mock_pygame).volume_press_at(10, 10) is None
 
 

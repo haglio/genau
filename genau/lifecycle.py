@@ -120,7 +120,7 @@ class GenauLifecycleController:
             self.renderer.prepare_active_clip_for_current_size()
 
     def on_close(self) -> None:
-        """Every gesture that means "quit this window": the close box, Alt+F4,
+        """Every gesture that means "quit this window": the close button, Alt+F4,
         Ctrl+Q.  In a session it is the session that quits — see
         :mod:`player_core.session_quit` — and this window stays up until the teardown
         reaches it, so nothing goes out ahead of the closing cover."""

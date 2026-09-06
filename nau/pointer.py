@@ -1,12 +1,12 @@
 """What the mouse does to Nau's window.
 
 Four things are under the pointer, and they are asked in this order because each
-floats over the one behind it: the console's own buttons at the top left, the
+floats over the one under it: the console's own buttons at the top left, the
 volume chip at the right-hand end of the timeline row, the rest of that row, and
 the video everywhere else.
 
 A press that a console button takes never reaches the video; a press on the chip
-is never also a press on what is behind it.  A drag is different again — the
+is never also a press on what is under it.  A drag is different again — the
 console's bands keep a drag that wanders off them, and the volume slider takes
 one only along its own track — so a held pointer is offered to whoever grabbed
 it rather than to whatever it happens to be over.

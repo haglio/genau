@@ -1,7 +1,7 @@
 """Where Nau's own overlays go, and what the heatmap strip is made of.
 
 The pure decision logic (the visible time window, strip geometry) lives here
-untied to pygame so it is unit-testable; the drawing helpers at the bottom turn
+untied to pygame so it is unit-testable; the drawing helpers further down turn
 those decisions into textures.
 """
 from __future__ import annotations
@@ -61,7 +61,7 @@ _RECORDING_HEIGHT = 48
 
 
 class HeatmapStrip:
-    """Funscript heatmap pinned to the window's bottom edge.
+    """Funscript heatmap pinned to the window's lower edge.
 
     Normally a full-duration view; while a loop is being recorded it
     becomes a taller strip zoomed into the section around the in point
@@ -139,7 +139,7 @@ def timeline_height(heatmap: HeatmapStrip) -> int:
     The heatmap strip when there is a funscript — taller while a loop is being
     recorded — and the plain progress bar's own height when there is not, since
     every video has a clickable timeline and a row of no height would put it
-    outside the window.  Asked by everything measured against the bottom of the
+    outside the window.  Asked by everything measured against the lower edge of the
     window: where a press lands, and where the volume chip sits.
     """
     return heatmap.height or TIMELINE_HEIGHT
@@ -251,7 +251,7 @@ _HEATMAP_ALPHA = 178  # ~70%: present but unobtrusive under the video
 
 
 def heatmap_bgra(heatmap, position_ms, loop_bounds, width):
-    """The bottom heatmap strip as a BGRA array, or None when there is nothing
+    """The lower heatmap strip as a BGRA array, or None when there is nothing
     to draw.  Uses the same inset, floated, bordered frame and full-height marks
     as the plain bar, with the funscript heatmap as the track fill.  The color
     row must have been built at the track width (``bar_track_x(width)``)."""
