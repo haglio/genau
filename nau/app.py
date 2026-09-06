@@ -9,6 +9,7 @@ from pathlib import Path
 import pygame
 from app_support.win32 import set_app_user_model_id
 from player_core.console_hud import ConsolePainter
+from player_core.drive_gate import DriveGate
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.sdl_hints import deliver_the_focusing_click
@@ -29,7 +30,6 @@ from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
 from .dashboard import Dashboard
 from .display import Display
-from .drive_gate import DriveGate
 from .funscript_jumps import FunscriptJumps
 from .input import Input
 from .keys import Keys

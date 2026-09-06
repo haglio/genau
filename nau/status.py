@@ -2,58 +2,19 @@
 
 The dispatch side reads these to drive clipper_save, the dashboard funscript
 highlight, and the record-button state.  The throttled writing itself is
-:class:`player_core.status.StatusWriter`; here are the whole field set and the
-one choice that goes into it (:func:`next_handoff_touch`), because these keys
-and their order are Nau's own contract with fun_time — no other player
-publishes them.
+:class:`player_core.status.StatusWriter`; here is the whole field set, because
+these keys and their order are the main player's contract with fun_time,
+which FunTimeVR's main role keeps in step.
 """
 from __future__ import annotations
-
-from typing import TYPE_CHECKING
-
-from .trace_grid import on_the_grid
-
-if TYPE_CHECKING:
-    # For the annotation only.  This module is the field set itself, and it is
-    # worth being able to read it -- by import or by syntax tree -- without
-    # dragging the trace's machinery, and player_core behind it, along.
-    from .descent_latch import DescentLatch
-
-
-def next_handoff_touch(script, position_ms: int, latch: DescentLatch) -> int | None:
-    """The touch-down the trace has chosen for the boundary ahead (or the one
-    just crossed), in media ms — None when there is none (a raised floor, no
-    script, nothing latched yet).
-
-    Published so the arbiter can END Genau's turn exactly where the picture
-    drew the blue ending.  Two readers of the same wave can pick different
-    troughs, and then the device stops a touch short of the line still drawn on
-    screen.  One chooser, the picture; the arbiter follows it.
-    """
-    if script is None:
-        return None
-    # On the trace's grid, as the trace read it: the raw playhead crosses a
-    # boundary up to a quantum before the snapped one does, and asked there
-    # it named a turn the trace had not chosen for yet.
-    position_ms = on_the_grid(position_ms)
-    if script.is_resting_at(position_ms):
-        _, boundary = script.turn_bounds_at(position_ms)
-    else:
-        boundary, _ = script.turn_bounds_at(position_ms)
-    if boundary is None:
-        return None
-    choice = latch.choice_for(boundary)
-    if choice is None:
-        return None
-    return choice.touch
 
 
 def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
     """Everything Nau publishes about itself, in the order it is written.
 
     *handoff_touch_ms* is the touch-down the trace has chosen for the boundary
-    in play (:func:`next_handoff_touch` answers it out of the latch
-    :class:`nau.drive_gate.DriveGate` holds), and None where there is none.  It
+    in play (:class:`player_core.drive_gate.DriveGate` answers it out of the
+    latch it holds), and None where there is none.  It
     is asked for rather than defaulted because a caller that forgot it would
     publish an empty field on every tick, and the arbiter would go on ending
     Genau's turn wherever its own read of the wave put it.
