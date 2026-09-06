@@ -2,7 +2,7 @@
 
 Every gesture that ends one of these windows on its own — the close box, Alt+F4,
 Ctrl+Q — ends only that window, and inside a Fun Time session that is wrong: the
-sequencer put six windows up together and there is nothing to refill the hole one
+sequencer put six windows up together and there is nothing to refill the gap one
 leaving makes.  It bit for real.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4,
 so it closed Nau, then the portrait satellite, then the landscape one, one press
 at a time, while the dashboard, Genau and the audio companion carried on and the

@@ -160,7 +160,7 @@ class TestClosingTheWindow:
 
     def test_in_a_session_closing_asks_the_session_and_this_window_stays(self, tmp_path):
         """Genau placed in a Fun Time session is one window of six.  Closing it on
-        its own leaves the session running around a hole nothing refills, so the
+        its own leaves the session running around a gap nothing refills, so the
         gesture goes to the dashboard's channel and this window keeps drawing until
         the teardown reaches it."""
         cmd_file = tmp_path / "dashboard_cmd.txt"
