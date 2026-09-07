@@ -76,6 +76,58 @@ def _jumps(nav, current: Path, funscripts=None, playlist=None):
     return ClipJumps(nav, session, funscripts or {}, notices), session, notices
 
 
+class TestWhatTheButtonsCanDoFromHere:
+    """The console draws its compilation and clip/scene buttons dim where a press
+    would do nothing, and only this player can say which case it is in."""
+
+    def test_a_clip_says_it_belongs_to_a_compilation(self, tmp_path):
+        nav, first, _second, scene = _world(tmp_path)
+
+        assert _jumps(nav, first)[0].has_compilation is True
+        assert _jumps(nav, scene)[0].has_compilation is False
+
+    def test_a_clip_says_its_scene_is_reachable_and_a_scene_says_its_clip_is(self, tmp_path):
+        nav, _first, second, scene = _world(tmp_path)
+
+        assert _jumps(nav, second)[0].jump_to == "scene"
+        assert _jumps(nav, scene)[0].jump_to == "clip"
+
+    def test_a_clip_whose_scene_is_not_in_the_library_says_nothing(self, tmp_path):
+        """The common case — most clips' source scenes were never kept."""
+        nav, first, _second, _scene = _world(tmp_path)
+
+        assert _jumps(nav, first)[0].jump_to == ""
+
+    def test_the_library_is_walked_once_per_video_rather_than_per_ask(self, tmp_path):
+        """The console asks several times a second, and each answer walks the
+        clips against the scenes."""
+        nav, _first, second, scene = _world(tmp_path)
+        walks: list[Path] = []
+
+        class Counting:
+            def __init__(self, real):
+                self._real = real
+
+            def compilation_of(self, video):
+                return self._real.compilation_of(video)
+
+            def full_vid_of(self, video):
+                walks.append(video)
+                return self._real.full_vid_of(video)
+
+            def clip_of(self, video):
+                return self._real.clip_of(video)
+
+        jumps, session, _notices = _jumps(Counting(nav), second)
+        for _ in range(5):
+            assert jumps.jump_to == "scene"
+        assert len(walks) == 1
+
+        session.current_video = scene
+        assert jumps.jump_to == "clip"
+        assert len(walks) == 2
+
+
 class TestResume:
     """Reopening cannot be read off the playlist.  Fun Time rotates the resumed
     file onto the video its player last showed, but only when that video is in

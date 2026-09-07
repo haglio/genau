@@ -262,6 +262,27 @@ class PlayerSession:
         self._playlist.insert(self._index + 1, (video_path, funscript_path))
         self.load(self._index + 1)
 
+    @property
+    def has_other_versions(self) -> bool:
+        """Whether :meth:`cycle_version` would have anything to swap in.
+
+        Asked the same question the swap asks, so the console's button is dim
+        exactly when pressing it would do nothing.
+        """
+        return self._other_versions() is not None
+
+    def _other_versions(self) -> list | None:
+        """The current video's alternates, or None when there is nothing to
+        cycle: no index, a singleton family, or a family the current video is
+        mapped to without being in (Fun Time writes the playlist from its own
+        selection, so that happens)."""
+        versions = self._version_index.get(self.current_video)
+        if versions is None or len(versions) <= 1:
+            return None
+        if self.current_video not in [video for video, _fs in versions]:
+            return None
+        return versions
+
     def cycle_version(self) -> None:
         """Swap the current entry for its next same-content version, cyclically.
 
@@ -272,19 +293,12 @@ class PlayerSession:
         the version we cycled away from.  The new file starts from the
         beginning; nothing of the old one is preserved.
         """
-        versions = self._version_index.get(self.current_video)
-        if versions is None or len(versions) <= 1:
+        versions = self._other_versions()
+        if versions is None:
             return
         videos = [vid for vid, _fs in versions]
-        # Not dead defensiveness: Fun Time writes the playlist from its own
-        # selection, so a video can arrive mapped to a family it is not a
-        # part of.  Cycling it must not swap in somebody else's version --
-        # see test_a_version_the_index_does_not_know_is_left_alone.
-        try:
-            pos = videos.index(self.current_video)
-        except ValueError:
-            return
-        self._playlist[self._index] = versions[(pos + 1) % len(versions)]
+        self._playlist[self._index] = versions[
+            (videos.index(self.current_video) + 1) % len(versions)]
         self.load(self._index)
 
     def load_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:
