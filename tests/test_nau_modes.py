@@ -43,8 +43,9 @@ class FakeSession:
     uses is the whole difference between naming a length and leaving a volume.
     """
 
-    def __init__(self, current: Path = FIRST) -> None:
+    def __init__(self, current: Path = FIRST, *, has_other_versions: bool = False) -> None:
         self.current_video = current
+        self.has_other_versions = has_other_versions
         self.index = 0
         self.playlist: list[tuple[Path, Path | None]] = [(FIRST, None), (SECOND, None)]
         self.loaded: list[list[tuple[Path, Path | None]]] = []
@@ -62,8 +63,14 @@ class FakeSession:
 class FakeJumps:
     """Where in a compilation this player is, and the two ways out of one."""
 
-    def __init__(self, compilation: str = "") -> None:
+    def __init__(self, compilation: str = "", *, has_compilation: bool = False,
+                 jump_to: str = "") -> None:
         self.compilation = compilation
+        # What the console's own compilation and clip/scene buttons can do from
+        # the video on screen — the player's answers, since only it has the
+        # library to look in.
+        self.has_compilation = has_compilation or bool(compilation)
+        self.jump_to = jump_to
         self.left = 0
         self.ended_with: list[list[tuple[Path, Path | None]]] = []
 

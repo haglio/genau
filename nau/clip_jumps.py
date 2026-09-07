@@ -26,11 +26,45 @@ class ClipJumps:
         self._funscripts = funscripts
         self._notices = notices
         self._compilation = ""
+        # What the three navigations could do from the video on screen, worked
+        # out once per video.  The console asks on every publish and the answers
+        # walk the library's clips against its scenes, which is not a thing to do
+        # several times a second for a video that has not changed.
+        self._asked_about: Path | None = None
+        self._reachable: tuple[bool, str] = (False, "")
 
     @property
     def compilation(self) -> str:
         """The compilation whose clips are the playlist, or "" while browsing."""
         return self._compilation
+
+    @property
+    def has_compilation(self) -> bool:
+        """Whether the video on screen belongs to a compilation at all.
+
+        What says the console's button can be pressed, where :attr:`compilation`
+        says you are already inside one.
+        """
+        return self._reach()[0]
+
+    @property
+    def jump_to(self) -> str:
+        """Where a clip/scene jump would go from here: "scene" from a clip to
+        the scene it was cut from, "clip" the other way, "" from a video that is
+        neither.  Most clips' source scenes are not in the library, so "" is the
+        common answer."""
+        return self._reach()[1]
+
+    def _reach(self) -> tuple[bool, str]:
+        current = self._session.current_video
+        if current != self._asked_about:
+            self._asked_about = current
+            self._reachable = (
+                bool(self._nav.compilation_of(current)),
+                "scene" if self._nav.full_vid_of(current) is not None
+                else "clip" if self._nav.clip_of(current) is not None else "",
+            )
+        return self._reachable
 
     def resume(self, compilation: str, video: Path | None) -> None:
         """Come back to *video* inside *compilation*, when the two still agree.

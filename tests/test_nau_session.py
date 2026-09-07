@@ -743,6 +743,35 @@ class TestReplacePlaylist:
 
 
 class TestCycleVersion:
+    def test_it_says_whether_there_is_anything_to_cycle_to(self, tmp_path):
+        """The console draws its version button dim where a press would do
+        nothing, so this has to be the same question the swap itself asks."""
+        big = tmp_path / "Jane-1080p.mp4"
+        small = tmp_path / "Jane-540.mp4"
+        solo = tmp_path / "solo.mp4"
+        for path in (big, small, solo):
+            path.write_text("x")
+        versions = [(big, None), (small, None)]
+
+        paired = PlayerSession(
+            [(big, None)], player=FakePlayer(), tcode=FakeTCode(),
+            version_index={big: versions, small: versions},
+        )
+        alone = PlayerSession(
+            [(solo, None)], player=FakePlayer(), tcode=FakeTCode(),
+            version_index={solo: [(solo, None)]},
+        )
+        # A family the current video is mapped to without being in: Fun Time
+        # writes the playlist from its own selection, so that happens.
+        stranger = PlayerSession(
+            [(solo, None)], player=FakePlayer(), tcode=FakeTCode(),
+            version_index={solo: versions},
+        )
+
+        assert paired.has_other_versions is True
+        assert alone.has_other_versions is False
+        assert stranger.has_other_versions is False
+
     def test_singleton_group_is_noop(self, tmp_path):
         vid = tmp_path / "solo.mp4"
         vid.write_text("x")

@@ -118,6 +118,12 @@ class Modes:
             position=self._session.index + 1,
             total=len(self._session.playlist),
             f_mode=self.f_mode,
+            # What the console's own buttons can do from here.  Only this player
+            # knows: the compilation and the scene a clip came from are answers
+            # about the library, and Fun Time has no view of either.
+            has_compilation=self._jumps.has_compilation,
+            has_other_versions=self._session.has_other_versions,
+            jump_to=self._jumps.jump_to,
         )
 
     @property
