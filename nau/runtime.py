@@ -17,15 +17,32 @@ logger = logging.getLogger(__name__)
 SEEK_STEP_MS = 10_000
 SPEED_STEP = 0.25
 
+# The verbs that carry something after the keyword.  Held as a set rather than
+# as a guard inside each branch so both halves of the rule are stated once: a
+# verb that wants a value is refused without one, and a verb that takes none is
+# refused with one.  The second half is what a per-branch guard could not say --
+# ``NEXT 5`` was asking for something this player does not have, and stepping
+# one video is not it.
+_TAKES_A_VALUE = frozenset({
+    "SET_SPEED",
+    "SET_VOLUME",
+    "SET_LOOP",
+    "PLAY_FILE",
+    "SET_LENGTH_MODE",
+    "SET_TCODE_ENABLED",
+    "SET_F_MODE",
+})
+
 
 def apply_command(command: str, session, **collaborators) -> None:
     """Act on one line of the command file, or say on the log that we cannot.
 
     The dispatcher reports an unanswered verb itself rather than returning a
     flag for a caller to check: it is the only thing that knows, and there is
-    one of it rather than one per call site. Two kinds land here — a verb no
-    branch matches, and a verb whose collaborator this build did not wire —
-    and both mean the same thing to whoever sent it, which is that nothing
+    one of it rather than one per call site. Three kinds land here — a verb no
+    branch matches, a verb whose collaborator this build did not wire, and a
+    verb that came with a value it does not take or without one it needs — and
+    all three mean the same thing to whoever sent it, which is that nothing
     happened.
 
     Fun Time is written against this. ``command_dispatch.py`` routes
@@ -60,6 +77,8 @@ def _dispatch(
         return False
     keyword = parts[0].upper()
     arg = parts[1].strip() if len(parts) > 1 else ""
+    if (keyword in _TAKES_A_VALUE) != bool(arg):
+        return False
 
     if keyword == "NEXT":
         session.step(1)
@@ -96,7 +115,7 @@ def _dispatch(
         session.set_locked(keyword == "LOCK_ON")
     elif keyword == "CYCLE_VERSION":
         session.cycle_version()
-    elif keyword == "PLAY_FILE" and arg:
+    elif keyword == "PLAY_FILE":
         video_part, _, funscript_part = arg.partition("\t")
         funscript_part = funscript_part.strip()
         session.play_file(
@@ -112,7 +131,7 @@ def _dispatch(
             return False
         toggle_length_mode()
     elif keyword == "SET_LENGTH_MODE":
-        if set_length_mode is None or not arg:
+        if set_length_mode is None:
             return False
         set_length_mode(arg)
     elif keyword == "PLAY_COMPILATION":
@@ -144,14 +163,12 @@ def _dispatch(
             return False
         end_compilation()
     elif keyword == "SET_TCODE_ENABLED":
-        if not arg:
-            return False
         session.set_tcode_enabled(arg != "0")
     elif keyword == "SET_F_MODE":
         # F-mode narrows the playlist Fun Time writes to the scripted videos.
         # Nau receives the result and cannot tell it from any other playlist, so
         # the flag has to be said outright for the HUD to be able to show it.
-        if set_f_mode is None or not arg:
+        if set_f_mode is None:
             return False
         set_f_mode(arg != "0")
     elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
@@ -175,7 +192,7 @@ def _dispatch(
 def _set_speed(session, arg: str) -> bool:
     """SET_SPEED <min|max|multiplier> -> absolute playback rate.
 
-    False on a missing or non-numeric argument, which :func:`apply_command`
+    False on an argument it cannot read as a rate, which :func:`apply_command`
     turns into the log line; the rate is left where it was.
     """
     key = arg.lower()
@@ -218,7 +235,7 @@ def _set_volume(session, arg: str, set_volume_hud=None) -> bool:
     has to be looked at cannot tell silent from turned-all-the-way-down from it —
     and unmuting has to come back to the level the speaker chose.  So the level is
     what is drawn, the mute is drawn over it, and the audible loudness is worked
-    out here.  False on a missing or non-numeric level, which
+    out here.  False on a level it cannot read as a number, which
     :func:`apply_command` turns into the log line.
     """
     level, _, muted_arg = arg.partition(" ")

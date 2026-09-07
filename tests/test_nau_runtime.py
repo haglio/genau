@@ -577,6 +577,32 @@ class TestTheVerbsFunTimeCanSend:
 
         assert caplog.records == []
 
+    @pytest.mark.parametrize(
+        "command", ["NEXT 5", "QUIT now", "RECORD_TAP 1", "DISPLAY_ON 0"])
+    def test_a_value_on_a_verb_that_takes_none_is_refused(self, command, caplog):
+        """Half a command is not a command, and neither is one and a half.
+
+        A sender that put a value on ``NEXT`` was asking for something this
+        player does not have; stepping one video is not what it asked for, so
+        answering the bare verb would act on a reading nobody wrote.  Genau's
+        half of the family already refuses both directions
+        (``player_core.control_registry.act``); this is Nau agreeing.
+        """
+        with caplog.at_level("WARNING", logger="nau.runtime"):
+            apply_command(command, SpySession(), **_fully_wired())
+
+        assert command.split()[0] in caplog.text
+
+    @pytest.mark.parametrize(
+        "command",
+        ["SET_SPEED", "SET_VOLUME", "SET_LOOP", "PLAY_FILE",
+         "SET_LENGTH_MODE", "SET_TCODE_ENABLED", "SET_F_MODE"])
+    def test_a_verb_that_wants_a_value_is_refused_without_one(self, command, caplog):
+        with caplog.at_level("WARNING", logger="nau.runtime"):
+            apply_command(command, SpySession(), **_fully_wired())
+
+        assert command in caplog.text
+
     def test_a_word_it_does_not_know_is_named_on_the_log(self, caplog):
         """The control probe: without it, a dispatcher that answered everything
         would pass every case above."""
