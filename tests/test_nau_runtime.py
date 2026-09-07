@@ -57,6 +57,18 @@ class SpySession:
         self.calls.append(("set_volume", volume))
 
 
+# The five verbs that leave the video for a different slice of the library, and
+# the callback each needs.  A build that did not wire one refuses that verb; the
+# pairing is what says a refused verb reached no neighbour either.
+_JUMP_VERBS = [
+    ("PLAY_COMPILATION", "play_compilation"),
+    ("PLAY_FULL_VID", "play_full_vid"),
+    ("PLAY_CLIP_JUMP", "play_clip_jump"),
+    ("JUMP_TO_FUNSCRIPT", "jump_to_funscript"),
+    ("NEXT_FUNSCRIPTED", "next_funscripted"),
+]
+
+
 class TestAnUnhandledCommand:
     """The dispatcher says so itself, because it is the only thing that knows.
 
@@ -368,6 +380,73 @@ class TestApplyCommand:
         apply_command("SET_LENGTH_MODE", SpySession(), set_length_mode=modes.append)
 
         assert modes == []
+
+    def test_play_compilation_invokes_callback(self):
+        """The three ways into a different slice of the library, each its own
+        verb because each answers a different question: everything this video
+        was carved from, the whole thing it was carved out of, and one scene
+        from somewhere else."""
+        session = SpySession()
+        calls = []
+
+        apply_command("PLAY_COMPILATION", session, play_compilation=lambda: calls.append(1))
+
+        assert calls == [1]
+        assert session.calls == []
+
+    def test_play_full_vid_invokes_callback(self):
+        session = SpySession()
+        calls = []
+
+        apply_command("PLAY_FULL_VID", session, play_full_vid=lambda: calls.append(1))
+
+        assert calls == [1]
+        assert session.calls == []
+
+    def test_play_clip_jump_invokes_callback(self):
+        session = SpySession()
+        calls = []
+
+        apply_command("PLAY_CLIP_JUMP", session, play_clip_jump=lambda: calls.append(1))
+
+        assert calls == [1]
+        assert session.calls == []
+
+    def test_jump_to_funscript_invokes_callback(self):
+        session = SpySession()
+        calls = []
+
+        apply_command(
+            "JUMP_TO_FUNSCRIPT", session, jump_to_funscript=lambda: calls.append(1))
+
+        assert calls == [1]
+        assert session.calls == []
+
+    def test_next_funscripted_invokes_callback(self):
+        session = SpySession()
+        calls = []
+
+        apply_command("NEXT_FUNSCRIPTED", session, next_funscripted=lambda: calls.append(1))
+
+        assert calls == [1]
+        assert session.calls == []
+
+    @pytest.mark.parametrize("verb, kwarg", _JUMP_VERBS)
+    def test_a_jump_without_its_own_callback_reaches_no_other(self, verb, kwarg):
+        """Fun Time sends these whether or not this build wired the callback.
+
+        Every other callback is wired here, so a verb that fell through to a
+        neighbor would show up rather than reading as a quiet no-op.
+        """
+        calls: list[str] = []
+        wired = {
+            other: (lambda name=other: calls.append(name))
+            for _v, other in _JUMP_VERBS if other != kwarg
+        }
+
+        apply_command(verb, SpySession(), **wired)
+
+        assert calls == []
 
     def test_end_compilation_invokes_callback(self):
         """Leaving a compilation without having to name a length: the mode you
