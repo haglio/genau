@@ -24,6 +24,11 @@ from .clip_scrubber import ClipScrubber
 from .console_panel import ConsolePanel
 from .volume_chip import VolumeChip
 
+# Fun Time's verb for the whole room's pause, spelled here as every verb this
+# window asks for is.  A press on the clip is a press on the main player, and
+# the pause it means is the room's -- Genau has none of its own to give.
+OMNIPAUSE_TOGGLE = "omnipause_toggle"
+
 
 class ConsolePointer:
     def __init__(self, console: ConsolePanel, volume: VolumeChip,
@@ -43,9 +48,10 @@ class ConsolePointer:
             append_command(self.dashboard_cmd_file, command)
 
     def press(self, mx: int, my: int) -> None:
-        """A press on what Genau draws over its clip — the volume chip, a console
-        button's own command, or the level the drive readout's bar under the
-        pointer is set to.
+        """A press on what Genau draws over its clip — the volume chip, the
+        clip's own bar, a console button's own command, the level the drive
+        readout's bar under the pointer is set to, or, on the clip itself, the
+        room's pause.
 
         The chip is tried first: it floats in its own corner, so a press on it is
         never also a press on the panel.
@@ -62,7 +68,14 @@ class ConsolePointer:
             self._seeking = True
             self.seek(self.scrubber.fraction_at(mx, win_w=win_w))
             return
-        self._post(self.console.press_at(mx, my))
+        asked = self.console.press_at(mx, my)
+        if not asked and not self.window.hud_active:
+            # The clip is what this window shows, so the press is on the main
+            # player.  In HUD mode it is the see-through layer over Nau instead:
+            # the picture's own presses reach Nau through the color key, and
+            # what arrives here landed on the HUD's opaque chrome.
+            asked = OMNIPAUSE_TOGGLE
+        self._post(asked)
 
     def drag(self, mx: int, my: int) -> None:
         """The pointer moving with the button down: a bar the press took hold of

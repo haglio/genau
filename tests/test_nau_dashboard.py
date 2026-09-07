@@ -28,6 +28,13 @@ class TestAskingForSomething:
         assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").split() == [
             "main_next", "audio_set_volume|40"]
 
+    def test_with_no_channel_there_is_nobody_to_ask(self):
+        """A player launched by hand, or by a test.  Every control on this HUD
+        asks rather than acts — the picture itself included — so an ask with
+        nowhere to go is dropped rather than raised into a run loop that has a
+        frame to draw, as a quit gesture with nowhere to go already was."""
+        Dashboard(None).post("audio_mute")
+
 
 class TestAQuitGesture:
     """The close button, Alt+F4, Ctrl+Q -- every way this window is told to go."""

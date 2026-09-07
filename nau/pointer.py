@@ -23,6 +23,12 @@ from player_core.timeline import bar_track_x
 
 from .overlay import timeline_height
 
+# Fun Time's verb for the whole room's pause, spelled here as every verb this
+# player asks for is: the room has the pause, not this player.  In a session
+# Nau's own paused state is the room's flag file, re-read every pass, so a
+# player that paused itself would be playing again a frame later.
+OMNIPAUSE_TOGGLE = "omnipause_toggle"
+
 
 class Pointer:
     """The window under the pointer, and what a press or a drag on it does."""
@@ -52,7 +58,7 @@ class Pointer:
         if my >= win_h - row_h:
             self._session.seek_to(self._time_at(mx, win_w))
         else:
-            self._session.toggle_pause()
+            self._dashboard.post(OMNIPAUSE_TOGGLE)
 
     def release(self) -> None:
         """Let go of whatever a press took hold of."""

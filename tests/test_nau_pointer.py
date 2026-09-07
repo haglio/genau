@@ -15,7 +15,7 @@ from player_core.funscript import Funscript
 
 from nau.dashboard import Dashboard
 from nau.overlay import HeatmapStrip
-from nau.pointer import Pointer
+from nau.pointer import OMNIPAUSE_TOGGLE, Pointer
 from nau.volume_control import VolumeControl
 
 DURATION_MS = 100_000.0
@@ -27,19 +27,14 @@ ON_THE_VOLUME_CHIP = (744, 590)
 
 
 class SpySession:
-    """The player, as a press reaches it: where it was sent, and how often it
-    was told to stop and start."""
+    """The player, as a press reaches it: where it was sent."""
 
     def __init__(self, duration_ms: float = DURATION_MS) -> None:
         self.duration_ms = duration_ms
         self.seeks: list[float] = []
-        self.pause_toggles = 0
 
     def seek_to(self, position_ms: float) -> None:
         self.seeks.append(position_ms)
-
-    def toggle_pause(self) -> None:
-        self.pause_toggles += 1
 
 
 class SpyConsole:
@@ -119,10 +114,14 @@ def bits(tmp_path: Path) -> Bits:
 
 
 class TestPressingTheVideo:
-    def test_it_stops_and_starts_the_video(self, bits):
+    """In a session this player's paused state is the room's flag file, re-read
+    every pass, so it has no pause of its own to give: a press on the video asks
+    Fun Time to freeze the whole room, and the next one asks it off again."""
+
+    def test_it_asks_the_room_to_pause(self, bits):
         bits.press(ON_THE_VIDEO)
 
-        assert bits.session.pause_toggles == 1
+        assert bits.asks() == [OMNIPAUSE_TOGGLE]
         assert bits.session.seeks == []
 
     def test_a_press_just_above_the_timeline_row_is_still_the_video(self, bits):
@@ -130,7 +129,18 @@ class TestPressingTheVideo:
         video and 576 the first of the timeline."""
         bits.press((400, 575))
 
-        assert bits.session.pause_toggles == 1
+        assert bits.asks() == [OMNIPAUSE_TOGGLE]
+
+    def test_a_player_with_no_session_to_ask_does_nothing(self, tmp_path):
+        """Launched by hand rather than by Fun Time: there is no room to
+        freeze, and the press is still not an error."""
+        bits = Bits(tmp_path)
+        bits.pointer = Pointer(bits.session, bits.heatmap, bits.volume,
+                               bits.console, Dashboard(None))
+
+        bits.press(ON_THE_VIDEO)
+
+        assert bits.asks() == []
 
 
 class TestPressingTheTimeline:
@@ -138,7 +148,7 @@ class TestPressingTheTimeline:
         bits.press(TRACK_MIDDLE)
 
         assert bits.session.seeks == [pytest.approx(DURATION_MS / 2)]
-        assert bits.session.pause_toggles == 0
+        assert bits.asks() == []
 
     def test_the_start_of_the_track_is_the_start_of_the_video(self, bits):
         bits.press(TRACK_START)
@@ -166,7 +176,7 @@ class TestPressingTheTimeline:
 
         bits.press((354, 560))
 
-        assert bits.session.pause_toggles == 0
+        assert bits.asks() == []
         assert len(bits.session.seeks) == 1
 
     def test_it_seeks_inside_the_window_the_strip_is_showing(self, bits):
@@ -199,7 +209,8 @@ class TestPressingTheVolumeChip:
         bits.press(ON_THE_VOLUME_CHIP)
 
         assert bits.volume.hud.volume == 50
-        assert (bits.session.seeks, bits.session.pause_toggles) == ([], 0)
+        assert bits.session.seeks == []
+        assert bits.asks() == ["audio_set_volume|50"]  # the chip's own, not the room's
 
 
 class TestPressingAConsoleButton:
@@ -217,7 +228,7 @@ class TestPressingAConsoleButton:
 
         bits.press(ON_THE_VIDEO)
 
-        assert (bits.session.pause_toggles, bits.session.seeks) == (0, [])
+        assert (bits.asks(), bits.session.seeks) == (["main_next"], [])
 
     def test_a_press_the_console_took_never_reaches_the_chip(self, tmp_path):
         """The console is drawn over the top-left corner and the chip sits at
@@ -232,8 +243,7 @@ class TestPressingAConsoleButton:
     def test_a_press_that_missed_every_button_falls_through(self, bits):
         bits.press(ON_THE_VIDEO)
 
-        assert bits.session.pause_toggles == 1
-        assert bits.asks() == []
+        assert bits.asks() == [OMNIPAUSE_TOGGLE]
 
 
 class TestDragging:
@@ -246,7 +256,7 @@ class TestDragging:
         bits.motion(ON_THE_VIDEO, held=True)
 
         assert bits.volume.hud.volume == 100
-        assert (bits.session.seeks, bits.session.pause_toggles) == ([], 0)
+        assert (bits.session.seeks, bits.asks()) == ([], [])
 
     def test_a_held_console_band_keeps_the_drag_even_off_itself(self, tmp_path):
         """The band a press took hold of keeps the pointer as it wanders --
