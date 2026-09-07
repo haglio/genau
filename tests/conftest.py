@@ -35,10 +35,22 @@ def _pin_this_tree() -> None:
     than inserting only when absent — the editable install already lists the
     real checkout further down, which is precisely why the old
     ``if not in sys.path`` guard never fired for the second case.
+
+    Neither is beaten by ``sys.path`` alone.  Setuptools' default editable
+    install answers from ``sys.meta_path``, which is consulted before any path,
+    and its finder handles *immediate children* as well as the top-level name —
+    so ``nau`` can resolve here while ``nau.runtime`` resolves in the main
+    checkout, which is the silent half: a module deleted or renamed here goes on
+    importing from there and the suite passes over code that is not in this
+    tree.  ``--config-settings editable_mode=compat`` writes a plain path entry
+    instead of that finder, which this repo's CLAUDE.md asks for; the finder is
+    dropped here too, so a venv installed the other way cannot quietly hand this
+    suite the wrong tree.
     """
     while _PROJECT_ROOT in sys.path:
         sys.path.remove(_PROJECT_ROOT)
     sys.path.insert(0, _PROJECT_ROOT)
+    _drop_editable_finders_for("nau", "genau")
     for name in ("nau", "genau"):
         module = importlib.import_module(name)
         home = Path(module.__file__).resolve().parent.parent
@@ -48,6 +60,21 @@ def _pin_this_tree() -> None:
                 "Two trees of this repo are on sys.path and the wrong one won; "
                 "the suite would be testing code you are not running."
             )
+
+
+def _drop_editable_finders_for(*packages: str) -> None:
+    """Take setuptools' editable finder off ``sys.meta_path`` for *packages*.
+
+    The finder is installed as a class, and the map of package to checkout is a
+    global in the module that defines it — so which packages a finder owns is
+    read from that module rather than from the entry itself.
+    """
+    def owns_one(finder) -> bool:
+        home = sys.modules.get(getattr(finder, "__module__", ""))
+        mapping = getattr(home, "MAPPING", {})
+        return any(package in mapping for package in packages)
+
+    sys.meta_path[:] = [f for f in sys.meta_path if not owns_one(f)]
 
 
 _pin_this_tree()

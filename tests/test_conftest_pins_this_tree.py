@@ -7,6 +7,12 @@ install's entry for the real checkout, so a run started from one tree against
 another's tests imports the wrong `nau`/`genau`.  Loud when the two have drifted
 enough to break an import; silent when they have not, which is the expensive
 one — a green suite that says nothing about the code you actually have.
+
+`sys.path` is only half of it.  Setuptools' default editable install answers
+from `sys.meta_path` and its finder handles the package's immediate children as
+well as its name, so a module DELETED here goes on importing from the main
+checkout while everything else comes from this tree — the same false green,
+reached the other way, and the one that actually happened.
 """
 from __future__ import annotations
 
@@ -91,3 +97,75 @@ def test_a_tree_already_imported_before_the_pin_is_named_outright(tmp_path: Path
     assert result.returncode != 0, "the suite ran on the decoy's code"
     assert str(decoy) in reported, reported
     assert str(PROJECT_ROOT) in reported, reported
+
+
+def test_a_module_this_tree_does_not_have_is_not_served_from_another_checkout(
+        tmp_path: Path):
+    """A module deleted or renamed here must stop importing, full stop.
+
+    Setuptools' default editable install answers from `sys.meta_path`, and its
+    finder handles the package's immediate children as well as its name -- so a
+    module gone from this tree went on importing from the main checkout while
+    everything else came from here.  That is the same false green the pin exists
+    to stop, reached the other way round, and it is the one that happened: a
+    module renamed here kept resolving, and only CI said so.
+
+    Driven against a stand-in finder of that exact shape rather than against
+    whatever this machine's venv holds, so the case is reproduced whether or not
+    the install happens to be the compat one today.
+    """
+    elsewhere = tmp_path / "another checkout"
+    (elsewhere / "nau").mkdir(parents=True)
+    (elsewhere / "nau" / "__init__.py").write_text("", encoding="utf-8")
+    (elsewhere / "nau" / "gone_from_here.py").write_text("", encoding="utf-8")
+    probe = tmp_path / "shadow.py"
+    probe.write_text(_SHADOWING_FINDER, encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, "-c", _shadow_probe(elsewhere)],
+        cwd=tmp_path, capture_output=True, text=True,
+    )
+
+    assert result.stdout.strip().endswith("refused"), (
+        "a module this tree does not have still resolved, so an editable "
+        "finder is serving these package names from another checkout; the "
+        "suite would go green over code that is not in the tree under test."
+        f"\n{result.stdout}\n{result.stderr}"
+    )
+
+
+# A stand-in for setuptools' editable finder: the package-to-checkout map is a
+# module global and the finder is installed as the class, which is the shape
+# `conftest` has to recognize.
+_SHADOWING_FINDER = """
+import sys
+from importlib.machinery import PathFinder
+
+MAPPING = {"nau": None}
+
+
+class _EditableFinder:
+    @classmethod
+    def find_spec(cls, fullname, path=None, target=None):
+        parent, _, child = fullname.rpartition(".")
+        if parent in MAPPING:
+            return PathFinder.find_spec(child, path=[MAPPING[parent]])
+        return None
+"""
+
+
+def _shadow_probe(elsewhere: Path) -> str:
+    """Install the stand-in, then let `conftest` pin this tree and take it off."""
+    return (
+        f"import sys; sys.path.insert(0, {str(PROJECT_ROOT)!r}); "
+        f"sys.path.insert(0, {str(elsewhere.parent)!r}); "
+        f"import shadow; shadow.MAPPING['nau'] = {str(elsewhere / 'nau')!r}; "
+        "sys.meta_path.append(shadow._EditableFinder); "
+        "import importlib.util; "
+        "print('shadowed' if importlib.util.find_spec('nau.gone_from_here') "
+        "else 'the stand-in did not shadow -- this test proves nothing'); "
+        f"sys.path.insert(0, {str(PROJECT_ROOT / 'tests')!r}); "
+        "import conftest; "
+        "print('resolved' if importlib.util.find_spec('nau.gone_from_here') "
+        "else 'refused')"
+    )

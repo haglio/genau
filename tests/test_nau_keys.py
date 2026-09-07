@@ -13,9 +13,9 @@ from pathlib import Path
 import pygame
 import pytest
 
+from nau.controls import SEEK_STEP_MS
 from nau.dashboard import Dashboard
 from nau.keys import Keys
-from nau.runtime import SEEK_STEP_MS
 
 
 class SpySession:
