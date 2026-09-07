@@ -1098,6 +1098,20 @@ class TestTakingTheDeviceBack:
 
         assert tcode.resets == resets_before + 1
 
+    def test_a_clock_that_only_ticks_forward_takes_nothing_over(self, tmp_path):
+        """The control probe for all three rewind branches: an ordinary tick
+        must not reset, or "reset on a rewind" would be indistinguishable from
+        "reset every tick"."""
+        session, player, tcode = _make_session(tmp_path)
+        player.position_ms = 1_000
+        session.advance()
+        resets_before = tcode.resets
+
+        player.position_ms = 1_100
+        session.advance()
+
+        assert tcode.resets == resets_before
+
     def test_opening_another_video_takes_it_back(self, tmp_path):
         """The new video's script starts from wherever it starts, and the
         device is still standing where the last one left it."""

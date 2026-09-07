@@ -400,7 +400,8 @@ class PlayerSession:
         self.seek_to(target)
 
     def advance(self) -> None:
-        """Per-tick update: drive OSR2 output, reset on loop wrap, auto-advance.
+        """Per-tick update: what the loop makes of the clock, then the device,
+        then the end of the file.
 
         mpv renders the video itself, so nothing is returned — the caller reads
         the session's position/state for the overlays.
@@ -414,9 +415,23 @@ class PlayerSession:
 
         pos_ms = self._player.position_ms
         rewound = pos_ms + _REWIND_MS < self._last_pos_ms
-        prev_pos_ms = self._last_pos_ms
-        self._last_pos_ms = pos_ms
+        prev_pos_ms, self._last_pos_ms = self._last_pos_ms, pos_ms
 
+        if self._advance_loop_state(pos_ms, prev_pos_ms, rewound):
+            return
+        self._drive_device(pos_ms)
+        self._advance_at_eof()
+
+    def _advance_loop_state(
+        self, pos_ms: float, prev_pos_ms: float, rewound: bool,
+    ) -> bool:
+        """What the loop machine makes of this tick; True when the tick is over.
+
+        A recording that reached the end of the file closes there and starts,
+        which moves the playhead — so nothing else in the tick is owed the old
+        position and the caller stops.  The other two are wraps, and a wrap is a
+        clock jump like any other.
+        """
         if self._loop_ctrl.state == LoopState.MARKING:
             duration_ms = self._player.duration_ms
             near_end = (
@@ -432,7 +447,7 @@ class PlayerSession:
                 # way the out point stays just short of the file end, which
                 # mpv loops cleanly.
                 self._finalize_loop(int(pos_ms if near_end else prev_pos_ms))
-                return
+                return True
         elif self._loop_ctrl.state == LoopState.LOOPING and rewound:
             # mpv's A/B loop wraps B->A by rewinding the clock.
             self._take_the_device_over()
@@ -440,25 +455,33 @@ class PlayerSession:
             # The plain locked wrap (loop-file): a seek to the start in all but
             # name.
             self._take_the_device_over()
+        return False
 
-        if self._tcode_enabled:
-            if self._funscript is not None:
-                self._tcode.update(int(pos_ms), self._funscript, speed=self._speed)
-            else:
-                # No funscript to drive from: rest the OSR2 at its closest
-                # position rather than leave it wherever the last video left it.
-                self._tcode.park()
+    def _drive_device(self, pos_ms: float) -> None:
+        """Where the script says the device should be by now, or its rest."""
+        if not self._tcode_enabled:
+            return
+        if self._funscript is not None:
+            self._tcode.update(int(pos_ms), self._funscript, speed=self._speed)
+        else:
+            # No funscript to drive from: rest the OSR2 at its closest
+            # position rather than leave it wherever the last video left it.
+            self._tcode.park()
 
-        # The end of the file, with nothing holding it: step to the next entry,
-        # wrapping at the end so the playlist plays around.  Only ever reached
-        # unlocked — a lock is mpv's own loop-file, which restarts the file rather
-        # than ending it — and never mid-loop, where the A/B range owns the end.
-        #
-        # The latch is because loadfile is asynchronous: mpv goes on reporting
-        # end-of-file for a tick or two after the step is issued, and reading that
-        # again would step past a whole video before the new one had opened.  It
-        # clears on the first tick the player is playing again, so a short video
-        # ending immediately still steps off.
+    def _advance_at_eof(self) -> None:
+        """The end of the file, with nothing holding it: step to the next entry,
+        wrapping at the end so the playlist plays around.
+
+        Only ever reached unlocked — a lock is mpv's own loop-file, which
+        restarts the file rather than ending it — and never mid-loop, where the
+        A/B range owns the end.
+
+        The latch is because loadfile is asynchronous: mpv goes on reporting
+        end-of-file for a tick or two after the step is issued, and reading that
+        again would step past a whole video before the new one had opened.  It
+        clears on the first tick the player is playing again, so a short video
+        ending immediately still steps off.
+        """
         if not self._player.eof:
             self._stepped_at_eof = False
         elif not self._stepped_at_eof and self._loop_ctrl.state == LoopState.NORMAL:
