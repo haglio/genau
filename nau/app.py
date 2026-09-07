@@ -28,6 +28,7 @@ from .cli import (
 )
 from .clip_jumps import ClipJumps
 from .clip_nav import ClipNav
+from .controls import NauControls, apply_command
 from .dashboard import Dashboard
 from .display import Display
 from .funscript_jumps import FunscriptJumps
@@ -40,7 +41,6 @@ from .overlay import HeatmapStrip, LoopThumbCapture
 from .painter import HUD_OVERLAYS, ConsolePanel, Painter
 from .pointer import Pointer
 from .published import Published
-from .runtime import apply_command
 from .session import PlayerSession
 from .status import status_fields
 from .volume_control import VolumeControl
@@ -136,28 +136,22 @@ def _status_writer(args, drive_gate) -> StatusWriter:
         lambda session: status_fields(session, drive_gate.handoff_touch()))
 
 
-def _commands(session, stop_event, *, modes, jumps, funscript_jumps, volume,
-              display, take_up_playlist):
+def _controls(session, stop_event, *, modes, jumps, funscript_jumps, volume,
+              display, take_up_playlist) -> NauControls:
     """Every collaborator a command from the orchestrator can reach, bound once.
 
     Fun Time writes verbs into a file this player drains; which object answers
     which verb is wiring, and wiring does not change from one frame to the
     next, so it is said here rather than rebuilt around every command that
-    arrives.  Returns something to call with a command line.
+    arrives.
     """
-    return partial(
-        apply_command, session=session,
+    return NauControls(
+        session=session,
         stop_event=stop_event,
         reload_playlist=take_up_playlist,
-        toggle_length_mode=modes.toggle_length,
-        set_length_mode=modes.set_length,
-        play_compilation=jumps.play_compilation,
-        play_full_vid=jumps.play_full_vid,
-        play_clip_jump=jumps.play_clip_jump,
-        jump_to_funscript=funscript_jumps.jump_to_funscript,
-        next_funscripted=funscript_jumps.next_funscripted,
-        end_compilation=modes.end_compilation,
-        set_f_mode=modes.set_f_mode,
+        modes=modes,
+        jumps=jumps,
+        funscript_jumps=funscript_jumps,
         set_volume_hud=volume.set,
         set_display=display.set_active,
     )
@@ -275,8 +269,8 @@ def _run(args) -> int:
     keys = Keys(session, modes, dashboard)
     pointer = Pointer(session, heatmap, volume, console_hud, dashboard)
     window_input = Input(pointer, keys, dashboard)
-    # What a verb from Fun Time reaches.  See nau.runtime for what each does.
-    commands = _commands(
+    # What a verb from Fun Time reaches.  See nau.controls for what each moves.
+    controls = _controls(
         session, stop_event, modes=modes, jumps=jumps,
         funscript_jumps=funscript_jumps, volume=volume, display=display,
         take_up_playlist=take_up_playlist)
@@ -295,7 +289,7 @@ def _run(args) -> int:
 
         session.set_paused(read_paused_state(paused_file, logger=logger))
         for cmd in consume_command_file(command_file, logger=logger, uppercase=False):
-            commands(cmd)
+            apply_command(cmd, controls)
 
         session.advance()
         status_writer.write(session)
