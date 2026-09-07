@@ -16,7 +16,7 @@ from pathlib import Path
 
 from player_core.funscript import load as load_funscript
 
-from .loop_controller import LoopController, LoopState
+from .session_loops import SessionLoops
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +72,11 @@ class PlayerSession:
         self._volume = MAX_VOLUME
         self._index = 0
         self._funscript = None
-        # Replaced by :meth:`load`, below, before anything can read it. Every
-        # video has one -- clips can be recorded without a funscript, and only
-        # the snapping is funscript-gated -- so this is never None again.
-        self._loop_ctrl: LoopController = LoopController(None)
+        self._loops = SessionLoops(
+            player,
+            seek_to=self.seek_to,
+            take_the_device_over=self._take_the_device_over,
+        )
         self._last_pos_ms = 0.0
         self._pending_seek_ms: float | None = None
         self._stepped_at_eof = False
@@ -149,76 +150,29 @@ class PlayerSession:
     @property
     def loop_state(self) -> str:
         """Loop machine state as the shared vocabulary: normal/recording/looping."""
-        return {
-            LoopState.NORMAL: "normal",
-            LoopState.MARKING: "recording",
-            LoopState.LOOPING: "looping",
-        }[self._loop_ctrl.state]
+        return self._loops.published_state
 
     @property
     def loop_bounds(self) -> tuple[int, int] | None:
         """Active loop (in_ms, out_ms) — None unless a loop is running."""
-        if self._loop_ctrl.state != LoopState.LOOPING:
-            return None
-        return self._loop_ctrl.in_ms, self._loop_ctrl.out_ms
+        return self._loops.bounds
 
     @property
     def record_in_ms(self) -> int | None:
         """In point of the loop being marked — None unless recording."""
-        if self._loop_ctrl.state != LoopState.MARKING:
-            return None
-        return self._loop_ctrl.in_ms
+        return self._loops.marked_in_ms
 
     def record_down(self) -> None:
-        was_looping = self._loop_ctrl.state == LoopState.LOOPING
-        self._loop_ctrl.on_record_down(int(self._player.position_ms))
-        if was_looping:
-            self._exit_loop()
+        self._loops.record_down(int(self._player.position_ms))
 
     def record_up(self) -> None:
-        if self._loop_ctrl.state != LoopState.MARKING:
-            return
-        self._finalize_loop(int(self._player.position_ms))
-
-    def _finalize_loop(self, out_ms: int) -> None:
-        """Close the marked loop at *out_ms* and start mpv's native A/B loop."""
-        self._loop_ctrl.on_record_up(out_ms)
-        if self._loop_ctrl.state == LoopState.LOOPING:
-            self._enter_loop()
+        self._loops.record_up(int(self._player.position_ms))
 
     def restore_loop(self, in_ms: int, out_ms: int) -> None:
-        """Put the video back into a loop it was left running in.
-
-        The loop outlives the session that marked it: an orchestrator reads the
-        bounds off the status file this session publishes and hands them back on
-        the command channel next launch, over the video the playlist was resumed
-        onto.  The bounds are already finished ones, so no gesture is replayed
-        and nothing is snapped again.
-
-        An empty range is no loop — that is what the status file says when
-        nothing is looping — and is left alone rather than turned into a loop
-        with nothing in it.
-        """
-        if out_ms <= in_ms:
-            return
-        self._loop_ctrl.restore(in_ms, out_ms)
-        self._enter_loop()
-
-    def _enter_loop(self) -> None:
-        """Hand the settled loop to mpv and drop the playhead on its start.
-
-        mpv loops the A/B range natively (smooth, no seek stutter).  The jump
-        goes through :meth:`seek_to` so it survives a file that is still opening,
-        which is the case for a loop restored the moment a session launches.
-        """
-        self._player.set_ab_loop(self._loop_ctrl.in_ms, self._loop_ctrl.out_ms)
-        self.seek_to(self._loop_ctrl.in_ms)
+        self._loops.restore(in_ms, out_ms)
 
     def loop_cancel(self) -> None:
-        was_looping = self._loop_ctrl.state == LoopState.LOOPING
-        self._loop_ctrl.cancel()
-        if was_looping:
-            self._exit_loop()
+        self._loops.cancel()
 
     def _take_the_device_over(self) -> None:
         """The playback clock jumped, or the device has changed hands: the next
@@ -235,10 +189,6 @@ class PlayerSession:
         height nothing is at.
         """
         self._tcode.reset()
-
-    def _exit_loop(self) -> None:
-        self._player.clear_ab_loop()
-        self._take_the_device_over()
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:
@@ -432,7 +382,7 @@ class PlayerSession:
         position and the caller stops.  The other two are wraps, and a wrap is a
         clock jump like any other.
         """
-        if self._loop_ctrl.state == LoopState.MARKING:
+        if self._loops.marking:
             duration_ms = self._player.duration_ms
             near_end = (
                 duration_ms > 0 and pos_ms >= duration_ms - _EOF_MARGIN_MS
@@ -446,9 +396,9 @@ class PlayerSession:
                 # the fallback if a tick only lands after the wrap.  Either
                 # way the out point stays just short of the file end, which
                 # mpv loops cleanly.
-                self._finalize_loop(int(pos_ms if near_end else prev_pos_ms))
+                self._loops.finish_at(int(pos_ms if near_end else prev_pos_ms))
                 return True
-        elif self._loop_ctrl.state == LoopState.LOOPING and rewound:
+        elif self._loops.running and rewound:
             # mpv's A/B loop wraps B->A by rewinding the clock.
             self._take_the_device_over()
         elif rewound:
@@ -484,7 +434,7 @@ class PlayerSession:
         """
         if not self._player.eof:
             self._stepped_at_eof = False
-        elif not self._stepped_at_eof and self._loop_ctrl.state == LoopState.NORMAL:
+        elif not self._stepped_at_eof and self._loops.idle:
             self._stepped_at_eof = True
             self.load(self._index + 1)
 
@@ -500,11 +450,7 @@ class PlayerSession:
         # incoming one starts at the top unless the caller asks otherwise.
         self._pending_seek_ms = None
         self._funscript = load_funscript(fs_path) if fs_path is not None else None
-        # A loop controller exists for every video so clips can be recorded even
-        # without a funscript; only its snapping is funscript-gated (raw ranges
-        # otherwise).
-        self._loop_ctrl = LoopController(self._funscript)
-        self._player.clear_ab_loop()
+        self._loops.open(self._funscript)
         self._player.load(vid_path)
         self._player.set_paused(self._paused)
         self._take_the_device_over()
