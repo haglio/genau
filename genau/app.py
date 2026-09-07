@@ -48,6 +48,7 @@ from player_core.robot_hand_beat import BeatEngine
 from player_core.robot_hand_driver import RobotHandTCodeDriver
 from player_core.tcode import UdpTCodeSink
 
+from .clip_scrubber import ClipScrubber
 from .config import load_config
 from .console_panel import ConsolePanel
 from .console_pointer import ConsolePointer
@@ -304,6 +305,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     # objects the view paints: what is clickable is exactly what was drawn.
     console_panel = ConsolePanel()
     volume_chip = VolumeChip()
+    clip_scrubber = ClipScrubber()
     view = PygameView(
         width=args.width,
         height=args.height,
@@ -311,6 +313,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         y=args.y,
         console=console_panel,
         volume=volume_chip,
+        scrubber=clip_scrubber,
         icon_path=Path(args.icon) if args.icon else None,
         video_title="Video Nau+Genau",
     )
@@ -343,6 +346,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         clip_sequence, clip_store, view, notifier, clips_folder, cache_dir, logger)
     renderer, loader, selection = (
         pipeline.renderer, pipeline.loader, pipeline.selection)
+    clip_scrubber.follow(renderer)
 
     # Everything a command, a key or a console press can move, in one place: the
     # tick drains commands into it and the window's keys move the same object,
