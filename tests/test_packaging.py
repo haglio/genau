@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import ast
 import tomllib
 from pathlib import Path
 
-_PYPROJECT = Path(__file__).resolve().parent.parent / "pyproject.toml"
+from app_support.dependencies import assert_every_dependency_is_imported
+
+_ROOT = Path(__file__).resolve().parent.parent
+_PYPROJECT = _ROOT / "pyproject.toml"
 
 
 def test_all_app_packages_are_declared_for_installation():
@@ -38,29 +40,9 @@ def test_all_app_packages_are_declared_for_installation():
 def test_every_declared_runtime_dependency_is_imported_somewhere():
     """A dependency nothing imports is fetched by every install and every CI run.
 
-    `pyserial` was one: Genau reaches the OSR2 over UDP through the broker,
-    and it is the broker repo that talks to the serial port and declares the
-    package itself.
+    `pyserial` was one: Genau reaches the OSR2 over UDP through the broker, and
+    it is the broker repo that talks to the serial port and declares the package
+    itself.
     """
-    # Only the ones whose import name is not the distribution name.
-    import_names = {"opencv-python": "cv2", "pillow": "PIL", "pygame-ce": "pygame"}
-    with _PYPROJECT.open("rb") as fp:
-        declared = tomllib.load(fp)["project"]["dependencies"]
-
-    tree = Path(__file__).resolve().parent.parent
-    imported: set[str] = set()
-    for path in tree.rglob("*.py"):
-        if any(part in {".venv", "__pycache__", ".claude"}
-               for part in path.relative_to(tree).parts):
-            continue
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Import):
-                imported.update(alias.name.split(".")[0] for alias in node.names)
-            elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
-                imported.add(node.module.split(".")[0])
-    unimported = [
-        name for name in declared
-        if import_names.get(name, name.replace("-", "_")) not in imported
-    ]
-
-    assert not unimported, f"declared and never imported: {unimported}"
+    assert_every_dependency_is_imported(
+        _ROOT, [_ROOT / "genau", _ROOT / "nau", _ROOT / "tests", _ROOT / "tools"], _PYPROJECT)

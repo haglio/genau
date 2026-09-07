@@ -5,29 +5,43 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "genau"
 version = "0.1.0"
-requires-python = ">=3.10"
-# player_core is NOT listed here: it is installed editable from ../player_core
-# (see its README) and is not published, so pip would go looking for it on PyPI.
-# It brings python-mpv and the libmpv DLL with it — nothing in this repo imports
-# mpv directly any more.
+# 3.12, not 3.10: every gate in the family runs 3.12 and nothing has ever
+# collected a suite on anything older, so >=3.10 was a promise no run backed.
+requires-python = ">=3.12"
+# The siblings are in [tool.haglio] below, not here: neither is published, so pip
+# would go looking for them on PyPI. player_core brings python-mpv and the libmpv
+# DLL with it — nothing in this repo imports mpv directly any more.
+#
+# Every requirement carries a ceiling. Without one each run installs whatever
+# PyPI served that morning, which is how this family's gates came to run a major
+# version of the imaging stack past the one the machines have. Floors are what
+# this repo's venv holds today.
 dependencies = [
-    "numpy",
-    "pillow",
-    "pygame-ce",
+    "numpy>=2.4,<3",
+    "pillow>=12,<13",
+    "pygame-ce>=2,<3",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "pytest-timeout",
+    "pytest>=9,<10",
+    "pytest-timeout>=2.4,<3",
     "ruff==0.16.6",
-    "vulture",
+    "vulture>=2.16,<3",
 ]
 
 # Two top-level app packages share this repo; setuptools' automatic
 # flat-layout discovery refuses that, so declare them explicitly. Fun Time
 # launches `python -m genau` / `python -m nau` from this venv without a
 # working directory, so all of them must ship in the (editable) install.
+# The family checkouts this one is installed beside. Two, not three: the merge
+# gate cloned and installed shared_ui as well, and nothing in this repo imports
+# a shared_ui module -- a clone and a Qt wheel on every run, and a dependency to
+# anyone deciding what may safely change. tests/test_dependencies.py holds this
+# list against the tree both ways, so neither half can drift again.
+[tool.haglio]
+siblings = ["app_support", "player_core"]
+
 [tool.setuptools.packages.find]
 include = ["genau*", "nau*"]
 
