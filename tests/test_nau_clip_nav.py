@@ -159,9 +159,9 @@ class TestClipNav:
 
 
 class TestRecordedMatch:
-    """``full_video`` in the sidecar is a content-verified answer (nau.clip_match
-    found the clip's frames inside that scene), so it outranks every guess the
-    filename heuristic could make."""
+    """``full_video`` in the sidecar is a content-verified answer (Evolver's
+    clip-match batch found the clip's frames inside that scene), so it outranks
+    every guess the filename heuristic could make."""
 
     def test_full_vid_uses_the_recorded_scene(self, tmp_path):
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
