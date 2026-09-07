@@ -1,3 +1,14 @@
+"""What Genau draws, in the window :mod:`genau.window` made for it.
+
+One frame is a clip (or nothing, while the HUD is on and this window is a
+see-through layer over Nau's), the loading line, and — in genau mode, where
+this window IS the primary display — the main console and the volume chip the
+whole family shares.
+
+The window itself is not here: how the rect is chosen, what the caption says
+and whether Windows lets the desktop show through are the window's decisions,
+and none of them changes because of what is on screen.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,9 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pygame
-from PIL import Image
 from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
-from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.volume import (
     VolumeHud,
     VolumeHudPainter,
@@ -16,21 +25,10 @@ from player_core.volume import (
     hit_part,
     volume_at,
 )
-from pygame._sdl2.video import Renderer, Texture, Window
+from pygame._sdl2.video import Texture
 
 from .layout import compute_video_rects
-
-# Near-black violet used as the Win32 color key for HUD transparency.
-# Any pixel drawn in this exact color becomes fully transparent.
-HUD_COLOR_KEY = (1, 0, 1)
-
-
-def hud_window_identity(active: bool, *, base_title: str, video_title: str | None) -> str:
-    """The window's caption for the HUD state: the video-mode one while the HUD
-    is on, when one was supplied, else Genau's own."""
-    if active and video_title is not None:
-        return video_title
-    return base_title
+from .window import HUD_COLOR_KEY, GenauWindow
 
 
 @dataclass(frozen=True)
@@ -48,35 +46,6 @@ class VolumePress:
     muted: bool
 
 
-def _layered_window(title: str):
-    """This window's transparency, or None where there is no Win32 to ask.
-
-    genau.win32 imports on any platform (it binds its DLLs through a loader that
-    says so rather than raising), but there is nothing to find off Windows, so
-    the view carries no transparency at all rather than one that refuses.
-    """
-    from .win32_loader import WIN32_AVAILABLE
-
-    if not WIN32_AVAILABLE:
-        return None
-    from .win32 import LayeredWindow
-
-    return LayeredWindow(title, HUD_COLOR_KEY)
-
-
-def load_window_icon(window: Window, icon_path: Path | None) -> None:
-    if icon_path is None or not icon_path.exists():
-        return
-    try:
-        pil_icon = Image.open(str(icon_path)).convert("RGBA")
-        icon_surface = pygame.image.frombuffer(
-            pil_icon.tobytes(), pil_icon.size, "RGBA"
-        )
-        window.set_icon(icon_surface)
-    except Exception:
-        pass
-
-
 class PygameView:
     def __init__(
         self,
@@ -89,33 +58,11 @@ class PygameView:
         icon_path: Path | None = None,
         video_title: str | None = None,
     ) -> None:
-        # Before the window exists, and before pygame.init(): SDL otherwise eats
-        # the click that focuses this window, so every press on the console has
-        # to be made twice — once to wake the window, once to hit the button.
-        # See player_core.sdl_hints for the whole mechanism.
-        deliver_the_focusing_click()
-        pygame.init()
-        # Borderless, like the satellites and Nau: with no chrome the client area
-        # is the whole rect Fun Time sizes the window to — and, in video mode,
-        # this see-through layer lines up with Nau's video beneath it pixel for
-        # pixel, where a title bar on one and not the other would shift them
-        # apart.  The main slot's mode is drawn on the in-video HUD, so the bar
-        # would carry nothing.
-        self.window = Window(title, size=(width, height), borderless=True)
-        self.window.position = (x, y)
-        load_window_icon(self.window, icon_path)
-        # Fun Time's video mode shows this window as "Video Nau+Genau"; genau
-        # mode is plain "Genau".  Driven off the HUD toggle.
-        self._base_title = title
-        # Taken while the caption is still the one the window was made with, and
-        # held: the HUD renames this window, and a handle looked up afterwards
-        # would be a handle found by a caption that had just changed.
-        self._layered = _layered_window(title)
-        self._video_title = video_title
-        self.renderer = Renderer(self.window, accelerated=True)
-        self.clock = pygame.time.Clock()
-        self._width = width
-        self._height = height
+        self.window = GenauWindow(
+            width=width, height=height, x=x, y=y, title=title,
+            icon_path=icon_path, video_title=video_title)
+        self.renderer = self.window.renderer
+        self.clock = self.window.clock
         self._current_texture: Texture | None = None
         self._video_size: tuple[int, int] | None = None
         self._loading_font: pygame.font.Font | None = None
@@ -132,15 +79,18 @@ class PygameView:
         # Fun Time owns the level and tells us what it is; a press asks it.
         self._volume = VolumeHud()
         self._volume_painter = VolumeHudPainter()
-        self.hud_active: bool = False
 
     @property
     def width(self) -> int:
-        return self._width
+        return self.window.width
 
     @property
     def height(self) -> int:
-        return self._height
+        return self.window.height
+
+    @property
+    def hud_active(self) -> bool:
+        return self.window.hud_active
 
     def get_size(self) -> tuple[int, int]:
         return self.window.size
@@ -166,6 +116,11 @@ class PygameView:
     def console_release(self) -> None:
         """Let go of whichever bar a press took hold of."""
         self._console_painter.release()
+
+    def set_console_hover(self, mx: int, my: int) -> None:
+        """Remember where the cursor is over the console, so a button under it
+        names itself; forgotten when it is over nothing."""
+        self._console_hover = self._console_painter.hover_at(mx, my)
 
     def set_volume(self, level: int, muted: bool) -> None:
         """Show the level Fun Time is publishing for the primary display."""
@@ -196,11 +151,6 @@ class PygameView:
                 command=f"audio_set_volume|{level}", level=level, muted=False)
         return None
 
-    def set_console_hover(self, mx: int, my: int) -> None:
-        """Remember where the cursor is over the console, so a button under it
-        names itself; forgotten when it is over nothing."""
-        self._console_hover = self._console_painter.hover_at(mx, my)
-
     def blit_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
         self._video_size = (w, h)
@@ -211,6 +161,13 @@ class PygameView:
 
     def present(self) -> None:
         self._present_scene()
+
+    def set_hud_mode(self, active: bool) -> None:
+        self.window.set_hud_mode(active)
+
+    def destroy(self) -> None:
+        self._current_texture = None
+        self.window.destroy()
 
     def _present_scene(self) -> None:
         # The HUD keeps the color key so the window beneath shows through.
@@ -284,19 +241,3 @@ class PygameView:
         texture = Texture.from_surface(self.renderer, surface)
         vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=0)
         texture.draw(dstrect=pygame.Rect(vx, vy, *size))
-
-    def set_hud_mode(self, active: bool) -> None:
-        if active == self.hud_active:
-            return
-        self.hud_active = active
-        self.window.title = hud_window_identity(
-            active, base_title=self._base_title, video_title=self._video_title)
-        # Order-free now: the transparency holds the handle it took when the
-        # window was made, so the rename above cannot reach it.
-        if self._layered is not None:
-            self._layered.set_transparent(active)
-
-    def destroy(self) -> None:
-        self._current_texture = None
-        self.window.destroy()
-        pygame.quit()

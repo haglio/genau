@@ -116,24 +116,30 @@ def _cleanup_tmp_root():
 
 @pytest.fixture
 def mock_pygame(monkeypatch):
-    """Stand in for the pygame names ``genau.pygame_view`` binds, and return the
-    fake ``pygame`` module itself.
+    """Stand in for the pygame names ``genau.window`` and ``genau.pygame_view``
+    bind, and return the fake ``pygame`` module itself.
 
-    Patch the *view*, not ``sys.modules``.  The view does its imports at module
-    scope -- ``import pygame`` and ``from pygame._sdl2.video import Renderer,
-    Texture, Window`` -- so swapping the entries in ``sys.modules`` reaches those
-    names only while the view has never been imported.  Once anything has
-    imported it (``nau.app`` does), the bindings are already the real SDL ones
-    and the swap is inert: the tests relying on this fixture then build real windows
-    on the machine that also runs the live players.  Patching the attributes the
-    view holds asks nothing about what has been imported, or when.
+    Patch the *modules*, not ``sys.modules``.  Both do their imports at module
+    scope -- ``import pygame`` and ``from pygame._sdl2.video import ...`` -- so
+    swapping the entries in ``sys.modules`` reaches those names only while
+    neither has ever been imported.  Once anything has imported them
+    (``nau.app`` does), the bindings are already the real SDL ones and the swap
+    is inert: the tests relying on this fixture then build real windows on the
+    machine that also runs the live players.  Patching the attributes each
+    module holds asks nothing about what has been imported, or when.
+
+    Both modules, because the window and the scene drawn in it are two: the
+    window binds ``Window`` and ``Renderer``, the scene binds ``Texture``, and
+    each holds its own ``pygame``.
     """
-    from genau import pygame_view
+    from genau import pygame_view, window
 
     pygame = MagicMock()
-    monkeypatch.setattr(pygame_view, "pygame", pygame)
-    for name in ("Window", "Renderer", "Texture"):
-        monkeypatch.setattr(pygame_view, name, MagicMock())
+    for module in (pygame_view, window):
+        monkeypatch.setattr(module, "pygame", pygame)
+        for name in ("Window", "Renderer", "Texture"):
+            if hasattr(module, name):
+                monkeypatch.setattr(module, name, MagicMock())
     return pygame
 
 
