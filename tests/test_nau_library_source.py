@@ -15,7 +15,7 @@ from nau.library_source import (
     PHASE_DURATIONS,
     LibrarySource,
     build_library_source,
-    discover_clips,
+    discover_genau_clips,
     length_mode_rebuilds,
     next_length_mode,
 )
@@ -161,7 +161,7 @@ class TestTheVersionIndexIsBuiltOnce:
             nau.library_source, "read_version_group",
             lambda video, root: (reads.append(video), real(video, root))[1])
         source = LibrarySource(
-            entries=entries, clips=[], durations={}, rng=random.Random(0),
+            entries=entries, genau_clips=[], durations={}, rng=random.Random(0),
             metadata_root=meta,
         )
 
@@ -253,10 +253,10 @@ class TestBuildProgress:
 
 class TestDiscoverClips:
     def test_absent_dir_is_empty(self, tmp_path):
-        assert discover_clips(tmp_path / "nope") == []
+        assert discover_genau_clips(tmp_path / "nope") == []
 
     def test_none_dir_is_empty(self):
-        assert discover_clips(None) == []
+        assert discover_genau_clips(None) == []
 
     def test_lists_clip_videos_with_size(self, tmp_path):
         clips = tmp_path / "clips"
@@ -264,7 +264,7 @@ class TestDiscoverClips:
         (clips / "a.mp4").write_text("body")
         (clips / "notes.txt").write_text("ignore me")
 
-        result = discover_clips(clips)
+        result = discover_genau_clips(clips)
 
         assert len(result) == 1
         assert result[0].video == clips / "a.mp4"
@@ -281,7 +281,7 @@ def test_standalone_source_serves_all_videos_by_default():
     scripted = LibraryEntry(video=Path("Gigi-topaz.mp4"), funscript=Path("Gigi.funscript"), size=900)
     unscripted = LibraryEntry(video=Path("Hana-1080p.mp4"), funscript=None, size=900)
     src = LibrarySource(
-        entries=[scripted, unscripted], clips=[],
+        entries=[scripted, unscripted], genau_clips=[],
         durations={scripted.video: 300.0, unscripted.video: 300.0},
         rng=random.Random(0),
     )
@@ -311,7 +311,7 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
     ea = LibraryEntry(video=original, funscript=None, size=100)
     eb = LibraryEntry(video=upscale, funscript=None, size=900)
     source = LibrarySource(
-        entries=[ea, eb], clips=[], durations={original: 300.0, upscale: 300.0},
+        entries=[ea, eb], genau_clips=[], durations={original: 300.0, upscale: 300.0},
         rng=random.Random(0), metadata_root=meta,
     )
 
@@ -327,7 +327,7 @@ def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
     a = LibraryEntry(video=Path("Richard.mp4"), funscript=None, size=50)
     b = LibraryEntry(video=Path("Richard_topaz.mp4"), funscript=None, size=800)
     source = LibrarySource(
-        entries=[a, b], clips=[], durations={a.video: 300.0, b.video: 300.0},
+        entries=[a, b], genau_clips=[], durations={a.video: 300.0, b.video: 300.0},
         rng=random.Random(0),
     )
 
@@ -367,7 +367,7 @@ class TestACarvedSceneIsAShort:
         clip = self._clip_entry(lib, meta, "example/1 clips/Jane Doe - alpha scene two.mp4")
         plain = self._plain_entry(lib, "example/0/Long Movie.mp4")
         source = LibrarySource(
-            entries=[clip, plain], clips=[],
+            entries=[clip, plain], genau_clips=[],
             # Both well over the short cutoff, so only the sidecar can tell them apart.
             durations={clip.video: 120.0, plain.video: 120.0},
             rng=random.Random(0), metadata_root=meta,
@@ -385,7 +385,7 @@ class TestACarvedSceneIsAShort:
         lib = tmp_path / "videos" / "videos"
         long_plain = self._plain_entry(lib, "example/Long.mp4")
         source = LibrarySource(
-            entries=[long_plain], clips=[], durations={long_plain.video: 120.0},
+            entries=[long_plain], genau_clips=[], durations={long_plain.video: 120.0},
             rng=random.Random(0),
         )
 

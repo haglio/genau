@@ -35,7 +35,8 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--videos-dir", type=Path, default=nau.get("videos_dir"))
     p.add_argument("--scripts-dir", type=Path, default=nau.get("scripts_dir"))
     p.add_argument("--clips-dir", type=Path, default=nau.get("clips_dir") or config.get("clips_dir"),
-                   help="Saved short clips, always included in shorts mode")
+                   help="Genau's delivery folder: its loops, played as shorts "
+                        "however long they run")
     p.add_argument("--state-dir", type=Path, default=config.get("state_dir"),
                    help="Where the duration cache is stored")
     p.add_argument("--metadata-dir", type=Path, default=nau.get("metadata_dir"),
