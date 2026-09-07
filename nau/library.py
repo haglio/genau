@@ -178,7 +178,7 @@ def _group_by_recorded_id(
     entries: list[LibraryEntry],
     group_id_of: Callable[[Path], str | None],
 ) -> list[VersionGroup]:
-    """Group clips by their recorded family id; unrecorded clips fall back to name."""
+    """Group entries by their recorded family id; unrecorded ones fall back to name."""
     by_id: dict[str, list[LibraryEntry]] = {}
     order: list[str] = []
     unrecorded: list[LibraryEntry] = []
@@ -329,7 +329,7 @@ def select_library(
     *,
     mode: str,
     durations: dict[Path, float],
-    clips: list[LibraryEntry],
+    genau_clips: list[LibraryEntry],
     kind_of: Callable[[Path], str] | None = None,
 ) -> list[LibraryEntry]:
     """Filter *entries* by length *mode*, then version-dedup the survivors.
@@ -342,20 +342,22 @@ def select_library(
     modes filters as full-length, which is what it has always done.
 
     *kind_of* reads what Evolver recorded (``nau.sidecar.read_video_type``); the
-    *durations* are the fallback for what it has not reached, and *clips* — the
-    videos discovered in Genau's own folder — are loops by where they came from.
+    *durations* are the fallback for what it has not reached, and *genau_clips*
+    — the videos discovered in Genau's own delivery folder — are loops by where
+    they came from.  Not the other sense of "clip" in this package: a scene
+    carved out of a compilation is an ``EXCERPT``, and lives in its sidecar.
 
     Returns one canonical entry per surviving version group.
     """
     if mode == MIXED:
-        kept = [*entries, *clips]
+        kept = [*entries, *genau_clips]
     else:
         wanted = SHORTS_KINDS if mode == SHORTS else FULL_KINDS
-        genau_clips = {clip.video for clip in clips}
+        delivered = {clip.video for clip in genau_clips}
         kept = [
-            entry for entry in (*entries, *clips)
+            entry for entry in (*entries, *genau_clips)
             if kind_of_video(entry.video, kind_of=kind_of, durations=durations,
-                             genau_clips=genau_clips) in wanted
+                             genau_clips=delivered) in wanted
         ]
     return [group.canonical for group in group_versions(kept)]
 
@@ -388,7 +390,7 @@ def library_playlist(
     *,
     mode: str,
     durations: dict[Path, float],
-    clips: list[LibraryEntry],
+    genau_clips: list[LibraryEntry],
     rng: random.Random,
     kind_of: Callable[[Path], str] | None = None,
 ) -> list[tuple[Path, Path | None]]:
@@ -399,6 +401,7 @@ def library_playlist(
     consistent.
     """
     selected = select_library(
-        entries, mode=mode, durations=durations, clips=clips, kind_of=kind_of,
+        entries, mode=mode, durations=durations, genau_clips=genau_clips,
+        kind_of=kind_of,
     )
     return entries_to_pairs(canonical_playlist(selected, rng))

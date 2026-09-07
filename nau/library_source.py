@@ -1,4 +1,4 @@
-"""The library backing the playlist: discovered entries + durations + clips.
+"""The library backing the playlist: entries, durations, and Genau's loops.
 
 Bundles everything the length-mode toggle needs so startup and the runtime
 switch build playlists from the same data.  Fun Time passes the playlist
@@ -67,7 +67,7 @@ PHASE_DURATIONS = "durations"
 @dataclass(frozen=True)
 class LibrarySource:
     entries: list[LibraryEntry]
-    clips: list[LibraryEntry]
+    genau_clips: list[LibraryEntry]
     durations: dict[Path, float]
     rng: random.Random
     # When set, version families come from Evolver's metadata sidecars (the
@@ -79,7 +79,7 @@ class LibrarySource:
             self.entries,
             mode=mode,
             durations=self.durations,
-            clips=self.clips,
+            genau_clips=self.genau_clips,
             rng=self.rng,
             kind_of=self._kind_of(),
         )
@@ -114,12 +114,18 @@ class LibrarySource:
         that one an Evolver run can move under a session that is still open.
         """
         return version_index_from_groups(
-            group_versions(self.entries + self.clips, self._group_id_of())
+            group_versions(self.entries + self.genau_clips, self._group_id_of())
         )
 
 
-def discover_clips(clips_dir: Path | None) -> list[LibraryEntry]:
-    """Clip videos in *clips_dir* (unscripted, always treated as shorts)."""
+def discover_genau_clips(clips_dir: Path | None) -> list[LibraryEntry]:
+    """The loops Genau plays, discovered in its own delivery folder.
+
+    Unscripted, and shorts by where they came from however long they run.
+    Named for Genau because "clip" means something else two modules over: a
+    scene Evolver carved out of a compilation, which is what
+    :mod:`nau.clip_nav` and :mod:`nau.clip_jumps` navigate.
+    """
     if clips_dir is None or not clips_dir.is_dir():
         return []
     from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
@@ -159,7 +165,7 @@ def build_library_source(
     report = on_progress if on_progress is not None else lambda *_: None
     report(PHASE_DISCOVER, 0, 0)
     entries = discover_entries(videos_dir, scripts_dir)
-    clips = discover_clips(clips_dir)
+    genau_clips = discover_genau_clips(clips_dir)
     if durations is None:
         if duration_cache is None:
             raise ValueError("either durations or duration_cache must be given")
@@ -174,6 +180,6 @@ def build_library_source(
             durations[entry.video] = duration_cache.duration_for(entry.video)
         duration_cache.save()
     return LibrarySource(
-        entries=entries, clips=clips, durations=durations, rng=rng,
+        entries=entries, genau_clips=genau_clips, durations=durations, rng=rng,
         metadata_root=metadata_root,
     )

@@ -237,7 +237,7 @@ def _run(args) -> int:
     # to, and an empty index answers that without a special case.
     entries = source.entries if source is not None else []
     clip_nav = ClipNav.build(
-        [e.video for e in entries] + [c.video for c in (source.clips if source else [])],
+        [e.video for e in entries] + [c.video for c in (source.genau_clips if source else [])],
         source.metadata_root if source is not None else None,
     )
     notices = NoticeWriter(args.notice_file)
