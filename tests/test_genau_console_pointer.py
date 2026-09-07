@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from player_core.timeline import TIMELINE_HEIGHT
 
-from genau.console_pointer import ConsolePointer
+from genau.console_pointer import OMNIPAUSE_TOGGLE, ConsolePointer
 from genau.volume_chip import VolumePress
 
 
@@ -52,6 +52,9 @@ class FakePanel:
 class FakeWindow:
     size = (800, 600)
 
+    def __init__(self, *, hud_active: bool = False):
+        self.hud_active = hud_active
+
 
 class FakeScrubber:
     """The clip's bar: across the window's lower edge while a clip is up."""
@@ -68,14 +71,16 @@ class FakeScrubber:
         return mx / win_w
 
 
-def _pointer(tmp_path, *, volume=None, pressed="", dragged="", clip=True):
+def _pointer(tmp_path, *, volume=None, pressed="", dragged="", clip=True,
+             hud_active=False):
     """The pointer over a fake chip, panel and bar, plus the order it asked them in."""
     asked: list[str] = []
     chip = FakeChip(asked, volume)
     panel = FakePanel(asked, pressed, dragged)
     scrubber = FakeScrubber(asked, showing=clip)
     seeks: list[float] = []
-    pointer = ConsolePointer(panel, chip, scrubber, window=FakeWindow(),
+    pointer = ConsolePointer(panel, chip, scrubber,
+                             window=FakeWindow(hud_active=hud_active),
                              dashboard_cmd_file=_posted(tmp_path), seek=seeks.append)
     pointer.seeks = seeks
     return pointer, chip, panel, asked
@@ -110,12 +115,32 @@ class TestWhichThingAPressLandsOn:
         assert asked == ["chip", "panel"]
         assert _lines(_posted(tmp_path)) == ["next"]
 
-    def test_a_press_on_neither_asks_for_nothing(self, tmp_path):
+    def test_a_press_on_neither_is_a_press_on_the_clip(self, tmp_path):
+        """Genau's clip is the main player here, and it has no pause of its own
+        to give -- the room's flag file owns its playback -- so a press that no
+        control took asks Fun Time to freeze the whole room."""
         pointer, _chip, _panel, _asked = _pointer(tmp_path)
 
         pointer.press(3, 4)
 
+        assert _lines(_posted(tmp_path)) == [OMNIPAUSE_TOGGLE]
+
+    def test_in_hud_mode_there_is_no_clip_under_the_press(self, tmp_path):
+        """This window is the see-through layer over Nau then: the picture's own
+        presses reach Nau through the color key and never arrive here, so what
+        does arrive landed on the HUD's opaque chrome and means nothing more."""
+        pointer, _chip, _panel, _asked = _pointer(tmp_path, hud_active=True)
+
+        pointer.press(3, 4)
+
         assert _lines(_posted(tmp_path)) == []
+
+    def test_a_button_the_panel_took_is_never_also_the_clip(self, tmp_path):
+        pointer, _chip, _panel, _asked = _pointer(tmp_path, pressed="main_next")
+
+        pointer.press(3, 4)
+
+        assert _lines(_posted(tmp_path)) == ["main_next"]
 
 
 class TestTheTwoStepsAVolumePressTakes:

@@ -24,15 +24,20 @@ from player_core.session_quit import quit_gesture
 class Dashboard:
     """Fun Time's command channel, as one of its windows asks on it."""
 
-    def __init__(self, cmd_file: Path) -> None:
+    def __init__(self, cmd_file: Path | None) -> None:
         self._cmd_file = cmd_file
 
     def post(self, command: str) -> None:
         """Ask Fun Time for *command*.
 
         Appended, because that file carries every mouse- and voice-driven writer
-        at once and the dispatch loop drains it a tick at a time.
+        at once and the dispatch loop drains it a tick at a time.  With no file
+        there is no Fun Time to ask — a player launched by hand, or by a test —
+        and the ask is dropped rather than raised into a run loop that has a
+        frame to draw, which is how :func:`quit_gesture` answers it too.
         """
+        if self._cmd_file is None:
+            return
         append_command(self._cmd_file, command)
 
     def take_quit_gesture(self) -> None:
