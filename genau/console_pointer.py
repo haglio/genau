@@ -8,6 +8,10 @@ other.
 Held together here rather than as four callbacks threaded from the composition
 root, because they are one device: what the press took hold of is what the drag
 goes on setting, and what letting go lets go of.
+
+It presses the panel and the chip themselves, not the window they are drawn in:
+the window has no say in where a press lands, and routing through it made the
+view a hit-test switchboard for two surfaces it only paints.
 """
 from __future__ import annotations
 
@@ -15,10 +19,16 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 
+from .console_panel import ConsolePanel
+from .volume_chip import VolumeChip
+
 
 class ConsolePointer:
-    def __init__(self, view, dashboard_cmd_file: Path):
-        self.view = view
+    def __init__(self, console: ConsolePanel, volume: VolumeChip, *,
+                 window, dashboard_cmd_file: Path):
+        self.console = console
+        self.volume = volume
+        self.window = window
         self.dashboard_cmd_file = dashboard_cmd_file
 
     def _post(self, command: str) -> None:
@@ -34,22 +44,23 @@ class ConsolePointer:
         The chip is tried first: it floats in its own corner, so a press on it is
         never also a press on the panel.
         """
-        volume = self.view.volume_press_at(mx, my)
-        if volume is not None:
+        win_w, win_h = self.window.size
+        press = self.volume.press_at(mx, my, win_w=win_w, win_h=win_h)
+        if press is not None:
             # Shown first, asked for second: the chip is following the pointer
             # and Fun Time's answer is a tick away.
-            self.view.set_volume(volume.level, volume.muted)
-            self._post(volume.command)
+            self.volume.show(press.level, press.muted)
+            self._post(press.command)
             return
-        self._post(self.view.console_press_at(mx, my))
+        self._post(self.console.press_at(mx, my))
 
     def drag(self, mx: int, my: int) -> None:
         """The pointer moving with the button down: a bar the press took hold of
         goes on being set, and says nothing while its level has not moved."""
-        self._post(self.view.console_drag_to(mx, my))
+        self._post(self.console.drag_to(mx, my))
 
     def release(self) -> None:
-        self.view.console_release()
+        self.console.release()
 
     def motion(self, mx: int, my: int) -> None:
-        self.view.set_console_hover(mx, my)
+        self.console.hover_at(mx, my)
