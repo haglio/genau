@@ -17,7 +17,7 @@ jobs:
   full-suite:
     uses: haglio/.github/.github/workflows/merge-gate.yml@main
     with:
-      siblings: "app_support player_core"
+      siblings: "app_support shared_ui player_core"
       python-version: "3.12"
       timeout-minutes: 12
       sdl-video: dummy
@@ -31,7 +31,7 @@ jobs:
     if: github.event_name == 'push'
     uses: haglio/.github/.github/workflows/merge-gate.yml@main
     with:
-      siblings: "app_support player_core"
+      siblings: "app_support shared_ui player_core"
       python-version: "3.14"
       timeout-minutes: 12
       sdl-video: dummy
