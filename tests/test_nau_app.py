@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from nau.cli import build_parser
+from nau.controls import apply_command
 from nau.status import status_fields
 
 
@@ -267,11 +268,11 @@ class Spy:
 
 
 class TestWhichCollaboratorEachVerbReaches:
-    """Thirteen callbacks are handed to the dispatcher by keyword, in fourteen
-    lines, and two of them swapped would be invisible: every verb would still
-    be answered, and the suite would stay green while PLAY_FULL_VID played a
-    clip jump.  The dispatcher's own tests pin the keyword-to-behavior half;
-    this pins the wiring-to-keyword half, which is the half nothing had.
+    """Eight collaborators are handed to the dispatcher as one record, and two
+    of them swapped would be invisible: every verb would still be answered, and
+    the suite would stay green while PLAY_FULL_VID played a clip jump.  The
+    dispatcher's own tests pin the keyword-to-behavior half; this pins the
+    wiring-to-keyword half, which is the half nothing had.
     """
 
     VERBS = [
@@ -289,10 +290,11 @@ class TestWhichCollaboratorEachVerbReaches:
         ("DISPLAY_ON", "display", "set_active"),
     ]
 
-    def _commands(self, log):
-        from nau.app import _commands
-        return _commands(
-            Spy("session", log), threading.Event(),
+    @staticmethod
+    def _wiring(log, stop_event=None):
+        from nau.app import _controls
+        return _controls(
+            Spy("session", log), stop_event or threading.Event(),
             modes=Spy("modes", log), jumps=Spy("jumps", log),
             funscript_jumps=Spy("funscript_jumps", log), volume=Spy("volume", log),
             display=Spy("display", log),
@@ -303,7 +305,7 @@ class TestWhichCollaboratorEachVerbReaches:
     def test_it_reaches_that_one_and_no_other(self, command, who, what):
         log: list = []
 
-        self._commands(log)(command)
+        apply_command(command, self._wiring(log))
 
         assert [(label, name) for label, name, *_ in log
                 if label != "session"] == [(who, what)]
@@ -311,12 +313,9 @@ class TestWhichCollaboratorEachVerbReaches:
     def test_quit_sets_the_stop_event_rather_than_asking_anyone(self):
         """The only verb that ends the loop itself; everything else in a
         session goes through the dashboard."""
-        from nau.app import _commands
         log: list = []
         stop_event = threading.Event()
-        _commands(Spy("session", log), stop_event, modes=Spy("modes", log),
-                  jumps=Spy("jumps", log), funscript_jumps=Spy("fj", log),
-                  volume=Spy("volume", log), display=Spy("display", log),
-                  take_up_playlist=lambda: None)("QUIT")
+
+        apply_command("QUIT", self._wiring(log, stop_event))
 
         assert stop_event.is_set()

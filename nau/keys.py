@@ -14,7 +14,7 @@ from functools import partial
 
 import pygame
 
-from .runtime import SEEK_STEP_MS
+from .controls import SEEK_STEP_MS
 
 
 class Keys:

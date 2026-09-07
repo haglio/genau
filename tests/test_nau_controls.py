@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from nau.runtime import SEEK_STEP_MS, SPEED_STEP, apply_command
+from nau.controls import SEEK_STEP_MS, SPEED_STEP, VERBS, NauControls, apply_command
 from nau.session import MAX_SPEED_RATE, MIN_SPEED_RATE
 
 
@@ -57,15 +57,69 @@ class SpySession:
         self.calls.append(("set_volume", volume))
 
 
-# The five verbs that leave the video for a different slice of the library, and
-# the callback each needs.  A build that did not wire one refuses that verb; the
-# pairing is what says a refused verb reached no neighbour either.
-_JUMP_VERBS = [
-    ("PLAY_COMPILATION", "play_compilation"),
-    ("PLAY_FULL_VID", "play_full_vid"),
-    ("PLAY_CLIP_JUMP", "play_clip_jump"),
-    ("JUMP_TO_FUNSCRIPT", "jump_to_funscript"),
-    ("NEXT_FUNSCRIPTED", "next_funscripted"),
+class SpyModes:
+    """Stands in for :class:`nau.modes.Modes` -- the length filter, the way out
+    of a compilation and Fun Time's own narrowing are one object in the app, so
+    they are one collaborator here."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def toggle_length(self) -> None:
+        self.calls.append(("toggle_length",))
+
+    def set_length(self, mode: str) -> None:
+        self.calls.append(("set_length", mode))
+
+    def end_compilation(self) -> None:
+        self.calls.append(("end_compilation",))
+
+    def set_f_mode(self, on: bool) -> None:
+        self.calls.append(("set_f_mode", on))
+
+
+class SpyJumps:
+    """Stands in for :class:`nau.clip_jumps.ClipJumps`."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def play_compilation(self) -> None:
+        self.calls.append(("play_compilation",))
+
+    def play_full_vid(self) -> None:
+        self.calls.append(("play_full_vid",))
+
+    def play_clip_jump(self) -> None:
+        self.calls.append(("play_clip_jump",))
+
+
+class SpyFunscriptJumps:
+    """Stands in for :class:`nau.funscript_jumps.FunscriptJumps`."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def jump_to_funscript(self) -> None:
+        self.calls.append(("jump_to_funscript",))
+
+    def next_funscripted(self) -> None:
+        self.calls.append(("next_funscripted",))
+
+# Every verb that reaches past the session, the collaborator it belongs to and
+# the method it calls there.  A build that did not wire that collaborator
+# refuses the verb; the triple is what says a refused verb reached no neighbour
+# either.
+_COLLABORATOR_VERBS = [
+    ("TOGGLE_LENGTH_MODE", "modes", "toggle_length"),
+    ("SET_LENGTH_MODE shorts", "modes", "set_length"),
+    ("END_COMPILATION", "modes", "end_compilation"),
+    ("SET_F_MODE 1", "modes", "set_f_mode"),
+    ("PLAY_COMPILATION", "jumps", "play_compilation"),
+    ("PLAY_FULL_VID", "jumps", "play_full_vid"),
+    ("PLAY_CLIP_JUMP", "jumps", "play_clip_jump"),
+    ("JUMP_TO_FUNSCRIPT", "funscript_jumps", "jump_to_funscript"),
+    ("NEXT_FUNSCRIPTED", "funscript_jumps", "next_funscripted"),
 ]
 
 
@@ -79,16 +133,16 @@ class TestAnUnhandledCommand:
     """
 
     def test_an_unknown_verb_is_named_on_the_log(self, caplog):
-        with caplog.at_level("WARNING", logger="nau.runtime"):
-            apply_command("CYCLE_PROJECTION", SpySession())
+        with caplog.at_level("WARNING", logger="nau.controls"):
+            apply_command("CYCLE_PROJECTION", NauControls(SpySession()))
 
         assert "CYCLE_PROJECTION" in caplog.text
 
     def test_a_verb_this_build_did_not_wire_is_named_too(self, caplog):
         """A collaborator the app left out is as unanswerable as a typo, and
         just as much worth seeing."""
-        with caplog.at_level("WARNING", logger="nau.runtime"):
-            apply_command("TOGGLE_LENGTH_MODE", SpySession())
+        with caplog.at_level("WARNING", logger="nau.controls"):
+            apply_command("TOGGLE_LENGTH_MODE", NauControls(SpySession()))
 
         assert "TOGGLE_LENGTH_MODE" in caplog.text
 
@@ -96,14 +150,14 @@ class TestAnUnhandledCommand:
         """RELOAD_PLAYLIST answered "handled" with its callback absent while
         the other eleven collaborator verbs answer False and get named here
         (bug 65)."""
-        with caplog.at_level("WARNING", logger="nau.runtime"):
-            apply_command("RELOAD_PLAYLIST", SpySession())
+        with caplog.at_level("WARNING", logger="nau.controls"):
+            apply_command("RELOAD_PLAYLIST", NauControls(SpySession()))
 
         assert "RELOAD_PLAYLIST" in caplog.text
 
     def test_a_verb_it_acts_on_says_nothing(self, caplog):
-        with caplog.at_level("WARNING", logger="nau.runtime"):
-            apply_command("NEXT", SpySession())
+        with caplog.at_level("WARNING", logger="nau.controls"):
+            apply_command("NEXT", NauControls(SpySession()))
 
         assert caplog.records == []
 
@@ -117,29 +171,29 @@ class TestApplyCommand:
         There has never been one: an unknown or malformed verb is dropped in
         silence either way.
         """
-        assert apply_command("NEXT", SpySession()) is None
-        assert apply_command("NOT_A_VERB", SpySession()) is None
+        assert apply_command("NEXT", NauControls(SpySession())) is None
+        assert apply_command("NOT_A_VERB", NauControls(SpySession())) is None
 
     def test_next_and_prev_step(self):
         session = SpySession()
 
-        apply_command("NEXT", session)
-        apply_command("PREV", session)
+        apply_command("NEXT", NauControls(session))
+        apply_command("PREV", NauControls(session))
 
         assert session.calls == [("step", 1), ("step", -1)]
 
     def test_keyword_is_case_insensitive(self):
         session = SpySession()
 
-        apply_command("next", session)
+        apply_command("next", NauControls(session))
 
         assert session.calls == [("step", 1)]
 
     def test_seek_commands(self):
         session = SpySession()
 
-        apply_command("SEEK_FWD", session)
-        apply_command("SEEK_BACK", session)
+        apply_command("SEEK_FWD", NauControls(session))
+        apply_command("SEEK_BACK", NauControls(session))
 
         assert session.calls == [
             ("seek_by", SEEK_STEP_MS), ("seek_by", -SEEK_STEP_MS),
@@ -148,8 +202,8 @@ class TestApplyCommand:
     def test_speed_commands(self):
         session = SpySession()
 
-        apply_command("SPEED_UP", session)
-        apply_command("SPEED_DOWN", session)
+        apply_command("SPEED_UP", NauControls(session))
+        apply_command("SPEED_DOWN", NauControls(session))
 
         assert session.calls == [
             ("adjust_speed", SPEED_STEP), ("adjust_speed", -SPEED_STEP),
@@ -158,9 +212,9 @@ class TestApplyCommand:
     def test_set_speed_absolute_and_extremes(self):
         session = SpySession()
 
-        apply_command("SET_SPEED min", session)
-        apply_command("SET_SPEED max", session)
-        apply_command("SET_SPEED 1.5", session)
+        apply_command("SET_SPEED min", NauControls(session))
+        apply_command("SET_SPEED max", NauControls(session))
+        apply_command("SET_SPEED 1.5", NauControls(session))
 
         assert session.calls == [
             ("set_speed", MIN_SPEED_RATE),
@@ -171,23 +225,27 @@ class TestApplyCommand:
     def test_a_set_speed_it_cannot_read_leaves_the_rate_alone(self):
         session = SpySession()
 
-        apply_command("SET_SPEED", session)
-        apply_command("SET_SPEED fast", session)
+        apply_command("SET_SPEED", NauControls(session))
+        apply_command("SET_SPEED fast", NauControls(session))
 
         assert session.calls == []
 
-    def test_set_volume_absolute(self):
+    def test_a_set_volume_it_cannot_read_leaves_the_level_alone(self):
+        session = SpySession()
+        shown = []
+
+        apply_command(
+            "SET_VOLUME loud", NauControls(session, set_volume_hud=lambda *a: shown.append(a)))
+
+        assert (session.calls, shown) == ([], [])
+
+    def test_a_build_with_nowhere_to_draw_the_level_refuses_it(self):
+        """The level and the chip are one control: a player told what the sound
+        is doing and unable to show it would move a slider nobody can see."""
         session = SpySession()
 
-        apply_command("SET_VOLUME 40", session)
+        apply_command("SET_VOLUME 40", NauControls(session))
 
-        assert session.calls == [("set_volume", 40)]
-
-    def test_set_volume_without_or_invalid_argument_returns_false(self):
-        session = SpySession()
-
-        apply_command("SET_VOLUME", session) is False
-        apply_command("SET_VOLUME loud", session) is False
         assert session.calls == []
 
     def test_set_volume_takes_the_mute_as_a_fact_of_its_own(self):
@@ -198,7 +256,7 @@ class TestApplyCommand:
         session = SpySession()
         shown = []
 
-        apply_command("SET_VOLUME 70 1", session, set_volume_hud=lambda *a: shown.append(a))
+        apply_command("SET_VOLUME 70 1", NauControls(session, set_volume_hud=lambda *a: shown.append(a)))
 
         assert session.calls == [("set_volume", 0)], "muted plays silent"
         assert shown == [(70, True)], "…but the control still shows where it was set"
@@ -207,7 +265,7 @@ class TestApplyCommand:
         session = SpySession()
         shown = []
 
-        apply_command("SET_VOLUME 70 0", session, set_volume_hud=lambda *a: shown.append(a))
+        apply_command("SET_VOLUME 70 0", NauControls(session, set_volume_hud=lambda *a: shown.append(a)))
 
         assert session.calls == [("set_volume", 70)]
         assert shown == [(70, False)]
@@ -218,7 +276,7 @@ class TestApplyCommand:
         session = SpySession()
         shown = []
 
-        apply_command("SET_VOLUME 40", session, set_volume_hud=lambda *a: shown.append(a))
+        apply_command("SET_VOLUME 40", NauControls(session, set_volume_hud=lambda *a: shown.append(a)))
 
         assert session.calls == [("set_volume", 40)]
         assert shown == [(40, False)]
@@ -226,9 +284,9 @@ class TestApplyCommand:
     def test_record_commands(self):
         session = SpySession()
 
-        apply_command("RECORD_DOWN", session)
-        apply_command("RECORD_UP", session)
-        apply_command("LOOP_CANCEL", session)
+        apply_command("RECORD_DOWN", NauControls(session))
+        apply_command("RECORD_UP", NauControls(session))
+        apply_command("LOOP_CANCEL", NauControls(session))
 
         assert session.calls == [("record_down",), ("record_up",), ("loop_cancel",)]
 
@@ -239,16 +297,16 @@ class TestApplyCommand:
         the playhead happens to be."""
         session = SpySession()
 
-        apply_command("SET_LOOP 2000 4000", session)
+        apply_command("SET_LOOP 2000 4000", NauControls(session))
 
         assert session.calls == [("restore_loop", 2000, 4000)]
 
     def test_a_set_loop_range_it_cannot_read_leaves_the_player_alone(self):
         session = SpySession()
 
-        apply_command("SET_LOOP", session)
-        apply_command("SET_LOOP 2000", session)
-        apply_command("SET_LOOP 2000 later", session)
+        apply_command("SET_LOOP", NauControls(session))
+        apply_command("SET_LOOP 2000", NauControls(session))
+        apply_command("SET_LOOP 2000 later", NauControls(session))
 
         assert session.calls == []
 
@@ -257,9 +315,9 @@ class TestApplyCommand:
         spoken forms, which name the state they want."""
         session = SpySession()
 
-        apply_command("TOGGLE_LOCK", session)
-        apply_command("LOCK_ON", session)
-        apply_command("LOCK_OFF", session)
+        apply_command("TOGGLE_LOCK", NauControls(session))
+        apply_command("LOCK_ON", NauControls(session))
+        apply_command("LOCK_OFF", NauControls(session))
 
         assert session.calls == [
             ("toggle_lock",), ("set_locked", True), ("set_locked", False),
@@ -267,24 +325,21 @@ class TestApplyCommand:
 
     def test_record_tap_cycles_by_state(self):
         normal = SpySession(loop_state="normal")
-        apply_command("RECORD_TAP", normal)
+        apply_command("RECORD_TAP", NauControls(normal))
         assert normal.calls == [("record_down",)]
 
         recording = SpySession(loop_state="recording")
-        apply_command("RECORD_TAP", recording)
+        apply_command("RECORD_TAP", NauControls(recording))
         assert recording.calls == [("record_up",)]
 
         looping = SpySession(loop_state="looping")
-        apply_command("RECORD_TAP", looping)
+        apply_command("RECORD_TAP", NauControls(looping))
         assert looping.calls == [("loop_cancel",)]
 
     def test_play_file_with_funscript(self):
         session = SpySession()
 
-        apply_command(
-            "PLAY_FILE C:/Videos/My Clip.mp4\tC:/Scripts/My Clip.funscript",
-            session,
-        )
+        apply_command("PLAY_FILE C:/Videos/My Clip.mp4\tC:/Scripts/My Clip.funscript", NauControls(session))
 
         assert session.calls == [(
             "play_file",
@@ -295,198 +350,137 @@ class TestApplyCommand:
     def test_play_file_without_funscript(self):
         session = SpySession()
 
-        apply_command("PLAY_FILE C:/Videos/My Clip.mp4", session)
+        apply_command("PLAY_FILE C:/Videos/My Clip.mp4", NauControls(session))
 
         assert session.calls == [("play_file", Path("C:/Videos/My Clip.mp4"), None)]
 
     def test_cycle_version(self):
         session = SpySession()
 
-        apply_command("CYCLE_VERSION", session)
+        apply_command("CYCLE_VERSION", NauControls(session))
 
         assert session.calls == [("cycle_version",)]
 
     def test_set_tcode_enabled_zero_disables(self):
         session = SpySession()
 
-        apply_command("SET_TCODE_ENABLED 0", session)
+        apply_command("SET_TCODE_ENABLED 0", NauControls(session))
 
         assert session.calls == [("set_tcode_enabled", False)]
 
     def test_set_tcode_enabled_one_enables(self):
         session = SpySession()
 
-        apply_command("SET_TCODE_ENABLED 1", session)
+        apply_command("SET_TCODE_ENABLED 1", NauControls(session))
 
         assert session.calls == [("set_tcode_enabled", True)]
 
     def test_set_tcode_enabled_without_an_argument_leaves_the_driver_alone(self):
         session = SpySession()
 
-        apply_command("SET_TCODE_ENABLED", session)
+        apply_command("SET_TCODE_ENABLED", NauControls(session))
 
         assert session.calls == []
 
-    def test_reload_playlist_invokes_callback(self):
+    def test_reload_playlist_asks_for_the_playlist_again(self):
+        """Fun Time owns the playlist file and rewrites it whenever the room's
+        selection changes; this is how it says so."""
         session = SpySession()
         reloaded = []
 
-        apply_command("RELOAD_PLAYLIST", session, reload_playlist=lambda: reloaded.append(1))
+        apply_command(
+            "RELOAD_PLAYLIST", NauControls(session, reload_playlist=lambda: reloaded.append(1)))
 
         assert reloaded == [1]
         assert session.calls == []
 
-    def test_toggle_length_mode_invokes_callback(self):
+    def test_the_length_filter_is_toggled_and_named(self):
         session = SpySession()
-        toggled = []
+        modes = SpyModes()
 
-        apply_command(
-            "TOGGLE_LENGTH_MODE", session,
-            toggle_length_mode=lambda: toggled.append(1),
-        )
+        apply_command("TOGGLE_LENGTH_MODE", NauControls(session, modes=modes))
+        apply_command("SET_LENGTH_MODE shorts", NauControls(session, modes=modes))
 
-        assert toggled == [1]
+        assert modes.calls == [("toggle_length",), ("set_length", "shorts")]
         assert session.calls == []
 
-    def test_toggle_length_mode_without_its_callback_does_nothing(self):
-        session = SpySession()
-
-        apply_command("TOGGLE_LENGTH_MODE", session)
-
-        assert session.calls == []
-
-    def test_set_length_mode_invokes_callback_with_mode(self):
-        session = SpySession()
-        modes = []
-
-        apply_command(
-            "SET_LENGTH_MODE shorts", session,
-            set_length_mode=modes.append,
-        )
-
-        assert modes == ["shorts"]
-        assert session.calls == []
-
-    def test_set_length_mode_without_its_callback_does_nothing(self):
-        session = SpySession()
-
-        apply_command("SET_LENGTH_MODE shorts", session)
-
-        assert session.calls == []
-
-    def test_set_length_mode_without_an_argument_does_not_call_back(self):
-        modes: list[str] = []
-
-        apply_command("SET_LENGTH_MODE", SpySession(), set_length_mode=modes.append)
-
-        assert modes == []
-
-    def test_play_compilation_invokes_callback(self):
-        """The three ways into a different slice of the library, each its own
-        verb because each answers a different question: everything this video
-        was carved from, the whole thing it was carved out of, and one scene
-        from somewhere else."""
-        session = SpySession()
-        calls = []
-
-        apply_command("PLAY_COMPILATION", session, play_compilation=lambda: calls.append(1))
-
-        assert calls == [1]
-        assert session.calls == []
-
-    def test_play_full_vid_invokes_callback(self):
-        session = SpySession()
-        calls = []
-
-        apply_command("PLAY_FULL_VID", session, play_full_vid=lambda: calls.append(1))
-
-        assert calls == [1]
-        assert session.calls == []
-
-    def test_play_clip_jump_invokes_callback(self):
-        session = SpySession()
-        calls = []
-
-        apply_command("PLAY_CLIP_JUMP", session, play_clip_jump=lambda: calls.append(1))
-
-        assert calls == [1]
-        assert session.calls == []
-
-    def test_jump_to_funscript_invokes_callback(self):
-        session = SpySession()
-        calls = []
-
-        apply_command(
-            "JUMP_TO_FUNSCRIPT", session, jump_to_funscript=lambda: calls.append(1))
-
-        assert calls == [1]
-        assert session.calls == []
-
-    def test_next_funscripted_invokes_callback(self):
-        session = SpySession()
-        calls = []
-
-        apply_command("NEXT_FUNSCRIPTED", session, next_funscripted=lambda: calls.append(1))
-
-        assert calls == [1]
-        assert session.calls == []
-
-    @pytest.mark.parametrize("verb, kwarg", _JUMP_VERBS)
-    def test_a_jump_without_its_own_callback_reaches_no_other(self, verb, kwarg):
-        """Fun Time sends these whether or not this build wired the callback.
-
-        Every other callback is wired here, so a verb that fell through to a
-        neighbor would show up rather than reading as a quiet no-op.
-        """
-        calls: list[str] = []
-        wired = {
-            other: (lambda name=other: calls.append(name))
-            for _v, other in _JUMP_VERBS if other != kwarg
-        }
-
-        apply_command(verb, SpySession(), **wired)
-
-        assert calls == []
-
-    def test_end_compilation_invokes_callback(self):
+    def test_end_compilation_goes_back_to_the_mode_that_was_running(self):
         """Leaving a compilation without having to name a length: the mode you
         were in before you entered is the one you go back to."""
         session = SpySession()
-        calls = []
+        modes = SpyModes()
 
-        apply_command("END_COMPILATION", session, end_compilation=lambda: calls.append(1))
+        apply_command("END_COMPILATION", NauControls(session, modes=modes))
 
-        assert calls == [1]
+        assert modes.calls == [("end_compilation",)]
         assert session.calls == []
 
-    def test_end_compilation_without_its_callback_does_nothing(self):
-        session = SpySession()
-
-        apply_command("END_COMPILATION", session)
-
-        assert session.calls == []
-
-    def test_set_f_mode_invokes_callback(self):
+    def test_set_f_mode_says_the_flag_outright(self):
         """F-mode is Fun Time's flag; all Nau ever sees of it is a pre-narrowed
         playlist, which looks like any other.  So the orchestrator has to say it
         outright for the HUD to be able to."""
         session = SpySession()
-        states = []
+        modes = SpyModes()
 
-        apply_command("SET_F_MODE 1", session, set_f_mode=states.append)
-        apply_command("SET_F_MODE 0", session, set_f_mode=states.append)
+        apply_command("SET_F_MODE 1", NauControls(session, modes=modes))
+        apply_command("SET_F_MODE 0", NauControls(session, modes=modes))
 
-        assert states == [True, False]
+        assert modes.calls == [("set_f_mode", True), ("set_f_mode", False)]
         assert session.calls == []
 
-    def test_set_f_mode_without_its_callback_or_its_argument_does_nothing(self):
+    def test_the_three_ways_into_another_slice_of_the_library(self):
+        """Each its own verb because each answers a different question:
+        everything this video was carved from, the whole thing it was carved out
+        of, and one scene from somewhere else."""
         session = SpySession()
-        flags: list[bool] = []
+        jumps = SpyJumps()
 
-        apply_command("SET_F_MODE 1", session)
-        apply_command("SET_F_MODE", session, set_f_mode=flags.append)
+        for verb in ("PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP"):
+            apply_command(verb, NauControls(session, jumps=jumps))
 
-        assert (session.calls, flags) == ([], [])
+        assert jumps.calls == [
+            ("play_compilation",), ("play_full_vid",), ("play_clip_jump",)]
+        assert session.calls == []
+
+    def test_the_funscripts_own_two_moves(self):
+        """Past this video's quiet stretch, or on to a video that has scripting
+        at all."""
+        session = SpySession()
+        funscript_jumps = SpyFunscriptJumps()
+
+        apply_command(
+            "JUMP_TO_FUNSCRIPT", NauControls(session, funscript_jumps=funscript_jumps))
+        apply_command(
+            "NEXT_FUNSCRIPTED", NauControls(session, funscript_jumps=funscript_jumps))
+
+        assert funscript_jumps.calls == [
+            ("jump_to_funscript",), ("next_funscripted",)]
+        assert session.calls == []
+
+    @pytest.mark.parametrize("verb, collaborator, method", _COLLABORATOR_VERBS)
+    def test_a_verb_reaches_that_collaborator_and_no_other(
+            self, verb, collaborator, method):
+        """A verb that fell through to a neighbor would show up as the wrong
+        label rather than reading as a quiet no-op: all three collaborators are
+        wired, so only the one named may hear anything."""
+        session = SpySession()
+        wired = {"modes": SpyModes(), "jumps": SpyJumps(),
+                 "funscript_jumps": SpyFunscriptJumps()}
+
+        apply_command(verb, NauControls(session, **wired))
+
+        heard = [(name, call[0]) for name, spy in wired.items() for call in spy.calls]
+        assert heard == [(collaborator, method)]
+        assert session.calls == []
+
+    @pytest.mark.parametrize(
+        "verb", [v for v, _c, _m in _COLLABORATOR_VERBS] + ["RELOAD_PLAYLIST"])
+    def test_a_verb_this_build_did_not_wire_touches_nothing(self, verb):
+        session = SpySession()
+
+        apply_command(verb, NauControls(session))
+
+        assert session.calls == []
 
     def test_display_verbs_invoke_callback(self):
         """Whether Nau owns the main slot's rect is Fun Time's to say: in genau mode
@@ -496,8 +490,8 @@ class TestApplyCommand:
         session = SpySession()
         states = []
 
-        apply_command("DISPLAY_OFF", session, set_display=states.append)
-        apply_command("DISPLAY_ON", session, set_display=states.append)
+        apply_command("DISPLAY_OFF", NauControls(session, set_display=states.append))
+        apply_command("DISPLAY_ON", NauControls(session, set_display=states.append))
 
         assert states == [False, True]
         assert session.calls == [], "the display is not playback"
@@ -505,8 +499,8 @@ class TestApplyCommand:
     def test_display_verbs_without_their_callback_do_nothing(self):
         session = SpySession()
 
-        apply_command("DISPLAY_OFF", session)
-        apply_command("DISPLAY_ON", session)
+        apply_command("DISPLAY_OFF", NauControls(session))
+        apply_command("DISPLAY_ON", NauControls(session))
 
         assert session.calls == []
 
@@ -514,15 +508,15 @@ class TestApplyCommand:
         session = SpySession()
         stop = threading.Event()
 
-        apply_command("QUIT", session, stop_event=stop)
+        apply_command("QUIT", NauControls(session, stop_event=stop))
 
         assert stop.is_set()
 
     def test_an_unknown_command_touches_nothing(self):
         session = SpySession()
 
-        apply_command("FROBNICATE", session)
-        apply_command("", session)
+        apply_command("FROBNICATE", NauControls(session))
+        apply_command("", NauControls(session))
 
         assert session.calls == []
 
@@ -549,17 +543,23 @@ ACCEPTED_COMMANDS = [
     "QUIT",
 ]
 
-# The thirteen collaborators a fully wired player hands the dispatcher.
-COLLABORATORS = (
-    "reload_playlist", "toggle_length_mode", "set_length_mode", "play_compilation",
-    "play_full_vid", "play_clip_jump", "jump_to_funscript", "next_funscripted",
-    "end_compilation", "set_f_mode", "set_volume_hud", "set_display",
-)
+def _fully_wired() -> NauControls:
+    """Everything a player launched by Fun Time hands the dispatcher.
 
-
-def _fully_wired() -> dict:
-    return {name: (lambda *_args, **_kw: None) for name in COLLABORATORS} | {
-        "stop_event": threading.Event()}
+    Every verb in the contract below is refused by a build missing what it
+    needs, so the snapshot only says anything about the spellings when nothing
+    is missing.
+    """
+    return NauControls(
+        SpySession(),
+        stop_event=threading.Event(),
+        reload_playlist=lambda: None,
+        modes=SpyModes(),
+        jumps=SpyJumps(),
+        funscript_jumps=SpyFunscriptJumps(),
+        set_volume_hud=lambda *_args: None,
+        set_display=lambda *_args: None,
+    )
 
 
 class TestTheVerbsFunTimeCanSend:
@@ -572,8 +572,8 @@ class TestTheVerbsFunTimeCanSend:
 
     @pytest.mark.parametrize("command", ACCEPTED_COMMANDS)
     def test_it_is_answered_rather_than_logged_as_unknown(self, command, caplog):
-        with caplog.at_level("WARNING", logger="nau.runtime"):
-            apply_command(command, SpySession(), **_fully_wired())
+        with caplog.at_level("WARNING", logger="nau.controls"):
+            apply_command(command, _fully_wired())
 
         assert caplog.records == []
 
@@ -588,8 +588,8 @@ class TestTheVerbsFunTimeCanSend:
         half of the family already refuses both directions
         (``player_core.control_registry.act``); this is Nau agreeing.
         """
-        with caplog.at_level("WARNING", logger="nau.runtime"):
-            apply_command(command, SpySession(), **_fully_wired())
+        with caplog.at_level("WARNING", logger="nau.controls"):
+            apply_command(command, _fully_wired())
 
         assert command.split()[0] in caplog.text
 
@@ -598,15 +598,22 @@ class TestTheVerbsFunTimeCanSend:
         ["SET_SPEED", "SET_VOLUME", "SET_LOOP", "PLAY_FILE",
          "SET_LENGTH_MODE", "SET_TCODE_ENABLED", "SET_F_MODE"])
     def test_a_verb_that_wants_a_value_is_refused_without_one(self, command, caplog):
-        with caplog.at_level("WARNING", logger="nau.runtime"):
-            apply_command(command, SpySession(), **_fully_wired())
+        with caplog.at_level("WARNING", logger="nau.controls"):
+            apply_command(command, _fully_wired())
 
         assert command in caplog.text
+
+    def test_the_registry_declares_exactly_these_verbs_and_no_others(self):
+        """The other leg, and the one the list above cannot walk on its own: a
+        verb *added* to the registry without a line here would be a control Nau
+        answers that Fun Time has never been told about, and every case above
+        would still pass."""
+        assert set(VERBS) == {line.split()[0] for line in ACCEPTED_COMMANDS}
 
     def test_a_word_it_does_not_know_is_named_on_the_log(self, caplog):
         """The control probe: without it, a dispatcher that answered everything
         would pass every case above."""
-        with caplog.at_level("WARNING", logger="nau.runtime"):
-            apply_command("FROBNICATE", SpySession(), **_fully_wired())
+        with caplog.at_level("WARNING", logger="nau.controls"):
+            apply_command("FROBNICATE", _fully_wired())
 
         assert "FROBNICATE" in caplog.text
