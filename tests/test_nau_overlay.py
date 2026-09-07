@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import numpy as np
 from player_core.funscript import Funscript
+from player_core.timeline import BAR_INSET_Y, bar_track_x
 
 from nau.heatmap import build_heatmap
 from nau.overlay import (
     TIMELINE_HEIGHT,
     HeatmapStrip,
+    LoopThumbCapture,
     ZoomWindow,
+    heatmap_bgra,
+    label_xs,
+    loop_thumbnail_xys,
     time_to_x,
     timeline_height,
 )
@@ -211,9 +216,7 @@ class TestHeatmapBgra:
     def _framed_strip(self, win_w=200):
         # Production builds the color row at the inset track width, then frames
         # it to full window width.
-        from player_core.timeline import bar_track_x
 
-        from nau.overlay import heatmap_bgra
         x0, x1 = bar_track_x(win_w)
         strip = HeatmapStrip()
         strip.update("v.mp4", _funscript(), 4000.0, width=x1 - x0)  # window 0..4000
@@ -226,10 +229,9 @@ class TestHeatmapBgra:
         assert bgra[my, (x0 + x1) // 2, 3] > 0                 # painted in the track
 
     def test_has_a_two_tone_border(self):
-        from player_core.timeline import BAR_INSET_Y as _BAR_INSET_Y
         bgra, x0, x1 = self._framed_strip()
-        outer = _rgba(bgra, _BAR_INSET_Y, x0 + 10)      # dark outer edge (away from marks)
-        inner = _rgba(bgra, _BAR_INSET_Y + 1, x0 + 10)  # light inner border
+        outer = _rgba(bgra, BAR_INSET_Y, x0 + 10)      # dark outer edge (away from marks)
+        inner = _rgba(bgra, BAR_INSET_Y + 1, x0 + 10)  # light inner border
         assert max(outer[:3]) < 100
         assert min(inner[:3]) >= 200 and inner[3] >= 200
 
@@ -244,7 +246,6 @@ class TestHeatmapBgra:
         assert amber and any(x < cx for x in amber) and any(x > cx for x in amber)
 
     def test_unscripted_strip_is_none(self):
-        from nau.overlay import heatmap_bgra
         strip = HeatmapStrip()
         strip.update("plain.mp4", None, 4000.0, width=100)
         assert heatmap_bgra(strip, 0, None, 100) is None
@@ -252,7 +253,6 @@ class TestHeatmapBgra:
 
 class TestLoopThumbCapture:
     def test_asks_for_in_first_then_out_near_end(self):
-        from nau.overlay import LoopThumbCapture
         cap = LoopThumbCapture()
 
         assert cap.needed("looping", (2000, 4000), 2000) == "in"
@@ -263,7 +263,6 @@ class TestLoopThumbCapture:
         assert cap.needed("looping", (2000, 4000), 3900) is None
 
     def test_clears_when_loop_ends(self):
-        from nau.overlay import LoopThumbCapture
         cap = LoopThumbCapture()
         cap.needed("looping", (2000, 4000), 2000)
         cap.set("in", object())
@@ -272,7 +271,6 @@ class TestLoopThumbCapture:
         assert cap.in_thumb is None
 
     def test_reset_thumbs_on_new_loop_bounds(self):
-        from nau.overlay import LoopThumbCapture
         cap = LoopThumbCapture()
         cap.needed("looping", (2000, 4000), 2000)
         cap.set("in", object())
@@ -298,7 +296,6 @@ class TestWhereTheLoopsTwoFramesGo:
     FRAME_H, FRAME_W = 10, 20
 
     def _thumbs(self, *, out=True):
-        from nau.overlay import LoopThumbCapture
         thumbs = LoopThumbCapture()
         thumbs.set("in", np.zeros((self.FRAME_H, self.FRAME_W, 4), dtype=np.uint8))
         if out:
@@ -306,7 +303,6 @@ class TestWhereTheLoopsTwoFramesGo:
         return thumbs
 
     def _xys(self, heatmap, thumbs, bounds):
-        from nau.overlay import loop_thumbnail_xys
         return loop_thumbnail_xys(heatmap, thumbs, bounds, track=self.TRACK,
                                   win_w=self.WIN_W, win_h=self.WIN_H)
 
@@ -342,9 +338,8 @@ class TestWhereTheLoopsTwoFramesGo:
         assert out_x >= in_x + self.FRAME_W
 
 
-class TestLabelXsReadded:
+class TestWhereTheLoopsTwoLabelsGo:
     def test_centers_and_avoids_overlap(self):
-        from nau.overlay import label_xs
         assert label_xs(100, 500, 60, 60, 1000) == (70, 470)
         ix, ox = label_xs(100, 120, 60, 60, 1000)  # markers close
         assert ox >= ix + 60

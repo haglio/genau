@@ -3,8 +3,11 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
+import pytest
+
 from nau.library import (
     EXCERPT,
+    FULL,
     FULL_LENGTH,
     MIXED,
     SHORT_MAX_S,
@@ -375,15 +378,10 @@ class TestEveryVideoIsServed:
         F-mode. A scripted_only flag threaded through four signatures drove a
         real filter that no production path ever turned on, and its own two
         docstrings disagreed about what it meant."""
-        import pytest
-
-        from nau.library import FULL, select_library
-
         with pytest.raises(TypeError):
             select_library([], mode=FULL, durations={}, genau_clips=[], scripted_only=True)
 
     def test_an_unscripted_video_is_kept(self):
-        from nau.library import FULL, select_library
         unscripted = _entry("Eff-1080p.mp4", size=900)
 
         kept = select_library(
