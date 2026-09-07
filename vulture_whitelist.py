@@ -1,4 +1,5 @@
 """Vulture whitelist — false positives consumed by frameworks/APIs."""
+from __future__ import annotations
 
 # SDL2 Renderer.draw_color is a property set dynamically for HUD mode
 # (pygame_view.py: _present_scene), and Window.position is the property the
