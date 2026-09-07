@@ -15,21 +15,27 @@ view a hit-test switchboard for two surfaces it only paints.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from player_core.file_channel import append_command
 
+from .clip_scrubber import ClipScrubber
 from .console_panel import ConsolePanel
 from .volume_chip import VolumeChip
 
 
 class ConsolePointer:
-    def __init__(self, console: ConsolePanel, volume: VolumeChip, *,
-                 window, dashboard_cmd_file: Path):
+    def __init__(self, console: ConsolePanel, volume: VolumeChip,
+                 scrubber: ClipScrubber, *,
+                 window, dashboard_cmd_file: Path, seek: Callable[[float], None]):
         self.console = console
         self.volume = volume
+        self.scrubber = scrubber
         self.window = window
         self.dashboard_cmd_file = dashboard_cmd_file
+        self.seek = seek
+        self._seeking = False
 
     def _post(self, command: str) -> None:
         """Ask Fun Time for what the console just said."""
@@ -52,14 +58,23 @@ class ConsolePointer:
             self.volume.show(press.level, press.muted)
             self._post(press.command)
             return
+        if self.scrubber.takes(my, win_h=win_h):
+            self._seeking = True
+            self.seek(self.scrubber.fraction_at(mx, win_w=win_w))
+            return
         self._post(self.console.press_at(mx, my))
 
     def drag(self, mx: int, my: int) -> None:
         """The pointer moving with the button down: a bar the press took hold of
-        goes on being set, and says nothing while its level has not moved."""
+        goes on being set, and says nothing while its level has not moved.  The
+        clip's own bar goes on seeking, wherever the pointer has got to."""
+        if self._seeking:
+            self.seek(self.scrubber.fraction_at(mx, win_w=self.window.size[0]))
+            return
         self._post(self.console.drag_to(mx, my))
 
     def release(self) -> None:
+        self._seeking = False
         self.console.release()
 
     def motion(self, mx: int, my: int) -> None:

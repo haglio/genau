@@ -400,8 +400,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         on_toggle_playing=lambda: toggle_playing(drive.robot_hand),
         on_pause_playing=lambda: pause_playing(drive.robot_hand),
         console_pointer=ConsolePointer(
-            console_panel, volume_chip,
-            window=view.window, dashboard_cmd_file=dashboard_cmd_file),
+            console_panel, volume_chip, clip_scrubber,
+            window=view.window, dashboard_cmd_file=dashboard_cmd_file,
+            seek=refresh_controller.seek_the_clip),
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
