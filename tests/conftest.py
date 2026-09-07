@@ -94,6 +94,16 @@ TMP_ROOT = Path(
 
 @pytest.fixture
 def tmp_path() -> Path:
+    """pytest's own, rooted in this repo rather than under the system temp dir.
+
+    Shadowing the builtin has costs worth knowing before anyone leans on the
+    builtin's behaviour: `--basetemp` does nothing, and pytest's
+    keep-the-last-three-runs retention is gone, so a failed test's files are
+    removed before anyone can look at them.  `GENAU_PYTEST_TMP_ROOT` is how a
+    run puts the root somewhere else; `.tmp-pytest-local/` and `.coverage` are
+    both in `.gitignore`, so a run killed part-way cannot leave the untracked
+    file that would stop the next merge.
+    """
     TMP_ROOT.mkdir(parents=True, exist_ok=True)
     path = (TMP_ROOT / f"case_{uuid.uuid4().hex}").resolve()
     path.mkdir()

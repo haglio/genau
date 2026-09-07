@@ -106,3 +106,53 @@ def test_genau_draws_the_console_and_the_volume_when_it_owns_the_screen(mock_pyg
 
     view._draw_console.assert_called_once()
     view._draw_volume.assert_called_once()
+
+
+class TestTheLoadingLine:
+    """`genau/tests/009`: deleting the two lines that draw it left every view
+    test green, because they asserted that private methods had been called
+    after monkeypatching those very methods onto the instance.  These ask the
+    renderer what came out instead.
+    """
+
+    @staticmethod
+    def _drawn(view, mock_pygame) -> bool:
+        import genau.pygame_view as pv
+
+        # The one thing the fake pygame cannot answer for itself: a rendered
+        # line has a size, and the overlay lays itself out from it.
+        mock_pygame.font.SysFont.return_value.render.return_value.get_size.return_value = (
+            120, 20)
+        pv.Texture.from_surface.reset_mock()
+        view._present_scene()
+        return pv.Texture.from_surface.return_value.draw.called
+
+    def test_it_goes_over_the_clip_while_there_is_one_to_say(self, mock_pygame):
+        view = _view(width=800, height=600)
+        view.window.window.size = (800, 600)
+        view._current_texture = MagicMock()
+
+        view.set_loading_text("Reading the library")
+
+        assert self._drawn(view, mock_pygame)
+
+    def test_nothing_is_drawn_once_it_is_cleared(self, mock_pygame):
+        view = _view(width=800, height=600)
+        view.window.window.size = (800, 600)
+        view._current_texture = MagicMock()
+        view.set_loading_text("Reading the library")
+
+        view.set_loading_text(None)
+
+        assert not self._drawn(view, mock_pygame)
+
+    def test_the_hud_layer_never_carries_it(self, mock_pygame):
+        """HUD mode is video mode: this window is a see-through layer over
+        Nau's, and a line drawn here would float over Nau's video."""
+        view = _view(width=800, height=600)
+        view.window.window.size = (800, 600)
+        view._current_texture = MagicMock()
+        view.set_loading_text("Reading the library")
+        view.window.hud_active = True
+
+        assert not self._drawn(view, mock_pygame)

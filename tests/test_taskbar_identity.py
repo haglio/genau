@@ -75,5 +75,7 @@ class TestNauTakesTheIdentityItIsGiven:
         """An icon is not worth failing to open a window over."""
         set_aumid = _nau()
 
-        with patch("nau.app.set_app_user_model_id", side_effect=OSError):
+        with patch("nau.app.set_app_user_model_id", side_effect=OSError) as claim:
             set_aumid("Example.App")
+
+        claim.assert_called_once_with("Example.App"), "it did ask, and swallowed the no"

@@ -65,27 +65,23 @@ class TestLoadConfig:
         cfg = load_config(cfg_path)
         assert cfg.logs_dir == tmp_path / "state"
 
-    def test_relative_state_dir_resolved_against_project_dir(self, tmp_path: Path):
-        cfg_file = tmp_path / "genau_config.json"
-        cfg_file.write_text(json.dumps({
-            "clips_dir": str(tmp_path / "clips"),
-            "state_dir": "state",
-            "genau": {
-                "shuffle_on_load": True,
-                "beats_per_loop": 1.0,
-                "clip_cache_size": 2,
-                "bpm_smoothing": 0.14,
-                "sync_strength": 0.35,
-                "udp_host": "127.0.0.1",
-                "udp_port": 50555,
-                "notify_host": "127.0.0.1",
-                "notify_port": 50556,
-                "resize_debounce_ms": 120,
-                "tcode_udp_host": "127.0.0.1",
-                "tcode_udp_port": 50557,
-            },
-        }), encoding="utf-8")
+    def test_a_relative_state_dir_resolves_against_the_config_file(
+            self, cfg_factory, tmp_path: Path, monkeypatch):
+        """Fun Time launches Genau from a working directory Genau does not
+        control, so a CWD-based resolution would scatter genau_cmd.txt,
+        genau_paused.txt and genau_status.txt into whatever directory the
+        orchestrator happened to be in.
+
+        Asserted against the resolved path rather than against `is_absolute()`,
+        which any base satisfies -- resolving against the cwd passed that.
+        """
+        cfg_file = cfg_factory({"state_dir": "state"})
+        elsewhere = tmp_path / "somewhere else"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+
         cfg = load_config(cfg_file)
-        # Relative state_dir resolves against the config file's parent directory
-        assert cfg.state_dir.is_absolute()
+
+        assert cfg.state_dir == (cfg_file.parent / "state").resolve()
+        assert cfg.state_dir != (elsewhere / "state").resolve()
 

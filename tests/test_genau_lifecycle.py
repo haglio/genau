@@ -138,16 +138,33 @@ class TestTheMapIsTheRegistrys:
     def test_a_key_no_control_claims_is_ignored_rather_than_an_error(self):
         """X armed auto advance, which is no longer a switch: an unlocked Genau
         advances and a locked one does not, and the comma key is that lock."""
-        controller, *_ = _build_controller()
+        stepped: list[int] = []
+        controls = GenauControls(
+            engine=BeatEngine(phase=0.0, last_tick=0.0),
+            paused=Flag(), step_clip=stepped.append)
+        controller, _renderer, _pointer, _notifier, stop_event = _build_controller(
+            controls=controls)
 
-        controller._handle_key(_key(pygame.K_x))  # must not raise
+        controller._handle_key(_key(pygame.K_x))
+
+        assert (stepped, controls.paused.on, controls.engine.phase) == ([], False, 0.0)
+        assert not stop_event.is_set()
 
     def test_a_control_this_build_did_not_wire_swallows_its_key(self):
         """The same answer the verb gives -- nothing happens -- rather than the
         AttributeError an unguarded call would raise inside the frame loop."""
-        controller, *_ = _build_controller()
+        stepped: list[int] = []
+        controls = GenauControls(
+            engine=BeatEngine(phase=0.0, last_tick=0.0),
+            paused=Flag(), step_clip=stepped.append)
+        assert controls.robot_hand is None, "the control the J key needs"
+        controller, _renderer, _pointer, _notifier, stop_event = _build_controller(
+            controls=controls)
 
-        controller._handle_key(_key(pygame.K_j))  # no robot_hand wired
+        controller._handle_key(_key(pygame.K_j))
+
+        assert (stepped, controls.paused.on, controls.engine.phase) == ([], False, 0.0)
+        assert not stop_event.is_set()
 
 
 class TestClosingTheWindow:
