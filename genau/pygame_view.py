@@ -11,39 +11,17 @@ and none of them changes because of what is on screen.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pygame
-from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
-from player_core.volume import (
-    VolumeHud,
-    VolumeHudPainter,
-    chip_local,
-    chip_xy,
-    hit_part,
-    volume_at,
-)
+from player_core.console_hud import hud_xy
 from pygame._sdl2.video import Texture
 
+from .console_panel import ConsolePanel
 from .layout import compute_video_rects
+from .volume_chip import VolumeChip
 from .window import HUD_COLOR_KEY, GenauWindow
-
-
-@dataclass(frozen=True)
-class VolumePress:
-    """What a press on the volume chip asks for, and what to show meanwhile.
-
-    Fun Time holds the authority over the level and its answer is a tick away,
-    so a slider that waited for it would trail the pointer by a frame.  The
-    chip shows this at once; Fun Time's answer overwrites it either way, which
-    is what corrects a press it decides to ignore.
-    """
-
-    command: str
-    level: int
-    muted: bool
 
 
 class PygameView:
@@ -54,6 +32,8 @@ class PygameView:
         height: int,
         x: int = 0,
         y: int = 0,
+        console: ConsolePanel,
+        volume: VolumeChip,
         title: str = "Genau",
         icon_path: Path | None = None,
         video_title: str | None = None,
@@ -67,18 +47,11 @@ class PygameView:
         self._video_size: tuple[int, int] | None = None
         self._loading_font: pygame.font.Font | None = None
         self._loading_text: str | None = None
-        # In genau mode Genau draws the whole main console — the same one Nau
-        # draws over its video in the other modes — into its own window, and takes
-        # its clicks.  None until the refresh loop has one to show.
-        self._console: ConsoleHud | None = None
-        self._console_painter = ConsolePainter()
-        self._console_hover: tuple[int, int] | None = None
-        # The primary display's volume chip, in the corner Nau puts it in — this
-        # window IS the primary display in genau mode, and reaching for the sound
-        # should not mean finding a different control depending on the mode.
-        # Fun Time owns the level and tells us what it is; a press asks it.
-        self._volume = VolumeHud()
-        self._volume_painter = VolumeHudPainter()
+        # The two things this window draws over its clip in genau mode, and the
+        # two the pointer presses: one of each, built where the app is wired, so
+        # what is drawn and what is hit are the same surface.
+        self._console = console
+        self._volume = volume
 
     @property
     def width(self) -> int:
@@ -98,65 +71,12 @@ class PygameView:
     def set_loading_text(self, text: str | None) -> None:
         self._loading_text = text
 
-    def set_console(self, console: ConsoleHud | None) -> None:
-        self._console = console
-
-    def console_press_at(self, mx: int, my: int) -> str:
-        """The command a press at ``(mx, my)`` posts on the console, "" over none.
-
-        A press on one of the drive readout's bars takes hold of it, so the pointer
-        goes on setting that level until :meth:`console_release`.
-        """
-        return self._console_painter.press_at(mx, my)
-
-    def console_drag_to(self, mx: int, my: int) -> str:
-        """The command the pointer posts while a bar is held, "" while none is."""
-        return self._console_painter.drag_to(mx, my)
-
-    def console_release(self) -> None:
-        """Let go of whichever bar a press took hold of."""
-        self._console_painter.release()
-
-    def set_console_hover(self, mx: int, my: int) -> None:
-        """Remember where the cursor is over the console, so a button under it
-        names itself; forgotten when it is over nothing."""
-        self._console_hover = self._console_painter.hover_at(mx, my)
-
-    def set_volume(self, level: int, muted: bool) -> None:
-        """Show the level Fun Time is publishing for the primary display."""
-        self._volume = VolumeHud(volume=level, muted=muted)
-
-    def volume_press_at(self, mx: int, my: int) -> VolumePress | None:
-        """What a press at ``(mx, my)`` on the volume chip asks for, or None
-        over no part of it.
-
-        A question, not a move: it says what to ask Fun Time for *and* what the
-        chip should show meanwhile, and the caller does both.  Showing it here
-        made a hit test that also mutated, which is why nothing could ask what a
-        press would do without it having already happened.
-        """
-        win_w, win_h = self.window.size
-        cx, cy = chip_local(mx, my, win_w=win_w, win_h=win_h, timeline_h=0)
-        part = hit_part(cx, cy)
-        if part == "mute":
-            muted = not self._volume.muted
-            return VolumePress(
-                command="audio_mute" if muted else "audio_unmute",
-                level=self._volume.volume,
-                muted=muted,
-            )
-        if part == "track":
-            level = volume_at(cx)
-            return VolumePress(
-                command=f"audio_set_volume|{level}", level=level, muted=False)
-        return None
-
     def blit_frame(self, frame: np.ndarray) -> None:
         h, w = frame.shape[:2]
         self._video_size = (w, h)
         surface = pygame.image.frombuffer(frame.tobytes(), (w, h), "RGB")
         self._current_texture = Texture.from_surface(self.renderer, surface)
-        if self._console is None:
+        if not self._console.showing:
             self._present_scene()
 
     def present(self) -> None:
@@ -191,7 +111,7 @@ class PygameView:
         # Not while the HUD is on: that is video mode, where this window is a
         # see-through layer over Nau's and Nau draws the console over its own
         # video.  Drawing it here too would put the same console on screen twice.
-        if not self.hud_active and self._console is not None:
+        if not self.hud_active and self._console.showing:
             self._draw_console()
             self._draw_volume()
         self.renderer.present()
@@ -217,10 +137,10 @@ class PygameView:
         other modes — the same painter, so the panel reads the same whichever
         player is showing it, and there is one place to change it.
         """
-        console = self._console
-        if console is None:
+        painted = self._console.rgba()
+        if painted is None:
             return
-        rgba, size = self._console_painter.rgba(console, hover=self._console_hover)
+        rgba, size = painted
         surface = pygame.image.frombuffer(rgba, size, "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
         texture.draw(dstrect=pygame.Rect(hud_xy(), size))
@@ -231,13 +151,11 @@ class PygameView:
         Beside the console, and drawn under the same condition: in video mode
         this window is a see-through layer over Nau's, and Nau draws both there — a
         chip here too would put two sliders on screen disagreeing about which
-        press the level came from.  ``timeline_h=0`` says there is no scrubber
-        under it, which is what this window has and Nau's does not; the chip
-        still lands in the same pixels Nau's does.
+        press the level came from.
         """
         win_w, win_h = self.window.size
-        rgba, size = self._volume_painter.rgba(self._volume)
+        rgba, size = self._volume.rgba()
         surface = pygame.image.frombuffer(rgba, size, "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
-        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=0)
+        vx, vy = self._volume.corner(win_w=win_w, win_h=win_h)
         texture.draw(dstrect=pygame.Rect(vx, vy, *size))

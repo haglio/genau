@@ -49,9 +49,11 @@ from player_core.robot_hand_driver import RobotHandTCodeDriver
 from player_core.tcode import UdpTCodeSink
 
 from .config import load_config
+from .console_panel import ConsolePanel
 from .console_pointer import ConsolePointer
 from .lifecycle import GenauLifecycleController
 from .pygame_view import PygameView
+from .volume_chip import VolumeChip
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
@@ -297,11 +299,18 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         first_clip_path, lambda path: load_clip_frames(path, cache_dir), logger)
     preload.start()
 
+    # The two surfaces Genau draws over its clip in genau mode.  Built here
+    # rather than inside the window, because the pointer presses the same two
+    # objects the view paints: what is clickable is exactly what was drawn.
+    console_panel = ConsolePanel()
+    volume_chip = VolumeChip()
     view = PygameView(
         width=args.width,
         height=args.height,
         x=args.x,
         y=args.y,
+        console=console_panel,
+        volume=volume_chip,
         icon_path=Path(args.icon) if args.icon else None,
         video_title="Video Nau+Genau",
     )
@@ -349,7 +358,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         clip_advance_state=drive.clip_advance,
         stop_event=stop_event,
         hud=hud,
-        set_volume=view.set_volume,
+        set_volume=volume_chip.show,
         reorder_clips=partial(_reorder_clips, clips_folder, config, selection, logger),
     )
 
@@ -374,7 +383,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         # Named by Fun Time, whose Nau is told the same path.
         drive_file=Path(args.drive_file),
         console_file=Path(args.console_file) if args.console_file else None,
-        set_console=view.set_console,
+        set_console=console_panel.show,
         present_scene=view.present,
         set_hud_mode=view.set_hud_mode,
     )
@@ -386,7 +395,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         dashboard_cmd_file=dashboard_cmd_file,
         on_toggle_playing=lambda: toggle_playing(drive.robot_hand),
         on_pause_playing=lambda: pause_playing(drive.robot_hand),
-        console_pointer=ConsolePointer(view, dashboard_cmd_file),
+        console_pointer=ConsolePointer(
+            console_panel, volume_chip,
+            window=view.window, dashboard_cmd_file=dashboard_cmd_file),
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)
