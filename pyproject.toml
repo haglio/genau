@@ -34,13 +34,14 @@ dev = [
 # flat-layout discovery refuses that, so declare them explicitly. Fun Time
 # launches `python -m genau` / `python -m nau` from this venv without a
 # working directory, so all of them must ship in the (editable) install.
-# The family checkouts this one is installed beside. Two, not three: the merge
-# gate cloned and installed shared_ui as well, and nothing in this repo imports
-# a shared_ui module -- a clone and a Qt wheel on every run, and a dependency to
-# anyone deciding what may safely change. tests/test_dependencies.py holds this
-# list against the tree both ways, so neither half can drift again.
+# The family checkouts this one is installed beside. All three, though nothing
+# here imports a shared_ui module: the player_core HUDs this repo does import
+# are painted in the family's colors, so a checkout without shared_ui cannot
+# collect a test. tests/test_dependencies.py holds this list against the tree
+# both ways, counting what a declared sibling needs in turn. None is published,
+# so none can go in [project.dependencies].
 [tool.haglio]
-siblings = ["app_support", "player_core"]
+siblings = ["app_support", "player_core", "shared_ui"]
 
 [tool.setuptools.packages.find]
 include = ["genau*", "nau*"]
