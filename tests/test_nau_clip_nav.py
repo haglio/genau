@@ -118,14 +118,20 @@ class TestClipNav:
 
     def test_full_vid_stays_ambiguous_with_several_scenes_for_the_performer(self, tmp_path):
         """With several scenes by that performer there is no way to tell which one
-        the clip came from, so it must not guess."""
+        the clip came from, so it must not guess.
+
+        Both scenes are built AND handed to the index: this test used to write
+        one pair of sidecars and hand `build` a different pair, one of them a
+        path nothing had created, so the performer had no candidate scenes at
+        all and the None came from an empty list rather than from an ambiguous
+        one.  The guard it is named for could be deleted with it still green.
+        """
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
         clip = _clip(lib, meta, "w/Nora Quill - Nora Quill To the Brink.mp4", "Vol1", 11,
                      "Nora Quill To the Brink", "Nora Quill")
-        _sidecar(lib, meta, "other/redacted_540-EhWGJW62.mp4", {})
-        _sidecar(lib, meta, "other/Nora-Quill-2_1080-jx3sHGzf.mp4", {})
-        nav = ClipNav.build([clip, *[lib / "other" / n for n in
-                                     ("redacted_540-EhWGJW62.mp4", "redacted_1080-jx3sHGzf.mp4")]], meta)
+        one = _sidecar(lib, meta, "other/Nora-Quill-1_540-aa11bb22.mp4", {})
+        another = _sidecar(lib, meta, "other/Nora-Quill-2_1080-cc33dd44.mp4", {})
+        nav = ClipNav.build([clip, one, another], meta)
 
         assert nav.full_vid_of(clip) is None
 
@@ -237,3 +243,21 @@ def test_a_scene_and_its_apo8_iris2_upscale_are_one_scene(tmp_path):
 
     assert nav.full_vid_of(clip) == upscale
     assert nav.clip_of(plain) == clip
+
+
+class TestAFileThatVanishedMidScan:
+    def test_it_weighs_nothing_rather_than_ending_the_walk(self, tmp_path):
+        """Biggest-is-canonical needs a size for every candidate, and the
+        library is walked while Evolver is moving files through it -- so a path
+        that has gone since the index was built must not raise, and must lose to
+        anything still there."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/Iris Fenn - Scene Five 3.mp4", "Vol4", 4,
+                     "Scene Five 3", "Iris Fenn")
+        gone = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT.mp4", {})
+        here = _sidecar(lib, meta, "other/Iris-Fenn_540-fDn1L7uT_iris2.mp4", {})
+        here.write_bytes(b"x" * 400)
+        nav = ClipNav.build([clip, gone, here], meta)
+        gone.unlink()
+
+        assert nav.full_vid_of(clip) == here

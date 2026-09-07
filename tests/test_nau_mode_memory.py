@@ -1,6 +1,8 @@
 """The mode Nau was last in, kept across sessions."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from nau.library import FULL, MIXED, SHORTS
 from nau.mode_memory import ModeMemory, RememberedMode
 
@@ -145,3 +147,18 @@ class TestCompilation:
         memory.write(RememberedMode(length_mode=SHORTS))
 
         assert memory.read().compilation == ""
+
+
+class TestWhenTheFileCannotBeRead:
+    def test_a_mode_file_it_cannot_open_reads_as_nothing_remembered(
+            self, tmp_path, monkeypatch):
+        """The same answer as a first-ever launch: opening on the default mode
+        is right, and refusing to start is not."""
+        path = tmp_path / "nau_mode.txt"
+        ModeMemory(path).write(RememberedMode(length_mode=SHORTS))
+
+        def refuse(*_args, **_kwargs):
+            raise OSError("held open by something else")
+        monkeypatch.setattr(Path, "read_text", refuse)
+
+        assert ModeMemory(path).read() == RememberedMode()

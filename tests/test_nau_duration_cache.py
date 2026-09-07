@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 
-from nau.duration_cache import DurationCache
+from nau.duration_cache import DurationCache, ffprobe_duration
 
 
 class FakeProber:
@@ -101,3 +102,36 @@ class TestDurationCache:
         # Nothing to persist for an unstatable path.
         cache.save()
         assert not (tmp_path / "dur.json").exists()
+
+
+class TestWhatItDoesWhenSomethingIsUnreadable:
+    """Three swallows, each with a documented answer that nothing checked.
+
+    Coverage listed every `except` body here as missing, and a swallow nobody
+    exercises is a swallow that can become a raise without the suite noticing --
+    which for a library scan means startup dying on one bad file.
+    """
+
+    def test_a_probe_that_fails_reads_as_no_duration(self, monkeypatch):
+        """Length is what the modes filter on, so an unprobeable video falls out
+        of both of them rather than taking the scan down."""
+        def refuse(*_args, **_kwargs):
+            raise subprocess.CalledProcessError(1, "ffprobe")
+        monkeypatch.setattr(subprocess, "check_output", refuse)
+
+        assert ffprobe_duration(Path("C:/example/library/videos/gamma reel.mp4")) == 0.0
+
+    def test_a_probe_that_answers_nonsense_reads_as_no_duration(self, monkeypatch):
+        monkeypatch.setattr(subprocess, "check_output", lambda *a, **k: "not a number")
+
+        assert ffprobe_duration(Path("C:/example/library/videos/gamma reel.mp4")) == 0.0
+
+    def test_a_cache_file_it_cannot_read_starts_empty(self, tmp_path):
+        """A truncated or hand-edited cache is a slow first scan, not a crash."""
+        cache_path = tmp_path / "dur.json"
+        cache_path.write_text("{not json", encoding="utf-8")
+        vid = _make_video(tmp_path / "a.mp4")
+
+        cache = DurationCache(cache_path, prober=FakeProber({vid: 7.0}))
+
+        assert cache.duration_for(vid) == 7.0  # probed, not read back
