@@ -7,6 +7,8 @@ test at all.
 """
 from __future__ import annotations
 
+from player_core.timeline import TIMELINE_HEIGHT
+
 from genau.console_pointer import ConsolePointer
 from genau.volume_chip import VolumePress
 
@@ -51,13 +53,31 @@ class FakeWindow:
     size = (800, 600)
 
 
-def _pointer(tmp_path, *, volume=None, pressed="", dragged=""):
-    """The pointer over a fake chip and panel, plus the order it asked them in."""
+class FakeScrubber:
+    """The clip's bar: across the window's lower edge while a clip is up."""
+
+    def __init__(self, asked, *, showing=True):
+        self._asked = asked
+        self._showing = showing
+
+    def takes(self, my, *, win_h):
+        return self._showing and my >= win_h - TIMELINE_HEIGHT
+
+    @staticmethod
+    def fraction_at(mx, *, win_w):
+        return mx / win_w
+
+
+def _pointer(tmp_path, *, volume=None, pressed="", dragged="", clip=True):
+    """The pointer over a fake chip, panel and bar, plus the order it asked them in."""
     asked: list[str] = []
     chip = FakeChip(asked, volume)
     panel = FakePanel(asked, pressed, dragged)
-    pointer = ConsolePointer(panel, chip, window=FakeWindow(),
-                             dashboard_cmd_file=_posted(tmp_path))
+    scrubber = FakeScrubber(asked, showing=clip)
+    seeks: list[float] = []
+    pointer = ConsolePointer(panel, chip, scrubber, window=FakeWindow(),
+                             dashboard_cmd_file=_posted(tmp_path), seek=seeks.append)
+    pointer.seeks = seeks
     return pointer, chip, panel, asked
 
 
@@ -147,3 +167,37 @@ class TestDraggingAndLettingGo:
         pointer.motion(11, 13)
 
         assert panel.hovered == [(11, 13)]
+
+
+class TestAPressOnTheClipsOwnBar:
+    """The clip's bar seeks, and goes on seeking while the pointer is held.  The
+    frame is a picture of where the device is, so the seek moves the device --
+    which is why it goes to the engine rather than out as a console command."""
+
+    def test_a_press_along_the_lower_edge_seeks(self, tmp_path):
+        pointer, _chip, _panel, asked = _pointer(tmp_path)
+
+        pointer.press(400, 595)
+
+        assert pointer.seeks == [0.5]
+        assert asked == ["chip"]  # the chip is still tried first, and missed
+
+    def test_a_drag_after_it_goes_on_seeking_and_letting_go_stops(self, tmp_path):
+        pointer, _chip, _panel, _asked = _pointer(tmp_path, dragged="speed_up")
+
+        pointer.press(400, 595)
+        pointer.drag(600, 595)
+        pointer.release()
+        pointer.drag(200, 595)
+
+        assert pointer.seeks == [0.5, 0.75]
+        # Let go, and the lower edge is the panel's business again.
+        assert _posted(tmp_path).read_text(encoding="utf-8").split() == ["speed_up"]
+
+    def test_with_no_clip_up_the_lower_edge_is_the_panels_again(self, tmp_path):
+        pointer, _chip, _panel, _asked = _pointer(tmp_path, clip=False, pressed="main_lock")
+
+        pointer.press(400, 595)
+
+        assert pointer.seeks == []
+        assert _posted(tmp_path).read_text(encoding="utf-8").split() == ["main_lock"]

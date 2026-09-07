@@ -7,7 +7,7 @@ about the clip the console cannot say.
 from __future__ import annotations
 
 import numpy as np
-from player_core.timeline import progress_bar_bgra
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
 
 
 class ClipScrubber:
@@ -46,3 +46,13 @@ class ClipScrubber:
         if of <= 0 or width <= 0:
             return None
         return progress_bar_bgra(played, of, None, width)
+
+    def takes(self, my: int, *, win_h: int) -> bool:
+        """Whether a press this far down the window is on the bar."""
+        return self.playhead()[1] > 0 and my >= win_h - TIMELINE_HEIGHT
+
+    @staticmethod
+    def fraction_at(mx: int, *, win_w: int) -> float:
+        """How far along the bar a press at *mx* is, saturating past either end."""
+        x0, x1 = bar_track_x(win_w)
+        return min(1.0, max(0.0, (mx - x0) / max(1, x1 - x0)))
