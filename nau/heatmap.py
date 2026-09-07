@@ -1,7 +1,13 @@
 """Funscript activity heatmap: average travel speed per time bucket -> color.
 
-Pure logic, no pygame: build_heatmap turns a Funscript into one color per
-horizontal pixel of the strip; overlay.py owns the drawing.
+Two steps, kept apart because they fail for different reasons: :func:`bin_speeds`
+is arithmetic over the script -- how a segment spanning two bins splits, how one
+straddling the window start is clipped -- and :func:`_speed_to_color` is the
+palette.  Stated as one function, every arithmetic case had to be written as a
+color tuple, so moving a gradient anchor two units turned nine of fourteen tests
+red and the failures named the arithmetic rather than the palette.
+
+Pure logic, no pygame: overlay.py owns the drawing.
 """
 from __future__ import annotations
 
@@ -28,16 +34,16 @@ def _speed_to_color(speed: float) -> tuple[int, int, int]:
     return _GRADIENT[-1][1]
 
 
-def build_heatmap(
+def bin_speeds(
     fs: Funscript, buckets: int, *, start_ms: float, end_ms: float,
-) -> list[tuple[int, int, int]]:
-    """One color per equal bin of [start_ms, end_ms], by average travel speed.
+) -> list[float]:
+    """Average travel speed in each equal bin of [start_ms, end_ms].
 
-    Each action segment spreads its |pos delta| over the bins it overlaps,
-    proportional to the overlap; a bin's speed is its accumulated travel
-    divided by the bin length in seconds. Bins nothing overlaps (gaps,
-    activity outside the window) stay at the idle color. The full-video
-    strip is simply the [0, duration] window.
+    In position units per second, which is what the gradient above is scaled
+    in.  Each action segment spreads its |pos delta| over the bins it overlaps,
+    proportional to the overlap; a bin's speed is its accumulated travel divided
+    by the bin length in seconds.  Bins nothing overlaps (gaps, activity outside
+    the window) are 0.  The full-video strip is simply the [0, duration] window.
     """
     if end_ms <= start_ms:
         return []
@@ -54,4 +60,12 @@ def build_heatmap(
             overlap_ms = min(t1, bin_start + bin_ms) - max(t0, bin_start)
             travel[b] += delta * overlap_ms / (t1 - t0)
     bin_s = bin_ms / 1000.0
-    return [_speed_to_color(units / bin_s) for units in travel]
+    return [units / bin_s for units in travel]
+
+
+def build_heatmap(
+    fs: Funscript, buckets: int, *, start_ms: float, end_ms: float,
+) -> list[tuple[int, int, int]]:
+    """One color per equal bin of [start_ms, end_ms], by average travel speed."""
+    return [_speed_to_color(speed)
+            for speed in bin_speeds(fs, buckets, start_ms=start_ms, end_ms=end_ms)]
