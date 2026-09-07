@@ -11,6 +11,7 @@ import random
 from collections.abc import Callable
 from pathlib import Path
 
+from app_support import ports
 from player_core.playlist import read_playlist
 
 from .duration_cache import DurationCache
@@ -49,7 +50,8 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     p.add_argument("--x", type=int, default=None)
     p.add_argument("--y", type=int, default=None)
     p.add_argument("--tcode-host", default=nau.get("tcode_udp_host", "127.0.0.1"))
-    p.add_argument("--tcode-port", type=int, default=nau.get("tcode_udp_port", 50557))
+    p.add_argument("--tcode-port", type=int,
+                   default=nau.get("tcode_udp_port", ports.TCODE_UDP))
     p.add_argument("--command-file", type=Path, default=None,
                    help="Poll this file for orchestrator commands")
     p.add_argument("--paused-file", type=Path, default=None,

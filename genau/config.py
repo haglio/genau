@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support import ports
 from app_support.config_reader import (
     read_json_config,
     require_path,
@@ -96,6 +97,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
             notify_port=genau_value("notify_port", int),
             resize_debounce_ms=genau_value("resize_debounce_ms", int),
             tcode_udp_host=str(genau_raw.get("tcode_udp_host", "127.0.0.1")),
-            tcode_udp_port=int(genau_raw.get("tcode_udp_port", 50557)),
+            tcode_udp_port=int(genau_raw.get("tcode_udp_port", ports.TCODE_UDP)),
         ),
     )
