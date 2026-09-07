@@ -10,8 +10,8 @@ months while the satellites did not.
 Read off the source rather than exercised: neither window-opening path can run in
 a unit test — each needs a real window and the libmpv DLL — and the files are
 read by path rather than imported, because importing either one at collection
-time leaves pygame and the view module bound in a way the tests that patch them
-then see through.
+time leaves pygame and the window module bound in a way the tests that patch
+them then see through.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-WINDOW_OPENERS = (REPO / "genau" / "pygame_view.py", REPO / "nau" / "app.py")
+WINDOW_OPENERS = (REPO / "genau" / "window.py", REPO / "nau" / "app.py")
 
 
 def _call_lines(source: Path) -> tuple[list[int], list[int]]:
