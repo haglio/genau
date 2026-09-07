@@ -9,6 +9,7 @@ from __future__ import annotations
 import random
 from collections.abc import Callable
 from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 from .discovery import discover_entries
@@ -96,13 +97,21 @@ class LibrarySource:
         metadata_root = self.metadata_root
         return lambda video: read_video_type(video, metadata_root)
 
-    @property
+    @cached_property
     def version_index(self) -> dict[Path, list[tuple[Path, Path | None]]]:
         """Version-cycle map over every video (main entries and clips).
 
         Built from all discovered content, not just the active mode, so
         cycling versions works no matter which length mode is showing.  Uses
         the metadata sidecars when a *metadata_root* is set, else names.
+
+        Cached because the answer is already fixed for the session: the two
+        readers are both in startup, and what the session is handed is a plain
+        dict it holds until it closes.  A property re-walked the whole library
+        and re-parsed a sidecar per video for the second of them, on the path
+        the loading screen exists to cover.  Nothing here caches the *kind* a
+        sidecar records, which the length modes re-read on every change --
+        that one an Evolver run can move under a session that is still open.
         """
         return version_index_from_groups(
             group_versions(self.entries + self.clips, self._group_id_of())
