@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from nau.duration_cache import DurationCache
@@ -54,8 +55,6 @@ class TestDurationCache:
         assert prober.calls == [vid, vid]  # re-probed
 
     def test_mtime_change_invalidates(self, tmp_path):
-        import os
-
         vid = _make_video(tmp_path / "a.mp4")
         prober = FakeProber({vid: 10.0})
         cache = DurationCache(tmp_path / "dur.json", prober=prober)
