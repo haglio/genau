@@ -8,15 +8,17 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from genau.clip_scrubber import ClipScrubber
 from genau.console_panel import ConsolePanel
 from genau.volume_chip import VolumeChip
 
 
 def _view(**geometry):
-    """A view over its own console and chip, the way the app builds one."""
+    """A view over its own console, chip and scrubber, the way the app builds one."""
     from genau.pygame_view import PygameView
 
-    return PygameView(console=ConsolePanel(), volume=VolumeChip(), **geometry)
+    return PygameView(
+        console=ConsolePanel(), volume=VolumeChip(), scrubber=ClipScrubber(), **geometry)
 
 
 def test_hud_mode_defaults_to_false(mock_pygame):
@@ -95,16 +97,19 @@ def test_hud_mode_leaves_the_console_and_the_volume_to_nau(mock_pygame):
     view._draw_volume.assert_not_called()
 
 
-def test_genau_draws_the_console_and_the_volume_when_it_owns_the_screen(mock_pygame):
+def test_genau_draws_the_console_the_scrubber_and_the_volume_when_it_owns_the_screen(
+        mock_pygame):
     view = _view(width=800, height=600)
     view.window.hud_active = False
     view._console.show(MagicMock())
     view._draw_console = MagicMock()
+    view._draw_scrubber = MagicMock()
     view._draw_volume = MagicMock()
 
     view._present_scene()
 
     view._draw_console.assert_called_once()
+    view._draw_scrubber.assert_called_once()
     view._draw_volume.assert_called_once()
 
 

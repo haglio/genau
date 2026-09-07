@@ -18,6 +18,7 @@ import pygame
 from player_core.console_hud import hud_xy
 from pygame._sdl2.video import Texture
 
+from .clip_scrubber import ClipScrubber
 from .console_panel import ConsolePanel
 from .layout import compute_video_rects
 from .volume_chip import VolumeChip
@@ -34,6 +35,7 @@ class PygameView:
         y: int = 0,
         console: ConsolePanel,
         volume: VolumeChip,
+        scrubber: ClipScrubber,
         title: str = "Genau",
         icon_path: Path | None = None,
         video_title: str | None = None,
@@ -47,11 +49,13 @@ class PygameView:
         self._video_size: tuple[int, int] | None = None
         self._loading_font: pygame.font.Font | None = None
         self._loading_text: str | None = None
-        # The two things this window draws over its clip in genau mode, and the
-        # two the pointer presses: one of each, built where the app is wired, so
-        # what is drawn and what is hit are the same surface.
+        # What this window draws over its clip in genau mode, built where the app
+        # is wired so that what is drawn and what the pointer presses are the same
+        # objects.  The scrubber is drawn and never pressed: a loop has no time to
+        # seek to, and the bar says where the Robot Hand has taken it.
         self._console = console
         self._volume = volume
+        self._scrubber = scrubber
 
     @property
     def width(self) -> int:
@@ -113,6 +117,7 @@ class PygameView:
         # video.  Drawing it here too would put the same console on screen twice.
         if not self.hud_active and self._console.showing:
             self._draw_console()
+            self._draw_scrubber()
             self._draw_volume()
         self.renderer.present()
 
@@ -144,6 +149,20 @@ class PygameView:
         surface = pygame.image.frombuffer(rgba, size, "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
         texture.draw(dstrect=pygame.Rect(hud_xy(), size))
+
+    def _draw_scrubber(self) -> None:
+        """Blit the clip's playhead along the lower edge, where Nau puts a
+        video's -- so the two modes read the same and the volume chip beside it
+        lands in the pixels it always did."""
+        win_w, win_h = self.window.size
+        bar = self._scrubber.bgra(win_w)
+        if bar is None:
+            return
+        height, width = bar.shape[:2]
+        rgba = np.ascontiguousarray(bar[:, :, [2, 1, 0, 3]])
+        surface = pygame.image.frombuffer(rgba.tobytes(), (width, height), "RGBA")
+        texture = Texture.from_surface(self.renderer, surface)
+        texture.draw(dstrect=pygame.Rect(0, win_h - height, width, height))
 
     def _draw_volume(self) -> None:
         """Blit the primary display's volume chip, lower-right.
