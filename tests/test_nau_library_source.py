@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+import nau.library_source
 from nau.duration_cache import DurationCache
 from nau.library import FULL, MIXED, SHORTS, LibraryEntry
 from nau.library_source import (
@@ -133,6 +134,43 @@ class TestBuildLibrarySource:
 
         assert clip in source.version_index
 
+
+class TestTheVersionIndexIsBuiltOnce:
+    """It looks like an attribute and was a plain property, so every reader paid
+    a full walk of the library and one JSON parse per video.
+
+    Startup alone has two readers -- `nau.cli.resolve_playlist` collapses Fun
+    Time's playlist to one entry per version family, then `nau.app` hands the
+    session its index -- and startup latency is the thing the loading screen
+    exists to paper over.  Nothing reads it after that: the session is handed a
+    plain dict and holds it for the rest of the run, so the answer was already
+    fixed for the session and the second walk only spent time.
+    """
+
+    def test_reading_it_twice_walks_the_sidecars_once(self, tmp_path, monkeypatch):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        entries = []
+        for name in ("one", "two", "three"):
+            video = lib / f"{name}.mp4"
+            video.parent.mkdir(parents=True, exist_ok=True)
+            video.write_bytes(b"x")
+            entries.append(LibraryEntry(video=video, funscript=None, size=10))
+        reads: list[Path] = []
+        real = nau.library_source.read_version_group
+        monkeypatch.setattr(
+            nau.library_source, "read_version_group",
+            lambda video, root: (reads.append(video), real(video, root))[1])
+        source = LibrarySource(
+            entries=entries, clips=[], durations={}, rng=random.Random(0),
+            metadata_root=meta,
+        )
+
+        first = source.version_index
+        second = source.version_index
+
+        assert len(reads) == 3, "one walk, not one per reader"
+        assert first == second
+        assert second is first
 
 class TestBuildProgress:
     """Startup's only long wait is probing durations, so the build reports it."""
