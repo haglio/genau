@@ -159,65 +159,45 @@ class TestLoadAndPlay:
         assert player.ab_loop is None
 
 
-class TestRecording:
-    def test_record_gesture_without_funscript_sets_raw_ab_loop(self, tmp_path):
-        # Unscripted videos can still be looped (clips): the raw marked range is
-        # used, with no funscript snapping.
-        session, player, tcode = _make_session(tmp_path, scripted=False)
-        player.position_ms = 2500
+class TestTheLoopUnderTheSession:
+    """The session's share of a loop: reading the playhead off the player,
+    passing the three readings back out, and the seek that survives a file
+    still opening.  What the loop asks OF the player is
+    `test_nau_session_loops.py`; where the bounds go is
+    `test_nau_loop_controller.py`.
+    """
 
-        session.record_down()
-        assert session.loop_state == "recording"
-
-        player.position_ms = 3500
-        session.record_up()
-
-        assert session.loop_state == "looping"
-        assert player.ab_loop == (2500, 3500)
-
-    def test_release_before_start_floors_ab_loop_to_the_start(self, tmp_path):
-        # If the out point lands before the start (the EOF-wrap race — seeks are
-        # clamped to the start while marking), the loop floors to the start and
-        # is handed to mpv as a minimum loop there, never flipped to [out, start].
-        session, player, tcode = _make_session(tmp_path, scripted=False)
-        player.position_ms = 5000
-        session.record_down()
-
-        player.position_ms = 2000  # out landed before the start (EOF-wrap race)
-        session.record_up()
-
-        assert session.loop_state == "looping"
-        assert player.ab_loop == (5000, 5500)
-        assert player.seeks[-1] == 5000  # jumps to the start, not back to 2000
-
-    def test_record_gesture_sets_native_ab_loop_snapped_to_bases(self, tmp_path):
+    def test_the_gesture_is_marked_where_the_playhead_is(self, tmp_path):
+        """Neither end of the gesture carries a position: both read the clock,
+        which is the whole of what the session adds to a record."""
         session, player, tcode = _make_session(tmp_path)
         player.position_ms = 2500
 
         session.record_down()
-        assert session.loop_state == "recording"
+        assert session.record_in_ms == 2500
 
         player.position_ms = 3500
         session.record_up()
 
-        assert session.loop_state == "looping"
-        # snapped to base actions (pos>=95) at 2000 and 4000
-        assert player.ab_loop == (2000, 4000)
-        assert player.seeks[-1] == 2000  # jumped to loop start
-        assert tcode.resets >= 2
-
-    def test_restoring_a_loop_arms_mpv_and_lands_on_its_start(self, tmp_path):
-        """Reopening on the video a loop was left running over: no gesture is
-        replayed, the finished bounds are simply put back and the playhead goes
-        to the top of them, exactly as a record-up leaves it."""
-        session, player, tcode = _make_session(tmp_path)
-
-        session.restore_loop(2000, 4000)
-
-        assert session.loop_state == "looping"
-        assert session.loop_bounds == (2000, 4000)
+        # Snapped out to the base actions at 2000 and 4000.
+        assert (session.loop_state, session.loop_bounds) == ("looping", (2000, 4000))
         assert player.ab_loop == (2000, 4000)
         assert player.seeks[-1] == 2000
+        assert tcode.resets >= 2, "landing on the loop's start is a clock jump"
+
+    def test_the_three_readings_say_nothing_while_no_loop_is_running(self, tmp_path):
+        session, _player, _tcode = _make_session(tmp_path)
+
+        assert (session.loop_state, session.loop_bounds, session.record_in_ms) == (
+            "normal", None, None)
+
+    def test_cancelling_reaches_the_loop(self, tmp_path):
+        session, player, _tcode = _make_session(tmp_path)
+        session.restore_loop(2000, 4000)
+
+        session.loop_cancel()
+
+        assert (session.loop_state, player.ab_loop) == ("normal", None)
 
     def test_a_restored_loop_waits_for_a_file_that_is_still_opening(self, tmp_path):
         """Startup queues this before mpv has the file, and mpv reports no
@@ -236,80 +216,6 @@ class TestRecording:
         session.advance()
 
         assert player.seeks[-1] == 2000
-
-    def test_an_empty_range_is_no_loop_to_restore(self, tmp_path):
-        """The status file names a zero range when nothing is looping, and a
-        video is never resumed into a loop it cannot play."""
-        session, player, tcode = _make_session(tmp_path)
-
-        session.restore_loop(0, 0)
-
-        assert session.loop_state == "normal"
-        assert player.ab_loop is None
-
-    def test_record_down_while_looping_cancels_and_clears_loop(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path)
-        player.position_ms = 2500
-        session.record_down()
-        player.position_ms = 3500
-        session.record_up()
-
-        session.record_down()
-
-        assert session.loop_state == "normal"
-        assert player.ab_loop is None
-
-    def test_loop_cancel_command_clears_active_loop(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path)
-        player.position_ms = 2500
-        session.record_down()
-        player.position_ms = 3500
-        session.record_up()
-
-        session.loop_cancel()
-
-        assert session.loop_state == "normal"
-        assert player.ab_loop is None
-
-    def test_loop_cancel_in_normal_is_noop(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path)
-
-        session.loop_cancel()
-
-        assert session.loop_state == "normal"
-
-
-class TestRecordInMs:
-    def test_exposes_in_point_only_while_recording(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path)
-        assert session.record_in_ms is None
-
-        player.position_ms = 2500
-        session.record_down()
-        assert session.record_in_ms == 2500
-
-        player.position_ms = 3500
-        session.record_up()
-        assert session.record_in_ms is None  # looping now, not marking
-
-
-class TestLoopBounds:
-    def test_none_while_not_looping(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path)
-        assert session.loop_bounds is None
-
-    def test_none_without_funscript(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path, scripted=False)
-        assert session.loop_bounds is None
-
-    def test_exposes_snapped_bounds_while_looping(self, tmp_path):
-        session, player, tcode = _make_session(tmp_path)
-        player.position_ms = 2500
-        session.record_down()
-        player.position_ms = 3500
-        session.record_up()
-
-        assert session.loop_bounds == (2000, 4000)
 
 
 class TestLock:
