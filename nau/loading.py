@@ -68,6 +68,19 @@ def quit_requested(events) -> bool:
     return False
 
 
+def stop_if_asked() -> None:
+    """Pump the window's event queue, and raise if the user gave up.
+
+    Two jobs in one line each, both owed every update: pumping is what keeps
+    Windows from graying the window out as unresponsive during a long scan, and
+    noticing the close button is what lets the scan be abandoned at all --
+    `nau.app` catches `LoadingCanceled` and exits 0 without ever opening a
+    video.
+    """
+    if quit_requested(pygame.event.get()):
+        raise LoadingCanceled
+
+
 class LoadingCanceled(Exception):
     """The user closed the loading window before the library finished."""
 
@@ -98,7 +111,9 @@ class LoadingScreen:
     unresponsive, and to notice the close button.
 
     Not unit-tested: it needs a real display.  Its decisions are the module
-    functions above, which are; what is left here is the painting.
+    functions above, which are — including the pump-and-raise, which is
+    :func:`stop_if_asked` rather than two lines in here; what is left is the
+    painting.
     """
 
     def __init__(self, surface) -> None:
@@ -110,8 +125,7 @@ class LoadingScreen:
 
     def update(self, phase: str, done: int = 0, total: int = 0) -> None:
         """Progress callback: repaint if due, and raise if the user gave up."""
-        if quit_requested(pygame.event.get()):
-            raise LoadingCanceled
+        stop_if_asked()
         now = time.monotonic()
         if not repaint_due(
             phase=phase, last_phase=self._last_phase, now=now, last_paint_s=self._last_paint_s,
