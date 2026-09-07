@@ -19,6 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.file_channel import publish_whole
+
 from .library_source import LENGTH_MODES
 
 
@@ -68,17 +70,19 @@ class ModeMemory:
             self.write(mode)
 
     def write(self, mode: RememberedMode) -> None:
-        """Remember *mode*; a write that cannot land is simply not remembered."""
+        """Remember *mode*; a write that cannot land is simply not remembered.
+
+        Published whole: this is rewritten on any frame the mode moves and read
+        back at the next startup, so a launch landing inside a write would read
+        a truncated record and open on a mode nobody left it in.
+        """
         self._written = mode
         if self._path is None:
             return
-        text = (f"length_mode={mode.length_mode}\ncompilation={mode.compilation}\n"
-                f"video={mode.video}\n")
-        try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._path.write_text(text, encoding="utf-8")
-        except OSError:
-            pass
+        publish_whole(
+            self._path,
+            f"length_mode={mode.length_mode}\ncompilation={mode.compilation}\n"
+            f"video={mode.video}\n")
 
     def _fields(self) -> dict[str, str]:
         if self._path is None:

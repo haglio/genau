@@ -11,6 +11,26 @@ def _read(path):
     )
 
 
+def test_the_record_it_writes_is_what_fun_time_parses(tmp_path):
+    """The whole file as written, because it is a cross-repo contract and
+    nothing else in this repo can see it.
+
+    `fun_time.windows_bridge_dispatch_loop.read_nau_notice` splits each line on
+    its first "=" and reads `seq` as a float; the tests around this one parse
+    the file the same way, so a reordered, renamed or re-separated record -- or
+    a `seq` that stopped being three decimal places -- would keep every one of
+    them green while the overlay stopped flashing.
+    """
+    path = tmp_path / "nau_notice.txt"
+
+    NoticeWriter(path, clock=lambda: 1234.5).say("no full video", level="notice")
+
+    written = path.read_text(encoding="utf-8")
+    assert written.splitlines() == [
+        "seq=1234.500", "level=notice", "message=no full video"]
+    assert written.endswith("\n"), "the last record is terminated like the others"
+
+
 def test_say_publishes_the_message_and_level(tmp_path):
     path = tmp_path / "state" / "nau_notice.txt"
 

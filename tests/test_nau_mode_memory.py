@@ -6,6 +6,24 @@ from nau.mode_memory import ModeMemory, RememberedMode
 
 
 class TestLengthMode:
+    def test_the_record_it_writes_is_the_one_it_reads_back(self, tmp_path):
+        """The file's own shape, not just the round trip.
+
+        Reading it back through this same class would stay green under a
+        renamed key or a reordered record, and `length_mode` is the name
+        Evolver's vocabulary settled on for the length filter -- so the shape
+        is written out here rather than derived from the writer.
+        """
+        path = tmp_path / "nau_mode.txt"
+
+        ModeMemory(path).write(RememberedMode(
+            length_mode="shorts", compilation="Volume Six", video="C:/x/y.mp4"))
+
+        written = path.read_text(encoding="utf-8")
+        assert written.splitlines() == [
+            "length_mode=shorts", "compilation=Volume Six", "video=C:/x/y.mp4"]
+        assert written.endswith("\n"), "the last record is terminated like the others"
+
     def test_a_written_mode_reads_back(self, tmp_path):
         """Fun Time resumes the playlist a session closed on, so the mode that
         chose those videos has to survive the session too."""
