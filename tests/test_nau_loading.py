@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import pygame
+import pytest
 
 from nau.library_source import PHASE_DISCOVER, PHASE_DURATIONS
 from nau.loading import (
     REPAINT_INTERVAL_S,
+    LoadingCanceled,
     progress_fraction,
     progress_text,
     quit_requested,
     repaint_due,
+    stop_if_asked,
 )
+
+
+def _event(kind, **fields):
+    return pygame.event.Event(kind, **fields)
 
 
 class TestQuitRequested:
@@ -63,3 +70,37 @@ class TestProgressFraction:
 
     def test_counts_the_work_behind_it(self):
         assert progress_fraction(1, 4) == 0.25
+
+
+class TestGivingUpOnTheWait:
+    """The whole of `LoadingScreen.update` that is not painting.
+
+    A cold library scan runs to tens of seconds, and the close button during it
+    is the only way out: `nau.app` catches `LoadingCanceled` and exits 0 without
+    ever opening a video.  The pump is owed on every update either way, or
+    Windows grays the window out as unresponsive halfway through.
+    """
+
+    def test_the_close_button_ends_the_wait(self, monkeypatch):
+        monkeypatch.setattr(pygame.event, "get", lambda: [_event(pygame.QUIT)])
+
+        with pytest.raises(LoadingCanceled):
+            stop_if_asked()
+
+    def test_an_ordinary_key_does_not(self, monkeypatch):
+        monkeypatch.setattr(
+            pygame.event, "get",
+            lambda: [_event(pygame.KEYDOWN, key=pygame.K_j, mod=0)])
+
+        stop_if_asked()  # the control probe: it must not raise on anything else
+
+    def test_it_pumps_the_queue_even_with_nothing_in_it(self, monkeypatch):
+        """The pump is the half that has nothing to do with quitting, and the
+        half Windows notices when it stops happening."""
+        pumped = []
+        monkeypatch.setattr(
+            pygame.event, "get", lambda: pumped.append(1) or [])
+
+        stop_if_asked()
+
+        assert pumped == [1]
