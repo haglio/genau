@@ -27,8 +27,12 @@ class TestThePlayhead:
         assert ClipScrubber().playhead() == (0, 0)
         assert ClipScrubber().bgra(640) is None
 
-    def test_it_says_which_frame_is_up_and_how_many_the_clip_has(self):
-        assert _following(index=7, count=20).playhead() == (7, 20)
+    def test_it_counts_up_while_the_frame_that_is_up_counts_down(self):
+        """player_core shows a clip from its last frame back, so the cursor drawn
+        straight off that index walked backwards along the bar."""
+        assert _following(index=19, count=20).playhead() == (0, 20)
+        assert _following(index=12, count=20).playhead() == (7, 20)
+        assert _following(index=0, count=20).playhead() == (19, 20)
 
     def test_a_clip_still_decoding_has_no_frame_to_be_on(self):
         scrubber = ClipScrubber()

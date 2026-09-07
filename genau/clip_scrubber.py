@@ -25,13 +25,20 @@ class ClipScrubber:
         self._renderer = renderer
 
     def playhead(self) -> tuple[int, int]:
-        """Which frame is on screen, of how many; (0, 0) before any clip is."""
+        """How far through the clip the motion has taken it, of how far there is
+        to go; (0, 0) before any clip is up.
+
+        Counted UP, which the frame that is up is not: player_core shows a clip
+        from its last frame back (clip_renderer.display_index_for_phase), so a
+        cursor drawn straight off that index walked backwards along the bar.
+        """
         if self._renderer is None:
             return (0, 0)
         entry = self._renderer.current_clip_entry()
         frames = entry.get("frames") if entry else None
+        count = len(frames) if frames else 0
         index = self._renderer.current_frame_index
-        return (0 if index is None else index, len(frames) if frames else 0)
+        return (0 if index is None else max(0, count - 1 - index), count)
 
     def bgra(self, width: int) -> np.ndarray | None:
         """The bar at this window width, or None while there is no clip to draw."""
