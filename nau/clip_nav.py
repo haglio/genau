@@ -10,8 +10,8 @@ the three navigations Fun Time exposes:
 * ``clip jump``  — the reverse, a full scene's clip.
 
 ``full vid``/``clip jump`` answer from a ``full_video`` the sidecar records when
-one is there: :mod:`nau.clip_match` found the clip's own frames inside that scene,
-so it beats any reading of the names. The answer is held against the scene's
+one is there: Evolver's clip-match batch found the clip's own frames inside that
+scene, so it beats any reading of the names. The answer is held against the scene's
 *version family* rather than the one file matched, so it survives whichever
 version is on screen and hands back the same best-of-family the playlist shows.
 Without a recording they fall back to matching the source/performer against the
@@ -152,7 +152,7 @@ class ClipNav:
         return _resolve(meta, [c for c in self._non_clips if c != video])
 
     def _recorded_family(self, meta: dict) -> str | None:
-        """The version family of the scene :mod:`nau.clip_match` recorded, if any."""
+        """The version family of the scene Evolver recorded a match to, if any."""
         recorded = meta.get("full_video")
         return self._family(Path(str(recorded))) if recorded else None
 
@@ -199,8 +199,8 @@ def could_be_cut_from(meta: dict, scene: Path) -> bool:
     """Whether *meta*'s clip might have been cut from *scene*, on the names alone.
 
     The performer is the one thing a library filename reliably carries, so this
-    is the widest net worth casting — and the set :mod:`nau.clip_match` then
-    narrows by looking at the pictures.
+    is the widest net worth casting — the same net Evolver's clip-match batch
+    casts before narrowing it by looking at the pictures.
     """
     performer = _performer_of(meta)
     return bool(performer) and performer <= _tokens(scene.stem)
