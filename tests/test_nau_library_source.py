@@ -7,11 +7,12 @@ from pathlib import Path
 import pytest
 
 from nau.duration_cache import DurationCache
-from nau.library import FULL, MIXED, SHORTS
+from nau.library import FULL, MIXED, SHORTS, LibraryEntry
 from nau.library_source import (
     DEFAULT_MODE,
     PHASE_DISCOVER,
     PHASE_DURATIONS,
+    LibrarySource,
     build_library_source,
     discover_clips,
     length_mode_rebuilds,
@@ -236,11 +237,8 @@ class TestDiscoverClips:
 def test_standalone_source_serves_all_videos_by_default():
     """Standalone Nau is a general player; scripted-focus is Fun Time's
     F-mode, so the default source serves scripted and unscripted alike."""
-    import random
     from pathlib import Path
 
-    from nau.library import LibraryEntry
-    from nau.library_source import LibrarySource
 
     scripted = LibraryEntry(video=Path("Gigi-topaz.mp4"), funscript=Path("Gigi.funscript"), size=900)
     unscripted = LibraryEntry(video=Path("Hana-1080p.mp4"), funscript=None, size=900)
@@ -257,10 +255,7 @@ def test_standalone_source_serves_all_videos_by_default():
 
 def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):
     import json
-    import random
 
-    from nau.library import LibraryEntry
-    from nau.library_source import LibrarySource
 
     lib = tmp_path / "videos" / "videos"
     meta = tmp_path / "videos" / "metadata"
@@ -289,10 +284,7 @@ def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_pat
 
 
 def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
-    import random
 
-    from nau.library import LibraryEntry
-    from nau.library_source import LibrarySource
 
     a = LibraryEntry(video=Path("Richard.mp4"), funscript=None, size=50)
     b = LibraryEntry(video=Path("Richard_topaz.mp4"), funscript=None, size=800)
@@ -302,3 +294,62 @@ def test_version_index_falls_back_to_names_without_a_metadata_root(tmp_path):
     )
 
     assert source.version_index[a.video] == source.version_index[b.video]
+
+
+class TestACarvedSceneIsAShort:
+    """Length is not the only thing that makes a short.
+
+    A scene Evolver carved out of a compilation is a short however long it
+    runs, and the ``clip`` record in its sidecar was how that was known before
+    there was a kind to write — so a library Evolver has not been over since
+    still has only that, and it is still read.
+    """
+
+    @staticmethod
+    def _clip_entry(lib: Path, meta: Path, rel: str) -> LibraryEntry:
+        video = lib / rel
+        video.parent.mkdir(parents=True, exist_ok=True)
+        video.write_bytes(b"x")
+        side = (meta / video.relative_to(lib)).with_suffix(".json")
+        side.parent.mkdir(parents=True, exist_ok=True)
+        side.write_text(json.dumps({"clip": {"compilation": "Volume Six", "index": 9,
+                                             "source": "alpha scene two",
+                                             "performer": "Jane Doe"}}))
+        return LibraryEntry(video=video, funscript=None, size=100)
+
+    @staticmethod
+    def _plain_entry(lib: Path, rel: str) -> LibraryEntry:
+        video = lib / rel
+        video.parent.mkdir(parents=True, exist_ok=True)
+        video.write_bytes(b"x")
+        return LibraryEntry(video=video, funscript=None, size=100)
+
+    def test_it_surfaces_as_a_short_and_never_as_full_length(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = self._clip_entry(lib, meta, "example/1 clips/Jane Doe - alpha scene two.mp4")
+        plain = self._plain_entry(lib, "example/0/Long Movie.mp4")
+        source = LibrarySource(
+            entries=[clip, plain], clips=[],
+            # Both well over the short cutoff, so only the sidecar can tell them apart.
+            durations={clip.video: 120.0, plain.video: 120.0},
+            rng=random.Random(0), metadata_root=meta,
+        )
+
+        shorts = {v for v, _ in source.playlist_for(SHORTS)}
+        full = {v for v, _ in source.playlist_for(FULL)}
+
+        assert clip.video in shorts
+        assert clip.video not in full
+        assert plain.video in full
+        assert plain.video not in shorts
+
+    def test_without_a_metadata_root_the_length_is_all_there_is(self, tmp_path):
+        lib = tmp_path / "videos" / "videos"
+        long_plain = self._plain_entry(lib, "example/Long.mp4")
+        source = LibrarySource(
+            entries=[long_plain], clips=[], durations={long_plain.video: 120.0},
+            rng=random.Random(0),
+        )
+
+        assert long_plain.video in {v for v, _ in source.playlist_for(FULL)}
+        assert long_plain.video not in {v for v, _ in source.playlist_for(SHORTS)}
