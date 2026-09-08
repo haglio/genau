@@ -131,6 +131,28 @@ class TestGroupVersions:
         assert len(groups) == 3
         assert all(len(g.entries) == 2 for g in groups)
 
+    def test_bracketed_numbers_mark_different_scenes(self):
+        # A downloader that meets the same title twice names the second copy
+        # "(1)", the third "(2)".  Those are different scenes, so the plain
+        # name must not anchor a group they all join -- but a tag appended to
+        # one of them is still a version of THAT scene.
+        plain = _entry("Jane Doe - Example Studio.mp4", size=100)
+        second = _entry("Jane Doe - Example Studio (1).mp4", size=110)
+        third = _entry("Jane Doe - Example Studio (2).mp4", size=120)
+        third_upscale = _entry("Jane Doe - Example Studio (2)_topaz.mp4", size=900)
+
+        groups = group_versions([plain, second, third, third_upscale])
+
+        assert len(groups) == 3
+        by_canonical = {g.canonical.video.name: g for g in groups}
+        assert set(by_canonical) == {
+            "Jane Doe - Example Studio.mp4",
+            "Jane Doe - Example Studio (1).mp4",
+            "Jane Doe - Example Studio (2)_topaz.mp4",
+        }
+        upscaled = by_canonical["Jane Doe - Example Studio (2)_topaz.mp4"]
+        assert upscaled.alternates == [third]
+
 
 
 class TestCanonicalPlaylist:

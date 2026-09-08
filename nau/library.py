@@ -135,9 +135,26 @@ def _title_tokens(stem: str) -> tuple[str, ...]:
     return tuple(normalize_title(stem).split())
 
 
+# A bare number in brackets at the end of a name -- "Jane Doe - Studio (3)" --
+# is how a download names the third DIFFERENT video of a set, not a tag on a
+# re-encode of the first.  Left to the prefix test every one of them joined the
+# group anchored by the un-numbered name, so a shelf of five distinct scenes
+# collapsed into one with four "other versions".
+_COPY_INDEX = re.compile(r"\(\d+\)")
+
+
 def _is_prefix(shorter: tuple[str, ...], longer: tuple[str, ...]) -> bool:
-    """Whether *shorter*'s tokens begin *longer*'s (equal counts as a prefix)."""
-    return len(shorter) <= len(longer) and longer[: len(shorter)] == shorter
+    """Whether *shorter*'s tokens begin *longer*'s (equal counts as a prefix).
+
+    Except where the tokens *longer* carries past the prefix start with a copy
+    index: that says a different video of the same set, and versions of it are
+    named past the index rather than before it ("… (3)" and "… (3) topaz" are
+    still one video, "… " and "… (3)" are two).
+    """
+    if len(shorter) > len(longer) or longer[: len(shorter)] != shorter:
+        return False
+    extra = longer[len(shorter):]
+    return not (extra and _COPY_INDEX.fullmatch(extra[0]))
 
 
 def _matching_group(
