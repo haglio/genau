@@ -17,6 +17,7 @@ from .duration_cache import DurationCache
 from .library import (
     FULL,
     MIXED,
+    NONE,
     SHORTS,
     LibraryEntry,
     group_versions,
@@ -27,16 +28,21 @@ from .sidecar import read_version_group, read_video_type
 
 # The app starts unfiltered, which is what Fun Time's own playlist is.  The
 # toggle walks all three in this order and wraps.
-LENGTH_MODES = (MIXED, SHORTS, FULL)
+LENGTH_MODES = (MIXED, SHORTS, FULL, NONE)
 DEFAULT_MODE = MIXED
+
+# The one the T key never lands on: the toggle walks the three that play
+# something, and neither-length is reachable only by turning off the last lit
+# button, which is a thing you have to mean.
+CYCLED_MODES = (MIXED, SHORTS, FULL)
 
 
 def next_length_mode(mode: str) -> str:
     """The mode after *mode* in the cycle, wrapping; the default from anywhere
     outside it, so the toggle always lands on a real mode."""
-    if mode not in LENGTH_MODES:
+    if mode not in CYCLED_MODES:
         return DEFAULT_MODE
-    return LENGTH_MODES[(LENGTH_MODES.index(mode) + 1) % len(LENGTH_MODES)]
+    return CYCLED_MODES[(CYCLED_MODES.index(mode) + 1) % len(CYCLED_MODES)]
 
 
 def length_mode_rebuilds(requested: str, current: str, *, in_compilation: bool) -> bool:

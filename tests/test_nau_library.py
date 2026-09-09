@@ -10,6 +10,7 @@ from nau.library import (
     FULL,
     FULL_LENGTH,
     MIXED,
+    NONE,
     SHORT_MAX_S,
     LibraryEntry,
     VersionGroup,
@@ -153,6 +154,62 @@ class TestGroupVersions:
         upscaled = by_canonical["Jane Doe - Example Studio (2)_topaz.mp4"]
         assert upscaled.alternates == [third]
 
+
+
+class TestNoLengthAtAll:
+    """Neither length: a browse with nothing in it, which the console offers
+    rather than refusing the press."""
+
+    def test_no_length_keeps_nothing(self):
+        kept = select_library(
+            [_entry("scene.mp4", 100)], mode=NONE, durations={Path("scene.mp4"): 600.0},
+            genau_clips=[])
+
+        assert kept == []
+
+
+class TestRecordedFamiliesSplitByCopyIndex:
+    """Evolver records one family id for every file whose name begins the same
+    way, so a downloaded set comes back as one family when it is several scenes.
+    The id still anchors the family; the bracketed number refines it."""
+
+    def _grouped(self, names):
+        ids = dict.fromkeys(names, "Jane Doe - Example Studio")
+        entries = [_entry(name, size=100 + i) for i, name in enumerate(names)]
+        return group_versions(entries, lambda video: ids.get(video.name))
+
+    def test_one_recorded_family_becomes_one_group_per_numbered_scene(self):
+        groups = self._grouped([
+            "Jane Doe - Example Studio.mp4",
+            "Jane Doe - Example Studio (2).mp4",
+            "Jane Doe - Example Studio (3).mp4",
+        ])
+
+        assert len(groups) == 3
+
+    def test_a_scenes_own_upscale_stays_with_it(self):
+        groups = self._grouped([
+            "Jane Doe - Example Studio (2).mp4",
+            "Jane Doe - Example Studio (2)_topaz.mp4",
+            "Jane Doe - Example Studio (3).mp4",
+        ])
+
+        assert len(groups) == 2
+        paired = next(g for g in groups if len(g.entries) == 2)
+        assert {e.video.name for e in paired.entries} == {
+            "Jane Doe - Example Studio (2).mp4",
+            "Jane Doe - Example Studio (2)_topaz.mp4",
+        }
+
+    def test_a_family_with_no_numbers_in_it_is_untouched(self):
+        """A hand-renamed re-encode is exactly what the recorded id is for, and
+        nothing here may come between it and its original."""
+        groups = self._grouped([
+            "Jane Doe - Example Studio.mp4",
+            "a totally different name.mp4",
+        ])
+
+        assert len(groups) == 1
 
 
 class TestCanonicalPlaylist:
