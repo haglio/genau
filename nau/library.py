@@ -191,6 +191,30 @@ def group_versions(
     return _group_by_name(entries)
 
 
+def _copy_index_of(video: Path) -> str:
+    """The bracketed number a download gave this copy, or "".
+
+    "Jane Doe - Studio (3).mp4" is the third DIFFERENT video of a set, and the
+    only thing in the name that says so.  Read off the file name rather than off
+    the recorded family, because the family is exactly what does not say it.
+    """
+    found = _COPY_INDEX.findall(video.stem)
+    return found[-1] if found else ""
+
+
+def _recorded_family(video: Path, gid: str) -> str:
+    """The family a recorded id puts *video* in, split by its copy index.
+
+    Evolver records one id for every file whose name begins the same way, so a
+    set downloaded as "… ", "… (2)" … "… (5)" comes back as one family of nine
+    when it is five scenes with their upscales.  The id still anchors the
+    family -- it is the only thing that can pair a hand-renamed re-encode with
+    its original -- and the number refines it, so "(2)" and "(2)_apo8_iris2"
+    stay together while "(2)" and "(3)" come apart.
+    """
+    return f"{gid}{_copy_index_of(video)}"
+
+
 def _group_by_recorded_id(
     entries: list[LibraryEntry],
     group_id_of: Callable[[Path], str | None],
@@ -204,6 +228,7 @@ def _group_by_recorded_id(
         if gid is None:
             unrecorded.append(entry)
             continue
+        gid = _recorded_family(entry.video, gid)
         if gid not in by_id:
             by_id[gid] = []
             order.append(gid)
@@ -306,6 +331,10 @@ SHORT_MAX_S = 10.0
 MIXED = "mixed"
 FULL = "full"
 SHORTS = "shorts"
+# Neither length: a browse with nothing in it.  Degenerate, and the console
+# offers it anyway rather than refusing the press -- what happens is that the
+# video on screen is held, which is a state you can see and undo.
+NONE = "none"
 
 # Which kinds each of the two filtering modes plays.  A delivered loop and a
 # scene carved out of a longer one are shorts however long they run: the loop
@@ -352,7 +381,8 @@ def select_library(
     """Filter *entries* by length *mode*, then version-dedup the survivors.
 
     Mixed mode applies no length filter: every entry and every clip survives,
-    including the ones nothing has classified, since nothing here has to.  The
+    including the ones nothing has classified, since nothing here has to.  NONE
+    is its opposite and keeps nothing at all.  The
     other two keep the kinds :data:`SHORTS_KINDS` and :data:`FULL_KINDS` name —
     :func:`kind_of_video` says what each video's kind is, and a video with no
     kind at all is dropped by both.  Anything that is not one of the three
@@ -366,7 +396,9 @@ def select_library(
 
     Returns one canonical entry per surviving version group.
     """
-    if mode == MIXED:
+    if mode == NONE:
+        kept = []
+    elif mode == MIXED:
         kept = [*entries, *genau_clips]
     else:
         wanted = SHORTS_KINDS if mode == SHORTS else FULL_KINDS

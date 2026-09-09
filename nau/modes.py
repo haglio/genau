@@ -22,6 +22,7 @@ import logging
 
 from player_core.console_hud import ModeHud
 
+from .library import NONE
 from .library_source import DEFAULT_MODE, LENGTH_MODES, length_mode_rebuilds, next_length_mode
 from .mode_memory import RememberedMode
 
@@ -78,6 +79,10 @@ class Modes:
         would trigger is not nothing: the playlist is reshuffled and landed on
         at entry 0, so saying "mixed" twice puts two different videos on screen.
         Inside a compilation the same words do have work, and are the point.
+
+        Asking for neither length leaves the video on screen and locks it, since
+        there is no list to move on to.  The playlist it had is kept, so putting
+        a length back plays from a rebuild rather than from nothing.
         """
         if self._source is None:
             return
@@ -90,6 +95,9 @@ class Modes:
         self._length_mode = mode
         self._jumps.leave_compilation()
         logger.info("Length mode: %s", mode)
+        if mode == NONE:
+            self._session.set_locked(True)
+            return
         self._session.load_playlist(self._source.playlist_for(mode))
 
     def toggle_length(self) -> None:
