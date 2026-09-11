@@ -15,12 +15,11 @@
     "tcode_udp_host": "127.0.0.1",
     "tcode_udp_port": 50557
   },
-  "nau": {
+  "main_player": {
     "videos_dir": "C:/path/to/suite-root/videos/videos/2D/non_AI",
     "scripts_dir": "C:/path/to/suite-root/videos/scripts/scripts/2D/non_AI",
     "tcode_udp_host": "127.0.0.1",
     "tcode_udp_port": 50557,
-    "metadata_dir": "C:/path/to/suite-root/videos/metadata",
-    "notice_file": "C:/path/to/suite-root/projects/fun_time/state/nau_notice.txt"
+    "metadata_dir": "C:/path/to/suite-root/videos/metadata"
   }
 }

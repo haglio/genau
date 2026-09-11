@@ -1,15 +1,12 @@
 # Genau
 
-Two players that share one repo, one config file and one command vocabulary.
+A pygame window around the family's clip player: short clips, scrubbed to
+wherever the OSR2 is as the Robot Hand drives it over T-Code.
 
-| App | Module | Launcher | What it is |
-| --- | --- | --- | --- |
-| **Genau** | `genau/` | Fun Time | A pygame window around the family's clip player: short clips, scrubbed to wherever the OSR2 is as the Robot Hand drives it over T-Code. |
-| **Nau** | `nau/` | Fun Time | A full-length player with a playlist, funscript playback and the console the family's drive readout is drawn on. |
-
-Both run only as windows inside **Fun Time**, the orchestrator in a sibling
-repo. Which of the two owns the main slot is Fun Time's decision, and both are
-told so over the file channel below. Genau's engine -- the clips, the tick, the
+It runs only as a window inside **Fun Time**, the orchestrator in a sibling
+repo, sharing the main slot with Fun Time's own main player. Which of the two
+owns the slot is Fun Time's decision, and both are told so over the file
+channel below. Genau's engine -- the clips, the tick, the
 verbs it answers, the hand's driver -- lives in `../player_core`, because Fun
 Time's VR session runs the same engine in-process for its genau mode; what is
 here is the window.
@@ -31,19 +28,17 @@ repo included:**
 ```
 
 Without it, setuptools resolves submodules through a meta-path finder pointed at
-the main checkout, so a worktree's own `genau/` and `nau/` are half-shadowed: a
+the main checkout, so a worktree's own `genau/` is half-shadowed: a
 module you edited there keeps resolving to the main tree, and the suite goes
 green on code you are not running.
-
-`vendor/` holds the libmpv binary Nau needs; it is fetched locally and never
-committed.
 
 ## Configuring
 
 `genau_config.json` is git-ignored — it names real paths on a real machine.
 `genau_config.example.json` is its committed template and documents every key:
-`clips_dir`, `state_dir`,
-and a `genau` and a `nau` section for each player's own settings.
+`clips_dir`, `state_dir`, a `genau` section for Genau's own settings, and a
+`main_player` section that Fun Time's main player reads from this same file
+(Fun Time hands it the path) for its library folders and its device port.
 
 Relative paths in it are resolved against the config file, not against whatever
 directory a shortcut happened to start the app in.
@@ -59,7 +54,7 @@ two:
 | `genau_cmd.txt` | Fun Time writes, Genau drains | One verb per line — `PAUSE`, `SPEED 90`, `HUD_ON`. The accepted set is `player_core.genau_controls`. |
 | `genau_paused.txt` | Fun Time writes, Genau polls | Whether the room is paused, while the broker is driving. |
 | `genau_status.txt` | Genau writes, Fun Time reads | What the hand is doing: cruise, lock, clip, shape, and which arrows are at their limits. |
-| `genau_drive.txt` | Genau writes, Nau reads | The drive readout, so Nau's console can draw the numbers Genau is driving with. |
+| `genau_drive.txt` | Genau writes, the main player reads | The drive readout, so the main player's console can draw the numbers Genau is driving with. |
 
 **Every verb string and every status field name is a contract.** Renaming one
 breaks the orchestrator with no error on either side — an unknown verb is logged

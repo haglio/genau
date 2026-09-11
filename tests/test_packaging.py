@@ -13,11 +13,10 @@ def test_all_app_packages_are_declared_for_installation():
     """Every launchable package must be importable from the installed
     distribution, not just from a repo-root CWD.
 
-    Fun Time launches `python -m nau` (and `-m genau`) via this project's
-    venv without setting a working directory. Setuptools' automatic
-    flat-layout discovery refuses multiple top-level packages, so unless
-    they are declared explicitly the editable install maps only whichever
-    package it guessed — which is how `python -m nau` silently broke.
+    Fun Time launches `python -m genau` via this project's venv without
+    setting a working directory, so the package has to be declared for the
+    editable install rather than left to setuptools' guess — which is how a
+    launch once silently broke.
     """
     with _PYPROJECT.open("rb") as fp:
         pyproject = tomllib.load(fp)
@@ -29,12 +28,10 @@ def test_all_app_packages_are_declared_for_installation():
         .get("find", {})
         .get("include", [])
     )
-    for package, pattern in (("genau", "genau*"), ("nau", "nau*")):
-        assert pattern in include, (
-            f"pyproject must declare {pattern!r} in "
-            f"[tool.setuptools.packages.find] include so {package!r} is "
-            "importable from the installed distribution"
-        )
+    assert "genau*" in include, (
+        "pyproject must declare 'genau*' in [tool.setuptools.packages.find] "
+        "include so 'genau' is importable from the installed distribution"
+    )
 
 
 def test_every_declared_runtime_dependency_is_imported_somewhere():
@@ -45,4 +42,4 @@ def test_every_declared_runtime_dependency_is_imported_somewhere():
     itself.
     """
     assert_every_dependency_is_imported(
-        _ROOT, [_ROOT / "genau", _ROOT / "nau", _ROOT / "tests", _ROOT / "tools"], _PYPROJECT)
+        _ROOT, [_ROOT / "genau", _ROOT / "tests", _ROOT / "tools"], _PYPROJECT)

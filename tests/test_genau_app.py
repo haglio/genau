@@ -7,8 +7,8 @@ the *wiring*: which part is handed what, and in which order.  That is also
 where the parts can be joined up wrong while every unit test in the suite stays
 green, because every unit is correct and only the joins between them are not.
 
-So the joins are read off the syntax tree, the way tests/test_nau_app.py reads
-Nau's and for the same reason.
+So the joins are read off the syntax tree, the way fun_time's
+tests/test_main_player_app.py reads the main player's, and for the same reason.
 """
 from __future__ import annotations
 
@@ -176,7 +176,7 @@ class TestTheOneHandEveryPartIsGiven:
 
 class TestWhichFileEachChannelIsGiven:
     def test_the_drive_readout_goes_where_fun_time_said(self):
-        """The reader is Nau, told the path by Fun Time, so Genau has to be told
+        """The reader is the main player, told the path by Fun Time, so Genau has to be told
         the same one."""
         given = _keyword(_call(_startup(), "GenauRefreshController"), "drive_file")
 

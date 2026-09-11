@@ -37,7 +37,7 @@ class LayeredWindow:
     fun_time separately finds by caption substring.
 
     A handle that cannot be found is said once and then let be: the transparency
-    is what lets Nau's video show through Genau's overlay, so losing it costs
+    is what lets the main player's video show through Genau's overlay, so losing it costs
     the video-mode look rather than the session.
     """
 

@@ -1,6 +1,6 @@
 """The main console Genau draws over its clip, and the presses that land on it.
 
-In genau mode Genau owns the main slot, so it draws the panel Nau draws in the
+In genau mode Genau owns the main slot, so it draws the panel the main player draws in the
 other modes — the same painter, so it reads the same whichever player is showing
 it — and takes its clicks.  Drawing it and hitting it are one object because
 they are one surface: what is clickable is exactly the rects the last painting

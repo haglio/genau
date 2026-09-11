@@ -3,7 +3,7 @@
 `genau.window` binds `Window`/`Renderer` and `genau.pygame_view` binds
 `Texture`, all at import time, so a fixture that swaps `sys.modules["pygame"]`
 reaches them only while neither module has ever been imported.  Any test module
-importing `nau.app` first -- it pulls the view in -- left those names as the
+importing the view first -- `genau.app` pulls it in -- left those names as the
 real SDL ones, and the view tests relying on the fixture went on to build real
 windows on the machine that also runs the live players.  Alphabetical
 collection was the only thing standing between the suite and that.

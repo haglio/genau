@@ -1,6 +1,6 @@
 """A name referenced but never bound — the crash that waits for its branch to run.
 
-Nau's event loop called a helper on every mouse move.  The helper was never
+The main player's event loop called a helper on every mouse move.  The helper was never
 written, and nothing found out until a cursor crossed the player's window mid
 session and took it down.  A long-running loop is mostly branches the suite never
 executes, so no amount of unit testing reaches them all — but the compiler
@@ -17,7 +17,7 @@ import symtable
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
-_PACKAGES = ("genau", "nau", "sanitize", "tests")
+_PACKAGES = ("genau", "sanitize", "tests")
 
 # What every module has without binding it.  `__conditional_annotations__` is the
 # compiler's own: 3.14 builds annotations lazily and stashes the conditionally

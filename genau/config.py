@@ -55,9 +55,9 @@ class ProjectConfig:
 
     @property
     def genau_drive_file(self) -> Path:
-        """Where Genau says what it is driving the device with, for Nau to draw.
+        """Where Genau says what it is driving the device with, for the main player to draw.
 
-        In video mode the readout belongs to Nau's console — the controls that move
+        In video mode the readout belongs to the main player's console — the controls that move
         these numbers are on it — so Genau publishes rather than paints.
         """
         return self.state_dir / GENAU_DRIVE

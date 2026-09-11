@@ -11,7 +11,7 @@ from genau.window import GenauWindow, hud_window_identity
 def test_it_claims_the_whole_rect_with_no_chrome(mock_pygame):
     """The window has no title bar — the mode it used to name is on the HUD — so
     it is chromeless and its client area is the whole rect, both to reclaim the
-    space and to keep the video-mode layer aligned with Nau's video."""
+    space and to keep the video-mode layer aligned with the main player's video."""
     import genau.window as gw
 
     window = GenauWindow(width=800, height=600, x=100, y=50, title="Genau")
@@ -72,31 +72,31 @@ def test_the_transparency_holds_the_handle_it_took_when_the_window_was_made(mock
     separately finds it by caption substring, so a handle resolved after the
     rename is resolved against a caption that had just changed."""
     window = GenauWindow(width=800, height=600, title="Genau",
-                         video_title="Video Nau+Genau")
+                         video_title="Video Main Player+Genau")
     window._layered = MagicMock()
     window._layered.hwnd = 0x1234
 
     window.set_hud_mode(True)
 
-    assert window.window.title == "Video Nau+Genau"
+    assert window.window.title == "Video Main Player+Genau"
     assert window._layered.hwnd == 0x1234
 
 
 def test_the_caption_swaps_to_the_video_one_and_back(mock_pygame):
     window = GenauWindow(width=800, height=600, title="Genau",
-                         video_title="Video Nau+Genau")
+                         video_title="Video Main Player+Genau")
     window._layered = MagicMock()
 
     window.set_hud_mode(True)
-    assert window.window.title == "Video Nau+Genau"
+    assert window.window.title == "Video Main Player+Genau"
 
     window.set_hud_mode(False)
     assert window.window.title == "Genau"
 
 
 def test_the_identity_is_the_video_caption_when_active_else_the_base():
-    args = dict(base_title="Genau", video_title="Video Nau+Genau")
-    assert hud_window_identity(True, **args) == "Video Nau+Genau"
+    args = dict(base_title="Genau", video_title="Video Main Player+Genau")
+    assert hud_window_identity(True, **args) == "Video Main Player+Genau"
     assert hud_window_identity(False, **args) == "Genau"
 
 

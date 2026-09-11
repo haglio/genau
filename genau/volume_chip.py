@@ -1,8 +1,8 @@
-"""The primary display's volume chip, in the corner Nau puts it in.
+"""The primary display's volume chip, in the corner the main player puts it in.
 
 Genau's window IS the primary display in genau mode, and reaching for the sound
 should not mean finding a different control depending on the mode — so the chip
-sits in the same pixels Nau's does, drawn by the same painter.
+sits in the same pixels the main player's does, drawn by the same painter.
 
 Genau neither owns the level (Fun Time does, for the whole primary display) nor
 plays the sound: a companion process carries the clip music.  What is held here
@@ -79,7 +79,7 @@ class VolumeChip:
         """Where the chip goes in a window of this size.
 
         ``timeline_h=0`` says there is no scrubber under it, which is what this
-        window has and Nau's does not; the chip still lands in the same pixels
-        Nau's does.
+        window has and the main player's does not; the chip still lands in the same pixels
+        The main player's does.
         """
         return chip_xy(win_w=win_w, win_h=win_h, timeline_h=0)

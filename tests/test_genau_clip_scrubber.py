@@ -43,7 +43,7 @@ class TestThePlayhead:
 
 
 class TestTheBar:
-    def test_it_spans_the_window_at_the_height_nau_draws_one(self):
+    def test_it_spans_the_window_at_the_height_main_player_draws_one(self):
         assert _following().bgra(640).shape == (TIMELINE_HEIGHT, 640, 4)
 
     def test_the_cursor_moves_as_the_hand_moves_the_loop(self):

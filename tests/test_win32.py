@@ -83,7 +83,7 @@ class TestWhereWin32CannotBeBound:
 
 
 class TestTheHudTransparency:
-    """Color-key transparency is what lets Nau's video show through Genau's
+    """Color-key transparency is what lets the main player's video show through Genau's
     overlay in video mode.  It was thirty lines of inline ctypes inside the view,
     reached only through a method every test replaced with a mock -- so the
     COLORREF conversion, the two style edits and the failure report had never

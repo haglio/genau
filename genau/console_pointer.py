@@ -71,8 +71,8 @@ class ConsolePointer:
         asked = self.console.press_at(mx, my)
         if not asked and not self.window.hud_active and not self.console.covers(mx, my):
             # The clip is what this window shows, so the press is on the main
-            # player.  In HUD mode it is the see-through layer over Nau instead:
-            # the picture's own presses reach Nau through the color key, and
+            # player.  In HUD mode it is the see-through layer over the main player instead:
+            # the picture's own presses reach the main player through the color key, and
             # what arrives here landed on the HUD's opaque chrome.
             asked = OMNIPAUSE_TOGGLE
         self._post(asked)

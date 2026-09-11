@@ -119,7 +119,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--dashboard-cmd-file", default=None,
                     help="Where a press on the console posts its Fun Time command")
     ap.add_argument("--drive-file", default=str(config.genau_drive_file),
-                    help="Where to publish the drive readout for Nau to draw in video mode")
+                    help="Where to publish the drive readout for the main player to draw in video mode")
     ap.add_argument("--status-file", default=None,
                     help="Where to publish what the hand is doing; defaults to "
                          "beside the command file, which is where it has always gone")
@@ -315,7 +315,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         volume=volume_chip,
         scrubber=clip_scrubber,
         icon_path=Path(args.icon) if args.icon else None,
-        video_title="Video Nau+Genau",
+        video_title="Video Main Player+Genau",
     )
 
     broker = BrokerFeed()
@@ -384,7 +384,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         read_paused_state=read_paused_state,
         tcode_sender=drive.tcode_sender,
         status_file=Path(args.status_file) if args.status_file else None,
-        # Named by Fun Time, whose Nau is told the same path.
+        # Named by Fun Time, whose main player is told the same path.
         drive_file=Path(args.drive_file),
         console_file=Path(args.console_file) if args.console_file else None,
         set_console=console_panel.show,

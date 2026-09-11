@@ -21,7 +21,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-WINDOW_OPENERS = (REPO / "genau" / "window.py", REPO / "nau" / "app.py")
+WINDOW_OPENERS = (REPO / "genau" / "window.py",)
 
 
 def _call_lines(source: Path) -> tuple[list[int], list[int]]:

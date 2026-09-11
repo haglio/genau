@@ -10,7 +10,7 @@ from pathlib import Path
 from app_support.annotations import assert_every_module_defers_annotations
 
 ROOT = Path(__file__).resolve().parent.parent
-TREES = [ROOT / "genau", ROOT / "nau", ROOT / "tests", ROOT / "tools",
+TREES = [ROOT / "genau", ROOT / "tests", ROOT / "tools",
          ROOT / "vulture_whitelist.py"]
 
 
