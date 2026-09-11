@@ -14,7 +14,7 @@ from app_support.dead_code import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKAGES = (ROOT / "genau", ROOT / "nau", ROOT / "tools",)
+PACKAGES = (ROOT / "genau", ROOT / "tools",)
 SCANNED = PACKAGES
 WHITELIST = ROOT / "vulture_whitelist.py"
 
@@ -28,7 +28,7 @@ def test_the_whitelist_still_suppresses_what_it_claims_to():
 
 
 def test_every_package_in_the_tree_is_scanned():
-    assert_every_package_is_scanned(ROOT, ("genau", "nau", "tools",))
+    assert_every_package_is_scanned(ROOT, ("genau", "tools",))
 
 
 def test_nothing_is_imported_or_assigned_and_left_unread():
@@ -52,7 +52,9 @@ def test_no_dataclass_field_goes_unread():
 
 
 def test_every_declared_command_line_option_is_read():
-    unread.assert_every_argparse_option_is_read(ROOT, SCANNED)
+    # --config and --taskbar-identity are read off argv by the preparsers,
+    # before the parser that declares them can exist.
+    unread.assert_every_argparse_option_is_read(ROOT, SCANNED, allowing=("config", "taskbar_identity"))
 
 
 def test_no_test_helper_is_written_and_never_called():

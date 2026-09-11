@@ -1,7 +1,7 @@
 """What Genau draws, in the window :mod:`genau.window` made for it.
 
 One frame is a clip (or nothing, while the HUD is on and this window is a
-see-through layer over Nau's), the loading line, and — in genau mode, where
+see-through layer over the main player's), the loading line, and — in genau mode, where
 this window IS the primary display — the main console and the volume chip the
 whole family shares.
 
@@ -113,7 +113,7 @@ class PygameView:
         if show_clip and self._loading_text:
             self._draw_loading_overlay()
         # Not while the HUD is on: that is video mode, where this window is a
-        # see-through layer over Nau's and Nau draws the console over its own
+        # see-through layer over the main player's and the main player draws the console over its own
         # video.  Drawing it here too would put the same console on screen twice.
         if not self.hud_active and self._console.showing:
             self._draw_console()
@@ -138,7 +138,7 @@ class PygameView:
     def _draw_console(self) -> None:
         """Blit the main console, painted by the module every player shares.
 
-        In genau mode Genau is on screen, so it draws the console Nau draws in the
+        In genau mode Genau is on screen, so it draws the console the main player draws in the
         other modes — the same painter, so the panel reads the same whichever
         player is showing it, and there is one place to change it.
         """
@@ -151,7 +151,7 @@ class PygameView:
         texture.draw(dstrect=pygame.Rect(hud_xy(), size))
 
     def _draw_scrubber(self) -> None:
-        """Blit the clip's playhead along the lower edge, where Nau puts a
+        """Blit the clip's playhead along the lower edge, where the main player puts a
         video's -- so the two modes read the same and the volume chip beside it
         lands in the pixels it always did."""
         win_w, win_h = self.window.size
@@ -168,7 +168,7 @@ class PygameView:
         """Blit the primary display's volume chip, lower-right.
 
         Beside the console, and drawn under the same condition: in video mode
-        this window is a see-through layer over Nau's, and Nau draws both there — a
+        this window is a see-through layer over the main player's, and the main player draws both there — a
         chip here too would put two sliders on screen disagreeing about which
         press the level came from.
         """

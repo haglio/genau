@@ -31,11 +31,11 @@ def _press(chip: VolumeChip, part: str):
     return chip.press_at(*_at(part), win_w=WIN_W, win_h=WIN_H)
 
 
-def test_it_sits_where_naus_does_with_no_timeline_under_it():
+def test_it_sits_where_main_players_does_with_no_timeline_under_it():
     """Genau's window IS the primary display in genau mode, so reaching for the
-    sound must not mean finding the control somewhere else than in Nau's modes.
-    Measured against the row Nau draws it in rather than against Genau's own
-    call, which is what a chip nine pixels above Nau's still passed."""
+    sound must not mean finding the control somewhere else than in the main player's modes.
+    Measured against the row the main player draws it in rather than against Genau's own
+    call, which is what a chip nine pixels above the main player's still passed."""
     assert VolumeChip.corner(win_w=WIN_W, win_h=WIN_H) == chip_xy(
         win_w=WIN_W, win_h=WIN_H, timeline_h=TIMELINE_HEIGHT)
 

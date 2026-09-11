@@ -4,26 +4,16 @@ Every gesture that ends one of these windows on its own — the close button, Al
 Ctrl+Q — ends only that window, and inside a Fun Time session that is wrong: the
 sequencer put six windows up together and there is nothing to refill the gap one
 leaving makes.  It bit for real.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4,
-so it closed Nau, then the portrait satellite, then the landscape one, one press
-at a time, while the dashboard, Genau and the audio companion carried on and the
-session had to be ended by voice.
+so it closed the main player, then the portrait satellite, then the landscape one,
+one press at a time, while the dashboard, Genau and the audio companion carried on
+and the session had to be ended by voice.
 
-The scan further down is what covers the run loops themselves, which need a real
-window and the libmpv DLL and so cannot be exercised here — the same reason
-``test_focus_clickthrough`` reads its guarantee off the source.  What each loop
-routes *through* differs: Nau's gesture is answered by ``nau.dashboard``, which
-has its own tests in ``test_nau_dashboard``; Genau's calls ``quit_gesture``
-directly.  Either way the regression is the same, and it is the call the loop
-makes that the scan is about.  The gesture itself is ``player_core.session_quit``'s
-and tested there.
-
-Nau's events are dealt in ``nau.input`` now rather than inside its run loop, so
-for Nau the scan is a chain of two: the loop hands its events on, and the module
-it hands them to asks the session.  Both links are named below, because scanning
-only the second would pass a loop that took its events back and ended itself,
-with ``nau/input.py`` sitting there correct and unused.  A synthetic QUIT can be
-fed to that module directly as well (``test_nau_input``), which Genau's loop has
-no equivalent of -- there the scan is still the only cover there is.
+The scan further down is what covers the run loop itself, which needs a real
+window and so cannot be exercised here — the same reason
+``test_focus_clickthrough`` reads its guarantee off the source.  Genau's loop
+calls ``quit_gesture`` directly; the gesture itself is
+``player_core.session_quit``'s and tested there.  Fun Time's main player and
+satellites carry the same scan in their own repo.
 """
 from __future__ import annotations
 
@@ -37,13 +27,6 @@ REPO = Path(__file__).resolve().parents[1]
 # loading screen is not one: it runs before the session has a dispatch loop to
 # ask, so giving up on the wait there is still this window's own business.
 PLAYER_LOOPS = {
-    # Nau's is a chain of two now, and both links are scanned: the loop must
-    # still hand its events to nau.input, and nau.input must still answer a
-    # QUIT by asking.  Scanning only the second would pass a loop that took its
-    # events back and ended itself, leaving nau/input.py sitting there correct
-    # and unused.
-    REPO / "nau" / "app.py": "deal",
-    REPO / "nau" / "input.py": "take_quit_gesture",
     REPO / "genau" / "lifecycle.py": "quit_gesture",
 }
 

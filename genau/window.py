@@ -81,16 +81,16 @@ class GenauWindow:
         # See player_core.sdl_hints for the whole mechanism.
         deliver_the_focusing_click()
         pygame.init()
-        # Borderless, like the satellites and Nau: with no chrome the client area
+        # Borderless, like the satellites and the main player: with no chrome the client area
         # is the whole rect Fun Time sizes the window to — and, in video mode,
-        # this see-through layer lines up with Nau's video beneath it pixel for
+        # this see-through layer lines up with the main player's video beneath it pixel for
         # pixel, where a title bar on one and not the other would shift them
         # apart.  The main slot's mode is drawn on the in-video HUD, so the bar
         # would carry nothing.
         self.window = Window(title, size=(width, height), borderless=True)
         self.window.position = (x, y)
         load_window_icon(self.window, icon_path)
-        # Fun Time's video mode shows this window as "Video Nau+Genau"; genau
+        # Fun Time's video mode shows this window as "Video Main Player+Genau"; genau
         # mode is plain "Genau".  Driven off the HUD toggle.
         self._base_title = title
         # Taken while the caption is still the one the window was made with, and

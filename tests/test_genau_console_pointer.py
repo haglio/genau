@@ -137,8 +137,8 @@ class TestWhichThingAPressLandsOn:
         assert _lines(_posted(tmp_path)) == []
 
     def test_in_hud_mode_there_is_no_clip_under_the_press(self, tmp_path):
-        """This window is the see-through layer over Nau then: the picture's own
-        presses reach Nau through the color key and never arrive here, so what
+        """This window is the see-through layer over the main player then: the picture's own
+        presses reach the main player through the color key and never arrive here, so what
         does arrive landed on the HUD's opaque chrome and means nothing more."""
         pointer, _chip, _panel, _asked = _pointer(tmp_path, hud_active=True)
 

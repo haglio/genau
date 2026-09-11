@@ -19,13 +19,13 @@ from app_support.dependencies import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-TREES = [ROOT / "genau", ROOT / "nau", ROOT / "tests", ROOT / "tools",
+TREES = [ROOT / "genau", ROOT / "tests", ROOT / "tools",
          ROOT / "vulture_whitelist.py"]
 
 
 def test_every_third_party_import_is_declared():
     assert_every_import_is_declared(
-        ROOT, [ROOT / "genau", ROOT / "nau"], ROOT / "pyproject.toml", local=("genau", "nau",))
+        ROOT, [ROOT / "genau"], ROOT / "pyproject.toml", local=("genau",))
 
 
 def test_every_requirement_has_an_upper_bound():

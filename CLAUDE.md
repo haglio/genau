@@ -34,8 +34,8 @@ same way:
 ```
 
 Without it, setuptools' default editable install resolves submodules through a
-meta-path finder pointed at the **main checkout**, so a worktree's own `nau/`
-and `genau/` are half-shadowed: a module you deleted or edited there keeps
+meta-path finder pointed at the **main checkout**, so a worktree's own `genau/`
+is half-shadowed: a module you deleted or edited there keeps
 resolving to the main tree, and the suite goes green on code you are not
 running. `player_core`'s `tests/test_install.py` catches its half of this.
 
@@ -68,7 +68,7 @@ it up from scratch, don't lightly edit a real one.
 
 A genau branch can be judged in a real session first: fun_time's
 branch-verification flow (fun_time/CLAUDE.md, "Get his eyes on the branch") runs
-Genau and Nau out of the checkouts a fun_time worktree names in its own
+Genau out of the checkouts a fun_time worktree names in its own
 `state/genau_project_dirs.txt`. The laws about that chain live there — prove the
 chain at handoff time (`--shortcut` prints the checkouts the next launch will
 carry), never write checkout pins into his real config, and name a player_core

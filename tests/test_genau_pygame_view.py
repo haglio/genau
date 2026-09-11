@@ -79,9 +79,9 @@ def test_present_scene_tiles_portrait_texture(mock_pygame):
     assert texture.draw.call_count == 2
 
 
-def test_hud_mode_leaves_the_console_and_the_volume_to_nau(mock_pygame):
-    """HUD mode is video mode: this window is a see-through layer over Nau's, and the
-    readout is drawn inside Nau's console beneath the controls that move it.
+def test_hud_mode_leaves_the_console_and_the_volume_to_main_player(mock_pygame):
+    """HUD mode is video mode: this window is a see-through layer over the main player's, and the
+    readout is drawn inside the main player's console beneath the controls that move it.
     Drawing it here as well would put the same panel on screen twice — and the
     same goes for the volume chip, where two sliders would disagree about which
     press the level came from."""
@@ -153,7 +153,7 @@ class TestTheLoadingLine:
 
     def test_the_hud_layer_never_carries_it(self, mock_pygame):
         """HUD mode is video mode: this window is a see-through layer over
-        Nau's, and a line drawn here would float over Nau's video."""
+        The main player's, and a line drawn here would float over the main player's video."""
         view = _view(width=800, height=600)
         view.window.window.size = (800, 600)
         view._current_texture = MagicMock()

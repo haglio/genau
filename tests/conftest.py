@@ -26,7 +26,7 @@ def _pin_this_tree() -> None:
     * Run from a *sibling tree* — every agent works in a
       ``.claude/worktrees/<name>/`` copy, so several trees with these package
       names coexist — the cwd goes on the path ahead of the editable install's
-      entry for the checkout, and that tree's ``nau``/``genau`` win.  Loud when
+      entry for the checkout, and that tree's ``genau`` wins.  Loud when
       the trees have drifted enough to break an import; silent when they have
       not, which is worse: a green suite proving nothing about the code you have.
 
@@ -38,7 +38,7 @@ def _pin_this_tree() -> None:
     Neither is beaten by ``sys.path`` alone.  Setuptools' default editable
     install answers from ``sys.meta_path``, which is consulted before any path,
     and its finder handles *immediate children* as well as the top-level name —
-    so ``nau`` can resolve here while ``nau.runtime`` resolves in the main
+    so ``genau`` can resolve here while ``genau.window`` resolves in the main
     checkout, which is the silent half: a module deleted or renamed here goes on
     importing from there and the suite passes over code that is not in this
     tree.  ``--config-settings editable_mode=compat`` writes a plain path entry
@@ -49,16 +49,15 @@ def _pin_this_tree() -> None:
     while _PROJECT_ROOT in sys.path:
         sys.path.remove(_PROJECT_ROOT)
     sys.path.insert(0, _PROJECT_ROOT)
-    _drop_editable_finders_for("nau", "genau")
-    for name in ("nau", "genau"):
-        module = importlib.import_module(name)
-        home = Path(module.__file__).resolve().parent.parent
-        if home != Path(_PROJECT_ROOT):
-            raise RuntimeError(
-                f"tests in {_PROJECT_ROOT} imported {name} from {home}. "
-                "Two trees of this repo are on sys.path and the wrong one won; "
-                "the suite would be testing code you are not running."
-            )
+    _drop_editable_finders_for("genau")
+    module = importlib.import_module("genau")
+    home = Path(module.__file__).resolve().parent.parent
+    if home != Path(_PROJECT_ROOT):
+        raise RuntimeError(
+            f"tests in {_PROJECT_ROOT} imported genau from {home}. "
+            "Two trees of this repo are on sys.path and the wrong one won; "
+            "the suite would be testing code you are not running."
+        )
 
 
 def _drop_editable_finders_for(*packages: str) -> None:
@@ -136,7 +135,7 @@ def mock_pygame(monkeypatch):
     scope -- ``import pygame`` and ``from pygame._sdl2.video import ...`` -- so
     swapping the entries in ``sys.modules`` reaches those names only while
     neither has ever been imported.  Once anything has imported them
-    (``nau.app`` does), the bindings are already the real SDL ones and the swap
+    (``genau.app`` does), the bindings are already the real SDL ones and the swap
     is inert: the tests relying on this fixture then build real windows on the
     machine that also runs the live players.  Patching the attributes each
     module holds asks nothing about what has been imported, or when.

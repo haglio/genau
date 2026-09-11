@@ -1,4 +1,4 @@
-"""The clip's playhead, drawn along the window's lower edge as Nau draws a video's.
+"""The clip's playhead, drawn along the window's lower edge as the main player draws a video's.
 
 A clip loops and there is no time in it to seek to, so this is a readout rather
 than a control: where the Robot Hand has taken the loop, which is the one thing
