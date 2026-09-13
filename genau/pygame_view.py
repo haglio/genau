@@ -163,6 +163,11 @@ class PygameView:
         surface = pygame.image.frombuffer(rgba.tobytes(), (width, height), "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
         texture.draw(dstrect=pygame.Rect(0, win_h - height, width, height))
+        readout = self._scrubber.readout_blit(win_w=win_w, win_h=win_h)
+        if readout is not None:
+            pixels, size, at = readout
+            surface = pygame.image.frombuffer(pixels, size, "RGBA")
+            Texture.from_surface(self.renderer, surface).draw(dstrect=pygame.Rect(at, size))
 
     def _draw_volume(self) -> None:
         """Blit the primary display's volume chip, lower-right.
