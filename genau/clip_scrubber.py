@@ -7,7 +7,13 @@ about the clip the console cannot say.
 from __future__ import annotations
 
 import numpy as np
-from player_core.playhead import PlayheadHud, PlayheadHudPainter, clip_playhead, readout_xy
+from player_core.playhead import (
+    PlayheadHud,
+    PlayheadHudPainter,
+    clip_playhead,
+    on_readout,
+    readout_xy,
+)
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
 
 
@@ -60,6 +66,10 @@ class ClipScrubber:
         rgba, size = self._readout_painter.rgba(hud)
         return rgba, size, readout_xy(size[0], win_w=win_w, win_h=win_h,
                                       timeline_h=TIMELINE_HEIGHT)
+
+    def on_readout(self, mx: int, my: int, *, win_w: int, win_h: int) -> bool:
+        return self.playhead()[1] > 0 and on_readout(
+            mx, my, win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
 
     def takes(self, my: int, *, win_h: int) -> bool:
         """Whether a press this far down the window is on the bar."""

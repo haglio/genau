@@ -64,3 +64,10 @@ class TestTheReadout:
 
         assert at == readout_xy(size[0], win_w=800, win_h=600, timeline_h=TIMELINE_HEIGHT)
         assert len(rgba) == size[0] * size[1] * 4
+
+    def test_a_press_on_it_is_on_it_and_a_press_on_the_bar_is_not(self):
+        scrubber = _following(index=12, count=20)
+        _rgba, size, (x, y) = scrubber.readout_blit(win_w=800, win_h=600)
+
+        assert scrubber.on_readout(x + 5, y + 5, win_w=800, win_h=600)
+        assert not scrubber.on_readout(x + size[0] + 11, y + 5, win_w=800, win_h=600)

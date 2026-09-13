@@ -19,7 +19,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from player_core.file_channel import append_command
-from player_core.timeline import on_track
 
 from .clip_scrubber import ClipScrubber
 from .console_panel import ConsolePanel
@@ -65,10 +64,11 @@ class ConsolePointer:
             self.volume.show(press.level, press.muted)
             self._post(press.command)
             return
+        if self.scrubber.on_readout(mx, my, win_w=win_w, win_h=win_h):
+            return
         if self.scrubber.takes(my, win_h=win_h):
-            if on_track(mx, win_w):
-                self._seeking = True
-                self.seek(self.scrubber.fraction_at(mx, win_w=win_w))
+            self._seeking = True
+            self.seek(self.scrubber.fraction_at(mx, win_w=win_w))
             return
         asked = self.console.press_at(mx, my)
         if not asked and not self.window.hud_active and not self.console.covers(mx, my):

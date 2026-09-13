@@ -7,6 +7,7 @@ test at all.
 """
 from __future__ import annotations
 
+from player_core.playhead import on_readout
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 
 from genau.console_pointer import OMNIPAUSE_TOGGLE, ConsolePointer
@@ -70,21 +71,28 @@ class FakeScrubber:
     def takes(self, my, *, win_h):
         return self._showing and my >= win_h - TIMELINE_HEIGHT
 
+    def on_readout(self, mx, my, *, win_w, win_h):
+        return self._showing and on_readout(mx, my, win_w=win_w, win_h=win_h,
+                                            timeline_h=TIMELINE_HEIGHT)
+
     @staticmethod
     def fraction_at(mx, *, win_w):
         return mx / win_w
 
 
 def _pointer(tmp_path, *, volume=None, pressed="", dragged="", clip=True,
-             hud_active=False, covering=False):
+             hud_active=False, covering=False, size=None):
     """The pointer over a fake chip, panel and bar, plus the order it asked them in."""
     asked: list[str] = []
     chip = FakeChip(asked, volume)
     panel = FakePanel(asked, pressed, dragged, covering=covering)
     scrubber = FakeScrubber(asked, showing=clip)
     seeks: list[float] = []
+    window = FakeWindow(hud_active=hud_active)
+    if size is not None:
+        window.size = size
     pointer = ConsolePointer(panel, chip, scrubber,
-                             window=FakeWindow(hud_active=hud_active),
+                             window=window,
                              dashboard_cmd_file=_posted(tmp_path), seek=seeks.append)
     pointer.seeks = seeks
     return pointer, chip, panel, asked
@@ -244,6 +252,16 @@ class TestAPressOnTheClipsOwnBar:
         pointer, _chip, _panel, _asked = _pointer(tmp_path)
 
         pointer.press(bar_track_x(FakeWindow.size[0])[0] // 2, 595)
+
+        assert pointer.seeks == []
+        assert _lines(_posted(tmp_path)) == []
+
+    def test_above_a_bar_too_narrow_to_share_the_readout_is_not_the_clip(self, tmp_path):
+        """400 across leaves the readout a line of its own above the bar, over the
+        clip: a press on it is not a press on the clip."""
+        pointer, _chip, _panel, _asked = _pointer(tmp_path, size=(400, 600))
+
+        pointer.press(bar_track_x(400)[0] + 20, 600 - TIMELINE_HEIGHT - 13)
 
         assert pointer.seeks == []
         assert _lines(_posted(tmp_path)) == []
