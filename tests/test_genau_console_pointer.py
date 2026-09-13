@@ -7,7 +7,7 @@ test at all.
 """
 from __future__ import annotations
 
-from player_core.timeline import TIMELINE_HEIGHT
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 
 from genau.console_pointer import OMNIPAUSE_TOGGLE, ConsolePointer
 from genau.volume_chip import VolumePress
@@ -237,3 +237,13 @@ class TestAPressOnTheClipsOwnBar:
 
         assert pointer.seeks == []
         assert _posted(tmp_path).read_text(encoding="utf-8").split() == ["main_lock"]
+
+    def test_a_press_on_the_readout_neither_seeks_nor_pauses_the_room(self, tmp_path):
+        """The readout sits in the bar's row, left of the track: saturated like a
+        margin, a press on it would throw the clip back to its first frame."""
+        pointer, _chip, _panel, _asked = _pointer(tmp_path)
+
+        pointer.press(bar_track_x(FakeWindow.size[0])[0] // 2, 595)
+
+        assert pointer.seeks == []
+        assert _lines(_posted(tmp_path)) == []
