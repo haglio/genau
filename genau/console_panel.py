@@ -36,6 +36,9 @@ class ConsolePanel:
         """
         return self._painter.press_at(mx, my)
 
+    def covers(self, mx: int, my: int) -> bool:
+        return self._panel is not None and self._painter.covers(mx, my)
+
     def drag_to(self, mx: int, my: int) -> str:
         """The command the pointer posts while a bar is held, "" while none is."""
         return self._painter.drag_to(mx, my)

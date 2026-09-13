@@ -69,7 +69,7 @@ class ConsolePointer:
             self.seek(self.scrubber.fraction_at(mx, win_w=win_w))
             return
         asked = self.console.press_at(mx, my)
-        if not asked and not self.window.hud_active:
+        if not asked and not self.window.hud_active and not self.console.covers(mx, my):
             # The clip is what this window shows, so the press is on the main
             # player.  In HUD mode it is the see-through layer over Nau instead:
             # the picture's own presses reach Nau through the color key, and
