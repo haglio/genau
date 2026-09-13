@@ -1,7 +1,7 @@
 """What the mouse does to Nau's window.
 
 Four things are under the pointer, each floating over the one under it: the
-console's buttons, the volume chip at the right-hand end of the timeline row,
+console, the volume chip at the right-hand end of the timeline row,
 the rest of that row, and the video everywhere else.  800x600 with no heatmap
 built puts the row's top edge at y=576 and the inset track between x=40 and
 x=668.
@@ -38,7 +38,7 @@ class SpySession:
 
 
 class SpyConsole:
-    """The console's buttons, as the pointer meets them.
+    """The console, as the pointer meets them.
 
     The real one is player_core's; what a press has to get right here is only
     whether the console took it, and which control a held pointer belongs to.
@@ -46,9 +46,11 @@ class SpyConsole:
     button), *drags* what the pointer posts while a band is held.
     """
 
-    def __init__(self, *, asks: str = "", drags: str = "") -> None:
+    def __init__(self, *, asks: str = "", drags: str = "",
+                 drawn_at: tuple[int, int, int, int] | None = None) -> None:
         self._asks = asks
         self._drags = drags
+        self._drawn_at = drawn_at
         self.holding = False
         self.releases = 0
         self.hovered: tuple[int, int] | None = None
@@ -58,6 +60,12 @@ class SpyConsole:
             return ""
         self.holding = True
         return self._asks
+
+    def covers(self, mx: int, my: int) -> bool:
+        if self._drawn_at is None:
+            return False
+        x, y, w, h = self._drawn_at
+        return x <= mx < x + w and y <= my < y + h
 
     def drag_to(self, mx: int, my: int) -> str:
         return self._drags
@@ -240,7 +248,14 @@ class TestPressingAConsoleButton:
 
         assert bits.volume.hud.volume == 100
 
-    def test_a_press_that_missed_every_button_falls_through(self, bits):
+    def test_a_press_on_the_console_between_its_buttons_asks_for_nothing(self, tmp_path):
+        bits = Bits(tmp_path, SpyConsole(drawn_at=(8, 8, 300, 200)))
+
+        bits.press((150, 100))
+
+        assert (bits.asks(), bits.session.seeks) == ([], [])
+
+    def test_a_press_off_the_console_falls_through(self, bits):
         bits.press(ON_THE_VIDEO)
 
         assert bits.asks() == [OMNIPAUSE_TOGGLE]

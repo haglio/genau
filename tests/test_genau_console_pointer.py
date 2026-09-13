@@ -28,16 +28,20 @@ class FakeChip:
 
 
 class FakePanel:
-    def __init__(self, asked: list[str], pressed="", dragged=""):
+    def __init__(self, asked: list[str], pressed="", dragged="", *, covering=False):
         self._asked = asked
         self._pressed = pressed
         self._dragged = dragged
+        self._covering = covering
         self.released = 0
         self.hovered: list[tuple[int, int]] = []
 
     def press_at(self, mx, my) -> str:
         self._asked.append("panel")
         return self._pressed
+
+    def covers(self, mx, my) -> bool:
+        return self._covering
 
     def drag_to(self, mx, my) -> str:
         return self._dragged
@@ -72,11 +76,11 @@ class FakeScrubber:
 
 
 def _pointer(tmp_path, *, volume=None, pressed="", dragged="", clip=True,
-             hud_active=False):
+             hud_active=False, covering=False):
     """The pointer over a fake chip, panel and bar, plus the order it asked them in."""
     asked: list[str] = []
     chip = FakeChip(asked, volume)
-    panel = FakePanel(asked, pressed, dragged)
+    panel = FakePanel(asked, pressed, dragged, covering=covering)
     scrubber = FakeScrubber(asked, showing=clip)
     seeks: list[float] = []
     pointer = ConsolePointer(panel, chip, scrubber,
@@ -124,6 +128,13 @@ class TestWhichThingAPressLandsOn:
         pointer.press(3, 4)
 
         assert _lines(_posted(tmp_path)) == [OMNIPAUSE_TOGGLE]
+
+    def test_a_press_on_the_panel_between_its_buttons_is_not_the_clip(self, tmp_path):
+        pointer, _chip, _panel, _asked = _pointer(tmp_path, covering=True)
+
+        pointer.press(3, 4)
+
+        assert _lines(_posted(tmp_path)) == []
 
     def test_in_hud_mode_there_is_no_clip_under_the_press(self, tmp_path):
         """This window is the see-through layer over Nau then: the picture's own
