@@ -16,12 +16,13 @@ from player_core.console_hud import ConsoleHud, ConsolePainter
 class ConsolePanel:
     def __init__(self) -> None:
         self._painter = ConsolePainter()
-        # None until the refresh loop has a panel to show: it arrives published
-        # by Fun Time rather than being built here.
+        # None until the engine's first tick has composed a panel to show: the
+        # room on it arrives published by Fun Time rather than being built here.
+        # Every tick after that has one, whoever holds the device.
         self._panel: ConsoleHud | None = None
         self._hover: tuple[int, int] | None = None
 
-    def show(self, console: ConsoleHud | None) -> None:
+    def show(self, console: ConsoleHud) -> None:
         self._panel = console
 
     @property
