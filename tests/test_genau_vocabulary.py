@@ -238,12 +238,18 @@ class TestGenauAnswersEveryVerbWrittenDown:
         Fun Time still sends."""
         from player_core.genau_controls import VERBS
 
-        assert set(VERBS) == set(GENAU_VERBS)
+        # Every spelling written down is answered.  Not the other way round: a
+        # verb player_core adds lands there first, pinned by its own
+        # tests/test_genau_controls.py, and is written down here when this
+        # window takes it up -- so the family's gate, which runs this suite
+        # against a candidate player_core, does not refuse every addition.
+        assert set(GENAU_VERBS) <= set(VERBS)
 
     def test_each_key_stands_for_the_verb_written_down_beside_it(self):
         from player_core.genau_controls import KEYS
 
-        assert {name: verb.spelling for name, (_control, verb) in KEYS.items()} == GENAU_KEYS
+        bound = {name: verb.spelling for name, (_control, verb) in KEYS.items()}
+        assert all(bound.get(key) == verb for key, verb in GENAU_KEYS.items())
 
 
 class TestTheWindowSpellsNoVerbOfItsOwn:
@@ -289,7 +295,10 @@ class TestTheStatusFileFunTimeReads:
         )
 
         written = [line.split("=", 1)[0] for line in text.splitlines()]
-        assert tuple(written) == GENAU_STATUS_FIELDS
+        # The fields written down come out in this order; one player_core adds
+        # ahead of this window taking it up may sit among them.
+        assert tuple(field for field in written if field in GENAU_STATUS_FIELDS) == GENAU_STATUS_FIELDS
+        assert set(GENAU_STATUS_FIELDS) <= set(written)
 
     def test_every_line_is_a_key_and_a_value(self):
         """No field may go out bare — a reader splits on the first ``=``."""
