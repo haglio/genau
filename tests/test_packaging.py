@@ -40,6 +40,12 @@ def test_every_declared_runtime_dependency_is_imported_somewhere():
     `pyserial` was one: Genau reaches the OSR2 over UDP through the broker, and
     it is the broker repo that talks to the serial port and declares the package
     itself.
+
+    shared_ui is the one left open: nothing here draws a Qt widget, but
+    player_core runs on it, so it is a sibling this repo pins for player_core's
+    sake -- naming the copy both are built against rather than taking whichever
+    player_core's own pin brings.
     """
     assert_every_dependency_is_imported(
-        _ROOT, [_ROOT / "genau", _ROOT / "tests", _ROOT / "tools"], _PYPROJECT)
+        _ROOT, [_ROOT / "genau", _ROOT / "tests", _ROOT / "tools"], _PYPROJECT,
+        allowing=("shared-ui",))
