@@ -53,7 +53,7 @@ two:
 | --- | --- | --- |
 | `genau_cmd.txt` | Fun Time writes, Genau drains | One verb per line — `PAUSE`, `SPEED 90`, `HUD_ON`. The accepted set is `player_core.genau_controls`. |
 | `genau_paused.txt` | Fun Time writes, Genau polls | Whether the room is paused, while the broker is driving. |
-| `genau_status.txt` | Genau writes, Fun Time reads | What the hand is doing: cruise, learned motion, lock, clip, shape, and which arrows are at their limits. |
+| `genau_status.txt` | Genau writes, Fun Time reads | What the hand is doing: cruise, human-inspired motion, lock, clip, shape, and which arrows are at their limits. |
 | `genau_drive.txt` | Genau writes, the main player reads | The drive readout, so the main player's console can draw the numbers Genau is driving with. |
 
 **Every verb string and every status field name is a contract.** Renaming one
