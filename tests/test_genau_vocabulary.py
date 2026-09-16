@@ -61,6 +61,9 @@ GENAU_VERBS: dict[str, str | None] = {
     "TOGGLE_CRUISE": None,
     "CRUISE_ON": None,
     "CRUISE_OFF": None,
+    "TOGGLE_LEARNED": None,
+    "LEARNED_ON": None,
+    "LEARNED_OFF": None,
     "TOGGLE_LOCK": None,
     "LOCK_ON": None,
     "LOCK_OFF": None,
@@ -104,6 +107,7 @@ GENAU_KEYS: dict[str, str] = {
     "K_COMMA": "TOGGLE_LOCK",
     "K_BACKSLASH": "OFFSET_QUARTER_CYCLE",
     "K_SLASH": "TOGGLE_CRUISE",
+    "K_SEMICOLON": "TOGGLE_LEARNED",
 }
 
 # Spellings that must stay refused.  Two were aliases no sender in the family
@@ -117,6 +121,7 @@ GENAU_RETIRED = ("NUDGE25", "SLOW_DOWN", "ADVANCE_UP", "ADVANCE_DOWN", "ADVANCE 
 # fun_time's dashboard, dispatch loop and sequencer all read this file by key.
 GENAU_STATUS_FIELDS = (
     "cruise",
+    "learned",
     "locked",
     "clip",
     "shape",
@@ -194,6 +199,8 @@ def _genau_answers(line: str) -> bool:
     from player_core.cruise_control import CruiseControlState
     from player_core.flag import Flag
     from player_core.genau_controls import GenauControls, apply_runtime_command
+    from player_core.learned_model import LearnedModel
+    from player_core.learned_motion import LearnedMotionState
     from player_core.robot_hand import RobotHandState
     from player_core.robot_hand_beat import BeatEngine
 
@@ -205,6 +212,7 @@ def _genau_answers(line: str) -> bool:
             condemn_clip=lambda: None,
             robot_hand=RobotHandState(playing=True, speed=50, amplitude=60, center=40),
             cruise_control_state=CruiseControlState(),
+            learned_motion_state=LearnedMotionState(model=LearnedModel()),
             set_motion_phase=lambda _phase: None,
             clip_advance_state=ClipAdvanceState(),
             stop_event=threading.Event(),

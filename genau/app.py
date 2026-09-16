@@ -38,6 +38,7 @@ from player_core.flag import Flag
 from player_core.genau_controls import GenauControls
 from player_core.genau_notifier import GenauNotifier
 from player_core.genau_refresh import GenauRefreshController
+from player_core.learned_motion import LearnedMotionState, load_default_model
 from player_core.robot_hand import (
     RobotHandState,
     bpm_for_speed,
@@ -176,32 +177,38 @@ def main(argv: list[str] | None = None) -> int:
 
 @dataclass(frozen=True)
 class DriveStack:
-    """What Genau drives the device with: the hand, what varies it, what moves
-    the clip on, and the sender that puts it on the wire."""
+    """What Genau drives the device with: the hand, the two things that can
+    take it over, what moves the clip on, and the sender that puts it on the
+    wire."""
 
     robot_hand: RobotHandState
     cruise_control: CruiseControlState
+    learned_motion: LearnedMotionState
     clip_advance: ClipAdvanceState
     tcode_sender: RobotHandTCodeDriver
 
 
 def _build_drive_stack(args, logger: logging.Logger) -> DriveStack:
-    """One hand, one cruise stack, one clip advance, one sender.
+    """One hand, one cruise stack, one learned motion, one clip advance, one
+    sender.
 
-    Built together because they are one thing wired four ways: the sender reads
-    the hand and the stack, the readout draws all three, and a second copy of
-    any of them would leave a key moving one while the picture follows another.
+    Built together because they are one thing wired five ways: the sender reads
+    the hand, the stack and the phrases, the readout draws all of them, and a
+    second copy of any would leave a key moving one while the picture follows
+    another.
     """
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     cruise_control = CruiseControlState()
+    learned_motion = LearnedMotionState(model=load_default_model())
     sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
     logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
     return DriveStack(
         robot_hand=robot_hand,
         cruise_control=cruise_control,
+        learned_motion=learned_motion,
         clip_advance=ClipAdvanceState(),
         tcode_sender=RobotHandTCodeDriver(
-            sink, robot_hand=robot_hand, cruise=cruise_control),
+            sink, robot_hand=robot_hand, cruise=cruise_control, learned=learned_motion),
     )
 
 
@@ -358,6 +365,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         condemn_clip=selection.condemn_current,
         robot_hand=drive.robot_hand,
         cruise_control_state=drive.cruise_control,
+        learned_motion_state=drive.learned_motion,
         set_motion_phase=drive.tcode_sender.set_motion_phase,
         clip_advance_state=drive.clip_advance,
         stop_event=stop_event,

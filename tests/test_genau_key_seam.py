@@ -24,6 +24,8 @@ from player_core.clip_advance import ClipAdvanceState
 from player_core.cruise_control import CruiseControlState
 from player_core.flag import Flag
 from player_core.genau_controls import GenauControls, apply_runtime_command
+from player_core.learned_model import LearnedModel
+from player_core.learned_motion import LearnedMotionState
 from player_core.robot_hand import RobotHandState, WaveformShape
 from player_core.robot_hand_beat import BeatEngine
 
@@ -73,6 +75,8 @@ class Keys:
             shape=start.get("shape", WaveformShape.TRIANGLE),
         )
         self.cruise = CruiseControlState(active=bool(start.get("cruise", False)))
+        self.learned = LearnedMotionState(model=LearnedModel(),
+                                          active=bool(start.get("learned", False)))
         self.advance = ClipAdvanceState(locked=bool(start.get("locked", False)))
         self.controls = GenauControls(
             engine=self.engine,
@@ -81,6 +85,7 @@ class Keys:
             condemn_clip=self.selection.condemn_current,
             robot_hand=self.direct,
             cruise_control_state=self.cruise,
+            learned_motion_state=self.learned,
             clip_advance_state=self.advance,
             stop_event=self.stop_event,
         )
@@ -101,6 +106,7 @@ class Keys:
             "shape": self.direct.shape,
             "phase": round(self.engine.phase, 6),
             "cruise": self.cruise.active,
+            "learned": self.learned.active,
             "locked": self.advance.locked,
             "steps": tuple(self.selection.step_calls),
             "condemned": self.selection.discard_calls,
@@ -158,6 +164,11 @@ PRESSES = [
     ("K_i", 0, {}, {"shape": WaveformShape.ROUNDED_SQUARE}),
     ("K_SLASH", 0, {}, {"cruise": True}),
     ("K_SLASH", 0, {"cruise": True}, {"cruise": False}),
+    ("K_SEMICOLON", 0, {}, {"learned": True}),
+    ("K_SEMICOLON", 0, {"learned": True}, {"learned": False}),
+    # Never both: the key that switches one on switches the other off.
+    ("K_SEMICOLON", 0, {"cruise": True}, {"learned": True, "cruise": False}),
+    ("K_SLASH", 0, {"learned": True}, {"cruise": True, "learned": False}),
     # The two that have no verb: the window's own play/pause pair.
     ("K_ESCAPE", 0, {}, {"playing": True}),
     ("K_ESCAPE", 0, {"playing": True}, {"playing": False}),
@@ -237,6 +248,7 @@ class TestAKeyAndItsVerbAgree:
         "K_o": "CENTER_UP",
         "K_i": "CYCLE_SHAPE",
         "K_SLASH": "TOGGLE_CRUISE",
+        "K_SEMICOLON": "TOGGLE_LEARNED",
     }
 
     @pytest.mark.parametrize("key, verb", sorted(SAME.items()))

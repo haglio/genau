@@ -141,8 +141,8 @@ class TestTheOneHandEveryPartIsGiven:
     """
 
     @pytest.mark.parametrize(
-        "part", ["RobotHandState", "CruiseControlState", "ClipAdvanceState",
-                 "RobotHandTCodeDriver"],
+        "part", ["RobotHandState", "CruiseControlState", "LearnedMotionState",
+                 "ClipAdvanceState", "RobotHandTCodeDriver"],
     )
     def test_the_module_builds_exactly_one_of_it(self, part):
         """Asked of the whole module rather than one function: a second one
@@ -160,7 +160,8 @@ class TestTheOneHandEveryPartIsGiven:
         startup = _startup()
 
         assert len(_calls(startup, "_build_drive_stack")) == 1
-        for named in ("robot_hand", "cruise_control_state", "clip_advance_state"):
+        for named in ("robot_hand", "cruise_control_state", "learned_motion_state",
+                      "clip_advance_state"):
             assert _keyword(_call(startup, "GenauControls"), named).startswith("drive.")
         assert _keyword(
             _call(startup, "GenauRefreshController"), "tcode_sender") == "drive.tcode_sender"
