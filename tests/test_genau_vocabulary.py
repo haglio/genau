@@ -71,12 +71,16 @@ GENAU_VERBS: dict[str, str | None] = {
     "CLIP_SECONDS_UP": None,
     "HUD_ON": None,
     "HUD_OFF": None,
-    # The five that carry a value.
+    # The six that carry a value.
     "AMP": "50",
     "CENTER": "50",
     "SPEED": "50",
     "CLIP_SECONDS": "10",
     "SET_VOLUME": "40 0",
+    # Whether the motion reaches the OSR2 at all.  PAUSE is the other half of
+    # this pair and stops the room; this one leaves the clips running and sends
+    # the device nothing, which is how an orchestrator lets go of it.
+    "SET_TCODE_ENABLED": "0",
 }
 
 # Upper-case literals in ``genau/`` that are *not* genau_cmd verbs, each named
