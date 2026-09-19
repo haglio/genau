@@ -182,3 +182,45 @@ class TestWhichFileEachChannelIsGiven:
         given = _keyword(_call(_startup(), "GenauRefreshController"), "drive_file")
 
         assert given == "Path(args.drive_file)"
+
+
+class TestAGenauLaunchedToFollow:
+    """Launched beside the Genau that has the room, it follows until Fun Time
+    says to take the room: the device, the companion and the broker's beat are
+    the room's until then."""
+
+    def test_the_command_line_asks_for_it(self, cfg_path):
+        from genau.app import build_parser
+        from genau.config import load_config
+
+        parser = build_parser(load_config(cfg_path))
+
+        assert parser.parse_args([]).follow is False
+        assert parser.parse_args(["--follow"]).follow is True
+
+    def test_the_tick_is_told_whether_it_arrives(self):
+        given = _keyword(_call(_startup(), "GenauRefreshController"), "arriving")
+
+        assert given == "args.follow"
+
+    def test_the_device_is_held_for_a_follower(self):
+        assert _keyword(_call(_function("_build_drive_stack"), "HeldSink"), "held") == "args.follow"
+
+    def test_the_companion_is_held_for_a_follower(self):
+        assert _keyword(_call(_startup(), "GenauNotifier"), "held") == "args.follow"
+
+    def test_taking_the_room_lets_the_device_and_the_companion_go_and_listens(self):
+        startup = _startup()
+        let_go = _keyword(_call(startup, "GenauRefreshController"), "let_go")
+        taker = next(n for n in ast.walk(startup)
+                     if isinstance(n, ast.FunctionDef) and n.name == let_go)
+        said = {_said(call.func) for call in ast.walk(taker) if isinstance(call, ast.Call)}
+
+        assert {"drive.device.let_go", "notifier.let_go", "listen_to_the_broker"} <= said
+
+    def test_an_ordinary_genau_listens_to_the_broker_from_the_start(self):
+        startup = _startup()
+        guard = next(n for n in startup.body
+                     if isinstance(n, ast.If) and _said(n.test) == "not args.follow")
+
+        assert _said(guard.body[0].value.func) == "listen_to_the_broker"

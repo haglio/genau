@@ -32,6 +32,7 @@ from player_core.clip_preload import FirstClipPreload
 from player_core.clip_renderer import ClipRenderController
 from player_core.clip_selection import ClipSelectionController
 from player_core.clip_sequence import ClipSequenceController
+from player_core.crossing import HeldSink
 from player_core.cruise_control import CruiseControlState
 from player_core.file_channel import read_paused_state
 from player_core.flag import Flag
@@ -136,6 +137,9 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--icon", default=None,
                     help="The window icon Fun Time hands over, so an Alt-Tab entry "
                          "says whose window this is")
+    ap.add_argument("--follow", action="store_true", default=False,
+                    help="Arrive beside the Genau that has the room: follow it, "
+                         "driving nothing, until Fun Time says to take the room over")
     return ap
 
 
@@ -186,6 +190,7 @@ class DriveStack:
     learned_motion: LearnedMotionState
     clip_advance: ClipAdvanceState
     tcode_sender: RobotHandTCodeDriver
+    device: HeldSink
 
 
 def _build_drive_stack(args, logger: logging.Logger) -> DriveStack:
@@ -200,7 +205,8 @@ def _build_drive_stack(args, logger: logging.Logger) -> DriveStack:
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     cruise_control = CruiseControlState()
     learned_motion = LearnedMotionState(model=load_default_model())
-    sink = UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port)
+    device = HeldSink(UdpTCodeSink(host=args.tcode_udp_host, port=args.tcode_udp_port),
+                      held=args.follow)
     logger.info("T-Code via UDP to %s:%s", args.tcode_udp_host, args.tcode_udp_port)
     return DriveStack(
         robot_hand=robot_hand,
@@ -208,7 +214,8 @@ def _build_drive_stack(args, logger: logging.Logger) -> DriveStack:
         learned_motion=learned_motion,
         clip_advance=ClipAdvanceState(),
         tcode_sender=RobotHandTCodeDriver(
-            sink, robot_hand=robot_hand, cruise=cruise_control, learned=learned_motion),
+            device, robot_hand=robot_hand, cruise=cruise_control, learned=learned_motion),
+        device=device,
     )
 
 
@@ -328,11 +335,15 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     broker = BrokerFeed()
     stop_event = threading.Event()
 
-    start_daemon_thread(
-        target=udp_reader,
-        args=(args.udp_host, args.udp_port, broker, stop_event, logger),
-        name="genau-udp",
-    )
+    def listen_to_the_broker() -> None:
+        start_daemon_thread(
+            target=udp_reader,
+            args=(args.udp_host, args.udp_port, broker, stop_event, logger),
+            name="genau-udp",
+        )
+
+    if not args.follow:  # a follower's port is the room's until it takes the room
+        listen_to_the_broker()
 
     dashboard_cmd_file = Path(args.dashboard_cmd_file) if args.dashboard_cmd_file else None
 
@@ -348,7 +359,12 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     drive = _build_drive_stack(args, logger)
 
-    notifier = GenauNotifier(args.notify_host, args.notify_port)
+    notifier = GenauNotifier(args.notify_host, args.notify_port, held=args.follow)
+
+    def the_room_is_ours() -> None:
+        drive.device.let_go()
+        notifier.let_go()
+        listen_to_the_broker()
     pipeline = _build_clip_pipeline(
         clip_sequence, clip_store, view, notifier, clips_folder, cache_dir, logger)
     renderer, loader, selection = (
@@ -398,6 +414,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         set_console=console_panel.show,
         present_scene=view.present,
         set_hud_mode=view.set_hud_mode,
+        arriving=args.follow,
+        let_go=the_room_is_ours,
     )
     lifecycle = GenauLifecycleController(
         renderer=renderer,
