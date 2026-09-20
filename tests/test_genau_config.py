@@ -57,6 +57,12 @@ class TestLoadConfig:
         cfg = load_config(cfg_path)
         assert cfg.genau_paused_file == tmp_path / "state" / "genau_paused.txt"
 
+    def test_genau_status_file(self, cfg_path: Path, tmp_path: Path):
+        """In the state directory with the rest of the channel, not beside
+        whichever command file a launch happened to name."""
+        cfg = load_config(cfg_path)
+        assert cfg.genau_status_file == tmp_path / "state" / "genau_status.txt"
+
     def test_log_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.log_file("genau_listener") == tmp_path / "state" / "genau_listener.log"
