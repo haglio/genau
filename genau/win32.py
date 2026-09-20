@@ -33,8 +33,7 @@ class LayeredWindow:
     caption is still the one the window was created with.  Looking it up again
     on every toggle is what tied the transparency to the title: the title
     changes when the HUD comes up, so the lookup had to happen after the rename
-    and before the toggle -- an ordering held together by a comment, in a window
-    fun_time separately finds by caption substring.
+    and before the toggle -- an ordering held together by a comment.
 
     A handle that cannot be found is said once and then let be: the transparency
     is what lets the main player's video show through Genau's overlay, so losing it costs
