@@ -24,6 +24,14 @@ from pygame._sdl2.video import Renderer, Window
 # Any pixel drawn in this exact color becomes fully transparent.
 HUD_COLOR_KEY = (1, 0, 1)
 
+# What this window calls itself when nobody names it: plainly Genau, and -- while
+# its HUD is over the main player's video -- what that pair is together.  A host
+# passes its own pair on the command line (genau.app), the way it passes the icon,
+# because the host resolves this window BY its caption; these are what a launch
+# that names none falls back to, and what a host has always sent.
+DEFAULT_TITLE = "Genau"
+DEFAULT_VIDEO_TITLE = "Video Main Player+Genau"
+
 
 def hud_window_identity(active: bool, *, base_title: str, video_title: str | None) -> str:
     """The window's caption for the HUD state: the video-mode one while the HUD
@@ -71,7 +79,7 @@ class GenauWindow:
         height: int,
         x: int = 0,
         y: int = 0,
-        title: str = "Genau",
+        title: str = DEFAULT_TITLE,
         icon_path: Path | None = None,
         video_title: str | None = None,
     ) -> None:

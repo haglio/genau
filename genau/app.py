@@ -56,6 +56,7 @@ from .console_pointer import ConsolePointer
 from .lifecycle import GenauLifecycleController
 from .pygame_view import PygameView
 from .volume_chip import VolumeChip
+from .window import DEFAULT_TITLE, DEFAULT_VIDEO_TITLE
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
@@ -136,6 +137,14 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--icon", default=None,
                     help="The window icon Fun Time hands over, so an Alt-Tab entry "
                          "says whose window this is")
+    # The host resolves this window by its caption, so the host names it -- the
+    # same reason it hands over the icon, and the same way it names each
+    # satellite player.  A launch that names neither opens as it always has.
+    ap.add_argument("--title", default=DEFAULT_TITLE,
+                    help="What this window calls itself")
+    ap.add_argument("--video-title", default=DEFAULT_VIDEO_TITLE,
+                    help="What it calls itself while its HUD is over the main "
+                         "player's video")
     return ap
 
 
@@ -322,7 +331,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         volume=volume_chip,
         scrubber=clip_scrubber,
         icon_path=Path(args.icon) if args.icon else None,
-        video_title="Video Main Player+Genau",
+        title=args.title,
+        video_title=args.video_title,
     )
 
     broker = BrokerFeed()

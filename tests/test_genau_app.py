@@ -182,3 +182,31 @@ class TestWhichFileEachChannelIsGiven:
         given = _keyword(_call(_startup(), "GenauRefreshController"), "drive_file")
 
         assert given == "Path(args.drive_file)"
+
+
+class TestWhatThisWindowIsCalled:
+    """Its two captions -- the plain one and the one it wears while its HUD is
+    over the main player's video -- are how Fun Time finds this window among
+    the session's.  So they are the host's to name, exactly like the caption it
+    gives each satellite player and the icon it gives this one: named here
+    alone, a lookup over there matched them by luck, and this repo could rename
+    its own window and leave the session unable to find it.
+    """
+
+    def test_both_captions_come_off_the_command_line(self):
+        built = _call(_startup(), "PygameView")
+
+        assert _keyword(built, "title") == "args.title"
+        assert _keyword(built, "video_title") == "args.video_title"
+
+    def test_a_launch_that_names_neither_still_opens_as_genau(self):
+        """Standalone there is no host to name them, and the window is the same
+        window it has always been."""
+        from unittest.mock import MagicMock
+
+        from genau.app import build_parser
+
+        args = build_parser(MagicMock()).parse_args([])
+
+        assert args.title == "Genau"
+        assert args.video_title == "Video Main Player+Genau"
