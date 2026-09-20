@@ -122,9 +122,8 @@ def build_parser(config) -> argparse.ArgumentParser:
                     help="Where a press on the console posts its Fun Time command")
     ap.add_argument("--drive-file", default=str(config.genau_drive_file),
                     help="Where to publish the drive readout for the main player to draw in video mode")
-    ap.add_argument("--status-file", default=None,
-                    help="Where to publish what the hand is doing; defaults to "
-                         "beside the command file, which is where it has always gone")
+    ap.add_argument("--status-file", default=str(config.genau_status_file),
+                    help="Where to publish what the hand is doing")
     ap.add_argument("--start-clip", default=None,
                     help="Open on this clip rather than the top of the folder — how "
                          "an orchestrator resumes the clip its last session left up")
@@ -401,7 +400,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         now_source=clock,
         read_paused_state=read_paused_state,
         tcode_sender=drive.tcode_sender,
-        status_file=Path(args.status_file) if args.status_file else None,
+        status_file=Path(args.status_file),
         # Named by Fun Time, whose main player is told the same path.
         drive_file=Path(args.drive_file),
         console_file=Path(args.console_file) if args.console_file else None,

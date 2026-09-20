@@ -210,3 +210,29 @@ class TestWhatThisWindowIsCalled:
 
         assert args.title == "Genau"
         assert args.video_title == "Video Main Player+Genau"
+
+
+class TestWhereThisWindowSaysWhatItIsDoing:
+    """Its status file is the fourth of the orchestrator channel's files, and
+    the only one that was not rooted where the other three are.  The engine put
+    it beside whichever command file the launch named, so a host that split
+    those two directories -- which Fun Time's config can do -- wrote it
+    somewhere nobody was watching (audit cross/boundaries/cross/024).
+    """
+
+    def test_a_launch_that_names_none_writes_it_beside_the_others(self):
+        from unittest.mock import MagicMock
+
+        from genau.app import build_parser
+
+        config = MagicMock()
+        config.genau_status_file = "S:/state/genau_status.txt"
+
+        assert build_parser(config).parse_args([]).status_file == "S:/state/genau_status.txt"
+
+    def test_the_engine_is_always_given_one(self):
+        """Never None: the fallback it keeps for a caller that names nothing is
+        the command file's directory, which is the thing being moved away from."""
+        given = _keyword(_call(_startup(), "GenauRefreshController"), "status_file")
+
+        assert given == "Path(args.status_file)"
