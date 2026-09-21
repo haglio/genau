@@ -1,21 +1,35 @@
+# The family's baseline block, byte-identical in every checkout that carries it,
+# so what a routine editable install or test run drops is ignored in the repo
+# that drops it. The eleven files were written independently and covered
+# different subsets of the same artifacts, which left several trees dirty after
+# a plain `pip install -e .` -- and a dirty tree here blocks every agent's merge.
+# This repo's own entries go under the marker below, never in here.
 __pycache__/
-*.pyc
-*.pyo
+*.py[cod]
 .venv/
 *.egg-info/
+.eggs/
 dist/
 build/
 .pytest_cache/
 .hypothesis/
-state/
-
-# What a test run leaves on disk.  This directory syncs through pCloud, so an
-# untracked file left by `pytest` dirties main and blocks a merge.
+.ruff_cache/
 .coverage
-.tmp-pytest-local/
+.coverage.*
+htmlcov/
+.tmp-pytest-*/
 
-# Windows shortcuts: machine-specific, rewritten by Windows, drift constantly
+# Windows shortcuts are machine-specific and embed the real install path.
 *.lnk
+
+# pCloud conflict copies (this dir syncs via pCloud). Never our files; an
+# untracked one dirties main and blocks merges. '[' escaped to match literally.
+*\[conflicted*
+
+# --- genau's own ---
+
+# Where the app keeps what it is doing.
+state/
 
 # libmpv binary (fetched locally, not committed — see README)
 vendor/
@@ -23,7 +37,3 @@ vendor/
 # Private overlays — real values live here and never get published; each has
 # a committed *.example.* template documenting its shape.
 /genau_config.json
-
-# pCloud conflict copies (this dir syncs via pCloud). Never our files; an
-# untracked one dirties main and blocks merges. '[' escaped to match literally.
-*\[conflicted*
