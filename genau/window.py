@@ -17,10 +17,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pygame
+from PIL import Image
 from player_core.sdl_hints import deliver_the_focusing_click
 from pygame._sdl2.video import Renderer, Window
 
 from .host_contract import WINDOW_TITLE
+from .win32 import LayeredWindow
+from .win32_loader import WIN32_AVAILABLE
 
 # Near-black violet used as the Win32 color key for HUD transparency.
 # Any pixel drawn in this exact color becomes fully transparent.
@@ -41,12 +44,8 @@ def _layered_window(title: str):
     says so rather than raising), but there is nothing to find off Windows, so
     the window carries no transparency at all rather than one that refuses.
     """
-    from .win32_loader import WIN32_AVAILABLE
-
     if not WIN32_AVAILABLE:
         return None
-    from .win32 import LayeredWindow
-
     return LayeredWindow(title, HUD_COLOR_KEY)
 
 
@@ -54,7 +53,6 @@ def load_window_icon(window: Window, icon_path: Path | None) -> None:
     if icon_path is None or not icon_path.exists():
         return
     try:
-        from PIL import Image
         pil_icon = Image.open(str(icon_path)).convert("RGBA")
         icon_surface = pygame.image.frombuffer(
             pil_icon.tobytes(), pil_icon.size, "RGBA"

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import genau.window as gw
 from genau.window import GenauWindow, hud_window_identity
 
 
@@ -12,8 +13,6 @@ def test_it_claims_the_whole_rect_with_no_chrome(mock_pygame):
     """The window has no title bar — the mode it used to name is on the HUD — so
     it is chromeless and its client area is the whole rect, both to reclaim the
     space and to keep the video-mode layer aligned with the main player's video."""
-    import genau.window as gw
-
     window = GenauWindow(width=800, height=600, x=100, y=50, title="Genau")
 
     _title, kwargs = gw.Window.call_args

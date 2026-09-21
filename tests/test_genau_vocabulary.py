@@ -32,6 +32,15 @@ import threading
 from contextlib import contextmanager
 
 import pytest
+from player_core.clip_advance import ClipAdvanceState
+from player_core.cruise_control import CruiseControlState
+from player_core.flag import Flag
+from player_core.genau_controls import KEYS, VERBS, GenauControls, apply_runtime_command
+from player_core.genau_status import build_status_text
+from player_core.learned_model import LearnedModel
+from player_core.learned_motion import LearnedMotionState
+from player_core.robot_hand import RobotHandState
+from player_core.robot_hand_beat import BeatEngine
 
 REPO_DIR = pathlib.Path(__file__).resolve().parents[1]
 
@@ -199,15 +208,6 @@ def _unanswered(logger_name: str):
 
 def _genau_answers(line: str) -> bool:
     """Send one line to the dispatcher this window runs, every collaborator wired."""
-    from player_core.clip_advance import ClipAdvanceState
-    from player_core.cruise_control import CruiseControlState
-    from player_core.flag import Flag
-    from player_core.genau_controls import GenauControls, apply_runtime_command
-    from player_core.learned_model import LearnedModel
-    from player_core.learned_motion import LearnedMotionState
-    from player_core.robot_hand import RobotHandState
-    from player_core.robot_hand_beat import BeatEngine
-
     with _unanswered("player_core.genau_controls") as refused:
         apply_runtime_command(line, GenauControls(
             engine=BeatEngine(phase=0.0, last_tick=0.0),
@@ -248,8 +248,6 @@ class TestGenauAnswersEveryVerbWrittenDown:
         """The registry is where verbs are added, so it is where a widening of
         the vocabulary would first show -- and a verb it stopped declaring is one
         Fun Time still sends."""
-        from player_core.genau_controls import VERBS
-
         # Every spelling written down is answered.  Not the other way round: a
         # verb player_core adds lands there first, pinned by its own
         # tests/test_genau_controls.py, and is written down here when this
@@ -258,8 +256,6 @@ class TestGenauAnswersEveryVerbWrittenDown:
         assert set(GENAU_VERBS) <= set(VERBS)
 
     def test_each_key_stands_for_the_verb_written_down_beside_it(self):
-        from player_core.genau_controls import KEYS
-
         bound = {name: verb.spelling for name, (_control, verb) in KEYS.items()}
         assert all(bound.get(key) == verb for key, verb in GENAU_KEYS.items())
 
@@ -295,11 +291,6 @@ class TestTheWindowSpellsNoVerbOfItsOwn:
 
 class TestTheStatusFileFunTimeReads:
     def test_it_publishes_exactly_these_fields_in_this_order(self):
-        from player_core.clip_advance import ClipAdvanceState
-        from player_core.cruise_control import CruiseControlState
-        from player_core.genau_status import build_status_text
-        from player_core.robot_hand import RobotHandState
-
         text = build_status_text(
             RobotHandState(),
             CruiseControlState(),
@@ -314,10 +305,6 @@ class TestTheStatusFileFunTimeReads:
 
     def test_every_line_is_a_key_and_a_value(self):
         """No field may go out bare — a reader splits on the first ``=``."""
-        from player_core.cruise_control import CruiseControlState
-        from player_core.genau_status import build_status_text
-        from player_core.robot_hand import RobotHandState
-
         text = build_status_text(RobotHandState(), CruiseControlState())
 
         assert text.endswith("\n")

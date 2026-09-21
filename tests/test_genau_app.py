@@ -14,8 +14,11 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+
+from genau.app import build_parser
 
 APP = Path(__file__).resolve().parents[1] / "genau" / "app.py"
 
@@ -202,10 +205,6 @@ class TestWhatThisWindowIsCalled:
     def test_a_launch_that_names_neither_still_opens_as_genau(self):
         """Standalone there is no host to name them, and the window is the same
         window it has always been."""
-        from unittest.mock import MagicMock
-
-        from genau.app import build_parser
-
         args = build_parser(MagicMock()).parse_args([])
 
         assert args.title == "Genau"
@@ -221,10 +220,6 @@ class TestWhereThisWindowSaysWhatItIsDoing:
     """
 
     def test_a_launch_that_names_none_writes_it_beside_the_others(self):
-        from unittest.mock import MagicMock
-
-        from genau.app import build_parser
-
         config = MagicMock()
         config.genau_status_file = "S:/state/genau_status.txt"
 

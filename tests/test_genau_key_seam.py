@@ -26,8 +26,9 @@ from player_core.flag import Flag
 from player_core.genau_controls import GenauControls, apply_runtime_command
 from player_core.learned_model import LearnedModel
 from player_core.learned_motion import LearnedMotionState
-from player_core.robot_hand import RobotHandState, WaveformShape
+from player_core.robot_hand import RobotHandState, WaveformShape, pause_playing, toggle_playing
 from player_core.robot_hand_beat import BeatEngine
+from player_core.wave_stack import Ramp, Wave, WaveStack
 
 from genau.lifecycle import GenauLifecycleController
 
@@ -115,8 +116,6 @@ class Keys:
 
 def _build(keys: Keys) -> GenauLifecycleController:
     """Wire the controller the way run_listener does."""
-    from player_core.robot_hand import pause_playing, toggle_playing
-
     return GenauLifecycleController(
         renderer=FakeRenderer(),
         controls=keys.controls,
@@ -184,8 +183,6 @@ def _ids(rows):
 
 def _a_stack_the_device_was_following():
     """One wave, so letting go has a phase to hand back."""
-    from player_core.wave_stack import Ramp, Wave, WaveStack
-
     def steady(value: float) -> Ramp:
         """A dial that is not on its way anywhere."""
         return Ramp(start=value, end=value)
