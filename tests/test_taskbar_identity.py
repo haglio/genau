@@ -6,6 +6,8 @@ anything, since the pin carrying that identity is Fun Time's to keep up to date.
 """
 from __future__ import annotations
 
+from genau.app import _preparse_taskbar_identity
+
 # ``genau.app`` is imported inside the tests, not here: importing it at collection
 # time pulls pygame in for real before the view tests get to replace it with a
 # mock, and 23 of them go red inside pygame's own resource lookup.  By the time
@@ -13,7 +15,6 @@ from __future__ import annotations
 
 
 def _preparse():
-    from genau.app import _preparse_taskbar_identity
     return _preparse_taskbar_identity
 
 

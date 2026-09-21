@@ -8,15 +8,15 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import genau.pygame_view as pv
 from genau.clip_scrubber import ClipScrubber
 from genau.console_panel import ConsolePanel
+from genau.pygame_view import PygameView
 from genau.volume_chip import VolumeChip
 
 
 def _view(**geometry):
     """A view over its own console, chip and scrubber, the way the app builds one."""
-    from genau.pygame_view import PygameView
-
     return PygameView(
         console=ConsolePanel(), volume=VolumeChip(), scrubber=ClipScrubber(), **geometry)
 
@@ -122,8 +122,6 @@ class TestTheLoadingLine:
 
     @staticmethod
     def _drawn(view, mock_pygame) -> bool:
-        import genau.pygame_view as pv
-
         # The one thing the fake pygame cannot answer for itself: a rendered
         # line has a size, and the overlay lays itself out from it.
         mock_pygame.font.SysFont.return_value.render.return_value.get_size.return_value = (

@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from genau import win32_loader
+from genau.win32 import LayeredWindow
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -101,13 +102,10 @@ class TestTheHudTransparency:
         return stand_in
 
     def _layered(self, **over):
-        from genau.win32 import LayeredWindow
-
         return LayeredWindow("Genau", self.KEY, user32=self._user32(**over))
 
     def test_it_finds_the_window_by_the_caption_it_was_given(self):
         user32 = self._user32()
-        from genau.win32 import LayeredWindow
 
         LayeredWindow("Genau", self.KEY, user32=user32)
 

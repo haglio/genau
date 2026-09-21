@@ -144,7 +144,10 @@ def mock_pygame(monkeypatch):
     window binds ``Window`` and ``Renderer``, the scene binds ``Texture``, and
     each holds its own ``pygame``.
     """
-    from genau import pygame_view, window
+    # Not at the top: _pin_this_tree below has to rearrange sys.path and
+    # sys.meta_path before anything imports genau, or the tree that wins is
+    # whichever one the cwd happens to be in.
+    from genau import pygame_view, window  # noqa: PLC0415
 
     pygame = MagicMock()
     for module in (pygame_view, window):

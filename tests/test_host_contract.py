@@ -16,7 +16,10 @@ import argparse
 import json
 from pathlib import Path
 
+from player_core.clip_folder import cache_dir_for_clips_folder, weird_dir_for_clips_folder
+
 from genau import host_contract as contract
+from genau.window import hud_window_identity
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -85,8 +88,6 @@ def test_a_launch_that_is_not_a_hosts_is_left_alone():
 def test_the_captions_the_document_names_are_the_ones_this_window_wears():
     """A host resolves this window BY its caption, and loses it the moment the
     HUD renames it if it knows only the first."""
-    from genau.window import hud_window_identity
-
     document = _document()
     plain, video = document["window_title"], document["video_window_title"]
 
@@ -97,11 +98,6 @@ def test_the_captions_the_document_names_are_the_ones_this_window_wears():
 def test_what_the_document_says_sits_beside_the_clips_folder_is_what_does():
     """The app that DELIVERS those clips drains the condemned pile, and had this
     rule written out a second time on its own side."""
-    from player_core.clip_folder import (
-        cache_dir_for_clips_folder,
-        weird_dir_for_clips_folder,
-    )
-
     beside = _document()["beside_the_clips_folder"]
     clips = Path("a-library") / "clips"
 
