@@ -20,9 +20,10 @@ from pygame._sdl2.video import Texture
 
 from .clip_scrubber import ClipScrubber
 from .console_panel import ConsolePanel
+from .host_contract import WINDOW_TITLE
 from .layout import compute_video_rects
 from .volume_chip import VolumeChip
-from .window import DEFAULT_TITLE, HUD_COLOR_KEY, GenauWindow
+from .window import HUD_COLOR_KEY, GenauWindow
 
 
 class PygameView:
@@ -36,7 +37,7 @@ class PygameView:
         console: ConsolePanel,
         volume: VolumeChip,
         scrubber: ClipScrubber,
-        title: str = DEFAULT_TITLE,
+        title: str = WINDOW_TITLE,
         icon_path: Path | None = None,
         video_title: str | None = None,
     ) -> None:
