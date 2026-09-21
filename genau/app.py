@@ -53,10 +53,10 @@ from .clip_scrubber import ClipScrubber
 from .config import load_config
 from .console_panel import ConsolePanel
 from .console_pointer import ConsolePointer
+from .host_contract import add_host_arguments, host_launch_complaint
 from .lifecycle import GenauLifecycleController
 from .pygame_view import PygameView
 from .volume_chip import VolumeChip
-from .window import DEFAULT_TITLE, DEFAULT_VIDEO_TITLE
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
@@ -99,51 +99,25 @@ def _condemn_clip(path: Path, weird_dir: Path, logger: logging.Logger) -> None:
 
 
 def build_parser(config) -> argparse.ArgumentParser:
+    """Every flag this app takes: the host contract's, then this app's own tuning.
+
+    The first group is :mod:`genau.host_contract` -- the flags a host writes, the
+    flags read here and the document that host checks itself against are one
+    thing, so a rename cannot land on one side alone.  The second is what only
+    this app and its config have an opinion about.
+    """
     ap = argparse.ArgumentParser(description="Genau clip player.")
-    ap.add_argument("--config", help="Path to a JSON config file.")
-    ap.add_argument("--clips-folder", default=str(config.clips_dir))
-    ap.add_argument("--width", type=int, default=1200)
-    ap.add_argument("--height", type=int, default=900)
+    add_host_arguments(ap, config)
     ap.add_argument("--beats-per-loop", type=float, default=config.genau.beats_per_loop)
     ap.add_argument("--clip-cache-size", type=int, default=config.genau.clip_cache_size)
     ap.add_argument("--bpm-smoothing", type=float, default=config.genau.bpm_smoothing)
     ap.add_argument("--sync-strength", type=float, default=config.genau.sync_strength)
     ap.add_argument("--udp-host", default=config.genau.udp_host)
     ap.add_argument("--udp-port", type=int, default=config.genau.udp_port)
-    ap.add_argument("--x", type=int, default=0)
-    ap.add_argument("--y", type=int, default=0)
     ap.add_argument("--notify-host", default=config.genau.notify_host)
     ap.add_argument("--notify-port", type=int, default=config.genau.notify_port)
-    ap.add_argument("--command-file", default=str(config.genau_cmd_file))
-    ap.add_argument("--paused-file", default=str(config.genau_paused_file))
-    ap.add_argument("--console-file", default=None,
-                    help="Poll this file for the console panel Fun Time publishes")
-    ap.add_argument("--dashboard-cmd-file", default=None,
-                    help="Where a press on the console posts its Fun Time command")
-    ap.add_argument("--drive-file", default=str(config.genau_drive_file),
-                    help="Where to publish the drive readout for the main player to draw in video mode")
-    ap.add_argument("--status-file", default=str(config.genau_status_file),
-                    help="Where to publish what the hand is doing")
-    ap.add_argument("--start-clip", default=None,
-                    help="Open on this clip rather than the top of the folder — how "
-                         "an orchestrator resumes the clip its last session left up")
     ap.add_argument("--tcode-udp-host", default=config.genau.tcode_udp_host)
     ap.add_argument("--tcode-udp-port", type=int, default=config.genau.tcode_udp_port)
-    ap.add_argument(
-        "--taskbar-identity", default=None,
-        help="Group this window under Fun Time's taskbar button: its AppUserModelID",
-    )
-    ap.add_argument("--icon", default=None,
-                    help="The window icon Fun Time hands over, so an Alt-Tab entry "
-                         "says whose window this is")
-    # The host resolves this window by its caption, so the host names it -- the
-    # same reason it hands over the icon, and the same way it names each
-    # satellite player.  A launch that names neither opens as it always has.
-    ap.add_argument("--title", default=DEFAULT_TITLE,
-                    help="What this window calls itself")
-    ap.add_argument("--video-title", default=DEFAULT_VIDEO_TITLE,
-                    help="What it calls itself while its HUD is over the main "
-                         "player's video")
     return ap
 
 
@@ -163,6 +137,14 @@ def main(argv: list[str] | None = None) -> int:
     logger = configure_logging("genau", config.log_file("genau_listener"))
     install_exception_logging(logger)
     fault_fp = enable_faulthandler(config.log_file("genau_crash"))
+
+    # Once there is somewhere to say it: a launch that dies before logging is
+    # configured leaves no word of why anywhere at all.
+    complaint = host_launch_complaint(sys.argv[1:] if argv is None else argv)
+    if complaint:
+        logger.error("%s", complaint)
+        return 2
+
     args = build_parser(config).parse_args(argv)
 
     logger.info("Genau starting (pid=%d)", __import__("os").getpid())

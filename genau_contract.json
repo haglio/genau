@@ -1,0 +1,31 @@
+{
+  "module": "genau",
+  "hosted_flag": "--taskbar-identity",
+  "required_flags": [
+    "--config",
+    "--clips-folder",
+    "--x",
+    "--y",
+    "--width",
+    "--height",
+    "--icon",
+    "--taskbar-identity",
+    "--title",
+    "--video-title",
+    "--command-file",
+    "--paused-file",
+    "--console-file",
+    "--drive-file",
+    "--status-file",
+    "--dashboard-cmd-file"
+  ],
+  "optional_flags": [
+    "--start-clip"
+  ],
+  "window_title": "Genau",
+  "video_window_title": "Video Main Player+Genau",
+  "beside_the_clips_folder": {
+    "condemned": "weird",
+    "frame_cache": "frames"
+  }
+}
