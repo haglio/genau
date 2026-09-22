@@ -14,7 +14,7 @@ its verb does?
 """
 from __future__ import annotations
 
-import tempfile
+import itertools
 import threading
 from pathlib import Path
 
@@ -61,11 +61,10 @@ class Keys:
     verb's row are read against the same numbers.
     """
 
-    def __init__(self, **start):
+    def __init__(self, dashboard_cmd_file: Path, **start):
         self.selection = FakeSelection()
         self.stop_event = threading.Event()
-        self.dashboard_cmd_file = (
-            Path(tempfile.mkdtemp(prefix="genau-keys-")) / "dashboard_cmd.txt")
+        self.dashboard_cmd_file = dashboard_cmd_file
         self.engine = BeatEngine(phase=0.0, last_tick=0.0)
         self.direct = RobotHandState(
             playing=bool(start.get("playing", False)),
@@ -112,6 +111,13 @@ class Keys:
             "steps": tuple(self.selection.step_calls),
             "condemned": self.selection.discard_calls,
         }
+
+
+@pytest.fixture
+def new_keys(tmp_path):
+    """Keys each with a dashboard command file of its own, in this test's tmp_path."""
+    made = itertools.count()
+    return lambda **start: Keys(tmp_path / f"dashboard_cmd_{next(made)}.txt", **start)
 
 
 def _build(keys: Keys) -> GenauLifecycleController:
@@ -193,8 +199,8 @@ def _a_stack_the_device_was_following():
 
 
 @pytest.mark.parametrize("key, mod, start, moves", PRESSES, ids=_ids(PRESSES))
-def test_a_key_moves_what_it_names_and_nothing_else(key, mod, start, moves):
-    keys = Keys(**start)
+def test_a_key_moves_what_it_names_and_nothing_else(new_keys, key, mod, start, moves):
+    keys = new_keys(**start)
     before = keys.state()
 
     keys.press(getattr(pygame, key), mod)
@@ -202,8 +208,8 @@ def test_a_key_moves_what_it_names_and_nothing_else(key, mod, start, moves):
     assert keys.state() == {**before, **moves}
 
 
-def test_a_key_genau_does_not_use_moves_nothing():
-    keys = Keys()
+def test_a_key_genau_does_not_use_moves_nothing(new_keys):
+    keys = new_keys()
     before = keys.state()
 
     keys.press(pygame.K_x)
@@ -211,8 +217,8 @@ def test_a_key_genau_does_not_use_moves_nothing():
     assert keys.state() == before
 
 
-def test_ctrl_q_asks_the_session_to_quit_and_moves_no_control():
-    keys = Keys()
+def test_ctrl_q_asks_the_session_to_quit_and_moves_no_control(new_keys):
+    keys = new_keys()
     before = keys.state()
 
     keys.press(pygame.K_q, pygame.KMOD_CTRL)
@@ -249,11 +255,11 @@ class TestAKeyAndItsVerbAgree:
     }
 
     @pytest.mark.parametrize("key, verb", sorted(SAME.items()))
-    def test_the_key_moves_what_the_verb_moves(self, key, verb):
+    def test_the_key_moves_what_the_verb_moves(self, new_keys, key, verb):
         """Two Genaus wired alike, one pressed at and one sent the verb, end
         the same -- and the press moved something, so an agreement on nothing
         cannot pass."""
-        pressed, sent = Keys(), Keys()
+        pressed, sent = new_keys(), new_keys()
         before = pressed.state()
 
         pressed.press(getattr(pygame, key))
@@ -262,7 +268,7 @@ class TestAKeyAndItsVerbAgree:
         assert pressed.state() == sent.state()
         assert pressed.state() != before
 
-    def test_the_slash_key_hands_the_phase_back_the_way_its_verb_does(self):
+    def test_the_slash_key_hands_the_phase_back_the_way_its_verb_does(self, new_keys):
         """The one that had drifted.
 
         Letting go of cruise control hands the single motion the phase of the
@@ -273,7 +279,7 @@ class TestAKeyAndItsVerbAgree:
         orchestrator.
         """
         by_key: list[float] = []
-        keys = Keys(cruise=True)
+        keys = new_keys(cruise=True)
         keys.cruise.stack = _a_stack_the_device_was_following()
         keys.controls.set_motion_phase = by_key.append
 
@@ -290,12 +296,12 @@ class TestAKeyAndItsVerbAgree:
 
         assert by_verb == by_key
 
-    def test_taking_cruise_control_over_with_the_key_hands_nothing_back(self):
+    def test_taking_cruise_control_over_with_the_key_hands_nothing_back(self, new_keys):
         """The other direction: there is no wave to pick up from, and a phase
         handed over on the way *in* would move a motion that is about to be
         replaced."""
         handed_back: list[float] = []
-        keys = Keys()
+        keys = new_keys()
         keys.controls.set_motion_phase = handed_back.append
 
         keys.press(pygame.K_SLASH)
