@@ -60,6 +60,8 @@ GENAU_VERBS: dict[str, str | None] = {
     "OFFSET_QUARTER_CYCLE": None,
     "PAUSE": None,
     "RESUME": None,
+    "PARK": None,
+    "RETRACT": None,
     "SPEED_DOWN": None,
     "SPEED_UP": None,
     "AMPLITUDE_DOWN": None,
