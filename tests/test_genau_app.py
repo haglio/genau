@@ -214,3 +214,11 @@ class TestWhereThisWindowSaysWhatItIsDoing:
         given = _keyword(_call(_startup(), "GenauRefreshController"), "status_file")
 
         assert given == "Path(args.status_file)"
+
+
+class TestWhereGenauRanksAgainstOtherWork:
+    def test_genau_goes_ahead_of_background_work_before_its_loop_starts(self):
+        main = _function("main")
+
+        assert (_call(main, "run_ahead_of_background_work").lineno
+                < _call(main, "run_listener").lineno)

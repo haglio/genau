@@ -1,6 +1,6 @@
-"""Win32 for Genau's window: the color-key transparency of the HUD layer."""
 from __future__ import annotations
 
+import ctypes.wintypes
 import logging
 
 from genau.win32_loader import load_dll
@@ -9,6 +9,17 @@ _user32 = load_dll("user32")
 _kernel32 = load_dll("kernel32")
 
 logger = logging.getLogger(__name__)
+
+_THIS_PROCESS = ctypes.wintypes.HANDLE(-1)
+_ABOVE_NORMAL_PRIORITY_CLASS = 0x8000
+
+
+def run_ahead_of_background_work() -> None:
+    if not _kernel32.SetPriorityClass(_THIS_PROCESS, _ABOVE_NORMAL_PRIORITY_CLASS):
+        logger.warning(
+            "Windows would not put Genau ahead of background work (error %d), so a "
+            "busy machine can still make the OSR2's motion uneven",
+            _kernel32.GetLastError())
 
 # Win32 window styles, for the transparency below.
 _GWL_EXSTYLE = -20
