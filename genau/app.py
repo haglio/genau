@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 import threading
 import time
@@ -52,6 +53,7 @@ from .host_contract import TASKBAR_IDENTITY_FLAG, add_host_arguments, host_launc
 from .lifecycle import GenauLifecycleController
 from .pygame_view import PygameView
 from .volume_chip import VolumeChip
+from .win32 import run_ahead_of_background_work
 
 
 def _preparse_config(argv: list[str] | None) -> str | None:
@@ -142,7 +144,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args = build_parser(config).parse_args(argv)
 
-    logger.info("Genau starting (pid=%d)", __import__("os").getpid())
+    logger.info("Genau starting (pid=%d)", os.getpid())
+    run_ahead_of_background_work()
     try:
         rc = run_listener(args, config, logger)
         logger.info("Genau exiting normally (rc=%d)", rc)

@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from genau import win32_loader
-from genau.win32 import LayeredWindow
+from genau.win32 import LayeredWindow, run_ahead_of_background_work
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -185,3 +185,36 @@ class TestTheHudTransparency:
             layered.set_transparent(True)
 
         assert "SetLayeredWindowAttributes" in caplog.text
+
+
+_PRIORITY_CLASS_AFTER_ASKING = """
+import ctypes, ctypes.wintypes
+from genau.win32 import run_ahead_of_background_work
+run_ahead_of_background_work()
+kernel32 = ctypes.WinDLL("kernel32")
+kernel32.GetPriorityClass.argtypes = [ctypes.wintypes.HANDLE]
+print(kernel32.GetPriorityClass(ctypes.wintypes.HANDLE(-1)))
+"""
+
+
+class TestAheadOfBackgroundWork:
+    def test_genau_runs_above_normal_priority_once_it_asks(self):
+        result = subprocess.run(
+            [sys.executable, "-c", _PRIORITY_CLASS_AFTER_ASKING],
+            cwd=str(REPO_DIR), capture_output=True, text=True, timeout=180,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert int(result.stdout) == subprocess.ABOVE_NORMAL_PRIORITY_CLASS
+
+    def test_a_refusal_is_said_with_windows_reason_and_genau_carries_on(self, caplog):
+        refusing = MagicMock()
+        refusing.SetPriorityClass.return_value = 0
+        refusing.GetLastError.return_value = 5
+
+        with (patch("genau.win32._kernel32", refusing),
+              caplog.at_level("WARNING", logger="genau.win32")):
+            run_ahead_of_background_work()
+
+        assert [r.levelname for r in caplog.records] == ["WARNING"]
+        assert "error 5" in caplog.text
