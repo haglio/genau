@@ -59,19 +59,8 @@ class PygameView:
         self._scrubber = scrubber
 
     @property
-    def width(self) -> int:
-        return self.window.width
-
-    @property
-    def height(self) -> int:
-        return self.window.height
-
-    @property
     def hud_active(self) -> bool:
         return self.window.hud_active
-
-    def get_size(self) -> tuple[int, int]:
-        return self.window.size
 
     def set_loading_text(self, text: str | None) -> None:
         self._loading_text = text

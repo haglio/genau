@@ -6,3 +6,4 @@ from __future__ import annotations
 # window is placed through (pygame_view.py: PygameView.__init__).
 _.draw_color  # type: ignore[name-defined]
 _.position  # type: ignore[name-defined]
+_.resizable  # type: ignore[name-defined]  # SDL's Window property, set so a resize from outside takes

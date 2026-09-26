@@ -87,6 +87,11 @@ class GenauWindow:
         # apart.  The main slot's mode is drawn on the in-video HUD, so the bar
         # would carry nothing.
         self.window = Window(title, size=(width, height), borderless=True)
+        # Resizable though nobody drags it: SDL answers a borderless window's
+        # WM_NCCALCSIZE with the size it was made at, so without it Fun Time's
+        # resize moves the frame and the picture stays put.  Set afterwards
+        # because pygame-ce drops the constructor's resizable beside borderless.
+        self.window.resizable = True
         self.window.position = (x, y)
         load_window_icon(self.window, icon_path)
         # Fun Time's video mode shows this window as "Video Main Player+Genau"; genau
@@ -99,17 +104,7 @@ class GenauWindow:
         self._video_title = video_title
         self.renderer = Renderer(self.window, accelerated=True)
         self.clock = pygame.time.Clock()
-        self._width = width
-        self._height = height
         self.hud_active: bool = False
-
-    @property
-    def width(self) -> int:
-        return self._width
-
-    @property
-    def height(self) -> int:
-        return self._height
 
     @property
     def size(self) -> tuple[int, int]:

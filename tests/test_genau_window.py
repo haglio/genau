@@ -13,13 +13,12 @@ def test_it_claims_the_whole_rect_with_no_chrome(mock_pygame):
     """The window has no title bar — the mode it used to name is on the HUD — so
     it is chromeless and its client area is the whole rect, both to reclaim the
     space and to keep the video-mode layer aligned with the main player's video."""
-    window = GenauWindow(width=800, height=600, x=100, y=50, title="Genau")
+    GenauWindow(width=800, height=600, x=100, y=50, title="Genau")
 
     _title, kwargs = gw.Window.call_args
     assert kwargs["size"] == (800, 600)   # the whole rect, no chrome subtracted
     assert kwargs["borderless"] is True
     assert gw.Window.return_value.position == (100, 50)  # the rect's own corner
-    assert (window.width, window.height) == (800, 600)
     mock_pygame.init.assert_called_once()
 
 
@@ -101,3 +100,9 @@ def test_the_identity_is_the_video_caption_when_active_else_the_base():
 
 def test_without_a_video_caption_it_stays_genau():
     assert hud_window_identity(True, base_title="Genau", video_title=None) == "Genau"
+
+
+def test_it_takes_the_size_fun_time_gives_it_from_outside(mock_pygame):
+    GenauWindow(width=800, height=600)
+
+    assert gw.Window.return_value.resizable is True
