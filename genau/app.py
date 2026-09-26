@@ -306,7 +306,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         console=console_panel,
         volume=volume_chip,
         scrubber=clip_scrubber,
-        icon_path=Path(args.icon) if args.icon else None,
+        icon_path=Path(args.icon),
         title=args.title,
         video_title=args.video_title,
     )
@@ -320,7 +320,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         name="genau-udp",
     )
 
-    dashboard_cmd_file = Path(args.dashboard_cmd_file) if args.dashboard_cmd_file else None
+    dashboard_cmd_file = Path(args.dashboard_cmd_file)
 
     clip_store = ClipCacheStore(limit=args.clip_cache_size)
 
@@ -377,7 +377,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         status_file=Path(args.status_file),
         # Named by Fun Time, whose main player is told the same path.
         drive_file=Path(args.drive_file),
-        console_file=Path(args.console_file) if args.console_file else None,
+        console_file=Path(args.console_file),
         set_console=console_panel.show,
         present_scene=view.present,
         set_hud_mode=view.set_hud_mode,
