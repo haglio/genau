@@ -68,6 +68,12 @@ class TestPortraitVideo:
         assert h == 900
 
 
+    def test_a_nearly_square_portrait_fits_a_tall_window_across_rather_than_spilling_out(self):
+        rects = compute_video_rects(900, 1000, 1080, 1396)
+
+        assert rects == [(0, 98, 1080, 1200)]
+
+
 class TestEdgeCases:
     def test_exact_fit_no_bars(self):
         """Video matches window aspect exactly."""
