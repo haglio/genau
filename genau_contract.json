@@ -1,6 +1,5 @@
 {
   "module": "genau",
-  "hosted_flag": "--taskbar-identity",
   "required_flags": [
     "--config",
     "--clips-folder",

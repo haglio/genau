@@ -36,9 +36,10 @@ green on code you are not running.
 
 `genau_config.json` is git-ignored — it names real paths on a real machine.
 `genau_config.example.json` is its committed template and documents every key:
-`clips_dir`, `state_dir`, and a `genau` section for Genau's own settings. (Fun
-Time's main player keeps its own library folders and device port in Fun Time's
-config now, not here.)
+`state_dir`, where the logs go, and a `genau` section for Genau's own settings.
+Everything else -- the clips folder, the window's rect and captions, and the
+files of the channel below -- Fun Time names on the command line of every
+launch, and a launch that leaves one out is refused.
 
 Relative paths in it are resolved against the config file, not against whatever
 directory a shortcut happened to start the app in.

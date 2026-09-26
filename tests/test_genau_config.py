@@ -20,13 +20,9 @@ class TestLoadConfig:
 
     def test_raises_on_missing_genau_section(self, tmp_path: Path):
         cfg_file = tmp_path / "bad.json"
-        cfg_file.write_text(json.dumps({"clips_dir": "x", "state_dir": "y"}), encoding="utf-8")
+        cfg_file.write_text(json.dumps({"state_dir": "y"}), encoding="utf-8")
         with pytest.raises(ValueError, match="genau"):
             load_config(cfg_file)
-
-    def test_loads_clips_dir(self, cfg_path: Path, tmp_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.clips_dir == tmp_path / "clips"
 
     def test_a_config_without_render_batch_still_loads(self, cfg_factory):
         """The key is gone from Genau's surface; a file that lacks it is fine.
@@ -48,20 +44,6 @@ class TestLoadConfig:
         assert cfg.genau.clip_cache_size == 2
         assert cfg.genau.shuffle_on_load is True
         assert cfg.genau.udp_port == 50555
-
-    def test_genau_cmd_file(self, cfg_path: Path, tmp_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.genau_cmd_file == tmp_path / "state" / "genau_cmd.txt"
-
-    def test_genau_paused_file(self, cfg_path: Path, tmp_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.genau_paused_file == tmp_path / "state" / "genau_paused.txt"
-
-    def test_genau_status_file(self, cfg_path: Path, tmp_path: Path):
-        """In the state directory with the rest of the channel, not beside
-        whichever command file a launch happened to name."""
-        cfg = load_config(cfg_path)
-        assert cfg.genau_status_file == tmp_path / "state" / "genau_status.txt"
 
     def test_log_file(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)

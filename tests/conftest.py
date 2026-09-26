@@ -158,7 +158,6 @@ def _write_genau_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     (tmp_path / "clips").mkdir(exist_ok=True)
 
     cfg: dict = {
-        "clips_dir": str(tmp_path / "clips"),
         "state_dir": str(tmp_path / "state"),
         "genau": {
             "shuffle_on_load": True,
