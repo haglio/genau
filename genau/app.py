@@ -48,7 +48,7 @@ from .clip_scrubber import ClipScrubber
 from .config import load_config
 from .console_panel import ConsolePanel
 from .console_pointer import ConsolePointer
-from .host_contract import add_host_arguments, host_launch_complaint
+from .host_contract import TASKBAR_IDENTITY_FLAG, add_host_arguments, host_launch_complaint
 from .lifecycle import GenauLifecycleController
 from .pygame_view import PygameView
 from .volume_chip import VolumeChip
@@ -68,9 +68,9 @@ def _preparse_taskbar_identity(argv: list[str] | None) -> str | None:
     """
     args = list(argv if argv is not None else sys.argv[1:])
     for index, arg in enumerate(args):
-        if arg == "--taskbar-identity":
+        if arg == TASKBAR_IDENTITY_FLAG:
             return args[index + 1] if index + 1 < len(args) else None
-        if arg.startswith("--taskbar-identity="):
+        if arg.startswith(f"{TASKBAR_IDENTITY_FLAG}="):
             return arg.split("=", 1)[1]
     return None
 
@@ -102,7 +102,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     this app and its config have an opinion about.
     """
     ap = argparse.ArgumentParser(description="Genau clip player.")
-    add_host_arguments(ap, config)
+    add_host_arguments(ap)
     ap.add_argument("--beats-per-loop", type=float, default=config.genau.beats_per_loop)
     ap.add_argument("--clip-cache-size", type=int, default=config.genau.clip_cache_size)
     ap.add_argument("--bpm-smoothing", type=float, default=config.genau.bpm_smoothing)

@@ -11,20 +11,9 @@ from app_support.config_reader import (
     require_section,
     require_typed,
 )
-from app_support.state_files import (
-    GENAU_CMD,
-    GENAU_DRIVE,
-    GENAU_PAUSED,
-    GENAU_STATUS,
-)
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "genau_config.json"
-
-
-# The files of the orchestrator channel this window is told about are named
-# once for the family, in app_support.state_files, beside who writes and who
-# reads each.
 
 
 @dataclass(frozen=True)
@@ -45,37 +34,8 @@ class GenauConfig:
 
 @dataclass(frozen=True)
 class ProjectConfig:
-    clips_dir: Path
     state_dir: Path
     genau: GenauConfig
-
-    @property
-    def genau_cmd_file(self) -> Path:
-        return self.state_dir / GENAU_CMD
-
-    @property
-    def genau_paused_file(self) -> Path:
-        return self.state_dir / GENAU_PAUSED
-
-    @property
-    def genau_status_file(self) -> Path:
-        """Where this window says what it is doing, for whoever is reading.
-
-        In this directory, like every other file of that channel.  Left to the
-        engine it went beside whichever command file the launch named, so a
-        host that put the two in different directories -- which Fun Time's
-        config can do -- wrote the status somewhere nobody was watching.
-        """
-        return self.state_dir / GENAU_STATUS
-
-    @property
-    def genau_drive_file(self) -> Path:
-        """Where Genau says what it is driving the device with, for the main player to draw.
-
-        In video mode the readout belongs to the main player's console — the controls that move
-        these numbers are on it — so Genau publishes rather than paints.
-        """
-        return self.state_dir / GENAU_DRIVE
 
     @property
     def logs_dir(self) -> Path:
@@ -98,7 +58,6 @@ def load_config(config_path: str | Path | None = None) -> ProjectConfig:
         return require_typed(genau_raw, key, path, cast=cast, context="config.genau")
 
     return ProjectConfig(
-        clips_dir=require_path(raw, "clips_dir", path, base=base),
         state_dir=require_path(raw, "state_dir", path, base=base),
         genau=GenauConfig(
             shuffle_on_load=genau_value("shuffle_on_load", bool),

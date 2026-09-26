@@ -37,22 +37,12 @@ def test_the_tracked_copy_is_what_publishing_writes(tmp_path):
             == tracked.read_text(encoding="utf-8"))
 
 
-class _AConfigNamingNothingReal:
-    """Whatever the defaults are built from; the flags are what is under test."""
-
-    clips_dir = Path("a-library") / "clips"
-    genau_cmd_file = Path("a-state-dir") / "cmd.txt"
-    genau_paused_file = Path("a-state-dir") / "paused.txt"
-    genau_drive_file = Path("a-state-dir") / "drive.txt"
-    genau_status_file = Path("a-state-dir") / "status.txt"
-
-
 def test_the_parser_accepts_every_flag_the_document_names():
     """A flag the document names and the parser refuses kills a host's launch in
     argparse before this app can log a word."""
     document = _document()
     parser = argparse.ArgumentParser()
-    contract.add_host_arguments(parser, _AConfigNamingNothingReal())
+    contract.add_host_arguments(parser)
 
     accepted = {option for action in parser._actions
                 for option in action.option_strings} - {"-h", "--help"}
@@ -70,19 +60,19 @@ def test_a_host_launch_short_of_a_required_flag_is_complained_about():
         [word for flag in required for word in (flag, "7")]) == ""
 
     for left_out in required:
-        if left_out == contract.HOSTED_FLAG:
-            continue  # leaving THAT one out is the next test: a plain launch
         short = [word for flag in required if flag != left_out
                  for word in (flag, "7")]
 
         assert left_out in contract.host_launch_complaint(short)
 
 
-def test_a_launch_that_is_not_a_hosts_is_left_alone():
-    """The desktop shortcut carries none of these and must still start -- and
-    so must one carrying some of them but not the flag that says it is hosted."""
-    assert contract.host_launch_complaint([]) == ""
-    assert contract.host_launch_complaint(["--config", "a-config.json"]) == ""
+def test_a_launch_that_carries_none_of_the_hosts_flags_is_refused_too():
+    """Genau runs only inside Fun Time.  The desktop shortcut that once started
+    it on its own is gone, so a launch with nothing a host sends is a mistake
+    to name in the log, not a way of running."""
+    complaint = contract.host_launch_complaint([])
+
+    assert all(flag in complaint for flag in contract.required_flags())
 
 
 def test_the_captions_the_document_names_are_the_ones_this_window_wears():

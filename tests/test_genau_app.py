@@ -14,11 +14,8 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
-
-from genau.app import build_parser
 
 APP = Path(__file__).resolve().parents[1] / "genau" / "app.py"
 
@@ -202,14 +199,6 @@ class TestWhatThisWindowIsCalled:
         assert _keyword(built, "title") == "args.title"
         assert _keyword(built, "video_title") == "args.video_title"
 
-    def test_a_launch_that_names_neither_still_opens_as_genau(self):
-        """Standalone there is no host to name them, and the window is the same
-        window it has always been."""
-        args = build_parser(MagicMock()).parse_args([])
-
-        assert args.title == "Genau"
-        assert args.video_title == "Video Main Player+Genau"
-
 
 class TestWhereThisWindowSaysWhatItIsDoing:
     """Its status file is the fourth of the orchestrator channel's files, and
@@ -218,12 +207,6 @@ class TestWhereThisWindowSaysWhatItIsDoing:
     those two directories -- which Fun Time's config can do -- wrote it
     somewhere nobody was watching (audit cross/boundaries/cross/024).
     """
-
-    def test_a_launch_that_names_none_writes_it_beside_the_others(self):
-        config = MagicMock()
-        config.genau_status_file = "S:/state/genau_status.txt"
-
-        assert build_parser(config).parse_args([]).status_file == "S:/state/genau_status.txt"
 
     def test_the_engine_is_always_given_one(self):
         """Never None: the fallback it keeps for a caller that names nothing is

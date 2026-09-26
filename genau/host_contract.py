@@ -35,12 +35,9 @@ from player_core.clip_folder import (
 #: The module a host runs.
 MODULE = "genau"
 
-#: The tell that a launch is a host's rather than the desktop shortcut's: a
-#: window grouped under another app's taskbar button IS one of that app's
-#: windows, and only a host asks for that.  There is no mode to switch into
-#: here -- this app does the same thing either way -- so this flag does the job
-#: Origenerator's ``--fun-time`` does for it.
-HOSTED_FLAG = "--taskbar-identity"
+#: The taskbar button this window is grouped under: Fun Time's, since Genau is
+#: one window of the application the user launched.
+TASKBAR_IDENTITY_FLAG = "--taskbar-identity"
 
 #: The config this app loads, and the folder of clips it plays.
 CONFIG_FLAG = "--config"
@@ -103,19 +100,13 @@ def _rect_flags() -> tuple[str, ...]:
 
 
 def required_flags() -> tuple[str, ...]:
-    """The flags every host launch carries, in the order a host writes them.
-
-    Required in the strict sense: :func:`refuse_an_incomplete_host_launch` stops
-    a launch missing one.  That is the half argparse cannot see -- an unknown
-    flag it already refuses, while a flag a host stopped sending simply took the
-    default this app would have used on its own.
-    """
+    """The flags every launch carries, in the order a host writes them."""
     return (
         CONFIG_FLAG,
         CLIPS_FOLDER_FLAG,
         *_rect_flags(),
         ICON_FLAG,
-        HOSTED_FLAG,
+        TASKBAR_IDENTITY_FLAG,
         TITLE_FLAG,
         VIDEO_TITLE_FLAG,
         *_file_flags(),
@@ -125,14 +116,10 @@ def required_flags() -> tuple[str, ...]:
 def host_launch_complaint(argv) -> str:
     """What is wrong with *argv* as a host's launch, or ``""`` when nothing is.
 
-    A host launch is one carrying :data:`HOSTED_FLAG`; the desktop shortcut
-    carries none of these and is left alone.  Said rather than raised so the
-    caller can put it in the log before it goes -- a launch that dies before
-    logging is configured leaves no word of why anywhere at all, which is the
-    very failure a host's own suite had to grow a real launch to catch.
+    Every launch is a host's: Genau runs only inside Fun Time.  Said rather than
+    raised so the caller can put it in the log before it goes -- a launch that
+    dies before logging is configured leaves no word of why anywhere at all.
     """
-    if HOSTED_FLAG not in argv:
-        return ""
     missing = [flag for flag in required_flags() if flag not in argv]
     if not missing:
         return ""
@@ -140,47 +127,18 @@ def host_launch_complaint(argv) -> str:
             f"{CONTRACT_FILE} names; missing " + ", ".join(missing))
 
 
-def add_host_arguments(parser: argparse.ArgumentParser, config) -> None:
-    """Give *parser* every flag this document names, with the defaults a launch
-    that names none falls back to."""
-    parser.add_argument(CONFIG_FLAG, help="Path to a JSON config file.")
-    parser.add_argument(CLIPS_FOLDER_FLAG, default=str(config.clips_dir))
-    parser.add_argument("--x", type=int, default=0)
-    parser.add_argument("--y", type=int, default=0)
-    parser.add_argument("--width", type=int, default=1200)
-    parser.add_argument("--height", type=int, default=900)
-    parser.add_argument(ICON_FLAG, default=None,
-                        help="The window icon a host hands over, so an Alt-Tab "
-                             "entry says whose window this is")
-    parser.add_argument(HOSTED_FLAG, default=None,
-                        help="Group this window under the host's taskbar "
-                             "button: its AppUserModelID")
-    parser.add_argument(TITLE_FLAG, default=WINDOW_TITLE,
-                        help="What this window calls itself")
-    parser.add_argument(VIDEO_TITLE_FLAG, default=VIDEO_WINDOW_TITLE,
-                        help="What it calls itself while its HUD is over the "
-                             "main player's video")
-    parser.add_argument("--command-file", default=str(config.genau_cmd_file))
-    parser.add_argument("--paused-file", default=str(config.genau_paused_file))
-    parser.add_argument("--console-file", default=None,
-                        help="Poll this file for the console panel the host publishes")
-    parser.add_argument("--drive-file", default=str(config.genau_drive_file),
-                        help="Where to publish the drive readout for the main "
-                             "player to draw in video mode")
-    parser.add_argument("--status-file", default=str(config.genau_status_file),
-                        help="Where to publish what the hand is doing")
-    parser.add_argument("--dashboard-cmd-file", default=None,
-                        help="Where a press on the console posts its host command")
-    parser.add_argument(START_CLIP_FLAG, default=None,
-                        help="Open on this clip rather than the top of the folder "
-                             "-- how a host resumes the clip its last session left up")
+def add_host_arguments(parser: argparse.ArgumentParser) -> None:
+    """Give *parser* every flag this document names."""
+    for flag in required_flags():
+        parser.add_argument(flag, required=True,
+                            type=int if flag in _rect_flags() else str)
+    parser.add_argument(START_CLIP_FLAG, default=None)
 
 
 def declaration() -> dict:
     """The published document, as a host reads it."""
     return {
         "module": MODULE,
-        "hosted_flag": HOSTED_FLAG,
         "required_flags": list(required_flags()),
         "optional_flags": [START_CLIP_FLAG],
         "window_title": WINDOW_TITLE,
