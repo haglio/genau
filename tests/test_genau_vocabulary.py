@@ -15,12 +15,11 @@ sides:
 * **behavior** — every verb below is answered by the dispatcher this window
   runs, fully wired, and every retired spelling still is not.  This catches a
   verb *dropped* or *re-spelled* in the engine.
-* **the registry** — the verbs it declares are exactly these, and the keys it
-  declares mean exactly these verbs.  This catches a verb *added* there without
-  a line here.
-* **the window** — nothing under ``genau/`` spells a verb or declares a key.
-  A verb literal back in this package is a control plumbed by hand again,
-  which is what moving the registry out ended.
+* **the registry** — the verbs it declares include every one of these.  This
+  catches a verb *dropped* there while Fun Time still sends it.
+* **the window** — nothing under ``genau/`` spells a verb or reads a key.  A
+  verb literal back in this package is a control plumbed by hand again, and a
+  key read here is a keyboard of Genau's own beside the room's.
 """
 from __future__ import annotations
 
@@ -35,7 +34,7 @@ import pytest
 from player_core.clip_advance import ClipAdvanceState
 from player_core.cruise_control import CruiseControlState
 from player_core.flag import Flag
-from player_core.genau_controls import KEYS, VERBS, GenauControls, apply_runtime_command
+from player_core.genau_controls import VERBS, GenauControls, apply_runtime_command
 from player_core.genau_status import build_status_text
 from player_core.learned_model import LearnedModel
 from player_core.learned_motion import LearnedMotionState
@@ -104,28 +103,6 @@ GENAU_NOT_VERBS: dict[str, str] = {
     "RGBA": "genau/pygame_view.py — a pygame surface format",
 }
 
-# The keys Genau's own window answers to, and the verb each one means.  Thirteen
-# of the sixteen: ESC, SPACE and Ctrl+Q are the window's own and have no verb.
-#
-# Laid out like the arrow keys for the clip cluster: K above for "condemn this
-# one", M and . either side for previous and next, and , below K for the lock.
-GENAU_KEYS: dict[str, str] = {
-    "K_j": "SPEED_DOWN",
-    "K_l": "SPEED_UP",
-    "K_7": "AMPLITUDE_DOWN",
-    "K_9": "AMPLITUDE_UP",
-    "K_u": "CENTER_DOWN",
-    "K_o": "CENTER_UP",
-    "K_i": "CYCLE_SHAPE",
-    "K_m": "PREV",
-    "K_PERIOD": "NEXT",
-    "K_k": "WEIRD",
-    "K_COMMA": "TOGGLE_LOCK",
-    "K_BACKSLASH": "OFFSET_QUARTER_CYCLE",
-    "K_SLASH": "TOGGLE_CRUISE",
-    "K_SEMICOLON": "TOGGLE_LEARNED",
-}
-
 # Spellings that must stay refused.  Two were aliases no sender in the family
 # ever used; three named the auto-advance rather than the number of seconds it
 # spends, and were retired when the verb was renamed.  Fun Time's genau-mode
@@ -152,42 +129,27 @@ GENAU_STATUS_FIELDS = (
 )
 
 
-def _key_names(tree: ast.AST) -> dict[int, str]:
-    """The ``key=`` a ``Verb(...)`` was declared with, by node id.
-
-    A pygame constant's name is verb-shaped (``K_PERIOD``) but is not a verb, so
-    the scan below has to tell the two apart by where they sit rather than by
-    how they are spelled.
-    """
-    named: dict[int, str] = {}
-    for node in ast.walk(tree):
-        if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Verb"):
-            continue
-        for keyword in node.keywords:
-            if keyword.arg == "key" and isinstance(keyword.value, ast.Constant):
-                named[id(keyword.value)] = keyword.value.value
-    return named
-
-
-def _scan(package: str) -> tuple[set[str], set[str]]:
-    """Every verb-shaped string constant in a package's source, and its keys.
+def _scan(package: str) -> set[str]:
+    """Every verb-shaped string constant in a package's source.
 
     Read off the syntax tree rather than by importing, so a module that needs a
     platform this machine has not got still contributes its verbs.
     """
     verbs: set[str] = set()
-    keys: set[str] = set()
     for path in sorted((REPO_DIR / package).rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        declared_keys = _key_names(tree)
-        for node in ast.walk(tree):
-            if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
-                continue
-            if id(node) in declared_keys:
-                keys.add(node.value)
-            elif _VERB_SHAPED.match(node.value):
-                verbs.add(node.value)
-    return verbs, keys
+        verbs |= {node.value for node in ast.walk(tree)
+                  if isinstance(node, ast.Constant) and isinstance(node.value, str)
+                  and _VERB_SHAPED.match(node.value)}
+    return verbs
+
+
+def _key_events_read(package: str) -> list[str]:
+    """Every place under *package* that reads a key off pygame's event queue."""
+    return [f"{path.name}:{node.lineno}"
+            for path in sorted((REPO_DIR / package).rglob("*.py"))
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+            if isinstance(node, ast.Attribute) and node.attr in ("KEYDOWN", "KEYUP")]
 
 
 @contextmanager
@@ -248,7 +210,7 @@ class TestGenauAnswersEveryVerbWrittenDown:
         assert _genau_answers("EXAMPLE_VERB") is False
         assert _genau_answers("EXAMPLE_VERB 7") is False
 
-    def test_the_registry_declares_these_verbs_and_no_others(self):
+    def test_the_registry_declares_every_verb_written_down(self):
         """The registry is where verbs are added, so it is where a widening of
         the vocabulary would first show -- and a verb it stopped declaring is one
         Fun Time still sends."""
@@ -259,10 +221,6 @@ class TestGenauAnswersEveryVerbWrittenDown:
         # against a candidate player_core, does not refuse every addition.
         assert set(GENAU_VERBS) <= set(VERBS)
 
-    def test_each_key_stands_for_the_verb_written_down_beside_it(self):
-        bound = {name: verb.spelling for name, (_control, verb) in KEYS.items()}
-        assert all(bound.get(key) == verb for key, verb in GENAU_KEYS.items())
-
 
 class TestTheWindowSpellsNoVerbOfItsOwn:
     """The registry left this package, and with it every verb.  A verb-shaped
@@ -272,25 +230,13 @@ class TestTheWindowSpellsNoVerbOfItsOwn:
     """
 
     def test_the_window_names_no_verb(self):
-        assert _scan("genau")[0] == set(GENAU_NOT_VERBS)
+        assert _scan("genau") == set(GENAU_NOT_VERBS)
 
-    def test_the_window_declares_no_key(self):
-        """A key goes beside its verb in the registry, nowhere else."""
-        assert _scan("genau")[1] == set()
-
-    def test_the_window_keeps_exactly_the_two_keys_that_have_no_verb(self):
-        """The registry is where a key goes.  Two cannot be there: ESC and SPACE
-        are two spellings of play/pause with two rules and no verb between them.
-        Anything else added beside them is a key plumbed by hand again, which is
-        what this item removed -- so the set is held as an equality.
-        """
-        lifecycle = REPO_DIR / "genau" / "lifecycle.py"
-        tree = ast.parse(lifecycle.read_text(encoding="utf-8"), filename=str(lifecycle))
-        calls = [n for n in ast.walk(tree)
-                 if isinstance(n, ast.Call) and getattr(n.func, "id", "") == "keymap"]
-
-        assert len(calls) == 1, "the window builds its keymap in one place"
-        assert {kw.arg for kw in calls[0].keywords} == {"K_ESCAPE", "K_SPACE"}
+    def test_the_window_reads_no_key(self):
+        """Genau runs only inside Fun Time, whose hotkeys are the room's keyboard;
+        a key read here reached Genau without the session knowing, and went on
+        answering while OmniPause had the room's keys switched off."""
+        assert _key_events_read("genau") == []
 
 
 class TestTheStatusFileFunTimeReads:

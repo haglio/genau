@@ -72,16 +72,17 @@ Control(
     name="speed",
     needs=("robot_hand",),
     verbs=(
-        Verb("SPEED_DOWN", _stepper(-5), key="K_j"),
-        Verb("SPEED_UP", _stepper(5), key="K_l"),
+        Verb("SPEED_DOWN", _stepper(-5)),
+        Verb("SPEED_UP", _stepper(5)),
         Verb("SPEED", _number_setter(set_speed), takes_a_value=True),
     ),
 )
 ```
 
-That is the verb the orchestrator sends, the key the window answers to, and what
-the control cannot act without — in one place. The dispatcher, the key handler
-and the wiring all read it; none of them needs editing.
+That is the verb the orchestrator sends and what the control cannot act without,
+in one place. The dispatcher and the wiring both read it; neither needs editing.
+The window answers no keys of its own: Fun Time's hotkeys are the keyboard for
+the whole room, and a key reaches Genau as the verb Fun Time sends for it.
 
 ## Running the tests
 
