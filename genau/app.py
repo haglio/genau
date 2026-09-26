@@ -39,12 +39,7 @@ from player_core.genau_controls import GenauControls
 from player_core.genau_notifier import GenauNotifier
 from player_core.genau_refresh import GenauRefreshController
 from player_core.learned_motion import LearnedMotionState, load_default_model
-from player_core.robot_hand import (
-    RobotHandState,
-    bpm_for_speed,
-    pause_playing,
-    toggle_playing,
-)
+from player_core.robot_hand import RobotHandState, bpm_for_speed
 from player_core.robot_hand_beat import BeatEngine
 from player_core.robot_hand_driver import RobotHandTCodeDriver
 from player_core.tcode import UdpTCodeSink
@@ -184,8 +179,8 @@ def _build_drive_stack(args, logger: logging.Logger) -> DriveStack:
 
     Built together because they are one thing wired five ways: the sender reads
     the hand, the stack and the phrases, the readout draws all of them, and a
-    second copy of any would leave a key moving one while the picture follows
-    another.
+    second copy of any would leave a command moving one while the picture
+    follows another.
     """
     robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
     cruise_control = CruiseControlState()
@@ -346,9 +341,6 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         pipeline.renderer, pipeline.loader, pipeline.selection)
     clip_scrubber.follow(renderer)
 
-    # Everything a command, a key or a console press can move, in one place: the
-    # tick drains commands into it and the window's keys move the same object,
-    # so the two paths into a control cannot drift apart.
     controls = GenauControls(
         engine=engine,
         paused=paused,
@@ -392,12 +384,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     )
     lifecycle = GenauLifecycleController(
         renderer=renderer,
-        controls=controls,
         resize_delay_ms=config.genau.resize_debounce_ms,
         now_source=clock,
         dashboard_cmd_file=dashboard_cmd_file,
-        on_toggle_playing=lambda: toggle_playing(drive.robot_hand),
-        on_pause_playing=lambda: pause_playing(drive.robot_hand),
         console_pointer=ConsolePointer(
             console_panel, volume_chip, clip_scrubber,
             window=view.window, dashboard_cmd_file=dashboard_cmd_file,

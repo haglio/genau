@@ -1,10 +1,5 @@
-"""The window's own events: which key the map answers, and what the pointer does.
-
-The keys themselves are pinned in tests/test_genau_key_seam.py, against the real
-controls and row-for-row against the verbs that mean the same thing.  What is
-left here is the controller's own share: that the map it builds *is* the
-registry's, that Ctrl+Q is the one key that reads a modifier and does not move a
-control at all, and the mouse and resize handling that no verb has.
+"""The window's own events: closing it, the pointer on its console, and a resize
+-- and no key at all, which is Fun Time's to answer for the whole room.
 """
 from __future__ import annotations
 
@@ -12,11 +7,8 @@ import threading
 
 import pygame
 import pytest
-from player_core.flag import Flag
-from player_core.genau_controls import KEYS, GenauControls
-from player_core.robot_hand_beat import BeatEngine
 
-from genau.lifecycle import GenauLifecycleController, keymap
+from genau.lifecycle import GenauLifecycleController
 
 
 class FakeRenderer:
@@ -59,14 +51,6 @@ class FakePointer:
         self.motions.append((mx, my))
 
 
-def _controls() -> GenauControls:
-    return GenauControls(
-        engine=BeatEngine(phase=0.0, last_tick=0.0),
-        paused=Flag(),
-        step_clip=lambda _step: None,
-    )
-
-
 class FakeClock:
     """A clock a test moves by hand."""
 
@@ -82,20 +66,13 @@ def _build_controller(**overrides):
     notifier = FakeNotifier()
     pointer = FakePointer()
     stop_event = threading.Event()
-    window_keys = {
-        "on_toggle_playing": lambda: None,
-        "on_pause_playing": lambda: None,
-    }
-    window_keys.update({k: v for k, v in overrides.items() if k in window_keys})
     clock = overrides.get("now_source") or FakeClock()
     controller = GenauLifecycleController(
         renderer=renderer,
         now_source=clock,
-        controls=overrides.get("controls") or _controls(),
         resize_delay_ms=75,
         console_pointer=pointer,
         dashboard_cmd_file=overrides.get("dashboard_cmd_file"),
-        **window_keys,
     )
     controller.clock = clock
     return controller, renderer, pointer, notifier, stop_event
@@ -105,76 +82,7 @@ def _key(key: int, mod: int = 0):
     return pygame.event.Event(pygame.KEYDOWN, key=key, mod=mod)
 
 
-class TestTheMapIsTheRegistrys:
-    """Built from the registry rather than written out again here, so a key
-    added to a control cannot be one the window has never heard of."""
-
-    def test_every_key_a_control_declares_is_in_the_map(self):
-        controller, *_ = _build_controller()
-
-        for name in KEYS:
-            assert getattr(pygame, name) in controller.keys, name
-
-    def test_every_declared_key_name_is_one_pygame_has(self):
-        """The name is a string here so the registry stays free of pygame; a
-        misspelling would otherwise be a key the window silently never answers."""
-        for name in KEYS:
-            assert isinstance(getattr(pygame, name, None), int), name
-
-    def test_the_windows_own_two_are_in_it_too(self):
-        controller, *_ = _build_controller()
-
-        for key in (pygame.K_ESCAPE, pygame.K_SPACE):
-            assert key in controller.keys
-
-    def test_the_map_holds_those_and_nothing_else(self):
-        controller, *_ = _build_controller()
-
-        assert set(controller.keys) == (
-            {getattr(pygame, name) for name in KEYS}
-            | {pygame.K_ESCAPE, pygame.K_SPACE}
-        )
-
-    def test_a_key_no_control_claims_is_ignored_rather_than_an_error(self):
-        """X armed auto advance, which is no longer a switch: an unlocked Genau
-        advances and a locked one does not, and the comma key is that lock."""
-        stepped: list[int] = []
-        controls = GenauControls(
-            engine=BeatEngine(phase=0.0, last_tick=0.0),
-            paused=Flag(), step_clip=stepped.append)
-        controller, _renderer, _pointer, _notifier, stop_event = _build_controller(
-            controls=controls)
-
-        controller._handle_key(_key(pygame.K_x))
-
-        assert (stepped, controls.paused.on, controls.engine.phase) == ([], False, 0.0)
-        assert not stop_event.is_set()
-
-    def test_a_control_this_build_did_not_wire_swallows_its_key(self):
-        """The same answer the verb gives -- nothing happens -- rather than the
-        AttributeError an unguarded call would raise inside the frame loop."""
-        stepped: list[int] = []
-        controls = GenauControls(
-            engine=BeatEngine(phase=0.0, last_tick=0.0),
-            paused=Flag(), step_clip=stepped.append)
-        assert controls.robot_hand is None, "the control the J key needs"
-        controller, _renderer, _pointer, _notifier, stop_event = _build_controller(
-            controls=controls)
-
-        controller._handle_key(_key(pygame.K_j))
-
-        assert (stepped, controls.paused.on, controls.engine.phase) == ([], False, 0.0)
-        assert not stop_event.is_set()
-
-
 class TestClosingTheWindow:
-    def test_q_without_the_modifier_is_not_a_key_at_all(self):
-        controller, _renderer, _pointer, _notifier, stop_event = _build_controller()
-
-        controller._handle_key(_key(pygame.K_q))
-
-        assert not stop_event.is_set()
-
     def test_in_a_session_closing_asks_the_session_and_this_window_stays(self, tmp_path):
         """Genau placed in a Fun Time session is one window of six.  Closing it on
         its own leaves the session running around a gap nothing refills, so the
@@ -191,17 +99,28 @@ class TestClosingTheWindow:
         assert not stop_event.is_set()
         assert notifier.closed == 0
 
-    def test_in_a_session_ctrl_q_goes_the_same_way(self, tmp_path):
-        """Not only the close button: every gesture that means "quit this window"."""
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        controller, _renderer, _pointer, _notifier, stop_event = _build_controller(
-            dashboard_cmd_file=cmd_file,
-        )
 
-        controller._handle_key(_key(pygame.K_q, pygame.KMOD_CTRL))
+class TestTheWindowAnswersNoKeyOfItsOwn:
+    """Genau runs only inside Fun Time, whose hotkeys are the keyboard for the
+    whole room.  A key this window answered itself was a second keyboard that
+    reached Genau without the session knowing -- a comma lock the Origenerator
+    gallery never heard of -- and went on answering while OmniPause had the
+    room's keys switched off.  What reaches Genau now comes over the session's
+    command file, so a press on the window is nobody's business."""
 
-        assert cmd_file.read_text(encoding="utf-8").split() == ["quit"]
-        assert not stop_event.is_set()
+    @pytest.mark.parametrize(("key", "mod"), [
+        (pygame.K_COMMA, 0), (pygame.K_SLASH, 0), (pygame.K_ESCAPE, 0),
+        (pygame.K_SPACE, 0), (pygame.K_q, pygame.KMOD_CTRL),
+    ])
+    def test_a_key_pressed_on_the_window_asks_the_session_nothing(
+            self, monkeypatch, tmp_path, key, mod):
+        dashboard = tmp_path / "dashboard_cmd.txt"
+        controller, *_ = _build_controller(dashboard_cmd_file=dashboard)
+        monkeypatch.setattr(pygame.event, "get", lambda: [_key(key, mod)])
+
+        controller.process_events()
+
+        assert not dashboard.exists()
 
 
 class TestTheResizeDebounce:
@@ -313,13 +232,3 @@ class TestConsoleMouse:
         pointer = self._pump(monkeypatch, [self._motion((7, 9), held=False)])
 
         assert (pointer.releases, pointer.drags) == (1, [])
-
-
-class TestBuildingAMapOnItsOwn:
-    def test_a_window_key_may_not_shadow_a_control_the_registry_declared(self):
-        """Silently overriding one would leave a control with a key that means
-        something else, which is the drift the registry exists to stop."""
-        with pytest.raises(ValueError) as refused:
-            keymap(_controls(), K_j=lambda: None)
-
-        assert "K_j" in str(refused.value)
