@@ -13,18 +13,12 @@ def compute_video_rects(
     produce a single centered rectangle.  Portrait videos are tiled
     horizontally as many times as they fit.
     """
-    is_portrait = video_h > video_w
-
     tile_h = window_h
     tile_w = int(video_w * (window_h / video_h))
-
-    if is_portrait:
-        tile_count = max(1, window_w // tile_w)
-    else:
-        if tile_w > window_w:
-            tile_w = window_w
-            tile_h = int(video_h * (window_w / video_w))
-        tile_count = 1
+    if tile_w > window_w:
+        tile_w = window_w
+        tile_h = int(video_h * (window_w / video_w))
+    tile_count = max(1, window_w // tile_w) if video_h > video_w else 1
 
     total_w = tile_w * tile_count
     margin = (window_w - total_w) // 2
