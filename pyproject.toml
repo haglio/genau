@@ -9,7 +9,7 @@ version = "0.1.0"
 # lower than what a run proves is a promise nothing backs.
 requires-python = ">=3.14"
 # player_core brings python-mpv with it (its DLL lives in
-# %LOCALAPPDATA%\haglio\libmpv) -- nothing in this repo imports mpv directly.
+# %USERPROFILE%\.haglio\libmpv) -- nothing in this repo imports mpv directly.
 #
 # Every requirement carries a ceiling. Without one each run installs whatever
 # PyPI served that morning, which is how this family's gates came to run a major
