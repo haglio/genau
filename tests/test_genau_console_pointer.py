@@ -7,20 +7,49 @@ test at all.
 """
 from __future__ import annotations
 
-from player_core.playhead import on_readout
+import pytest
+from player_core.playhead import lower_edge_height
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
+from player_core.volume import CHIP_H, CHIP_W, PAD, SPEAKER_W, chip_xy
 
 from genau.console_pointer import OMNIPAUSE_TOGGLE, ConsolePointer
 from genau.volume_chip import VolumePress
 
+# Where the panel says it drew the clip's row, and how to aim at a point of it.
+ROW_W = 340
+ROW_H = lower_edge_height(ROW_W, timeline_h=TIMELINE_HEIGHT)
+ROW_RECT = (12, 300, ROW_W, ROW_H)
+
+
+def _on_the_row(px: int, py: int) -> tuple[int, int]:
+    return ROW_RECT[0] + px, ROW_RECT[1] + py
+
+
+_TRACK_X0, _TRACK_X1 = bar_track_x(ROW_W)
+_ALONG = ROW_H - TIMELINE_HEIGHT // 2
+TRACK_MIDDLE = _on_the_row((_TRACK_X0 + _TRACK_X1) // 2, _ALONG)
+TRACK_START = _on_the_row(_TRACK_X0, _ALONG)
+_CHIP_X, _CHIP_Y = chip_xy(win_w=ROW_W, win_h=ROW_H, timeline_h=TIMELINE_HEIGHT)
+ON_THE_SLIDER = _on_the_row(_CHIP_X + (SPEAKER_W + CHIP_W - PAD) // 2,
+                            _CHIP_Y + CHIP_H // 2)
+ON_THE_SPEAKER = _on_the_row(_CHIP_X + SPEAKER_W // 2, _CHIP_Y + CHIP_H // 2)
+OFF_THE_ROW = (700, 80)
+
 
 class FakeChip:
+    """The chip as the row reaches it: asked what a press means, told what to
+    show.  *press* is what it answers with, whichever part was pressed."""
+
     def __init__(self, asked: list[str], press=None):
         self._asked = asked
-        self._press = press
+        self._press = press or VolumePress("audio_set_volume|50", 50, False)
         self.shown: list[tuple[int, bool]] = []
 
-    def press_at(self, mx, my, *, win_w, win_h):
+    def pressed_the_speaker(self):
+        self._asked.append("chip")
+        return self._press
+
+    def pressed_the_slider(self, level):
         self._asked.append("chip")
         return self._press
 
@@ -29,11 +58,13 @@ class FakeChip:
 
 
 class FakePanel:
-    def __init__(self, asked: list[str], pressed="", dragged="", *, covering=False):
+    def __init__(self, asked: list[str], pressed="", dragged="", *,
+                 covering=False, row_rect=ROW_RECT):
         self._asked = asked
         self._pressed = pressed
         self._dragged = dragged
         self._covering = covering
+        self.row_rect = row_rect
         self.released = 0
         self.hovered: list[tuple[int, int]] = []
 
@@ -62,30 +93,25 @@ class FakeWindow:
 
 
 class FakeScrubber:
-    """The clip's bar: across the window's lower edge while a clip is up."""
+    """The clip's row: where along it a press at *px* lands."""
 
     def __init__(self, asked, *, showing=True):
         self._asked = asked
         self._showing = showing
 
-    def takes(self, my, *, win_h):
-        return self._showing and my >= win_h - TIMELINE_HEIGHT
-
-    def on_readout(self, mx, my, *, win_w, win_h):
-        return self._showing and on_readout(mx, my, win_w=win_w, win_h=win_h,
-                                            timeline_h=TIMELINE_HEIGHT)
-
     @staticmethod
-    def fraction_at(mx, *, win_w):
-        return mx / win_w
+    def fraction_at(px, *, width):
+        x0, x1 = bar_track_x(width)
+        return min(1.0, max(0.0, (px - x0) / max(1, x1 - x0)))
 
 
 def _pointer(tmp_path, *, volume=None, pressed="", dragged="", clip=True,
-             hud_active=False, covering=False, size=None):
-    """The pointer over a fake chip, panel and bar, plus the order it asked them in."""
+             hud_active=False, covering=False, size=None, row_rect=ROW_RECT):
+    """The pointer over a fake chip, panel and row, plus the order it asked them in."""
     asked: list[str] = []
     chip = FakeChip(asked, volume)
-    panel = FakePanel(asked, pressed, dragged, covering=covering)
+    panel = FakePanel(asked, pressed, dragged, covering=covering,
+                      row_rect=row_rect if clip else None)
     scrubber = FakeScrubber(asked, showing=clip)
     seeks: list[float] = []
     window = FakeWindow(hud_active=hud_active)
@@ -107,24 +133,23 @@ def _lines(path) -> list[str]:
 
 
 class TestWhichThingAPressLandsOn:
-    def test_the_chip_is_tried_before_the_panel(self, tmp_path):
-        """It floats in its own corner, so a press on it is never also a press
-        on the panel -- and asking the panel first would give a button under it
-        the press instead."""
+    def test_the_row_is_tried_before_the_panel(self, tmp_path):
+        """It is a block of the panel, so asking the panel first would swallow
+        every press on the track as a press on the panel's own chrome."""
         pointer, _chip, _panel, asked = _pointer(
             tmp_path, volume=VolumePress("audio_mute", 40, True), pressed="next")
 
-        pointer.press(3, 4)
+        pointer.press(*ON_THE_SPEAKER)
 
         assert asked == ["chip"]
         assert _lines(_posted(tmp_path)) == ["audio_mute"]
 
-    def test_a_press_off_the_chip_reaches_the_panel(self, tmp_path):
+    def test_a_press_off_the_row_reaches_the_panel(self, tmp_path):
         pointer, _chip, _panel, asked = _pointer(tmp_path, pressed="next")
 
-        pointer.press(3, 4)
+        pointer.press(*OFF_THE_ROW)
 
-        assert asked == ["chip", "panel"]
+        assert asked == ["panel"]
         assert _lines(_posted(tmp_path)) == ["next"]
 
     def test_a_press_on_neither_is_a_press_on_the_clip(self, tmp_path):
@@ -133,14 +158,14 @@ class TestWhichThingAPressLandsOn:
         control took asks Fun Time to freeze the whole room."""
         pointer, _chip, _panel, _asked = _pointer(tmp_path)
 
-        pointer.press(3, 4)
+        pointer.press(*OFF_THE_ROW)
 
         assert _lines(_posted(tmp_path)) == [OMNIPAUSE_TOGGLE]
 
     def test_a_press_on_the_panel_between_its_buttons_is_not_the_clip(self, tmp_path):
         pointer, _chip, _panel, _asked = _pointer(tmp_path, covering=True)
 
-        pointer.press(3, 4)
+        pointer.press(*OFF_THE_ROW)
 
         assert _lines(_posted(tmp_path)) == []
 
@@ -150,14 +175,14 @@ class TestWhichThingAPressLandsOn:
         does arrive landed on the HUD's opaque chrome and means nothing more."""
         pointer, _chip, _panel, _asked = _pointer(tmp_path, hud_active=True)
 
-        pointer.press(3, 4)
+        pointer.press(*OFF_THE_ROW)
 
         assert _lines(_posted(tmp_path)) == []
 
     def test_a_button_the_panel_took_is_never_also_the_clip(self, tmp_path):
         pointer, _chip, _panel, _asked = _pointer(tmp_path, pressed="main_next")
 
-        pointer.press(3, 4)
+        pointer.press(*OFF_THE_ROW)
 
         assert _lines(_posted(tmp_path)) == ["main_next"]
 
@@ -167,7 +192,7 @@ class TestTheTwoStepsAVolumePressTakes:
         pointer, chip, _panel, _asked = _pointer(
             tmp_path, volume=VolumePress("audio_set_volume|70", 70, False))
 
-        pointer.press(3, 4)
+        pointer.press(*ON_THE_SLIDER)
 
         assert chip.shown == [(70, False)]
         assert _lines(_posted(tmp_path)) == ["audio_set_volume|70"]
@@ -178,7 +203,7 @@ class TestTheTwoStepsAVolumePressTakes:
         pointer, chip, _panel, _asked = _pointer(
             tmp_path, volume=VolumePress("audio_mute", 40, True))
 
-        pointer.press(3, 4)
+        pointer.press(*ON_THE_SPEAKER)
 
         assert chip.shown == [(40, True)]
 
@@ -213,55 +238,47 @@ class TestDraggingAndLettingGo:
         assert panel.hovered == [(11, 13)]
 
 
-class TestAPressOnTheClipsOwnBar:
-    """The clip's bar seeks, and goes on seeking while the pointer is held.  The
+class TestAPressOnTheClipsOwnTrack:
+    """The track seeks, and goes on seeking while the pointer is held.  The
     frame is a picture of where the device is, so the seek moves the device --
     which is why it goes to the engine rather than out as a console command."""
 
-    def test_a_press_along_the_lower_edge_seeks(self, tmp_path):
+    def test_a_press_along_the_track_seeks(self, tmp_path):
         pointer, _chip, _panel, asked = _pointer(tmp_path)
 
-        pointer.press(400, 595)
+        pointer.press(*TRACK_MIDDLE)
 
-        assert pointer.seeks == [0.5]
-        assert asked == ["chip"]  # the chip is still tried first, and missed
+        assert pointer.seeks == [pytest.approx(0.5, abs=0.01)]
+        assert asked == []  # neither the chip nor the panel was asked
 
     def test_a_drag_after_it_goes_on_seeking_and_letting_go_stops(self, tmp_path):
         pointer, _chip, _panel, _asked = _pointer(tmp_path, dragged="speed_up")
 
-        pointer.press(400, 595)
-        pointer.drag(600, 595)
+        pointer.press(*TRACK_START)
+        pointer.drag(*TRACK_MIDDLE)
         pointer.release()
-        pointer.drag(200, 595)
+        pointer.drag(*TRACK_START)
 
-        assert pointer.seeks == [0.5, 0.75]
-        # Let go, and the lower edge is the panel's business again.
+        assert pointer.seeks == [0.0, pytest.approx(0.5, abs=0.01)]
+        # Let go, and a drag is the panel's business again.
         assert _posted(tmp_path).read_text(encoding="utf-8").split() == ["speed_up"]
 
-    def test_with_no_clip_up_the_lower_edge_is_the_panels_again(self, tmp_path):
+    def test_with_no_clip_up_there_is_no_track_to_press(self, tmp_path):
         pointer, _chip, _panel, _asked = _pointer(tmp_path, clip=False, pressed="main_lock")
 
-        pointer.press(400, 595)
+        pointer.press(*TRACK_MIDDLE)
 
         assert pointer.seeks == []
         assert _posted(tmp_path).read_text(encoding="utf-8").split() == ["main_lock"]
 
     def test_a_press_on_the_readout_neither_seeks_nor_pauses_the_room(self, tmp_path):
-        """The readout sits in the bar's row, left of the track: saturated like a
-        margin, a press on it would throw the clip back to its first frame."""
+        """The panel is narrower than the window, so the frame count takes a
+        line of its own above the track: a press on it is neither of them."""
         pointer, _chip, _panel, _asked = _pointer(tmp_path)
 
-        pointer.press(bar_track_x(FakeWindow.size[0])[0] // 2, 595)
+        pointer.press(*_on_the_row(20, 4))
 
         assert pointer.seeks == []
         assert _lines(_posted(tmp_path)) == []
 
-    def test_above_a_bar_too_narrow_to_share_the_readout_is_not_the_clip(self, tmp_path):
-        """400 across leaves the readout a line of its own above the bar, over the
-        clip: a press on it is not a press on the clip."""
-        pointer, _chip, _panel, _asked = _pointer(tmp_path, size=(400, 600))
 
-        pointer.press(bar_track_x(400)[0] + 20, 600 - TIMELINE_HEIGHT - 13)
-
-        assert pointer.seeks == []
-        assert _lines(_posted(tmp_path)) == []

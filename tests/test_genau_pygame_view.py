@@ -84,38 +84,36 @@ def test_present_scene_tiles_portrait_texture(mock_pygame):
     assert texture.draw.call_count == 2
 
 
-def test_hud_mode_leaves_the_console_and_the_volume_to_main_player(mock_pygame):
-    """HUD mode is kino mode: this window is a see-through layer over the main player's, and the
-    readout is drawn inside the main player's console beneath the controls that move it.
-    Drawing it here as well would put the same panel on screen twice — and the
-    same goes for the volume chip, where two sliders would disagree about which
-    press the level came from."""
+def test_hud_mode_leaves_the_console_to_main_player(mock_pygame):
+    """HUD mode is kino mode: this window is a see-through layer over the main
+    player's, and the main player draws the console there. Drawing it here as
+    well would put the same panel on screen twice, and with the track, the
+    frame count and the volume on that panel it would double those too."""
     view = _view(width=800, height=600)
     view.window.hud_active = True
     view._console.show(MagicMock())
     view._draw_console = MagicMock()
-    view._draw_volume = MagicMock()
 
     view._present_scene()
 
     view._draw_console.assert_not_called()
-    view._draw_volume.assert_not_called()
 
 
-def test_genau_draws_the_console_the_scrubber_and_the_volume_when_it_owns_the_screen(
+def test_genau_draws_the_console_carrying_the_clips_row_when_it_owns_the_screen(
         mock_pygame):
+    """One panel: the track, the frame count and the volume are a block of the
+    console rather than three things drawn over the clip."""
     view = _view(width=800, height=600)
     view.window.hud_active = False
     view._console.show(MagicMock())
+    view._console.show_row = MagicMock()
     view._draw_console = MagicMock()
-    view._draw_scrubber = MagicMock()
-    view._draw_volume = MagicMock()
 
     view._present_scene()
 
     view._draw_console.assert_called_once()
-    view._draw_scrubber.assert_called_once()
-    view._draw_volume.assert_called_once()
+    view._console.show_row.assert_called_once_with(view._scrubber.row(
+        view._volume.shown))
 
 
 class TestTheLoadingLine:
@@ -191,9 +189,9 @@ def test_the_console_is_drawn_in_the_corner_the_room_moved_it_to(mock_pygame):
     assert top == hud_xy()[1]
 
 
-def test_a_console_in_a_lower_corner_sits_above_the_clips_bar(mock_pygame):
-    """The bar spans the window's lower edge, so a panel against that edge stops
-    where the bar starts -- as the main player's does over its timeline."""
+def test_a_console_in_a_lower_corner_sits_against_the_windows_edge(mock_pygame):
+    """The clip's track rides on the panel now, so nothing is drawn along the
+    lower edge for a panel against it to clear."""
     view = _view(width=800, height=600)
     view._scrubber.follow(SimpleNamespace(
         current_frame_index=5, current_clip_entry=lambda: {"frames": [object()] * 20}))
@@ -203,17 +201,4 @@ def test_a_console_in_a_lower_corner_sits_above_the_clips_bar(mock_pygame):
 
     (left, top), (_panel_w, panel_h) = _blit(mock_pygame)
     assert left == hud_xy()[0]
-    assert top + panel_h == 600 - view._scrubber.height - hud_xy()[1]
-
-
-def test_with_no_clip_up_there_is_no_bar_to_sit_above(mock_pygame):
-    """Nothing is drawn along the lower edge before a clip is up, so a panel
-    against it would leave a strip of video showing under it."""
-    view = _view(width=800, height=600)
-    _showing(view, HudCorner.LOWER_LEFT)
-
-    view._draw_console()
-
-    (_left, top), (_panel_w, panel_h) = _blit(mock_pygame)
-    assert view._scrubber.height == 0
     assert top + panel_h == 600 - hud_xy()[1]

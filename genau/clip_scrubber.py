@@ -1,24 +1,21 @@
-"""The clip's playhead, drawn along the window's lower edge as the main player draws a video's.
+"""Where the clip has got to, for the row the console carries at its foot.
 
-A clip loops and there is no time in it to seek to, so this is a readout rather
-than a control: where the Robot Hand has taken the loop, which is the one thing
-about the clip the console cannot say.
+Drawn along the window's lower edge until 2026-09-26, the way a video player
+has always drawn one.  One panel per screen: the track, the frame count and
+the volume chip are a block of the console now
+(:mod:`player_core.hud_row`), which is where the headset has drawn the main
+player's since the wrap smeared a row over the picture round the nadir.
 """
 from __future__ import annotations
 
-import numpy as np
-from player_core.playhead import (
-    PlayheadHud,
-    PlayheadHudPainter,
-    clip_playhead,
-    on_readout,
-    readout_xy,
-)
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
+from player_core.hud_row import RowHud
+from player_core.playhead import PlayheadHud, clip_playhead
+from player_core.timeline import bar_track_x
+from player_core.volume import VolumeHud
 
 
 class ClipScrubber:
-    """What the bar shows, read off the renderer that is showing the frames.
+    """What the track shows, read off the renderer that is showing the frames.
 
     Built beside the console and the volume chip, so what is drawn is one object
     the app wires -- but told its renderer afterwards, because the renderer is
@@ -27,10 +24,22 @@ class ClipScrubber:
 
     def __init__(self) -> None:
         self._renderer = None
-        self._readout_painter = PlayheadHudPainter()
 
     def follow(self, renderer) -> None:
         self._renderer = renderer
+
+    def row(self, volume: VolumeHud) -> RowHud | None:
+        """The row for the clip on screen, or None while there is none.
+
+        Counted in frames rather than milliseconds -- a clip is a loop of
+        frames and has no running time -- so the track maps the frame the
+        motion has reached against how many there are.
+        """
+        played, of = self.playhead()
+        if of <= 0:
+            return None
+        return RowHud(position_ms=played, duration_ms=of, volume=volume,
+                      playhead=self.readout())
 
     def playhead(self) -> tuple[int, int]:
         """How far through the clip the motion has taken it, of how far there is
@@ -48,40 +57,12 @@ class ClipScrubber:
         index = self._renderer.current_frame_index
         return (0 if index is None else max(0, count - 1 - index), count)
 
-    @property
-    def height(self) -> int:
-        """How much of the window's lower edge the bar takes, 0 with no clip up."""
-        return TIMELINE_HEIGHT if self.playhead()[1] > 0 else 0
-
-    def bgra(self, width: int) -> np.ndarray | None:
-        """The bar at this window width, or None while there is no clip to draw."""
-        played, of = self.playhead()
-        if of <= 0 or width <= 0:
-            return None
-        return progress_bar_bgra(played, of, None, width)
-
     def readout(self) -> PlayheadHud | None:
         return clip_playhead(*self.playhead())
 
-    def readout_blit(self, *, win_w: int, win_h: int,
-                     ) -> tuple[bytes, tuple[int, int], tuple[int, int]] | None:
-        hud = self.readout()
-        if hud is None:
-            return None
-        rgba, size = self._readout_painter.rgba(hud)
-        return rgba, size, readout_xy(size[0], win_w=win_w, win_h=win_h,
-                                      timeline_h=TIMELINE_HEIGHT)
-
-    def on_readout(self, mx: int, my: int, *, win_w: int, win_h: int) -> bool:
-        return self.height > 0 and on_readout(
-            mx, my, win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
-
-    def takes(self, my: int, *, win_h: int) -> bool:
-        """Whether a press this far down the window is on the bar."""
-        return self.height > 0 and my >= win_h - self.height
-
     @staticmethod
-    def fraction_at(mx: int, *, win_w: int) -> float:
-        """How far along the bar a press at *mx* is, saturating past either end."""
-        x0, x1 = bar_track_x(win_w)
-        return min(1.0, max(0.0, (mx - x0) / max(1, x1 - x0)))
+    def fraction_at(px: int, *, width: int) -> float:
+        """How far along a track *width* across a press at *px* is, saturating
+        past either end."""
+        x0, x1 = bar_track_x(width)
+        return min(1.0, max(0.0, (px - x0) / max(1, x1 - x0)))

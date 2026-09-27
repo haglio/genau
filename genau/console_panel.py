@@ -21,9 +21,16 @@ class ConsolePanel:
         # Every tick after that has one, whoever holds the device.
         self._panel: ConsoleHud | None = None
         self._hover: tuple[int, int] | None = None
+        # The clip's row at the panel's foot -- the track, the frame count and
+        # the volume chip -- or None while there is no clip up.
+        self._row = None
 
     def show(self, console: ConsoleHud) -> None:
         self._panel = console
+
+    def show_row(self, row) -> None:
+        """Take the row to draw at the panel's foot this frame."""
+        self._row = row
 
     @property
     def showing(self) -> bool:
@@ -33,6 +40,12 @@ class ConsolePanel:
         """Where this frame's panel goes in a window that size, and where the
         presses below are measured from."""
         return self._painter.place(window=window, lower_edge=lower_edge)
+
+    @property
+    def row_rect(self) -> tuple[int, int, int, int] | None:
+        """Where the panel last drew that row, for a press to be placed
+        against -- and None where it drew none."""
+        return self._painter.row_rect
 
     def press_at(self, mx: int, my: int) -> str:
         """The command a press at ``(mx, my)`` posts, "" over no control.
@@ -64,4 +77,4 @@ class ConsolePanel:
         from what comes back."""
         if self._panel is None:
             return None
-        return self._painter.rgba(self._panel, hover=self._hover)
+        return self._painter.rgba(self._panel, hover=self._hover, clip_row=self._row)
