@@ -15,7 +15,6 @@ from pathlib import Path
 
 import numpy as np
 import pygame
-from player_core.console_hud import hud_xy
 from pygame._sdl2.video import Texture
 
 from .clip_scrubber import ClipScrubber
@@ -138,7 +137,9 @@ class PygameView:
         rgba, size = painted
         surface = pygame.image.frombuffer(rgba, size, "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
-        texture.draw(dstrect=pygame.Rect(hud_xy(), size))
+        at = self._console.place(window=self.window.size,
+                                 lower_edge=self._scrubber.height)
+        texture.draw(dstrect=pygame.Rect(at, size))
 
     def _draw_scrubber(self) -> None:
         """Blit the clip's playhead along the lower edge, where the main player puts a

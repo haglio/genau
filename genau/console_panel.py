@@ -29,6 +29,11 @@ class ConsolePanel:
     def showing(self) -> bool:
         return self._panel is not None
 
+    def place(self, *, window: tuple[int, int], lower_edge: int) -> tuple[int, int]:
+        """Where this frame's panel goes in a window that size, and where the
+        presses below are measured from."""
+        return self._painter.place(window=window, lower_edge=lower_edge)
+
     def press_at(self, mx: int, my: int) -> str:
         """The command a press at ``(mx, my)`` posts, "" over no control.
 
