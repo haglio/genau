@@ -113,6 +113,14 @@ class TestWhatHappensBeforeTheWindow:
         assert _said(head[0].value) == "clip_sequence.current_path"
         assert head[0].lineno > _call(startup, "ClipSequenceController").lineno
 
+    def test_the_folder_is_first_scanned_in_the_order_the_host_named(self):
+        """The order has to be in the scan the sequence is built from: LATEST as
+        a verb browses the new order from its top, so sent at startup it would
+        throw away the clip --start-clip had just opened on."""
+        startup = _startup()
+
+        assert _keyword(_call(startup, "scan_clips"), "recent") == "args.latest"
+
 
 class TestTheLoopAndTheTeardown:
     def test_each_turn_reads_the_window_then_refreshes_then_waits(self):

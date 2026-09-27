@@ -19,7 +19,8 @@
     "--dashboard-cmd-file"
   ],
   "optional_flags": [
-    "--start-clip"
+    "--start-clip",
+    "--latest"
   ],
   "window_title": "Genau",
   "video_window_title": "Video Main Player+Genau",
