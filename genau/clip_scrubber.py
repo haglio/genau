@@ -48,6 +48,11 @@ class ClipScrubber:
         index = self._renderer.current_frame_index
         return (0 if index is None else max(0, count - 1 - index), count)
 
+    @property
+    def height(self) -> int:
+        """How much of the window's lower edge the bar takes, 0 with no clip up."""
+        return TIMELINE_HEIGHT if self.playhead()[1] > 0 else 0
+
     def bgra(self, width: int) -> np.ndarray | None:
         """The bar at this window width, or None while there is no clip to draw."""
         played, of = self.playhead()
@@ -68,12 +73,12 @@ class ClipScrubber:
                                       timeline_h=TIMELINE_HEIGHT)
 
     def on_readout(self, mx: int, my: int, *, win_w: int, win_h: int) -> bool:
-        return self.playhead()[1] > 0 and on_readout(
+        return self.height > 0 and on_readout(
             mx, my, win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
 
     def takes(self, my: int, *, win_h: int) -> bool:
         """Whether a press this far down the window is on the bar."""
-        return self.playhead()[1] > 0 and my >= win_h - TIMELINE_HEIGHT
+        return self.height > 0 and my >= win_h - self.height
 
     @staticmethod
     def fraction_at(mx: int, *, win_w: int) -> float:

@@ -6,7 +6,12 @@ themselves in `test_genau_console_pointer.py` and `test_genau_volume_chip.py`.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+from player_core.console import ConsoleModel
+from player_core.console_hud import ConsoleHud, hud_xy
+from player_core.hud_placement import HudCorner
 
 import genau.pygame_view as pv
 from genau.clip_scrubber import ClipScrubber
@@ -159,3 +164,56 @@ class TestTheLoadingLine:
         view.window.hud_active = True
 
         assert not self._drawn(view, mock_pygame)
+
+
+def _showing(view, corner: HudCorner) -> None:
+    view.window.window.size = (800, 600)
+    view.window.hud_active = False
+    view._console.show(ConsoleHud(console=ConsoleModel(hud_corner=corner)))
+
+
+def _blit(mock_pygame) -> tuple[tuple[int, int], tuple[int, int]]:
+    """Where the console was blitted and how big it was."""
+    at, size = mock_pygame.Rect.call_args.args
+    return at, size
+
+
+def test_the_console_is_drawn_in_the_corner_the_room_moved_it_to(mock_pygame):
+    """The room can put the panel in any corner and a press has to land where it
+    is drawn, so the blit follows the painter rather than the upper left."""
+    view = _view(width=800, height=600)
+    _showing(view, HudCorner.UPPER_RIGHT)
+
+    view._draw_console()
+
+    (left, top), (panel_w, _panel_h) = _blit(mock_pygame)
+    assert left + panel_w == 800 - hud_xy()[0]
+    assert top == hud_xy()[1]
+
+
+def test_a_console_in_a_lower_corner_sits_above_the_clips_bar(mock_pygame):
+    """The bar spans the window's lower edge, so a panel against that edge stops
+    where the bar starts -- as the main player's does over its timeline."""
+    view = _view(width=800, height=600)
+    view._scrubber.follow(SimpleNamespace(
+        current_frame_index=5, current_clip_entry=lambda: {"frames": [object()] * 20}))
+    _showing(view, HudCorner.LOWER_LEFT)
+
+    view._draw_console()
+
+    (left, top), (_panel_w, panel_h) = _blit(mock_pygame)
+    assert left == hud_xy()[0]
+    assert top + panel_h == 600 - view._scrubber.height - hud_xy()[1]
+
+
+def test_with_no_clip_up_there_is_no_bar_to_sit_above(mock_pygame):
+    """Nothing is drawn along the lower edge before a clip is up, so a panel
+    against it would leave a strip of video showing under it."""
+    view = _view(width=800, height=600)
+    _showing(view, HudCorner.LOWER_LEFT)
+
+    view._draw_console()
+
+    (_left, top), (_panel_w, panel_h) = _blit(mock_pygame)
+    assert view._scrubber.height == 0
+    assert top + panel_h == 600 - hud_xy()[1]
