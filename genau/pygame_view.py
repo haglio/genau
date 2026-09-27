@@ -105,9 +105,8 @@ class PygameView:
         # see-through layer over the main player's and the main player draws the console over its own
         # video.  Drawing it here too would put the same console on screen twice.
         if not self.hud_active and self._console.showing:
+            self._console.show_row(self._scrubber.row(self._volume.shown))
             self._draw_console()
-            self._draw_scrubber()
-            self._draw_volume()
         self.renderer.present()
 
     def _draw_loading_overlay(self) -> None:
@@ -137,40 +136,6 @@ class PygameView:
         rgba, size = painted
         surface = pygame.image.frombuffer(rgba, size, "RGBA")
         texture = Texture.from_surface(self.renderer, surface)
-        at = self._console.place(window=self.window.size,
-                                 lower_edge=self._scrubber.height)
+        at = self._console.place(window=self.window.size, lower_edge=0)
         texture.draw(dstrect=pygame.Rect(at, size))
 
-    def _draw_scrubber(self) -> None:
-        """Blit the clip's playhead along the lower edge, where the main player puts a
-        video's -- so the two modes read the same and the volume chip beside it
-        lands in the pixels it always did."""
-        win_w, win_h = self.window.size
-        bar = self._scrubber.bgra(win_w)
-        if bar is None:
-            return
-        height, width = bar.shape[:2]
-        rgba = np.ascontiguousarray(bar[:, :, [2, 1, 0, 3]])
-        surface = pygame.image.frombuffer(rgba.tobytes(), (width, height), "RGBA")
-        texture = Texture.from_surface(self.renderer, surface)
-        texture.draw(dstrect=pygame.Rect(0, win_h - height, width, height))
-        readout = self._scrubber.readout_blit(win_w=win_w, win_h=win_h)
-        if readout is not None:
-            pixels, size, at = readout
-            surface = pygame.image.frombuffer(pixels, size, "RGBA")
-            Texture.from_surface(self.renderer, surface).draw(dstrect=pygame.Rect(at, size))
-
-    def _draw_volume(self) -> None:
-        """Blit the primary display's volume chip, lower-right.
-
-        Beside the console, and drawn under the same condition: in kino mode
-        this window is a see-through layer over the main player's, and the main player draws both there — a
-        chip here too would put two sliders on screen disagreeing about which
-        press the level came from.
-        """
-        win_w, win_h = self.window.size
-        rgba, size = self._volume.rgba()
-        surface = pygame.image.frombuffer(rgba, size, "RGBA")
-        texture = Texture.from_surface(self.renderer, surface)
-        vx, vy = self._volume.corner(win_w=win_w, win_h=win_h)
-        texture.draw(dstrect=pygame.Rect(vx, vy, *size))

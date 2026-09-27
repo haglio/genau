@@ -5,15 +5,16 @@ Fun Time owns the level, so a press is a request — but its answer is a tick
 away, and a slider that waited for it would trail the pointer by a frame.  So
 the press says both what to ask for and what to show meanwhile, and the caller
 does both; asking is not itself a move.
+
+Where the chip is drawn and which part of it a press landed on belong to the
+row that carries it at the foot of the console
+(:mod:`genau.console_pointer`); what is here is what it shows and what it asks.
 """
 from __future__ import annotations
 
-from player_core.timeline import TIMELINE_HEIGHT
-from player_core.volume import CHIP_W, chip_xy
+from player_core.volume import VolumeHud
 
 from genau.volume_chip import VolumeChip
-
-WIN_W, WIN_H = 800, 600
 
 
 def _chip(level: int = 30, muted: bool = False) -> VolumeChip:
@@ -22,55 +23,32 @@ def _chip(level: int = 30, muted: bool = False) -> VolumeChip:
     return chip
 
 
-def _at(part: str) -> tuple[int, int]:
-    vx, vy = chip_xy(win_w=WIN_W, win_h=WIN_H, timeline_h=0)
-    return (vx + CHIP_W - 2, vy + 10) if part == "far end" else (vx + 3, vy + 10)
-
-
-def _press(chip: VolumeChip, part: str):
-    return chip.press_at(*_at(part), win_w=WIN_W, win_h=WIN_H)
-
-
-def test_it_sits_where_main_players_does_with_no_timeline_under_it():
-    """Genau's window IS the primary display in genau mode, so reaching for the
-    sound must not mean finding the control somewhere else than in the main player's modes.
-    Measured against the row the main player draws it in rather than against Genau's own
-    call, which is what a chip nine pixels above the main player's still passed."""
-    assert VolumeChip.corner(win_w=WIN_W, win_h=WIN_H) == chip_xy(
-        win_w=WIN_W, win_h=WIN_H, timeline_h=TIMELINE_HEIGHT)
-
-
 def test_the_published_level_is_the_one_it_is_holding():
     """Genau neither owns the level nor plays the sound — a companion process
-    carries the clip music — so what it draws is whatever Fun Time last said.
-
-    Read back through a press rather than through an accessor of its own: a
-    press on the speaker carries the level it would unmute to, which is the
-    only place the held level is observable from outside."""
+    carries the clip music — so what it draws is whatever Fun Time last said."""
     chip = VolumeChip()
 
     chip.show(45, True)
 
-    press = _press(chip, "speaker")
-    assert (press.command, press.level, press.muted) == ("audio_unmute", 45, False)
+    assert chip.shown == VolumeHud(volume=45, muted=True)
 
 
-def test_the_far_end_of_the_track_asks_for_full_volume():
-    press = _press(_chip(), "far end")
+def test_the_slider_asks_for_the_level_it_was_pressed_at():
+    press = VolumeChip.pressed_the_slider(100)
 
     assert press.command == "audio_set_volume|100"
     assert (press.level, press.muted) == (100, False)
 
 
-def test_the_speaker_end_asks_for_the_mute():
-    press = _press(_chip(), "speaker")
+def test_the_speaker_asks_for_the_mute():
+    press = _chip().pressed_the_speaker()
 
     assert press.command == "audio_mute"
     assert press.muted is True
 
 
 def test_pressing_a_muted_speaker_asks_to_unmute():
-    press = _press(_chip(muted=True), "speaker")
+    press = _chip(muted=True).pressed_the_speaker()
 
     assert press.command == "audio_unmute"
     assert press.muted is False
@@ -78,7 +56,7 @@ def test_pressing_a_muted_speaker_asks_to_unmute():
 
 def test_the_mute_leaves_the_level_where_it_was():
     """Muting is not turning it down: unmuting has to come back to here."""
-    assert _press(_chip(level=30), "speaker").level == 30
+    assert _chip(level=30).pressed_the_speaker().level == 30
 
 
 def test_asking_does_not_itself_move_the_chip():
@@ -86,12 +64,7 @@ def test_asking_does_not_itself_move_the_chip():
     it having already happened.  Asking twice must give the same answer."""
     chip = _chip(level=30)
 
-    _press(chip, "far end")
+    chip.pressed_the_slider(100)
 
-    assert _press(chip, "speaker").level == 30, "the level is still the published one"
-    assert _press(chip, "speaker").muted is True, "and it is still unmuted"
-
-
-def test_a_press_nowhere_near_it_asks_for_nothing():
-    """So the console under the chip gets it instead."""
-    assert _chip().press_at(10, 10, win_w=WIN_W, win_h=WIN_H) is None
+    assert chip.pressed_the_speaker().level == 30, "the level is still the published one"
+    assert chip.pressed_the_speaker().muted is True, "and it is still unmuted"
