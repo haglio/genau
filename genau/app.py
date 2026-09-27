@@ -279,10 +279,9 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     if not clips_folder.exists():
         raise RuntimeError(f"Clips folder does not exist: {clips_folder}")
 
-    clips = scan_clips(clips_folder, shuffle_on_load=config.genau.shuffle_on_load)
-    # Open on the clip the last session was left showing, when an orchestrator
-    # names one.  Before the preload below, so the clip that gets decoded ahead
-    # of the window is the one that will actually be on screen.
+    clips = scan_clips(
+        clips_folder, shuffle_on_load=config.genau.shuffle_on_load, recent=args.latest,
+    )
     clip_sequence = ClipSequenceController(
         clips, start_at=Path(args.start_clip) if args.start_clip else None,
     )

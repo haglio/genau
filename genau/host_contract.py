@@ -66,6 +66,12 @@ ICON_FLAG = "--icon"
 #: channel upper-cases every line, which no path survives.
 START_CLIP_FLAG = "--start-clip"
 
+#: Browse newest-first from the start, the order the last session was in.  Not
+#: required: left off, the config's ``shuffle_on_load`` decides.  A flag rather
+#: than the LATEST verb because that verb browses the new order from its top,
+#: which would throw away the clip ``--start-clip`` just opened on.
+LATEST_FLAG = "--latest"
+
 #: Both captions, which a host resolves this window by (with the process pid),
 #: the way it resolves each satellite player by its own.  The plain one is what
 #: the window wears; the second is what it wears while its HUD is over the main
@@ -133,6 +139,7 @@ def add_host_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument(flag, required=True,
                             type=int if flag in _rect_flags() else str)
     parser.add_argument(START_CLIP_FLAG, default=None)
+    parser.add_argument(LATEST_FLAG, action="store_true")
 
 
 def declaration() -> dict:
@@ -140,7 +147,7 @@ def declaration() -> dict:
     return {
         "module": MODULE,
         "required_flags": list(required_flags()),
-        "optional_flags": [START_CLIP_FLAG],
+        "optional_flags": [START_CLIP_FLAG, LATEST_FLAG],
         "window_title": WINDOW_TITLE,
         "video_window_title": VIDEO_WINDOW_TITLE,
         "beside_the_clips_folder": {

@@ -50,6 +50,18 @@ def test_the_parser_accepts_every_flag_the_document_names():
     assert {*document["required_flags"], *document["optional_flags"]} == accepted
 
 
+def test_the_browse_order_comes_off_the_launch_and_defaults_to_the_configs():
+    """Latest or shuffled is the host's to name: the folder is rescanned every
+    launch, so nothing in this repo remembers which the last session was in.
+    Left off, the config's ``shuffle_on_load`` decides, as it always did."""
+    parser = argparse.ArgumentParser()
+    contract.add_host_arguments(parser)
+    launch = [word for flag in contract.required_flags() for word in (flag, "7")]
+
+    assert parser.parse_args(launch).latest is False
+    assert parser.parse_args([*launch, "--latest"]).latest is True
+
+
 def test_a_host_launch_short_of_a_required_flag_is_complained_about():
     """The half argparse cannot see.  An unknown flag it already refuses; a flag
     a host STOPPED sending used to be a silent default -- a status file
