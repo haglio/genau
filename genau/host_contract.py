@@ -27,10 +27,7 @@ import argparse
 import json
 from pathlib import Path
 
-from player_core.clip_folder import (
-    cache_dir_for_clips_folder,
-    weird_dir_for_clips_folder,
-)
+from player_core.clip_folder import weird_dir_for_clips_folder
 
 #: The module a host runs.
 MODULE = "genau"
@@ -62,9 +59,14 @@ ICON_FLAG = "--icon"
 
 #: The clip the last session was left showing.  Not required: a session with
 #: none to come back to sends nothing and this app opens at the top of the
-#: folder.  On the command line rather than the command channel because that
-#: channel upper-cases every line, which no path survives.
+#: folder.  On the command line rather than as a PLAY_FILE on the channel: the
+#: first clip is decoding before the channel is first read, and a PLAY_FILE
+#: would throw that decode away.
 START_CLIP_FLAG = "--start-clip"
+
+#: Where the library's metadata records are, which is where a clip's flip is
+#: kept.  Not required: a host with none gets flips that last the session.
+METADATA_DIR_FLAG = "--metadata-dir"
 
 #: Browse newest-first from the start, the order the last session was in.  Not
 #: required: left off, the config's ``shuffle_on_load`` decides.  A flag rather
@@ -83,12 +85,10 @@ WINDOW_TITLE = "Genau"
 VIDEO_WINDOW_TITLE = "Video Main Player+Genau"
 
 #: What sits beside the folder of clips this app plays: the pile a condemned
-#: clip is moved to, and the decoded-frame cache.  Read off the rule itself
-#: (``player_core.clip_folder``) rather than typed, because the app that
-#: DELIVERS those clips drains that same pile and had the rule written out a
-#: second time on its own side.
+#: clip is moved to.  Read off the rule itself (``player_core.clip_folder``)
+#: rather than typed, because the app that DELIVERS those clips keeps that same
+#: pile and had the rule written out a second time on its own side.
 CONDEMNED_DIRNAME = weird_dir_for_clips_folder(Path("clips")).name
-FRAME_CACHE_DIRNAME = cache_dir_for_clips_folder(Path("clips")).name
 
 #: At the checkout root beside the launchers, which is the path a host that
 #: resolves this checkout at all already has.
@@ -140,6 +140,7 @@ def add_host_arguments(parser: argparse.ArgumentParser) -> None:
                             type=int if flag in _rect_flags() else str)
     parser.add_argument(START_CLIP_FLAG, default=None)
     parser.add_argument(LATEST_FLAG, action="store_true")
+    parser.add_argument(METADATA_DIR_FLAG, type=Path, default=None)
 
 
 def declaration() -> dict:
@@ -147,12 +148,11 @@ def declaration() -> dict:
     return {
         "module": MODULE,
         "required_flags": list(required_flags()),
-        "optional_flags": [START_CLIP_FLAG, LATEST_FLAG],
+        "optional_flags": [START_CLIP_FLAG, LATEST_FLAG, METADATA_DIR_FLAG],
         "window_title": WINDOW_TITLE,
         "video_window_title": VIDEO_WINDOW_TITLE,
         "beside_the_clips_folder": {
             "condemned": CONDEMNED_DIRNAME,
-            "frame_cache": FRAME_CACHE_DIRNAME,
         },
     }
 

@@ -22,8 +22,8 @@ from player_core.broker_feed import BrokerFeed, udp_reader
 from player_core.clip_advance import ClipAdvanceState
 from player_core.clip_cache import ClipCacheStore, DecodeRequestState
 from player_core.clip_decode import load_clip_frames
+from player_core.clip_flip import ClipFlip
 from player_core.clip_folder import (
-    cache_dir_for_clips_folder,
     move_clip_to_weird,
     scan_clips,
     weird_dir_for_clips_folder,
@@ -211,8 +211,7 @@ class ClipPipeline:
 
 
 def _build_clip_pipeline(
-    clip_sequence, clip_store, view, notifier, clips_folder: Path,
-    cache_dir: Path, logger: logging.Logger,
+    clip_sequence, clip_store, view, notifier, clips_folder: Path, logger: logging.Logger,
 ) -> ClipPipeline:
     renderer = ClipRenderController(
         clip_store=clip_store,
@@ -223,7 +222,7 @@ def _build_clip_pipeline(
         load_state=DecodeRequestState(),
         prefetch_state=DecodeRequestState(),
         current_clip_path_getter=lambda: renderer.current_clip_path,
-        decode_clip=lambda path: load_clip_frames(path, cache_dir),
+        decode_clip=load_clip_frames,
         start_thread=start_daemon_thread,
         logger=logger,
         on_active_clip_loaded=renderer.prepare_active_clip_for_current_size,
@@ -285,13 +284,11 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     clip_sequence = ClipSequenceController(
         clips, start_at=Path(args.start_clip) if args.start_clip else None,
     )
-    cache_dir = cache_dir_for_clips_folder(clips_folder)
 
     # Started here, so the decode overlaps pygame init and the controller wiring
     # below rather than running before them.
     first_clip_path = clip_sequence.current_path
-    preload = FirstClipPreload(
-        first_clip_path, lambda path: load_clip_frames(path, cache_dir), logger)
+    preload = FirstClipPreload(first_clip_path, load_clip_frames, logger)
     preload.start()
 
     # The two surfaces Genau draws over its clip in genau mode.  Built here
@@ -338,7 +335,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
 
     notifier = GenauNotifier(args.notify_host, args.notify_port)
     pipeline = _build_clip_pipeline(
-        clip_sequence, clip_store, view, notifier, clips_folder, cache_dir, logger)
+        clip_sequence, clip_store, view, notifier, clips_folder, logger)
     renderer, loader, selection = (
         pipeline.renderer, pipeline.loader, pipeline.selection)
     clip_scrubber.follow(renderer)
@@ -357,6 +354,8 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         hud=hud,
         set_volume=volume_chip.show,
         reorder_clips=partial(_reorder_clips, clips_folder, config, selection, logger),
+        play_file=selection.play,
+        clip_flip=ClipFlip(args.metadata_dir),
     )
 
     refresh_controller = GenauRefreshController(
