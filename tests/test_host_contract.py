@@ -16,7 +16,7 @@ import argparse
 import json
 from pathlib import Path
 
-from player_core.clip_folder import cache_dir_for_clips_folder, weird_dir_for_clips_folder
+from player_core.clip_folder import weird_dir_for_clips_folder
 
 from genau import host_contract as contract
 from genau.window import hud_window_identity
@@ -98,10 +98,20 @@ def test_the_captions_the_document_names_are_the_ones_this_window_wears():
 
 
 def test_what_the_document_says_sits_beside_the_clips_folder_is_what_does():
-    """The app that DELIVERS those clips drains the condemned pile, and had this
+    """The app that DELIVERS those clips keeps the condemned pile, and had this
     rule written out a second time on its own side."""
     beside = _document()["beside_the_clips_folder"]
     clips = Path("a-library") / "clips"
 
+    assert beside == {"condemned": "weird"}
     assert weird_dir_for_clips_folder(clips) == clips.parent / beside["condemned"]
-    assert cache_dir_for_clips_folder(clips) == clips.parent / beside["frame_cache"]
+
+
+def test_a_host_that_names_no_metadata_folder_still_launches_genau():
+    parser = argparse.ArgumentParser()
+    contract.add_host_arguments(parser)
+    launch = [word for flag in contract.required_flags() for word in (flag, "7")]
+
+    assert parser.parse_args(launch).metadata_dir is None
+    assert parser.parse_args([*launch, "--metadata-dir", "a-library/metadata"]).metadata_dir == (
+        Path("a-library/metadata"))

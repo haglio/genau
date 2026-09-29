@@ -89,6 +89,8 @@ GENAU_VERBS: dict[str, str | None] = {
     "CLIP_SECONDS": "10",
     "SET_VOLUME": "40 0",
     "SET_MAX_INTENSITY": "40",
+    # The clip a browse picked; any file on disk stands in for one.
+    "PLAY_FILE": str(pathlib.Path(__file__).resolve()),
     # Whether the motion reaches the OSR2 at all.  PAUSE is the other half of
     # this pair and stops the room; this one leaves the clips running and sends
     # the device nothing, which is how an orchestrator lets go of it.
@@ -190,6 +192,7 @@ def _genau_answers(line: str) -> bool:
             hud=Flag(),
             set_volume=lambda _level, _muted: None,
             reorder_clips=lambda _recent: None,
+            play_file=lambda _clip: None,
         ))
     return not refused
 

@@ -20,12 +20,12 @@
   ],
   "optional_flags": [
     "--start-clip",
-    "--latest"
+    "--latest",
+    "--metadata-dir"
   ],
   "window_title": "Genau",
   "video_window_title": "Video Main Player+Genau",
   "beside_the_clips_folder": {
-    "condemned": "weird",
-    "frame_cache": "frames"
+    "condemned": "weird"
   }
 }

@@ -191,6 +191,19 @@ class TestWhichFileEachChannelIsGiven:
 
         assert given == "Path(args.drive_file)"
 
+    def test_a_flip_is_kept_in_the_metadata_folder_fun_time_named(self):
+        given = _keyword(_call(_startup(), "GenauControls"), "clip_flip")
+
+        assert given == "ClipFlip(args.metadata_dir)"
+
+
+class TestAClipPickedInTheBrowser:
+    def test_is_put_up_by_the_same_selection_that_steps_the_clips(self):
+        controls = _call(_startup(), "GenauControls")
+
+        assert (_keyword(controls, "play_file"), _keyword(controls, "step_clip")) == (
+            "selection.play", "selection.step")
+
 
 class TestWhatThisWindowIsCalled:
     """Its two captions -- the plain one and the one it wears while its HUD is
