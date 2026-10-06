@@ -21,9 +21,9 @@ requires-python = ">=3.14"
 # other half had not landed turned all of them red at once. Moving to a newer
 # one is this repo's own commit, with its own suite to answer for it.
 dependencies = [
-    "app-support @ git+https://github.com/haglio/app_support@v0.1.156",
-    "player-core @ git+https://github.com/haglio/player_core@v0.1.360",
-    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.142",
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.174",
+    "player-core @ git+https://github.com/haglio/player_core@v0.1.365",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.145",
     "numpy>=2.4,<3",
     "pillow>=12,<13",
     "pygame-ce>=2,<3",
