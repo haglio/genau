@@ -24,9 +24,10 @@ from player_core.clip_cache import ClipCacheStore, DecodeRequestState
 from player_core.clip_decode import load_clip_frames
 from player_core.clip_flip import ClipFlip
 from player_core.clip_folder import (
+    flat_clips_in,
     move_clip_to_weird,
     scan_clips,
-    weird_dir_for_clips_folder,
+    weird_folder_for,
 )
 from player_core.clip_loader import ClipLoadController
 from player_core.clip_preload import FirstClipPreload
@@ -77,13 +78,19 @@ def _preparse_taskbar_identity(argv: list[str] | None) -> str | None:
     return None
 
 
-def _condemn_clip(path: Path, weird_dir: Path, logger: logging.Logger) -> None:
+def _played_clips(clips_folder: Path, *, shuffle_on_load: bool, recent: bool) -> list[Path]:
+    return scan_clips(flat_clips_in(clips_folder), shuffle_on_load=shuffle_on_load,
+                      recent=recent)
+
+
+def _condemn_clip(path: Path, clips_folder: Path, logger: logging.Logger) -> None:
     """Move a clip out of rotation, logging where it went — or why it didn't.
 
     A failed move must not take the player down with it: the clip is already
     off the playlist by the time this runs, so the worst case is a file left
-    in ``clips/`` that the next session shows again.
+    in the clips folder that the next session shows again.
     """
+    weird_dir = weird_folder_for(path, clips_folder)
     try:
         landed = move_clip_to_weird(path, weird_dir)
     except OSError:
@@ -227,7 +234,6 @@ def _build_clip_pipeline(
         logger=logger,
         on_active_clip_loaded=renderer.prepare_active_clip_for_current_size,
     )
-    weird_dir = weird_dir_for_clips_folder(clips_folder)
     return ClipPipeline(
         renderer=renderer,
         loader=loader,
@@ -237,7 +243,7 @@ def _build_clip_pipeline(
             loader=loader,
             renderer=renderer,
             notifier=notifier,
-            condemn_clip=lambda path: _condemn_clip(path, weird_dir, logger),
+            condemn_clip=lambda path: _condemn_clip(path, clips_folder, logger),
         ),
     )
 
@@ -256,11 +262,8 @@ def _reorder_clips(
     than taking Genau's picture away; :func:`scan_clips` says so by raising.
     """
     try:
-        clips = scan_clips(
-            clips_folder,
-            shuffle_on_load=config.genau.shuffle_on_load,
-            recent=recent,
-        )
+        clips = _played_clips(
+            clips_folder, shuffle_on_load=config.genau.shuffle_on_load, recent=recent)
     except (OSError, RuntimeError):
         logger.warning("Could not rescan %s; keeping the sequence", clips_folder,
                        exc_info=True)
@@ -278,7 +281,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     if not clips_folder.exists():
         raise RuntimeError(f"Clips folder does not exist: {clips_folder}")
 
-    clips = scan_clips(
+    clips = _played_clips(
         clips_folder, shuffle_on_load=config.genau.shuffle_on_load, recent=args.latest,
     )
     clip_sequence = ClipSequenceController(

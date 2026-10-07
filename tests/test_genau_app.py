@@ -119,7 +119,7 @@ class TestWhatHappensBeforeTheWindow:
         throw away the clip --start-clip had just opened on."""
         startup = _startup()
 
-        assert _keyword(_call(startup, "scan_clips"), "recent") == "args.latest"
+        assert _keyword(_call(startup, "_played_clips"), "recent") == "args.latest"
 
 
 class TestTheLoopAndTheTeardown:
