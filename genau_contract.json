@@ -31,5 +31,9 @@
   "inside_the_clips_folder": {
     "flat": "2D",
     "vr": "VR"
+  },
+  "in_the_state_dir": {
+    "log": "genau_listener.log",
+    "crash_log": "genau_crash.log"
   }
 }

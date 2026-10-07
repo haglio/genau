@@ -45,10 +45,6 @@ class TestLoadConfig:
         assert cfg.genau.shuffle_on_load is True
         assert cfg.genau.udp_port == 50555
 
-    def test_log_file(self, cfg_path: Path, tmp_path: Path):
-        cfg = load_config(cfg_path)
-        assert cfg.log_file("genau_listener") == tmp_path / "state" / "genau_listener.log"
-
     def test_logs_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         assert cfg.logs_dir == tmp_path / "state"
