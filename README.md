@@ -41,6 +41,11 @@ Everything else -- the clips folder, the window's rect and captions, and the
 files of the channel below -- Fun Time names on the command line of every
 launch, and a launch that leaves one out is refused.
 
+The clips folder holds a `2D` folder, whose clips this window plays, and a `VR`
+folder, whose clips only the headset plays; `genau_contract.json` says so for
+the apps that fill it. A clip marked weird moves to the same place in the
+`weird` folder beside the clips folder.
+
 Relative paths in it are resolved against the config file, not against whatever
 directory a shortcut happened to start the app in.
 

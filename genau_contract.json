@@ -27,5 +27,9 @@
   "video_window_title": "Video Main Player+Genau",
   "beside_the_clips_folder": {
     "condemned": "weird"
+  },
+  "inside_the_clips_folder": {
+    "flat": "2D",
+    "vr": "VR"
   }
 }

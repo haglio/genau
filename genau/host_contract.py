@@ -27,7 +27,7 @@ import argparse
 import json
 from pathlib import Path
 
-from player_core.clip_folder import weird_dir_for_clips_folder
+from player_core.clip_folder import flat_clips_in, vr_clips_in, weird_dir_for_clips_folder
 
 #: The module a host runs.
 MODULE = "genau"
@@ -89,6 +89,9 @@ VIDEO_WINDOW_TITLE = "Video Main Player+Genau"
 #: rather than typed, because the app that DELIVERS those clips keeps that same
 #: pile and had the rule written out a second time on its own side.
 CONDEMNED_DIRNAME = weird_dir_for_clips_folder(Path("clips")).name
+
+FLAT_DIRNAME = flat_clips_in(Path("clips")).name
+VR_DIRNAME = vr_clips_in(Path("clips")).name
 
 #: At the checkout root beside the launchers, which is the path a host that
 #: resolves this checkout at all already has.
@@ -153,6 +156,10 @@ def declaration() -> dict:
         "video_window_title": VIDEO_WINDOW_TITLE,
         "beside_the_clips_folder": {
             "condemned": CONDEMNED_DIRNAME,
+        },
+        "inside_the_clips_folder": {
+            "flat": FLAT_DIRNAME,
+            "vr": VR_DIRNAME,
         },
     }
 

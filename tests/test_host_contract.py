@@ -16,7 +16,7 @@ import argparse
 import json
 from pathlib import Path
 
-from player_core.clip_folder import weird_dir_for_clips_folder
+from player_core.clip_folder import flat_clips_in, vr_clips_in, weird_dir_for_clips_folder
 
 from genau import host_contract as contract
 from genau.window import hud_window_identity
@@ -105,6 +105,17 @@ def test_what_the_document_says_sits_beside_the_clips_folder_is_what_does():
 
     assert beside == {"condemned": "weird"}
     assert weird_dir_for_clips_folder(clips) == clips.parent / beside["condemned"]
+
+
+def test_what_the_document_says_is_inside_the_clips_folder_is_what_genau_plays_from():
+    """The apps that fill the clips folder, and Fun Time, which browses it,
+    read where its 2D and VR clips go from here."""
+    inside = _document()["inside_the_clips_folder"]
+    clips = Path("a-library") / "clips"
+
+    assert inside == {"flat": "2D", "vr": "VR"}
+    assert (flat_clips_in(clips), vr_clips_in(clips)) == (clips / inside["flat"],
+                                                           clips / inside["vr"])
 
 
 def test_a_host_that_names_no_metadata_folder_still_launches_genau():
