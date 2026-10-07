@@ -50,7 +50,13 @@ from .clip_scrubber import ClipScrubber
 from .config import load_config
 from .console_panel import ConsolePanel
 from .console_pointer import ConsolePointer
-from .host_contract import TASKBAR_IDENTITY_FLAG, add_host_arguments, host_launch_complaint
+from .host_contract import (
+    CRASH_LOG_FILE,
+    LOG_FILE,
+    TASKBAR_IDENTITY_FLAG,
+    add_host_arguments,
+    host_launch_complaint,
+)
 from .lifecycle import GenauLifecycleController
 from .pygame_view import PygameView
 from .volume_chip import VolumeChip
@@ -138,9 +144,9 @@ def main(argv: list[str] | None = None) -> int:
         except OSError:
             pass  # Cosmetic: costs the icon, never worth failing to start over.
 
-    logger = configure_logging("genau", config.log_file("genau_listener"))
+    logger = configure_logging("genau", config.logs_dir / LOG_FILE)
     install_exception_logging(logger)
-    fault_fp = enable_faulthandler(config.log_file("genau_crash"))
+    fault_fp = enable_faulthandler(config.logs_dir / CRASH_LOG_FILE)
 
     # Once there is somewhere to say it: a launch that dies before logging is
     # configured leaves no word of why anywhere at all.

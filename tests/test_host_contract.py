@@ -15,9 +15,11 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from unittest.mock import patch
 
 from player_core.clip_folder import flat_clips_in, vr_clips_in, weird_dir_for_clips_folder
 
+from genau import app
 from genau import host_contract as contract
 from genau.window import hud_window_identity
 
@@ -126,3 +128,14 @@ def test_a_host_that_names_no_metadata_folder_still_launches_genau():
     assert parser.parse_args(launch).metadata_dir is None
     assert parser.parse_args([*launch, "--metadata-dir", "a-library/metadata"]).metadata_dir == (
         Path("a-library/metadata"))
+
+
+def test_genau_keeps_its_logs_where_the_document_says(cfg_path: Path, tmp_path: Path):
+    with patch.object(app, "configure_logging") as log, \
+         patch.object(app, "install_exception_logging"), \
+         patch.object(app, "enable_faulthandler") as crash_log:
+        assert app.main(["--config", str(cfg_path)]) == 2
+
+    in_the_state_dir = _document()["in_the_state_dir"]
+    assert log.call_args.args[1] == tmp_path / "state" / in_the_state_dir["log"]
+    assert crash_log.call_args.args[0] == tmp_path / "state" / in_the_state_dir["crash_log"]

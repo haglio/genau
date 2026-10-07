@@ -41,9 +41,6 @@ class ProjectConfig:
     def logs_dir(self) -> Path:
         return self.state_dir
 
-    def log_file(self, name: str) -> Path:
-        return self.logs_dir / f"{name}.log"
-
 
 def load_config(config_path: str | Path | None = None) -> ProjectConfig:
     # Every required key is asked for by name, so a config short of one says

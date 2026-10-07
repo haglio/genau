@@ -93,6 +93,9 @@ CONDEMNED_DIRNAME = weird_dir_for_clips_folder(Path("clips")).name
 FLAT_DIRNAME = flat_clips_in(Path("clips")).name
 VR_DIRNAME = vr_clips_in(Path("clips")).name
 
+LOG_FILE = "genau_listener.log"
+CRASH_LOG_FILE = "genau_crash.log"
+
 #: At the checkout root beside the launchers, which is the path a host that
 #: resolves this checkout at all already has.
 CONTRACT_FILE = "genau_contract.json"
@@ -160,6 +163,10 @@ def declaration() -> dict:
         "inside_the_clips_folder": {
             "flat": FLAT_DIRNAME,
             "vr": VR_DIRNAME,
+        },
+        "in_the_state_dir": {
+            "log": LOG_FILE,
+            "crash_log": CRASH_LOG_FILE,
         },
     }
 
