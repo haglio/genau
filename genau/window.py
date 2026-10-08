@@ -2,7 +2,7 @@
 
 Four decisions that all belong to the window rather than to what is drawn in
 it — the borderless geometry, the icon, the caption, and the see-through layer
-video mode needs — and all four are made in an order that is load-bearing:
+kino mode needs — and all four are made in an order that is load-bearing:
 
 * the focusing click is asked for before ``pygame.init()``, because SDL decides
   then whether the click that focuses a window is also delivered to it;
@@ -30,7 +30,7 @@ from .win32_loader import WIN32_AVAILABLE
 HUD_COLOR_KEY = (1, 0, 1)
 
 def hud_window_identity(active: bool, *, base_title: str, video_title: str | None) -> str:
-    """The window's caption for the HUD state: the video-mode one while the HUD
+    """The window's caption for the HUD state: the kino-mode one while the HUD
     is on, when one was supplied, else Genau's own."""
     if active and video_title is not None:
         return video_title
@@ -81,7 +81,7 @@ class GenauWindow:
         deliver_the_focusing_click()
         pygame.init()
         # Borderless, like the satellites and the main player: with no chrome the client area
-        # is the whole rect Fun Time sizes the window to — and, in video mode,
+        # is the whole rect Fun Time sizes the window to — and, in kino mode,
         # this see-through layer lines up with the main player's video beneath it pixel for
         # pixel, where a title bar on one and not the other would shift them
         # apart.  The main slot's mode is drawn on the in-video HUD, so the bar
@@ -94,8 +94,6 @@ class GenauWindow:
         self.window.resizable = True
         self.window.position = (x, y)
         load_window_icon(self.window, icon_path)
-        # Fun Time's video mode shows this window as "Video Main Player+Genau"; genau
-        # mode is plain "Genau".  Driven off the HUD toggle.
         self._base_title = title
         # Taken while the caption is still the one the window was made with, and
         # held: the HUD renames this window, and a handle looked up afterwards

@@ -48,7 +48,7 @@ class LayeredWindow:
 
     A handle that cannot be found is said once and then let be: the transparency
     is what lets the main player's video show through Genau's overlay, so losing it costs
-    the video-mode look rather than the session.
+    the kino-mode look rather than the session.
     """
 
     def __init__(self, title: str, color_key: tuple[int, int, int], *, user32=None):

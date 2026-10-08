@@ -101,7 +101,7 @@ class PygameView:
                 self._current_texture.draw()
         if show_clip and self._loading_text:
             self._draw_loading_overlay()
-        # Not while the HUD is on: that is video mode, where this window is a
+        # Not while the HUD is on: that is kino mode, where this window is a
         # see-through layer over the main player's and the main player draws the console over its own
         # video.  Drawing it here too would put the same console on screen twice.
         if not self.hud_active and self._console.showing:
@@ -163,7 +163,7 @@ class PygameView:
     def _draw_volume(self) -> None:
         """Blit the primary display's volume chip, lower-right.
 
-        Beside the console, and drawn under the same condition: in video mode
+        Beside the console, and drawn under the same condition: in kino mode
         this window is a see-through layer over the main player's, and the main player draws both there — a
         chip here too would put two sliders on screen disagreeing about which
         press the level came from.

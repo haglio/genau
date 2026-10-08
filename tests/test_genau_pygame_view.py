@@ -85,7 +85,7 @@ def test_present_scene_tiles_portrait_texture(mock_pygame):
 
 
 def test_hud_mode_leaves_the_console_and_the_volume_to_main_player(mock_pygame):
-    """HUD mode is video mode: this window is a see-through layer over the main player's, and the
+    """HUD mode is kino mode: this window is a see-through layer over the main player's, and the
     readout is drawn inside the main player's console beneath the controls that move it.
     Drawing it here as well would put the same panel on screen twice — and the
     same goes for the volume chip, where two sliders would disagree about which
@@ -155,7 +155,7 @@ class TestTheLoadingLine:
         assert not self._drawn(view, mock_pygame)
 
     def test_the_hud_layer_never_carries_it(self, mock_pygame):
-        """HUD mode is video mode: this window is a see-through layer over
+        """HUD mode is kino mode: this window is a see-through layer over
         The main player's, and a line drawn here would float over the main player's video."""
         view = _view(width=800, height=600)
         view.window.window.size = (800, 600)

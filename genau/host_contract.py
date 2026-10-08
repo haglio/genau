@@ -46,7 +46,7 @@ RECT_FIELDS = ("x", "y", "width", "height")
 #: The files the session and this app trade through: the first three are the
 #: host writing to this app (its verbs, its pause, the console panel it draws
 #: here), the next two this app publishing back (the drive readout the main
-#: player draws in video mode, what the hand is doing), and the last is where a
+#: player draws in kino mode, what the hand is doing), and the last is where a
 #: press on that console posts the host's command.  Every one is NAMED by the
 #: host: this app resolving them from its own config wrote them into this repo,
 #: where the host was never looking.
@@ -82,7 +82,7 @@ LATEST_FLAG = "--latest"
 TITLE_FLAG = "--title"
 VIDEO_TITLE_FLAG = "--video-title"
 WINDOW_TITLE = "Genau"
-VIDEO_WINDOW_TITLE = "Video Main Player+Genau"
+VIDEO_WINDOW_TITLE = "Kino Main Player+Genau"
 
 #: What sits beside the folder of clips this app plays: the pile a condemned
 #: clip is moved to.  Read off the rule itself (``player_core.clip_folder``)
