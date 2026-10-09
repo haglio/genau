@@ -1,31 +1,32 @@
-# Genau
+# Genau — Project-Specific Instructions
+
+Shared rules are in the global `~/.claude/CLAUDE.md`. This file holds only what
+is particular to this repo.
+
+## What this repo is
+
+Genau runs on Fun Time's Main Player (`../fun_time`: `main_player/genau.py` on
+the desktop, `fun_time_vr/genau_role.py` in the headset) over the engine in
+`../player_core`. This repo ships no code: it is the venv the Main Player runs
+out of, pinned to the `player_core` that player was built against, and the home
+of Genau's settings (`genau_config.json`, with `genau_config.example.json` as its
+template) and of the clips-folder layout it promises the apps that fill the
+folder (`genau_contract.json`). A change to Genau belongs in one of those two
+repos.
 
 ## Running tests
 
-Always use the project venv — its dependencies (`pygame-ce`, the sibling packages) are not installed system-wide and will cause import errors if you use the bare `python` interpreter.
+Always use the project venv:
 
 ```bash
-"C:/path/to/suite-root/projects/genau/.venv/Scripts/python.exe" -m pytest tests/ -v
+"…/genau/.venv/Scripts/python.exe" -m pytest tests/ -v
 ```
 
-In a worktree, the `.venv` does not exist locally — use the absolute path above (it points to the main repo's venv, which is fine for running tests).
+In a worktree the `.venv` does not exist locally — use the main checkout's.
 
-## The shared repos
+## Installing
 
-None of these apps may reach into another's repo. What they share lives in
-siblings installed editable into this venv, and a change to any of it belongs
-there, not here: `../player_core` (playback engine, playlist format, the
-orchestrator's command/paused file channel, the status writer -- and Genau's
-whole engine, from the clip folder to the tick and the verbs it answers, which
-this repo's `genau/` only puts a pygame window around), `../app_support`
-(logging setup and exception hooks, `start_daemon_thread`,
-`preparse_config_path`, `hidden_subprocess_kwargs`), `../shared_ui` (design
-tokens, Qt widgets, and the family's icon geometry -- which the HUDs draw
-through its Pillow renderer, so a mark on a HUD is the same mark the desktop
-apps paint; importing it brings no Qt into a player).
-
-**Install each with `--config-settings editable_mode=compat`**, and this repo the
-same way:
+Every sibling, and this repo, with `--config-settings editable_mode=compat`:
 
 ```bash
 "…/genau/.venv/Scripts/python.exe" -m pip install -e ../player_core --config-settings editable_mode=compat
@@ -33,46 +34,17 @@ same way:
 "…/genau/.venv/Scripts/python.exe" -m pip install -e . --config-settings editable_mode=compat
 ```
 
-Without it, setuptools' default editable install resolves submodules through a
-meta-path finder pointed at the **main checkout**, so a worktree's own `genau/`
-is half-shadowed: a module you deleted or edited there keeps
-resolving to the main tree, and the suite goes green on code you are not
-running. `player_core`'s `tests/test_install.py` catches its half of this.
+Without it, setuptools' default editable install resolves a sibling's submodules
+through a meta-path finder pointed at the **main checkout**, so a worktree a
+session names is half-shadowed: a module edited there keeps resolving to the
+main tree. `player_core`'s `tests/test_install.py` catches its half of this.
 
-## Test fixtures must be fabricated, never copied from the real library
+## Moving the player_core pin
 
-Every fixture value that stands in for library data — a video title, a filename,
-a performer or studio name, prompt text — must be **invented**. Never paste a
-real one out of the media library to make a test feel realistic.
-
-This is not a style note. It is the single thing that has actually leaked private
-data into these repos: an agent writing a test reached for a real filename or
-performer name because it was handy, and it rode into a public commit. Nothing in
-the app's *design* pulls library text into source — the library lives outside
-every repo, read at runtime through the git-ignored overlays — so this habit is
-the only remaining path for a real name to get committed, and the only thing
-stopping it is you following this rule.
-
-Do not lean on the sanitize guard to catch it. `app_support.sanitize` fails
-the suite when a **known** blocked term appears in the tracked tree, but a brand-
-new performer name it has never seen passes every check and lands. The guard is a
-backstop for names already known; it cannot see the next one.
-
-So fabricate fully. Use `Jane Doe`, `Example Studio`, `scene one`, the
-`alpha`/`beta`/`gamma` act placeholders the committed `content.example.json`
-already uses. The near miss that still counts: taking a real filename and
-changing a character or two — it is still that clip, still that performer. Make
-it up from scratch, don't lightly edit a real one.
-
-## Showing him a branch before it lands
-
-A genau branch can be judged in a real session first: fun_time's
-branch-verification flow (fun_time/CLAUDE.md, "Get his eyes on the branch") runs
-Genau out of the checkouts a fun_time worktree names in its own
-`state/genau_project_dirs.txt`. The laws about that chain live there — prove the
-chain at handoff time (`--shortcut` prints the checkouts the next launch will
-carry), never write checkout pins into his real config, and name a player_core
-checkout beside yours only when that repo changed too.
+The Main Player imports `player_core` out of this venv, so a Fun Time change
+that needs a new `player_core` name lands in this order: `player_core` tags a
+version, this repo takes the tag and the venv is reinstalled, then Fun Time's
+own pin moves (fun_time/CLAUDE.md says the same from its side).
 
 ## Landing — GitHub merge queue, not local ff-merge
 

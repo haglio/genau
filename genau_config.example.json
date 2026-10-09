@@ -1,5 +1,4 @@
 {
-  "state_dir": "state",
   "genau": {
     "shuffle_on_load": true,
     "beats_per_loop": 1.0,
@@ -7,11 +6,6 @@
     "bpm_smoothing": 0.14,
     "sync_strength": 0.35,
     "udp_host": "127.0.0.1",
-    "udp_port": 50555,
-    "notify_host": "127.0.0.1",
-    "notify_port": 50556,
-    "resize_debounce_ms": 120,
-    "tcode_udp_host": "127.0.0.1",
-    "tcode_udp_port": 50557
+    "udp_port": 50555
   }
 }

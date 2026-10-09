@@ -1,39 +1,9 @@
 {
-  "module": "genau",
-  "required_flags": [
-    "--config",
-    "--clips-folder",
-    "--x",
-    "--y",
-    "--width",
-    "--height",
-    "--icon",
-    "--taskbar-identity",
-    "--title",
-    "--video-title",
-    "--command-file",
-    "--paused-file",
-    "--console-file",
-    "--drive-file",
-    "--status-file",
-    "--dashboard-cmd-file"
-  ],
-  "optional_flags": [
-    "--start-clip",
-    "--latest",
-    "--metadata-dir"
-  ],
-  "window_title": "Genau",
-  "video_window_title": "Kino Main Player+Genau",
-  "beside_the_clips_folder": {
-    "condemned": "weird"
-  },
   "inside_the_clips_folder": {
     "flat": "2D",
     "vr": "VR"
   },
-  "in_the_state_dir": {
-    "log": "genau_listener.log",
-    "crash_log": "genau_crash.log"
+  "beside_the_clips_folder": {
+    "condemned": "weird"
   }
 }

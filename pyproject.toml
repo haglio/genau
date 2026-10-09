@@ -8,62 +8,45 @@ version = "0.1.0"
 # The version every gate runs, and the one the family's machine runs: a floor
 # lower than what a run proves is a promise nothing backs.
 requires-python = ">=3.14"
-# player_core brings python-mpv with it (its DLL lives in
-# %USERPROFILE%\.haglio\libmpv) -- nothing in this repo imports mpv directly.
+# This repo ships no code of its own: it is the venv Fun Time's Main Player runs
+# out of, and these are what that player imports. player_core brings python-mpv
+# (its DLL lives in %USERPROFILE%\.haglio\libmpv), numpy and pillow with it.
 #
 # Every requirement carries a ceiling. Without one each run installs whatever
 # PyPI served that morning, which is how this family's gates came to run a major
-# version of the imaging stack past the one the machines have. Floors are what
-# this repo's venv holds today.
-# The family repos this one runs are named at the tags it was built against
-# rather than left to be whatever checkouts sit beside it. Unpinned, a change
-# landing in one of them reached every consumer the same minute, and one whose
-# other half had not landed turned all of them red at once. Moving to a newer
-# one is this repo's own commit, with its own suite to answer for it.
+# version of the imaging stack past the one the machines have.
+# The family repos this venv holds are named at the tags the Main Player was
+# built against rather than left to be whatever checkouts sit beside it.
+# Unpinned, a change landing in one of them reached every consumer the same
+# minute, and one whose other half had not landed turned all of them red at
+# once. Moving to a newer one is this repo's own commit.
 dependencies = [
     "app-support @ git+https://github.com/haglio/app_support@v0.1.182",
     "player-core @ git+https://github.com/haglio/player_core@v0.1.412",
     "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.159",
-    "numpy>=2.4,<3",
-    "pillow>=12,<13",
     "pygame-ce>=2,<3",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9,<10",
-    "pytest-cov>=7,<8",
     "pytest-timeout>=2.4,<3",
     "ruff==0.16.6",
-    "vulture>=2.16,<3",
 ]
 
-# Declared rather than discovered: Fun Time launches `python -m genau` from
-# this venv without a working directory, so the package must ship in the
-# (editable) install.
-# The family checkouts this one is installed beside. All three, though nothing
-# here imports a shared_ui module: the player_core HUDs this repo does import
-# are painted in the family's colors, so a checkout without shared_ui cannot
-# collect a test. tests/test_dependencies.py holds this list against the tree
-# both ways, counting what a declared sibling needs in turn. None is published,
-# so none can go in [project.dependencies].
+# The family checkouts this venv is installed beside, every one pinned above.
+# tests/test_dependencies.py holds this list against the tree both ways, counting
+# what a declared sibling needs in turn. None is published, so none can go in
+# [project.dependencies] by name alone.
 [tool.haglio]
 siblings = ["app_support", "player_core", "shared_ui"]
 
-[tool.setuptools.packages.find]
-include = ["genau*"]
+[tool.setuptools]
+packages = []
 
 [tool.pytest.ini_options]
-# A ceiling on a hang, not a performance budget. The slowest test on a
-# developer machine is the tracked-tree content scan, but it is not the
-# slowest on a runner: it returns early when no blocklist is reachable, and
-# the blocklist is git-ignored, so a fresh checkout has none. What CI does run
-# longest here are the tests that spawn a child interpreter to import a
-# package the way a launcher would -- a few seconds each on a cold Windows
-# runner. 240 s also leaves the 180 s child guard in tests/test_win32.py
-# reachable, so it fails with its own message. --timeout-method=thread is the
-# half that pays for itself: it dumps the stack of the test that stopped, which
-# turns a stalled required check into a one-line diagnosis.
-# tests/test_timeouts.py holds all three halves of it.
-addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin -p app_support.coverage_gate --cov --cov-report="
+# A ceiling on a hang, not a performance budget; tests/test_timeouts.py holds all
+# three halves of it. --timeout-method=thread dumps the stack of the test that
+# stopped, which turns a stalled required check into a one-line diagnosis.
+addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin"
 testpaths = ["tests"]
