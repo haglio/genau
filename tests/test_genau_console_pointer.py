@@ -8,6 +8,7 @@ test at all.
 from __future__ import annotations
 
 import pytest
+from player_core.loop_dial import DIAL_SIZE, dial_xy
 from player_core.playhead import lower_edge_height
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import CHIP_H, CHIP_W, PAD, SPEAKER_W, chip_xy
@@ -33,6 +34,9 @@ _CHIP_X, _CHIP_Y = chip_xy(win_w=ROW_W, win_h=ROW_H, timeline_h=TIMELINE_HEIGHT)
 ON_THE_SLIDER = _on_the_row(_CHIP_X + (SPEAKER_W + CHIP_W - PAD) // 2,
                             _CHIP_Y + CHIP_H // 2)
 ON_THE_SPEAKER = _on_the_row(_CHIP_X + SPEAKER_W // 2, _CHIP_Y + CHIP_H // 2)
+_DIAL_X, _DIAL_Y = dial_xy(win_w=ROW_W, win_h=ROW_H, timeline_h=TIMELINE_HEIGHT)
+DIAL_TOP = _on_the_row(_DIAL_X + DIAL_SIZE // 2, _DIAL_Y + 3)
+DIAL_QUARTER_PAST = _on_the_row(_DIAL_X + DIAL_SIZE - 3, _DIAL_Y + DIAL_SIZE // 2)
 OFF_THE_ROW = (700, 80)
 
 
@@ -92,17 +96,10 @@ class FakeWindow:
         self.hud_active = hud_active
 
 
-class FakeScrubber:
-    """The clip's row: where along it a press at *px* lands."""
+class FakeRow:
+    """The clip's row: how long its track runs."""
 
-    def __init__(self, asked, *, showing=True):
-        self._asked = asked
-        self._showing = showing
-
-    @staticmethod
-    def fraction_at(px, *, width):
-        x0, x1 = bar_track_x(width)
-        return min(1.0, max(0.0, (px - x0) / max(1, x1 - x0)))
+    interval_ms = 10_000.0
 
 
 def _pointer(tmp_path, *, volume=None, pressed="", dragged="", clip=True,
@@ -112,15 +109,16 @@ def _pointer(tmp_path, *, volume=None, pressed="", dragged="", clip=True,
     chip = FakeChip(asked, volume)
     panel = FakePanel(asked, pressed, dragged, covering=covering,
                       row_rect=row_rect if clip else None)
-    scrubber = FakeScrubber(asked, showing=clip)
-    seeks: list[float] = []
+    loops: list[float] = []
+    times: list[float] = []
     window = FakeWindow(hud_active=hud_active)
     if size is not None:
         window.size = size
-    pointer = ConsolePointer(panel, chip, scrubber,
-                             window=window,
-                             dashboard_cmd_file=_posted(tmp_path), seek=seeks.append)
-    pointer.seeks = seeks
+    pointer = ConsolePointer(panel, chip, FakeRow(),
+                             window=window, dashboard_cmd_file=_posted(tmp_path),
+                             seek_loop=loops.append, seek_time=times.append)
+    pointer.loops = loops
+    pointer.times = times
     return pointer, chip, panel, asked
 
 
@@ -239,16 +237,17 @@ class TestDraggingAndLettingGo:
 
 
 class TestAPressOnTheClipsOwnTrack:
-    """The track seeks, and goes on seeking while the pointer is held.  The
-    frame is a picture of where the device is, so the seek moves the device --
-    which is why it goes to the engine rather than out as a console command."""
+    """The track runs the time the clip has had of its turn on screen, and a
+    press along it puts the clip that far in -- which goes to the engine, whose
+    clip advance owns the count, rather than out as a console command."""
 
-    def test_a_press_along_the_track_seeks(self, tmp_path):
+    def test_a_press_along_the_track_seeks_the_time_on_screen(self, tmp_path):
         pointer, _chip, _panel, asked = _pointer(tmp_path)
 
         pointer.press(*TRACK_MIDDLE)
 
-        assert pointer.seeks == [pytest.approx(0.5, abs=0.01)]
+        assert pointer.times == [pytest.approx(5.0, abs=0.1)]
+        assert pointer.loops == []
         assert asked == []  # neither the chip nor the panel was asked
 
     def test_a_drag_after_it_goes_on_seeking_and_letting_go_stops(self, tmp_path):
@@ -259,7 +258,7 @@ class TestAPressOnTheClipsOwnTrack:
         pointer.release()
         pointer.drag(*TRACK_START)
 
-        assert pointer.seeks == [0.0, pytest.approx(0.5, abs=0.01)]
+        assert pointer.times == [0.0, pytest.approx(5.0, abs=0.1)]
         # Let go, and a drag is the panel's business again.
         assert _posted(tmp_path).read_text(encoding="utf-8").split() == ["speed_up"]
 
@@ -268,17 +267,39 @@ class TestAPressOnTheClipsOwnTrack:
 
         pointer.press(*TRACK_MIDDLE)
 
-        assert pointer.seeks == []
+        assert pointer.times == []
         assert _posted(tmp_path).read_text(encoding="utf-8").split() == ["main_lock"]
 
     def test_a_press_on_the_readout_neither_seeks_nor_pauses_the_room(self, tmp_path):
-        """The panel is narrower than the window, so the frame count takes a
-        line of its own above the track: a press on it is neither of them."""
+        """The panel is narrower than the window, so the time takes a line of
+        its own above the track: a press on it is neither of them."""
         pointer, _chip, _panel, _asked = _pointer(tmp_path)
 
         pointer.press(*_on_the_row(20, 4))
 
-        assert pointer.seeks == []
+        assert pointer.times == [] and pointer.loops == []
         assert _lines(_posted(tmp_path)) == []
 
 
+class TestAPressOnTheDial:
+    """The dial goes round once per loop of the clip, and a press on it puts the
+    loop (and the device, whose picture the frame is) at that point."""
+
+    def test_a_press_on_the_dial_seeks_the_loop(self, tmp_path):
+        pointer, _chip, _panel, asked = _pointer(tmp_path)
+
+        pointer.press(*DIAL_QUARTER_PAST)
+
+        assert pointer.loops == [pytest.approx(0.25, abs=0.02)]
+        assert pointer.times == []
+        assert asked == []
+
+    def test_a_drag_round_it_goes_on_seeking_the_loop(self, tmp_path):
+        pointer, _chip, _panel, _asked = _pointer(tmp_path)
+
+        pointer.press(*DIAL_TOP)
+        pointer.drag(*DIAL_QUARTER_PAST)
+        pointer.release()
+        pointer.drag(*DIAL_TOP)
+
+        assert pointer.loops == [pytest.approx(0.0, abs=0.02), pytest.approx(0.25, abs=0.02)]

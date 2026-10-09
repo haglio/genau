@@ -46,7 +46,7 @@ from player_core.robot_hand_beat import BeatEngine
 from player_core.robot_hand_driver import RobotHandTCodeDriver
 from player_core.tcode import UdpTCodeSink
 
-from .clip_scrubber import ClipScrubber
+from .clip_row import ClipRow
 from .config import load_config
 from .console_panel import ConsolePanel
 from .console_pointer import ConsolePointer
@@ -305,7 +305,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
     # objects the view paints: what is clickable is exactly what was drawn.
     console_panel = ConsolePanel()
     volume_chip = VolumeChip()
-    clip_scrubber = ClipScrubber()
+    clip_row = ClipRow()
     view = PygameView(
         width=args.width,
         height=args.height,
@@ -313,7 +313,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         y=args.y,
         console=console_panel,
         volume=volume_chip,
-        scrubber=clip_scrubber,
+        clip_row=clip_row,
         icon_path=Path(args.icon),
         title=args.title,
         video_title=args.video_title,
@@ -347,7 +347,7 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         clip_sequence, clip_store, view, notifier, clips_folder, logger)
     renderer, loader, selection = (
         pipeline.renderer, pipeline.loader, pipeline.selection)
-    clip_scrubber.follow(renderer)
+    clip_row.follow(renderer, drive.clip_advance)
 
     controls = GenauControls(
         engine=engine,
@@ -398,9 +398,10 @@ def run_listener(args, config, logger: logging.Logger) -> int:
         now_source=clock,
         dashboard_cmd_file=dashboard_cmd_file,
         console_pointer=ConsolePointer(
-            console_panel, volume_chip, clip_scrubber,
+            console_panel, volume_chip, clip_row,
             window=view.window, dashboard_cmd_file=dashboard_cmd_file,
-            seek=refresh_controller.seek_the_clip),
+            seek_loop=refresh_controller.seek_the_clip,
+            seek_time=refresh_controller.seek_the_time_on_screen),
     )
 
     logger.info("Loaded %s clips from %s", selection.count, clips_folder)

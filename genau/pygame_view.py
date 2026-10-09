@@ -17,7 +17,7 @@ import numpy as np
 import pygame
 from pygame._sdl2.video import Texture
 
-from .clip_scrubber import ClipScrubber
+from .clip_row import ClipRow
 from .console_panel import ConsolePanel
 from .host_contract import WINDOW_TITLE
 from .layout import compute_video_rects
@@ -35,7 +35,7 @@ class PygameView:
         y: int = 0,
         console: ConsolePanel,
         volume: VolumeChip,
-        scrubber: ClipScrubber,
+        clip_row: ClipRow,
         title: str = WINDOW_TITLE,
         icon_path: Path | None = None,
         video_title: str | None = None,
@@ -51,11 +51,10 @@ class PygameView:
         self._loading_text: str | None = None
         # What this window draws over its clip in genau mode, built where the app
         # is wired so that what is drawn and what the pointer presses are the same
-        # objects.  The scrubber is drawn and never pressed: a loop has no time to
-        # seek to, and the bar says where the Robot Hand has taken it.
+        # objects.
         self._console = console
         self._volume = volume
-        self._scrubber = scrubber
+        self._clip_row = clip_row
 
     @property
     def hud_active(self) -> bool:
@@ -105,7 +104,7 @@ class PygameView:
         # see-through layer over the main player's and the main player draws the console over its own
         # video.  Drawing it here too would put the same console on screen twice.
         if not self.hud_active and self._console.showing:
-            self._console.show_row(self._scrubber.row(self._volume.shown))
+            self._console.show_row(self._clip_row.hud(self._volume.shown))
             self._draw_console()
         self.renderer.present()
 

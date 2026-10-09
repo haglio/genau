@@ -9,21 +9,22 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from player_core.clip_advance import ClipAdvanceState
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud, hud_xy
 from player_core.hud_placement import HudCorner
 
 import genau.pygame_view as pv
-from genau.clip_scrubber import ClipScrubber
+from genau.clip_row import ClipRow
 from genau.console_panel import ConsolePanel
 from genau.pygame_view import PygameView
 from genau.volume_chip import VolumeChip
 
 
 def _view(**geometry):
-    """A view over its own console, chip and scrubber, the way the app builds one."""
+    """A view over its own console, chip and clip row, the way the app builds one."""
     return PygameView(
-        console=ConsolePanel(), volume=VolumeChip(), scrubber=ClipScrubber(), **geometry)
+        console=ConsolePanel(), volume=VolumeChip(), clip_row=ClipRow(), **geometry)
 
 
 def test_hud_mode_defaults_to_false(mock_pygame):
@@ -112,7 +113,7 @@ def test_genau_draws_the_console_carrying_the_clips_row_when_it_owns_the_screen(
     view._present_scene()
 
     view._draw_console.assert_called_once()
-    view._console.show_row.assert_called_once_with(view._scrubber.row(
+    view._console.show_row.assert_called_once_with(view._clip_row.hud(
         view._volume.shown))
 
 
@@ -193,8 +194,9 @@ def test_a_console_in_a_lower_corner_sits_against_the_windows_edge(mock_pygame):
     """The clip's track rides on the panel now, so nothing is drawn along the
     lower edge for a panel against it to clear."""
     view = _view(width=800, height=600)
-    view._scrubber.follow(SimpleNamespace(
-        current_frame_index=5, current_clip_entry=lambda: {"frames": [object()] * 20}))
+    view._clip_row.follow(SimpleNamespace(
+        current_frame_index=5, current_clip_entry=lambda: {"frames": [object()] * 20}),
+        ClipAdvanceState())
     _showing(view, HudCorner.LOWER_LEFT)
 
     view._draw_console()
