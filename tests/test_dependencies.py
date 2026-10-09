@@ -1,11 +1,10 @@
 """What this repo needs is what its pyproject says, in each of the ways it says it.
 
-A package that imports something nobody declared works on the machine that
-happened to have it and dies on the merge gate, which installs exactly what the
-pyproject says; so does a version nobody bounded, a sibling checkout nobody
-recorded, and a Python floor no run proves.  The gates are the family's
-(``app_support.dependencies``); what is here is which packages are this repo's
-own and which trees to read.
+This repo holds no code of its own: it is the venv Fun Time's Main Player runs
+out of, so what it declares is what that player imports, and what is checked
+here is the declaring -- a version nobody bounded, a sibling nobody pinned, a
+Python floor no run proves.  The gates are the family's
+(``app_support.dependencies``); what is here is which trees to read.
 """
 from __future__ import annotations
 
@@ -20,13 +19,11 @@ from app_support.dependencies import (
 )
 
 ROOT = Path(__file__).resolve().parent.parent
-TREES = [ROOT / "genau", ROOT / "tests", ROOT / "tools",
-         ROOT / "vulture_whitelist.py"]
+TREES = [ROOT / "tests", ROOT / "tools"]
 
 
 def test_every_third_party_import_is_declared():
-    assert_every_import_is_declared(
-        ROOT, [ROOT / "genau"], ROOT / "pyproject.toml", local=("genau",))
+    assert_every_import_is_declared(ROOT, TREES, ROOT / "pyproject.toml")
 
 
 def test_every_requirement_has_an_upper_bound():

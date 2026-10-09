@@ -28,12 +28,6 @@ htmlcov/
 
 # --- genau's own ---
 
-# Where the app keeps what it is doing.
-state/
-
-# libmpv binary (fetched locally, not committed — see README)
-vendor/
-
-# Private overlays — real values live here and never get published; each has
-# a committed *.example.* template documenting its shape.
+# Genau's settings: real values live here and never get published;
+# genau_config.example.json is the committed template documenting its shape.
 /genau_config.json

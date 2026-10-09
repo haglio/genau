@@ -1,25 +1,26 @@
 # Genau
 
-A pygame window around the family's clip player: short clips, scrubbed to
-wherever the OSR2 is as the Robot Hand drives it over T-Code.
+Genau plays short clips scrubbed to wherever the OSR2 is as the Robot Hand
+drives it over T-Code. It runs on Fun Time's Main Player (`../fun_time`): the
+window is the Main Player's, Kino and Genau take turns on it, and Fun Time's
+mode switch tells the window which of the two to show. Genau's engine -- the
+clips, the tick, the verbs it answers, the hand's driver -- lives in
+`../player_core`; what runs it on the Main Player is `fun_time`'s
+`main_player/genau.py`, and in the headset `fun_time_vr/genau_role.py`.
 
-It runs only as a window inside **Fun Time**, the orchestrator in a sibling
-repo, sharing the main slot with Fun Time's own main player. Which of the two
-owns the slot is Fun Time's decision, and both are told so over the file
-channel below. Genau's engine -- the clips, the tick, the
-verbs it answers, the hand's driver -- lives in `../player_core`, because Fun
-Time's VR session runs the same engine in-process for its genau mode; what is
-here is the window.
+This repo ships no code of its own. It is two things.
 
-## Installing
+## The venv the Main Player runs out of
 
-Everything shared with the rest of the family lives in sibling repos installed
-editable into this venv: `player_core` (playback, the file channel, the status
-writer), `app_support` (logging, threading, CLI preparsing) and `shared_ui`
-(design tokens and the family's icon geometry).
+Fun Time launches the Main Player as `python -m main_player` out of this repo's
+`.venv` (`paths.genau_python_exe` in its config), so `pyproject.toml` names what
+that player imports: `player_core` at the tag the Main Player was built against,
+with `app_support` and `shared_ui` beside it, and `pygame-ce`. A Fun Time change
+that makes the Main Player import a new `player_core` name moves the pin here
+first, and this venv is reinstalled, before Fun Time's own pin moves.
 
-**Install every one of them with `--config-settings editable_mode=compat`, this
-repo included:**
+Install every sibling with `--config-settings editable_mode=compat`, and this
+repo the same way:
 
 ```
 .venv/Scripts/python.exe -m pip install -e ../player_core --config-settings editable_mode=compat
@@ -27,68 +28,38 @@ repo included:**
 .venv/Scripts/python.exe -m pip install -e . --config-settings editable_mode=compat
 ```
 
-Without it, setuptools resolves submodules through a meta-path finder pointed at
-the main checkout, so a worktree's own `genau/` is half-shadowed: a
-module you edited there keeps resolving to the main tree, and the suite goes
-green on code you are not running.
+Without it, setuptools' default editable install resolves a sibling's submodules
+through a meta-path finder pointed at that sibling's main checkout, so a
+worktree a session names is half-shadowed: a module edited there keeps
+resolving to the main tree.
 
-## Configuring
+## Genau's settings
 
-`genau_config.json` is git-ignored — it names real paths on a real machine.
-`genau_config.example.json` is its committed template and documents every key:
-`state_dir`, where the logs go, and a `genau` section for Genau's own settings.
-Everything else -- the clips folder, the window's rect and captions, and the
-files of the channel below -- Fun Time names on the command line of every
-launch, and a launch that leaves one out is refused.
+`genau_config.json` is git-ignored -- it is his. `genau_config.example.json` is
+its committed template: a `genau` section with the numbers the engine is tuned
+with (beats per loop, smoothing, sync strength, the clip cache, shuffle on load)
+and where the OSR2 broker publishes its beat. Fun Time hands the file to the
+Main Player on every launch (`--genau-config`); everything else Genau needs --
+the clips folder, the files of its channel -- Fun Time names on that same
+command line.
 
-The clips folder holds a `2D` folder, whose clips this window plays, and a `VR`
-folder, whose clips only the headset plays; `genau_contract.json` says so for
-the apps that fill it. A clip marked weird moves to the same place in the
-`weird` folder beside the clips folder.
-
-Relative paths in it are resolved against the config file, not against whatever
-directory a shortcut happened to start the app in.
+The clips folder holds a `2D` folder, whose clips the Main Player plays, and a
+`VR` folder, whose clips only the headset plays; a clip marked weird moves to
+the same place in the `weird` folder beside the clips folder.
+`genau_contract.json` says so for the apps that fill the folder (Evolver holds
+its delivery and its condemned pile to it), and `tests/test_genau_contract.py`
+holds the document to `player_core.clip_folder`, where the layout is decided.
 
 ## The orchestrator channel
 
-Four files in `state_dir`, and they are a contract with Fun Time rather than an
-internal detail. Genau **receives** on the first two and **publishes** the last
-two:
-
-| File | Direction | What it carries |
-| --- | --- | --- |
-| `genau_cmd.txt` | Fun Time writes, Genau drains | One verb per line — `PAUSE`, `SPEED 90`, `HUD_ON`. The accepted set is `player_core.genau_controls`. |
-| `genau_paused.txt` | Fun Time writes, Genau polls | Whether the room is paused, while the broker is driving. |
-| `genau_status.txt` | Genau writes, Fun Time reads | What the hand is doing: cruise, human-inspired motion, lock, clip, shape, and which arrows are at their limits. |
-| `genau_drive.txt` | Genau writes, the main player reads | The drive readout, so the main player's console can draw the numbers Genau is driving with. |
-
-**Every verb string and every status field name is a contract.** Renaming one
-breaks the orchestrator with no error on either side — an unknown verb is logged
-and ignored, and a renamed field reads as absent. `tests/test_genau_vocabulary.py`
-writes both sets down and gates them from two sides, so a change to either has
-to be a deliberate line in a diff.
-
-## Adding a control
-
-One record in `player_core/genau_controls.py`, and one line in this repo's
-`tests/test_genau_vocabulary.py` saying it is now part of the contract:
-
-```python
-Control(
-    name="speed",
-    needs=("robot_hand",),
-    verbs=(
-        Verb("SPEED_DOWN", _stepper(-5)),
-        Verb("SPEED_UP", _stepper(5)),
-        Verb("SPEED", _number_setter(set_speed), takes_a_value=True),
-    ),
-)
-```
-
-That is the verb the orchestrator sends and what the control cannot act without,
-in one place. The dispatcher and the wiring both read it; neither needs editing.
-The window answers no keys of its own: Fun Time's hotkeys are the keyboard for
-the whole room, and a key reaches Genau as the verb Fun Time sends for it.
+Genau still receives and publishes on files of its own in Fun Time's state
+directory, beside the Main Player's: `genau_cmd.txt` (Fun Time writes, Genau
+drains -- one verb per line, the set in `player_core.genau_controls`),
+`genau_paused.txt` (whether the room is paused), `genau_status.txt` (what the
+hand is doing: cruise, human-inspired motion, lock, clip, shape, which arrows are
+at their limits) and `genau_drive.txt` (the drive readout the console draws).
+Every verb and every field name is a contract between `player_core` and
+`fun_time`, gated in those repos.
 
 ## Running the tests
 
