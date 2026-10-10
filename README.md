@@ -52,7 +52,7 @@ its delivery and its condemned pile to it), and `tests/test_genau_contract.py`
 holds the document to `player_core.flick_folder`, where the layout is decided.
 Each section is there twice, under its name from before the rename too
 (`inside_the_clips_folder`, `beside_the_clips_folder`), until no checkout of
-Evolver or Clipper reads those.
+Evolver or Genaumacher reads those.
 
 ## The orchestrator channel
 

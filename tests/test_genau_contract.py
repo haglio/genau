@@ -6,7 +6,7 @@ checkout's root (its own tests/test_genau_contract.py).  The layout itself is
 player_core's, which the Main Player runs Genau on, so the document is held here
 to ``player_core.flick_folder`` and rewritten by hand when that moves.  Each
 section is published under its name from before the rename as well, for the
-checkouts of Evolver and Clipper that still read that one.
+checkouts of Evolver and Genaumacher that still read that one.
 """
 from __future__ import annotations
 
