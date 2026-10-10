@@ -1,4 +1,11 @@
 {
+  "inside_the_flicks_folder": {
+    "flat": "2D",
+    "vr": "VR"
+  },
+  "beside_the_flicks_folder": {
+    "condemned": "weird"
+  },
   "inside_the_clips_folder": {
     "flat": "2D",
     "vr": "VR"
