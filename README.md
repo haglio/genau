@@ -1,10 +1,10 @@
 # Genau
 
-Genau plays short clips scrubbed to wherever the OSR2 is as the Robot Hand
+Genau plays flicks, short videos scrubbed to wherever the OSR2 is as the Robot Hand
 drives it over T-Code. It runs on Fun Time's Main Player (`../fun_time`): the
 window is the Main Player's, Kino and Genau take turns on it, and Fun Time's
 mode switch tells the window which of the two to show. Genau's engine -- the
-clips, the tick, the verbs it answers, the hand's driver -- lives in
+flicks, the tick, the verbs it answers, the hand's driver -- lives in
 `../player_core`; what runs it on the Main Player is `fun_time`'s
 `main_player/genau.py`, and in the headset `fun_time_vr/genau_role.py`.
 
@@ -37,15 +37,16 @@ resolving to the main tree.
 
 `genau_config.json` is git-ignored -- it is his. `genau_config.example.json` is
 its committed template: a `genau` section with the numbers the engine is tuned
-with (beats per loop, smoothing, sync strength, the clip cache, shuffle on load)
+with (beats per loop, smoothing, sync strength, the flick cache, shuffle on load)
 and where the OSR2 broker publishes its beat. Fun Time hands the file to the
 Main Player on every launch (`--genau-config`); everything else Genau needs --
-the clips folder, the files of its channel -- Fun Time names on that same
+the flicks folder, the files of its channel -- Fun Time names on that same
 command line.
 
-The clips folder holds a `2D` folder, whose clips the Main Player plays, and a
-`VR` folder, whose clips only the headset plays; a clip marked weird moves to
-the same place in the `weird` folder beside the clips folder.
+The flicks folder holds a `2D` folder, whose flicks the Main Player plays, and a
+`VR` folder, whose flicks only the headset plays; a flick marked weird moves to
+the same place in the `weird` folder beside the flicks folder. What the folder
+is called on disk is his, and Fun Time names it on the command line.
 `genau_contract.json` says so for the apps that fill the folder (Evolver holds
 its delivery and its condemned pile to it), and `tests/test_genau_contract.py`
 holds the document to `player_core.clip_folder`, where the layout is decided.
@@ -56,7 +57,7 @@ Genau still receives and publishes on files of its own in Fun Time's state
 directory, beside the Main Player's: `genau_cmd.txt` (Fun Time writes, Genau
 drains -- one verb per line, the set in `player_core.genau_controls`),
 `genau_paused.txt` (whether the room is paused), `genau_status.txt` (what the
-hand is doing: cruise, human-inspired motion, lock, clip, shape, which arrows are
+hand is doing: cruise, human-inspired motion, lock, flick, shape, which arrows are
 at their limits) and `genau_drive.txt` (the drive readout the console draws).
 Every verb and every field name is a contract between `player_core` and
 `fun_time`, gated in those repos.
