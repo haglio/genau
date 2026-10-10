@@ -10,7 +10,7 @@ the desktop, `fun_time_vr/genau_role.py` in the headset) over the engine in
 `../player_core`. This repo ships no code: it is the venv the Main Player runs
 out of, pinned to the `player_core` that player was built against, and the home
 of Genau's settings (`genau_config.json`, with `genau_config.example.json` as its
-template) and of the clips-folder layout it promises the apps that fill the
+template) and of the flicks-folder layout it promises the apps that fill the
 folder (`genau_contract.json`). A change to Genau belongs in one of those two
 repos.
 
