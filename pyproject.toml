@@ -8,22 +8,22 @@ version = "0.1.0"
 # The version every gate runs, and the one the family's machine runs: a floor
 # lower than what a run proves is a promise nothing backs.
 requires-python = ">=3.14"
-# This repo ships no code of its own: it is the venv Fun Time's Main Player runs
-# out of, and these are what that player imports. player_core brings python-mpv
+# This repo ships no code of its own: it is the venv Fun Time's Main Funestra
+# runs out of, and these are what it imports. player_core brings python-mpv
 # (its DLL lives in %USERPROFILE%\.haglio\libmpv), numpy and pillow with it.
 #
 # Every requirement carries a ceiling. Without one each run installs whatever
 # PyPI served that morning, which is how this family's gates came to run a major
 # version of the imaging stack past the one the machines have.
-# The family repos this venv holds are named at the tags the Main Player was
+# The family repos this venv holds are named at the tags the Main Funestra was
 # built against rather than left to be whatever checkouts sit beside it.
 # Unpinned, a change landing in one of them reached every consumer the same
 # minute, and one whose other half had not landed turned all of them red at
 # once. Moving to a newer one is this repo's own commit.
 dependencies = [
-    "app-support @ git+https://github.com/haglio/app_support@v0.1.182",
-    "player-core @ git+https://github.com/haglio/player_core@v0.1.436",
-    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.167",
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.186",
+    "player-core @ git+https://github.com/haglio/player_core@v0.1.442",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.169",
     "pygame-ce>=2,<3",
 ]
 

@@ -5,10 +5,10 @@ is particular to this repo.
 
 ## What this repo is
 
-Genau runs on Fun Time's Main Player (`../fun_time`: `main_player/genau.py` on
-the desktop, `fun_time_vr/genau_role.py` in the headset) over the engine in
-`../player_core`. This repo ships no code: it is the venv the Main Player runs
-out of, pinned to the `player_core` that player was built against, and the home
+Genau runs on Fun Time's Main Funestra (`../fun_time`: `main_funestra/genau.py`
+on the desktop, `fun_time_vr/genau_in_the_headset.py` in the headset) over the
+engine in `../player_core`. This repo ships no code: it is the venv the Main
+Funestra runs out of, pinned to the `player_core` it was built against, and the home
 of Genau's settings (`genau_config.json`, with `genau_config.example.json` as its
 template) and of the flicks-folder layout it promises the apps that fill the
 folder (`genau_contract.json`). A change to Genau belongs in one of those two
@@ -41,8 +41,8 @@ main tree. `player_core`'s `tests/test_install.py` catches its half of this.
 
 ## Moving the player_core pin
 
-The Main Player imports `player_core` out of this venv, so a Fun Time change
-that needs a new `player_core` name lands in this order: `player_core` tags a
+The Main Funestra imports `funestra_core` out of this venv, so a Fun Time
+change that needs a new name from it lands in this order: `player_core` tags a
 version, this repo takes the tag and the venv is reinstalled, then Fun Time's
 own pin moves (fun_time/CLAUDE.md says the same from its side).
 
