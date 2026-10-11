@@ -7,8 +7,8 @@ is particular to this repo.
 
 Genau runs on Fun Time's Main Funestra (`../fun_time`: `main_funestra/genau.py`
 on the desktop, `fun_time_vr/genau_in_the_headset.py` in the headset) over the
-engine in `../player_core`. This repo ships no code: it is the venv the Main
-Funestra runs out of, pinned to the `player_core` it was built against, and the home
+engine in `../funestra`. This repo ships no code: it is the venv the Main
+Funestra runs out of, pinned to the `funestra` it was built against, and the home
 of Genau's settings (`genau_config.json`, with `genau_config.example.json` as its
 template) and of the flicks-folder layout it promises the apps that fill the
 folder (`genau_contract.json`). A change to Genau belongs in one of those two
@@ -29,7 +29,7 @@ In a worktree the `.venv` does not exist locally — use the main checkout's.
 Every sibling, and this repo, with `--config-settings editable_mode=compat`:
 
 ```bash
-"…/genau/.venv/Scripts/python.exe" -m pip install -e ../player_core --config-settings editable_mode=compat
+"…/genau/.venv/Scripts/python.exe" -m pip install -e ../funestra --config-settings editable_mode=compat
 "…/genau/.venv/Scripts/python.exe" -m pip install -e ../app_support --config-settings editable_mode=compat
 "…/genau/.venv/Scripts/python.exe" -m pip install -e . --config-settings editable_mode=compat
 ```
@@ -37,12 +37,12 @@ Every sibling, and this repo, with `--config-settings editable_mode=compat`:
 Without it, setuptools' default editable install resolves a sibling's submodules
 through a meta-path finder pointed at the **main checkout**, so a worktree a
 session names is half-shadowed: a module edited there keeps resolving to the
-main tree. `player_core`'s `tests/test_install.py` catches its half of this.
+main tree. `funestra`'s `tests/test_install.py` catches its half of this.
 
-## Moving the player_core pin
+## Moving the funestra pin
 
-The Main Funestra imports `funestra_core` out of this venv, so a Fun Time
-change that needs a new name from it lands in this order: `player_core` tags a
+The Main Funestra imports `funestra` out of this venv, so a Fun Time
+change that needs a new name from it lands in this order: `funestra` tags a
 version, this repo takes the tag and the venv is reinstalled, then Fun Time's
 own pin moves (fun_time/CLAUDE.md says the same from its side).
 

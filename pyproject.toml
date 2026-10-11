@@ -9,7 +9,7 @@ version = "0.1.0"
 # lower than what a run proves is a promise nothing backs.
 requires-python = ">=3.14"
 # This repo ships no code of its own: it is the venv Fun Time's Main Funestra
-# runs out of, and these are what it imports. player_core brings python-mpv
+# runs out of, and these are what it imports. funestra brings python-mpv
 # (its DLL lives in %USERPROFILE%\.haglio\libmpv), numpy and pillow with it.
 #
 # Every requirement carries a ceiling. Without one each run installs whatever
@@ -21,9 +21,9 @@ requires-python = ">=3.14"
 # minute, and one whose other half had not landed turned all of them red at
 # once. Moving to a newer one is this repo's own commit.
 dependencies = [
-    "app-support @ git+https://github.com/haglio/app_support@v0.1.192",
-    "player-core @ git+https://github.com/haglio/player_core@v0.1.475",
-    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.179",
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.193",
+    "funestra @ git+https://github.com/haglio/funestra@v0.1.477",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.180",
     "pygame-ce>=2,<3",
 ]
 
@@ -39,7 +39,7 @@ dev = [
 # what a declared sibling needs in turn. None is published, so none can go in
 # [project.dependencies] by name alone.
 [tool.haglio]
-siblings = ["app_support", "player_core", "shared_ui"]
+siblings = ["app_support", "funestra", "shared_ui"]
 
 [tool.setuptools]
 packages = []
