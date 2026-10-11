@@ -22,7 +22,7 @@ requires-python = ">=3.14"
 # once. Moving to a newer one is this repo's own commit.
 dependencies = [
     "app-support @ git+https://github.com/haglio/app_support@v0.1.187",
-    "player-core @ git+https://github.com/haglio/player_core@v0.1.457",
+    "player-core @ git+https://github.com/haglio/player_core@v0.1.472",
     "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.176",
     "pygame-ce>=2,<3",
 ]
