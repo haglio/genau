@@ -42,7 +42,7 @@ main tree. `funestra`'s `tests/test_install.py` catches its half of this.
 ## Moving the funestra pin
 
 A Fun Time change that needs a new `funestra` name moves Fun Time's pin alone:
-the Main Funestra has run out of Fun Time's venv since 2026-10-13, not this one.
+Fun Time has started the Main Funestra from its own venv since 2026-10-13, not from this one.
 This repo's pin moves when its own checks need a newer `funestra`.
 
 ## Landing — GitHub merge queue, not local ff-merge
