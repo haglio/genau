@@ -7,11 +7,11 @@ is particular to this repo.
 
 Genau runs on Fun Time's Main Funestra (`../fun_time`: `main_funestra/genau.py`
 on the desktop, `fun_time_vr/genau_in_the_headset.py` in the headset) over the
-engine in `../funestra`. This repo ships no code: it is the venv the Main
-Funestra runs out of, pinned to the `funestra` it was built against, and the home
-of Genau's settings (`genau_config.json`, with `genau_config.example.json` as its
-template) and of the flicks-folder layout it promises the apps that fill the
-folder (`genau_contract.json`). A change to Genau belongs in one of those two
+engine in `../funestra`, out of Fun Time's own venv. This repo ships no code: it
+is the home of Genau's settings (`genau_config.json`, with
+`genau_config.example.json` as its template) and of the flicks-folder layout it
+promises the apps that fill the folder (`genau_contract.json`), and its venv runs
+nothing but this repo's own checks. A change to Genau belongs in one of those two
 repos.
 
 ## Running tests
@@ -41,10 +41,9 @@ main tree. `funestra`'s `tests/test_install.py` catches its half of this.
 
 ## Moving the funestra pin
 
-The Main Funestra imports `funestra` out of this venv, so a Fun Time
-change that needs a new name from it lands in this order: `funestra` tags a
-version, this repo takes the tag and the venv is reinstalled, then Fun Time's
-own pin moves (fun_time/CLAUDE.md says the same from its side).
+A Fun Time change that needs a new `funestra` name moves Fun Time's pin alone:
+the Main Funestra has run out of Fun Time's venv since 2026-10-13, not this one.
+This repo's pin moves when its own checks need a newer `funestra`.
 
 ## Landing — GitHub merge queue, not local ff-merge
 

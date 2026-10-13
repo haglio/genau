@@ -1,9 +1,8 @@
 """What this repo needs is what its pyproject says, in each of the ways it says it.
 
-This repo holds no code of its own: it is the venv Fun Time's Main Funestra runs
-out of, so what it declares is what it imports, and what is checked
-here is the declaring -- a version nobody bounded, a sibling nobody pinned, a
-Python floor no run proves.  The gates are the family's
+This repo holds no code of its own, so what it declares is what its checks
+import, and what is checked here is the declaring -- a version nobody bounded,
+a sibling nobody pinned, a Python floor no run proves.  The gates are the family's
 (``app_support.dependencies``); what is here is which trees to read.
 """
 from __future__ import annotations
