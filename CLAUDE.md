@@ -7,7 +7,8 @@ is particular to this repo.
 
 Genau runs on Fun Time's Main Funestra (`../fun_time`: `main_funestra/genau.py`
 on the desktop, `fun_time_vr/genau_in_the_headset.py` in the headset) over the
-engine in `../funestra`, out of Fun Time's own venv. This repo ships no code: it
+engine in `../funestra`, and Fun Time starts the Main Funestra from its own
+venv. This repo ships no code: it
 is the home of Genau's settings (`genau_config.json`, with
 `genau_config.example.json` as its template) and of the flicks-folder layout it
 promises the apps that fill the folder (`genau_contract.json`), and its venv runs
