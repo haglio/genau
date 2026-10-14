@@ -10,7 +10,7 @@ Funestra is `fun_time`'s `main_funestra/genau.py`, and in the headset
 `fun_time_vr/genau_in_the_headset.py`.
 
 This repo ships no code of its own. It holds Genau's settings and the layout of
-its flicks folder; the Main Funestra runs out of Fun Time's own venv.
+its flicks folder; Fun Time starts the Main Funestra from its own venv.
 
 ## Genau's settings
 
