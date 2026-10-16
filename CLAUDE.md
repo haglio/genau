@@ -58,10 +58,11 @@ This repo is public at `github.com/haglio/genau` with a merge-queue ruleset on
   `main`, runs the required check, and merges it when green. Don't ff-merge into
   the primary checkout, don't push `main` directly, and never force-push `main`.
 - **The `.git/agent-merge.lock` is retired here** — the GitHub queue serializes.
-- **Sync local checkouts by pulling.** `main` advances only on origin (via the
-  queue), so the primary checkout and worktrees update with
-  `git pull --ff-only origin main`; the running app self-updates the same way.
-  The primary is only ever fast-forwarded — never reset or merged-into.
+- **The production updater moves the primary checkout; never pull it yourself.**
+  `main` advances only on origin (via the queue), and app_support's production
+  updater brings the primary checkout up to it within a few minutes, so
+  worktrees update with `git rebase origin/main` and the primary is never
+  pulled, reset or merged into by hand.
 - **A red required check** (`.github/workflows/merge-gate.yml`) can't land.
 
 Everything else in the global CLAUDE.md — work in a worktree, green tests before
