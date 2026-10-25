@@ -22,9 +22,9 @@ requires-python = ">=3.14"
 # minute, and one whose other half had not landed turned all of them red at
 # once. Moving to a newer one is this repo's own commit.
 dependencies = [
-    "app-support @ git+https://github.com/haglio/app_support@v0.1.202",
-    "funestra @ git+https://github.com/haglio/funestra@v0.1.507",
-    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.202",
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.284",
+    "funestra @ git+https://github.com/haglio/funestra@v0.1.584",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.264",
 ]
 
 [project.optional-dependencies]
@@ -45,8 +45,8 @@ siblings = ["app_support", "funestra", "shared_ui"]
 packages = []
 
 [tool.pytest.ini_options]
-# A ceiling on a hang, not a performance budget; tests/test_timeouts.py holds all
+# A ceiling on a hang, not a performance budget; app_support.clocks holds all
 # three halves of it. --timeout-method=thread dumps the stack of the test that
 # stopped, which turns a stalled required check into a one-line diagnosis.
-addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin"
+addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin -p app_support.clocks.pytest_plugin"
 testpaths = ["tests"]
