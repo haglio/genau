@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from app_support.dependencies import (
     assert_every_dependency_is_bounded,
     assert_every_import_is_declared,
@@ -16,6 +17,8 @@ from app_support.dependencies import (
     assert_every_sibling_is_pinned,
     assert_the_declared_floor_is_the_one_the_gate_runs,
 )
+
+pytestmark = pytest.mark.repo_check
 
 ROOT = Path(__file__).resolve().parent.parent
 TREES = [ROOT / "tests", ROOT / "tools"]
