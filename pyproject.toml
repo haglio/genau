@@ -8,10 +8,8 @@ version = "0.1.0"
 # The version every gate runs, and the one the family's machine runs: a floor
 # lower than what a run proves is a promise nothing backs.
 requires-python = ">=3.14"
-# This repo ships no code of its own, and its venv runs nothing but its own
-# checks, which hold genau_contract.json to funestra's flicks-folder layout.
-# funestra brings python-mpv (its DLL lives in %USERPROFILE%\.haglio\libmpv),
-# numpy and pillow with it.
+# This repository is retired (see README.md), and its venv runs nothing but its
+# own checks of itself.
 #
 # Every requirement carries a ceiling. Without one each run installs whatever
 # PyPI served that morning, which is how this family's gates came to run a major
@@ -23,8 +21,6 @@ requires-python = ">=3.14"
 # once. Moving to a newer one is this repo's own commit.
 dependencies = [
     "app-support @ git+https://github.com/haglio/app_support@v0.1.297",
-    "funestra @ git+https://github.com/haglio/funestra@v0.1.602",
-    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.272",
 ]
 
 [project.optional-dependencies]
@@ -39,7 +35,7 @@ dev = [
 # what a declared sibling needs in turn. None is published, so none can go in
 # [project.dependencies] by name alone.
 [tool.haglio]
-siblings = ["app_support", "funestra", "shared_ui"]
+siblings = ["app_support"]
 
 [tool.setuptools]
 packages = []
