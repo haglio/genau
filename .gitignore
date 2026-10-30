@@ -28,6 +28,6 @@ htmlcov/
 
 # --- genau's own ---
 
-# Genau's settings: real values live here and never get published;
-# genau_config.example.json is the committed template documenting its shape.
+# The settings file this checkout kept, which Fun Time reads for as long as its
+# own config names it; never published.
 /genau_config.json
